@@ -68,10 +68,35 @@ function buildVersion() {
   return versionCache.v;
 }
 
+function decodeEntities(t) { return String(t || '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim(); }
+function meta(html, url) {
+  var m = function (re) { var x = html.match(re); return x ? decodeEntities(x[1]) : ''; };
+  var og = function (prop) { return m(new RegExp('<meta[^>]+property=["\']og:' + prop + '["\'][^>]+content=["\']([^"\']+)', 'i')) || m(new RegExp('<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:' + prop + '["\']', 'i')); };
+  return { url: url, title: og('title') || m(/<title[^>]*>([^<]{1,200})/i), description: (og('description') || m(/<meta[^>]+name=["\']description["\'][^>]+content=["\']([^"\']+)/i)).slice(0, 300), image: og('image'), site: m(/<meta[^>]+property=["\']og:site_name["\'][^>]+content=["\']([^"\']+)/i) };
+}
+
 var server = http.createServer(function (req, res) {
   var url = decodeURIComponent(req.url.split('?')[0]);
 
   if (url === '/api/ping') return json(res, 200, { marathon: true, version: 1, data: 'data/', log: true });
+
+  // link metadata for inspiration items (title, description) — fetched here so the browser is not blocked by CORS
+  if (url === '/api/meta') {
+    var q = new URL(req.url, 'http://x').searchParams.get('url') || '';
+    if (!/^https?:\/\//.test(q)) return json(res, 400, { error: 'http(s) url required' });
+    var lib = q.indexOf('https:') === 0 ? require('https') : require('http');
+    var done = false; function finish(code, obj) { if (done) return; done = true; json(res, code, obj); }
+    try {
+      var r = lib.get(q, { headers: { 'User-Agent': 'Mozilla/5.0 SoloOps/1.0', 'Accept': 'text/html' }, timeout: 6000 }, function (rs) {
+        if (rs.statusCode >= 300 && rs.statusCode < 400 && rs.headers.location) { rs.resume(); var next = new URL(rs.headers.location, q).href; return finish(200, { redirect: next }); }
+        var buf = ''; rs.setEncoding('utf8');
+        rs.on('data', function (c) { buf += c; if (buf.length > 300000) { finish(200, meta(buf, q)); rs.destroy(); } });
+        rs.on('end', function () { finish(200, meta(buf, q)); }); rs.on('error', function () { finish(200, meta(buf, q)); }); rs.on('close', function () { finish(200, meta(buf, q)); });
+      });
+      r.on('timeout', function () { r.destroy(); finish(200, {}); }); r.on('error', function () { finish(200, {}); });
+    } catch (e) { finish(200, {}); }
+    return;
+  }
 
   if (url === '/api/log') {
     var n = parseInt((req.url.split('?')[1] || '').replace(/.*n=(\d+).*/, '$1'), 10) || 40;

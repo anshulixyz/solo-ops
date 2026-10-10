@@ -68,9 +68,13 @@ Schema with every field: `data/SCHEMA.md`. Every data file carries
   ## Prep`. Drafts use `~~remove~~`, `++add++`, `[[instruction for you]]` —
   when a note asks you to edit, answer by editing the text, not by explaining.
 - **Inspiration flow:** the user drops links/ideas/images into the inbox (often
-  by pasting into you first). When asked to "turn inspiration into…", read
-  `inspo list --ws <id>`, propose concrete items, then create them with
-  `inspo use` (keeps the link back) or `add` / `social add` / `scripts add`.
+  by pasting into you first). Items arrive with auto tags (kind, site) and,
+  when the server was running, the page's title and description in `meta`.
+  "Assess new inspiration" = items since the last assessment: say what each
+  is, add tags (`inspo tag ID +a +b`), and recommend what it becomes. When
+  asked to "turn inspiration into…", read `inspo list --ws <id>`, propose
+  concrete items, then create them with `inspo use` (keeps the link back) or
+  `add` / `social add` / `scripts add`.
 - Never delete or reset without the user asking. Every write is logged and
   `revert <id>` undoes it, but say what you changed anyway.
 

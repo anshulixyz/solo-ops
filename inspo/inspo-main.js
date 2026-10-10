@@ -36,12 +36,12 @@
       '<button class="mv del" onclick="removeItem(\'' + esc(x.id) + '\')">Delete</button></div></div>';
   }
   function render() {
-    var items = InspoModel.list(filter);
+    var items = filter.status === 'fresh' ? InspoModel.listNew(filter.ws || '').filter(function (x) { return !filter.tag || x.tags.indexOf(filter.tag) >= 0; }) : InspoModel.list(filter);
     document.getElementById('grid').innerHTML = items.length ? items.map(cardHTML).join('') : '<div class="inspo-empty">Nothing here yet. Type or paste in the strip above, drop anything onto the page, or press ⌘⇧I on any screen.<br>Terminal: <code>node solo.js inspo add "https://… #tag" --ws ' + esc(Config.activeWs()) + '</code></div>';
     var all = InspoModel.getState(); var tags = {}; all.forEach(function (x) { x.tags.forEach(function (t) { tags[t] = (tags[t] || 0) + 1; }); });
     document.getElementById('filters').innerHTML =
       '<select class="meta-sel" onchange="setFilter(\'ws\',this.value)"><option value="">All workspaces</option>' + Config.workspaces().map(function (w) { return '<option value="' + esc(w.id) + '"' + (filter.ws === w.id ? ' selected' : '') + '>' + esc(w.title) + '</option>'; }).join('') + '</select>' +
-      '<select class="meta-sel" onchange="setFilter(\'status\',this.value)"><option value="">New + used</option><option value="new"' + (filter.status === 'new' ? ' selected' : '') + '>New only</option><option value="used"' + (filter.status === 'used' ? ' selected' : '') + '>Used</option><option value="archived"' + (filter.status === 'archived' ? ' selected' : '') + '>Archived</option></select>' +
+      '<select class="meta-sel" onchange="setFilter(\'status\',this.value)"><option value="">New + used</option><option value="fresh"' + (filter.status === 'fresh' ? ' selected' : '') + '>Since last assessment (' + InspoModel.listNew().length + ')</option><option value="new"' + (filter.status === 'new' ? ' selected' : '') + '>New only</option><option value="used"' + (filter.status === 'used' ? ' selected' : '') + '>Used</option><option value="archived"' + (filter.status === 'archived' ? ' selected' : '') + '>Archived</option></select>' +
       Object.keys(tags).sort().map(function (t) { return '<button class="chip' + (filter.tag === t ? ' active' : '') + '" onclick="setFilter(\'tag\',\'' + esc(filter.tag === t ? '' : t) + '\')">#' + esc(t) + ' <span style="opacity:.6">' + tags[t] + '</span></button>'; }).join('') +
       '<span style="margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--muted)">' + items.length + ' of ' + all.length + (selected.size ? ' · ' + selected.size + ' selected' : '') + '</span>';
     document.getElementById('brainstormBtn').textContent = selected.size ? 'Brainstorm with AI (' + selected.size + ')' : 'Brainstorm with AI (visible)';

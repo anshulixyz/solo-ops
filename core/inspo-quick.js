@@ -30,14 +30,16 @@
     ta = bar.querySelector('.capture-in'); wsSel = bar.querySelector('.capture-ws'); thumb = bar.querySelector('.capture-thumb');
     ta.addEventListener('input', grow);
     ta.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(); } if (e.key === 'Escape') { ta.blur(); } });
-    ta.addEventListener('paste', function (e) { var f = imageFrom(e.clipboardData); if (f) { e.preventDefault(); readImage(f); } });
+    ta.addEventListener('paste', function (e) { var f = imageFrom(e.clipboardData); if (f) { e.preventDefault(); saveImageFile(f, ta.value.trim()); ta.value = ''; grow(); } });
     bar.querySelector('.capture-save').onclick = save;
-    bar.querySelector('.capture-img').onclick = function () { var i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; i.onchange = function () { if (i.files[0]) readImage(i.files[0]); }; i.click(); };
+    bar.querySelector('.capture-img').onclick = function () { var i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; i.multiple = true; i.onchange = function () { Array.prototype.forEach.call(i.files, function (f) { saveImageFile(f, ta.value.trim()); }); ta.value = ''; grow(); }; i.click(); };
     bindDrag(); bindPaste();
   }
   function grow() { ta.style.height = 'auto'; ta.style.height = Math.min(160, ta.scrollHeight) + 'px'; }
   function imageFrom(dt) { return Array.prototype.filter.call((dt && dt.files) || [], function (x) { return /^image\//.test(x.type); })[0] || null; }
   function readImage(file) { var r = new FileReader(); r.onload = function () { pendingImage = r.result; thumb.src = pendingImage; thumb.style.display = ''; ta.focus(); }; r.readAsDataURL(file); }
+  // images are saved the moment they arrive; details are optional and can be added later
+  function saveImageFile(file, note) { var r = new FileReader(); r.onload = function () { var it = note ? InspoModel.parseQuick(note, {}) : { tags: [], title: '' }; it.kind = 'image'; it.image = r.result; if (!it.title) it.title = file.name ? file.name.replace(/\.[^.]+$/, '') : ''; add(it); }; r.readAsDataURL(file); }
 
   function add(item) {
     item.ws = item.ws === undefined ? wsSel.value : item.ws; item.source = 'ui';
@@ -56,7 +58,7 @@
   function saveDropped(dt) {
     var files = Array.prototype.slice.call(dt.files || []); var n = 0;
     files.forEach(function (f) {
-      if (/^image\//.test(f.type)) { var r = new FileReader(); r.onload = function () { add({ kind: 'image', image: r.result, title: f.name.replace(/\.[^.]+$/, ''), tags: [] }); }; r.readAsDataURL(f); n++; }
+      if (/^image\//.test(f.type)) { saveImageFile(f, ''); n++; }
       else if (/^text\//.test(f.type) || /\.(md|txt)$/i.test(f.name)) { var r2 = new FileReader(); r2.onload = function () { add(InspoModel.parseQuick(String(r2.result).slice(0, 5000), { title: f.name })); }; r2.readAsText(f); n++; }
     });
     if (n) return;

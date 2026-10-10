@@ -53,6 +53,11 @@
       var w = ws(); var items = InspoModel.list({ status: 'new' }).filter(function (x) { return !x.ws || x.ws === w.id; });
       return items.length ? InspoModel.forAI(items, 'next steps') : '(inbox is empty)';
     } },
+    inspiration_new: { label: 'New inspiration', hint: 'saved since your last assessment', get: function () {
+      if (!global.InspoModel) return ''; if (!InspoModel._inited) { InspoModel.init(); InspoModel._inited = true; }
+      var items = InspoModel.listNew(ws().id); var since = InspoModel.reviewedAt();
+      return items.length ? '# New inspiration since ' + (since ? Activity.ago(since) : 'the start') + ' (' + items.length + ')\n\n' + InspoModel.forAI(items, 'assessment').split('\n').slice(2).join('\n') : '(nothing new since ' + (since ? Activity.ago(since) : 'the start') + ')';
+    } },
     posts: { label: 'Upcoming posts', hint: 'next 14 days with copy and prep', get: function () {
       var w = ws(); var end = new Date(Date.now() + 14 * 86400000); var posts = (Store.getJSON(Config.key('social', w.id), []) || []).filter(function (p) { return p.status !== 'posted' && new Date(p.datetime) <= end; }).sort(function (a, b) { return a.datetime.localeCompare(b.datetime); });
       return posts.length ? '# Upcoming posts (' + posts.length + ')\n\n' + posts.map(post).join('\n\n') : '(no posts in the next 14 days)';
@@ -65,6 +70,6 @@
     // replace every {{token}} in a prompt
     fill: function (text) { return String(text).replace(/\{\{(\w+)\}\}/g, function (m, k) { if (k === 'snapshot') k = 'project'; return C[k] ? C[k].get() : m; }); },
     // the Context menu, with what is most useful on this page first
-    menu: function () { var pg = page(); var order = pg === 'board' ? ['this', 'last_task', 'board', 'recent', 'doing', 'project', 'posts', 'inspiration'] : pg === 'social' ? ['this', 'posts', 'recent', 'doing', 'project', 'inspiration', 'last_task', 'board'] : pg === 'scripts' || pg === 'writing' ? ['this', 'recent', 'inspiration', 'project', 'last_task', 'doing', 'posts', 'board'] : pg === 'inspo' ? ['inspiration', 'recent', 'project', 'doing', 'posts', 'last_task', 'this', 'board'] : ['recent', 'project', 'doing', 'last_task', 'posts', 'inspiration', 'this', 'board']; return order.map(function (k) { return { id: k, label: C[k].label, hint: C[k].hint }; }); }
+    menu: function () { var pg = page(); var order = pg === 'board' ? ['this', 'last_task', 'board', 'recent', 'doing', 'project', 'posts', 'inspiration_new', 'inspiration'] : pg === 'social' ? ['this', 'posts', 'recent', 'doing', 'project', 'inspiration_new', 'inspiration', 'last_task', 'board'] : pg === 'scripts' || pg === 'writing' ? ['this', 'recent', 'inspiration_new', 'inspiration', 'project', 'last_task', 'doing', 'posts', 'board'] : pg === 'inspo' ? ['inspiration_new', 'inspiration', 'recent', 'project', 'doing', 'posts', 'last_task', 'this', 'board'] : ['recent', 'project', 'inspiration_new', 'doing', 'last_task', 'posts', 'inspiration', 'this', 'board']; return order.map(function (k) { return { id: k, label: C[k].label, hint: C[k].hint }; }); }
   };
 })(window);

@@ -194,6 +194,16 @@
         } else if (cmd === 'inspo') {
           var sub3 = (a.pos.shift() || '').toLowerCase();
           if (sub3 === 'add' && global.InspoModel) { if (!InspoModel._inited) { InspoModel.init(); InspoModel._inited = true; } var it = InspoModel.parseQuick(a.pos.join(' '), { ws: c.ws, source: 'agent' }); if (a.flags.tags) it.tags = (it.tags || []).concat(split(a.flags.tags)); if (!dry) InspoModel.add(it); applied.push('inspiration saved: ' + (it.title || it.url)); }
+          else if ((sub3 === 'tag' || sub3 === 'ws' || sub3 === 'archive') && global.InspoModel) {
+            if (!InspoModel._inited) { InspoModel.init(); InspoModel._inited = true; }
+            var q3 = a.pos.filter(function (x) { return !/^[+-]/.test(x); }); var ops3 = a.pos.filter(function (x) { return /^[+-]/.test(x); });
+            var target = sub3 === 'ws' ? q3.slice(0, -1).join(' ') : q3.join(' '); var l3 = target.toLowerCase();
+            var hits = InspoModel.getState().filter(function (x) { return x.id === target || (x.title || '').toLowerCase().indexOf(l3) >= 0; });
+            if (hits.length !== 1) { skipped.push((hits.length ? 'several' : 'no') + ' inspiration items match "' + target + '"'); }
+            else if (sub3 === 'tag') { var tg = hits[0].tags.slice(); ops3.forEach(function (o) { var t3 = o.slice(1).toLowerCase(); if (o[0] === '+' && tg.indexOf(t3) < 0) tg.push(t3); if (o[0] === '-') tg = tg.filter(function (y) { return y !== t3; }); }); if (!dry) InspoModel.update(hits[0].id, { tags: tg }); applied.push('tags #' + tg.join(' #') + ': ' + (hits[0].title || hits[0].url)); }
+            else if (sub3 === 'ws') { var wsId3 = Config.slug(q3[q3.length - 1]); if (!dry) InspoModel.update(hits[0].id, { ws: wsId3 }); applied.push('project ' + wsId3 + ': ' + (hits[0].title || hits[0].url)); }
+            else { if (!dry) InspoModel.update(hits[0].id, { status: 'archived' }); applied.push('archived: ' + (hits[0].title || hits[0].url)); }
+          }
           else skipped.push('inspo ' + sub3 + ' is not supported here');
         } else if (['week', 'today', 'list', 'show', 'log', 'activity', 'boards', 'workspaces', 'config', 'help', 'share', 'review'].indexOf(cmd) >= 0) {
           /* read-only commands: nothing to apply */

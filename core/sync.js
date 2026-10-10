@@ -379,6 +379,8 @@
       return Promise.resolve('');
     },
     attachmentsAvailable: function () { return mode === 'server' || mode === 'folder'; },
+    // link metadata via the server (title, description); null elsewhere
+    meta: function (url) { if (mode !== 'server') return Promise.resolve(null); return fetch('/api/meta?url=' + encodeURIComponent(url), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (j && j.redirect && !j.title) return fetch('/api/meta?url=' + encodeURIComponent(j.redirect)).then(function (r2) { return r2.ok ? r2.json() : null; }); return j; }).catch(function () { return null; }); },
     // describe the latest local change so the log can show "done: Write the README"
     note: function (file, text) { lastNote[file] = text || ''; },
     // change log (server mode only in the browser; the CLI covers every mode)
