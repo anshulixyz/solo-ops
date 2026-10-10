@@ -198,7 +198,7 @@ nav[data-nav] .nav-inspo:hover{background:var(--accent-soft);}
 .guide-head b{font-family:var(--serif,Georgia,serif); font-size:18px;}
 .guide-sub{font-family:var(--mono,monospace); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint);}
 .guide-close{margin-left:auto; width:30px; height:30px; border-radius:8px; border:1px solid var(--line); background:var(--panel-2); color:var(--muted); font-size:18px; cursor:pointer;}
-.guide-body{overflow:auto; padding:6px 16px 24px; font-size:13px; line-height:1.5;}
+.guide-body{flex:1 1 auto; overflow:auto; padding:6px 16px 24px; font-size:13px; line-height:1.5;}
 .guide-body h4{font-family:var(--mono,monospace); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); margin:18px 0 8px; font-weight:500;}
 .guide-body h4 .guide-hint{font-family:var(--body,'Inter',sans-serif); letter-spacing:0; text-transform:none; color:var(--faint); margin-left:6px; font-size:11px;}
 .guide-body p{margin:0 0 8px; color:var(--muted);}
@@ -298,8 +298,9 @@ body.guide-open{overflow:hidden;}
 .guide-prompt.row .gp-t{margin:0; flex:1; font-weight:500; font-size:13px;}
 .guide-prompt.row .gp-n{margin:0; min-width:18px; height:18px; border-radius:9px; background:var(--accent-soft); color:var(--accent); display:inline-flex; align-items:center; justify-content:center; font-size:10px; padding:0 5px;}
 .guide-prompt.row .gp-go{margin:0; font-size:10.5px; color:var(--faint);}
-.guide-prompt.row .gp-d{display:block; padding:0 9px 7px 9px; margin-top:-3px; font-size:11.5px; color:var(--faint); line-height:1.35; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-.guide-prompt.row.open .gp-d{white-space:normal; color:var(--muted);}
+.guide-prompt.row .gp-d{display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; padding:0 9px 7px 9px; margin-top:-3px; font-size:11.5px; color:var(--faint); line-height:1.35; overflow:hidden;}
+.guide-prompt.row.open .gp-d{-webkit-line-clamp:unset; color:var(--muted);}
+.gp-go{color:var(--muted);}
 .guide-prompt.row.open{background:var(--panel-2); border:1px solid var(--accent);}
 .guide-prompt.row.copied{background:var(--green-soft);}
 .guide-prompt.row .gp-form{padding:0 9px;}
@@ -355,3 +356,42 @@ body.guide-open{overflow:hidden;}
 
 .guide-status.warn .dot{background:var(--amber);}
 .guide-status.warn{border-color:var(--amber-line);}
+
+/* ---- Guide v2: agent switch, search, groups, context rows, reply ---- */
+.guide-agent{display:flex; align-items:center; gap:6px; padding:7px 14px; border-bottom:1px solid var(--line); font-size:12px; color:var(--muted); flex:none;}
+.guide-agent > span{font-family:var(--mono,monospace); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); margin-right:4px;}
+.guide-agent button{height:26px; padding:0 10px; border-radius:999px; border:1px solid var(--line); background:var(--panel-2); color:var(--muted); font:inherit; font-size:12px; cursor:pointer;}
+.guide-agent button:hover{border-color:var(--accent); color:var(--accent);}
+.guide-agent button.on{background:var(--accent); border-color:var(--accent); color:var(--on-accent); font-weight:600;}
+.guide-agent em{font-style:normal; font-size:11px; color:var(--amber); margin-left:auto;}
+.guide-agent.flash{background:var(--accent-soft); transition:background .2s;}
+.guide-search-wrap{position:relative; margin:10px 0 4px;}
+.guide-search-wrap svg{position:absolute; left:10px; top:50%; width:14px; height:14px; transform:translateY(-50%); fill:none; stroke:var(--faint); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; pointer-events:none;}
+.guide-search{width:100%; box-sizing:border-box; height:34px; padding:0 10px 0 32px; border:1px solid var(--line); border-radius:10px; background:var(--panel-2); color:var(--ink); font:inherit; font-size:13px;}
+.guide-search:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); background:var(--panel);}
+.guide-search::-webkit-search-cancel-button{-webkit-appearance:none; width:12px; height:12px; background:var(--faint); -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 6l12 12M18 6L6 18' stroke='black' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; cursor:pointer;}
+.guide-body details.guide-sec{margin:8px 0;}
+.guide-body details.guide-sec > summary{padding:8px 10px;}
+.guide-body details.guide-sec > summary .cat-ic{display:inline-flex; width:22px; height:22px; border-radius:7px; background:var(--accent-soft); color:var(--accent); align-items:center; justify-content:center; flex:none;}
+.guide-body details.guide-sec > summary .cat-ic svg{width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
+.guide-body details.guide-sec > summary .cat-sub{font-family:var(--mono,monospace); font-size:10px; letter-spacing:.06em; color:var(--faint); font-weight:400; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.guide-body details.guide-sec > summary .guide-hint{margin-left:auto;}
+.guide-body details.guide-sec > summary .cat-add{margin-left:4px;}
+.guide-body details.guide-sec > .guide-prompt.row{margin-left:4px; margin-right:4px;}
+.guide-body details.guide-sec > .guide-prompt.row:last-of-type{margin-bottom:6px;}
+.guide-body details.guide-sec.small{background:transparent;}
+.guide-body details.guide-sec.small > summary{font-weight:500; font-size:12.5px; color:var(--muted);}
+.guide-body details.guide-sec > p{font-size:12.5px; color:var(--muted); margin:4px 10px 10px;}
+.guide-ctx-row{display:grid; width:calc(100% - 8px); margin:0 4px; text-align:left; padding:7px 9px; border:0; border-radius:8px; background:transparent; color:var(--ink); font:inherit; cursor:pointer; line-height:1.3;}
+.guide-ctx-row:hover{background:var(--panel);}
+.guide-ctx-row b{font-size:13px; font-weight:500;}
+.guide-ctx-row span{font-size:11.5px; color:var(--faint);}
+.guide-ctx-row.copied{background:var(--green-soft);}
+.guide-note{font-size:12px; color:var(--muted); margin:6px 0 8px; line-height:1.45;}
+.guide-log{list-style:none; margin:0 0 6px; padding:0;}
+.guide-log li{display:flex; flex-direction:column; gap:1px; padding:6px 0; border-top:1px solid var(--line-2); font-size:12.5px;}
+.guide-log li:first-child{border-top:0;}
+.guide-log li span{font-family:var(--mono,monospace); font-size:10px; color:var(--faint);}
+.guide-foot-back{flex:1;}
+.guide-foot .guide-foot-snap.copied{background:var(--green); border-color:var(--green); color:#fff;}
+.guide-body > .guide-status{margin-top:10px;}

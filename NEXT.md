@@ -34,23 +34,6 @@ can read back. A page opened by double-click has nothing to revert from.
   step; ⌘Z / ⇧⌘Z when no field is focused; `node solo.js undo` / `redo` in
   the CLI using the same ring exported to `data/undo.json`.
 
-### M2 · Guide redesigned by intent (review in the 2026-10-10 session)
-Three tabs: **Do · Reply · Settings**.
-- *Do*: at most two nudges, then 3–5 prompts for this page, the rest behind
-  collapsed categories with a search box. One line per prompt, no "blanks"
-  pills, hover says exactly what a click does.
-- *Reply*: paste box with a status line ("Daily standup copied 2 min ago,
-  waiting for the reply"), Preview, Apply, and the undo of what was just
-  applied (needs M1).
-- *Settings*: agent mode, Protect your work (status + two buttons), one line
-  about data with Export/Import, the file list behind "details", About.
-- Agent mode as a visible switch in the header ("Runs commands | Chat");
-  in "runs commands" mode the Reply tab becomes "Agent activity".
-- Footer: one primary action that follows the tab. No dropdowns. "Copy
-  context" becomes a row in Do.
-- Plain words on the main surfaces; `node solo.js`, "snapshot", `rm`,
-  `data/*.json` only under Settings → details.
-
 ### M3 · Collaborators through agents, no shared app
 An editor or writer installs Solo Ops, points their agent at the same
 private data repo (`node solo.js backup --remote …`), and the two agents
@@ -81,11 +64,6 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Minor / issues
 
-- **Guide**: prompt descriptions are cut with "…" at panel width; the
-  numeric pills ("1", "2") are unexplained; "→ the Script Viewer" is
-  cryptic. Fixed by M2, but a quick pass is fine before.
-- **Guide → Setup**: the 14-row file list with sizes is developer
-  information; collapse it under "details".
 - **Home**: peeks every workspace file and logs a 404 for apps whose file
   does not exist yet (e.g. `launch-writing.json`). Harmless; skip the peek
   when the app has never been opened.
@@ -114,6 +92,10 @@ QR rendered without a dependency, capture strip and boards usable at
   retake with `docs/screenshots` script when M2 lands.
 
 ## Done
+
+- 2026-10-10 · Guide redesigned by intent (was M2): Do · Reply · Settings,
+  search, visible agent switch, groups collapsed, Reply status line, Settings
+  with details folded away.
 
 - 2026-10-10 · `54bfe7e` Guide tabs work before an agent mode is chosen;
   manifest only over http.

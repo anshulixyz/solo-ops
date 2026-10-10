@@ -1,9 +1,12 @@
 {
+  "version": 1,
+  "updatedAt": "2026-10-10T14:06:24.466Z",
   "projects": [],
   "tasks": [
     {
       "id": "t1",
       "title": "Write the one-line pitch",
+      "desc": "One sentence a stranger understands in five seconds. Everything else points back to it.",
       "proj": "launch",
       "col": "doing",
       "pri": "high",
@@ -11,7 +14,6 @@
         "content",
         "research"
       ],
-      "desc": "One sentence a stranger understands in five seconds. Everything else points back to it.",
       "notes": "",
       "collapsed": true,
       "checklist": [
@@ -36,6 +38,7 @@
     {
       "id": "t2",
       "title": "Landing page with a waitlist form",
+      "desc": "Static page, one form, one screenshot. Ship ugly, then iterate.",
       "proj": "launch",
       "col": "todo",
       "pri": "high",
@@ -43,7 +46,6 @@
         "coding",
         "setup"
       ],
-      "desc": "Static page, one form, one screenshot. Ship ugly, then iterate.",
       "notes": "",
       "collapsed": true,
       "checklist": [
@@ -68,6 +70,7 @@
     {
       "id": "t3",
       "title": "Record a 60-second demo",
+      "desc": "Hook in the first two seconds. Captions burned in. Under 90s.",
       "proj": "content",
       "col": "todo",
       "pri": "high",
@@ -75,7 +78,6 @@
         "video",
         "demo"
       ],
-      "desc": "Hook in the first two seconds. Captions burned in. Under 90s.",
       "notes": "",
       "collapsed": true,
       "checklist": [
@@ -100,6 +102,7 @@
     {
       "id": "t4",
       "title": "Set up the sending domain",
+      "desc": "Keep your personal inbox clean; warm the new one slowly.",
       "proj": "general",
       "col": "todo",
       "pri": "medium",
@@ -107,7 +110,6 @@
         "setup",
         "outreach"
       ],
-      "desc": "Keep your personal inbox clean; warm the new one slowly.",
       "notes": "",
       "collapsed": true,
       "checklist": [
@@ -128,6 +130,7 @@
     {
       "id": "t5",
       "title": "Draft the launch post",
+      "desc": "First-person, honest, technical. No hype words.",
       "proj": "launch",
       "col": "todo",
       "pri": "high",
@@ -135,7 +138,6 @@
         "content",
         "launch"
       ],
-      "desc": "First-person, honest, technical. No hype words.",
       "notes": "",
       "collapsed": true,
       "checklist": [
@@ -160,13 +162,13 @@
     {
       "id": "t6",
       "title": "Collect 20 friendly early users",
+      "desc": "People who said \"tell me when it is ready\". Ask them one specific thing.",
       "proj": "general",
       "col": "todo",
       "pri": "medium",
       "tags": [
         "outreach"
       ],
-      "desc": "People who said \"tell me when it is ready\". Ask them one specific thing.",
       "notes": "",
       "collapsed": true,
       "checklist": [
@@ -187,6 +189,7 @@
     {
       "id": "t7",
       "title": "Daily content cadence",
+      "desc": "One build-in-public post a day, one video every other day.",
       "proj": "content",
       "col": "doing",
       "pri": "medium",
@@ -194,7 +197,6 @@
         "content",
         "daily"
       ],
-      "desc": "One build-in-public post a day, one video every other day.",
       "notes": "",
       "collapsed": true,
       "checklist": [
@@ -215,6 +217,7 @@
     {
       "id": "t8",
       "title": "Pick the recording stack",
+      "desc": "Decided: screen recorder + an editing script + ffmpeg.",
       "proj": "general",
       "col": "done",
       "pri": "medium",
@@ -222,7 +225,6 @@
         "research",
         "video"
       ],
-      "desc": "Decided: screen recorder + an editing script + ffmpeg.",
       "notes": "",
       "collapsed": true,
       "checklist": [
@@ -239,13 +241,13 @@
     {
       "id": "t9",
       "title": "Set up analytics",
+      "desc": "",
       "proj": "general",
       "col": "done",
       "pri": "low",
       "tags": [
         "setup"
       ],
-      "desc": "",
       "notes": "",
       "collapsed": true,
       "checklist": [
@@ -262,13 +264,13 @@
     {
       "id": "t10",
       "title": "Launch day checklist",
+      "desc": "Everything that must be true at 9:00 on launch morning.",
       "proj": "launch",
       "col": "todo",
       "pri": "high",
       "tags": [
         "launch"
       ],
-      "desc": "Everything that must be true at 9:00 on launch morning.",
       "notes": "",
       "collapsed": true,
       "checklist": [
@@ -297,13 +299,13 @@
     {
       "id": "t11",
       "title": "Write a \"how I built this\" thread",
+      "desc": "Five tweets, one screenshot each.",
       "proj": "content",
       "col": "todo",
       "pri": "low",
       "tags": [
         "content"
       ],
-      "desc": "Five tweets, one screenshot each.",
       "notes": "",
       "collapsed": true,
       "checklist": [
@@ -324,6 +326,7 @@
     {
       "id": "t12",
       "title": "Pitch two newsletters",
+      "desc": "One feature beats a week of posting. Offer an exclusive angle.",
       "proj": "launch",
       "col": "later",
       "pri": "medium",
@@ -331,7 +334,6 @@
         "outreach",
         "content"
       ],
-      "desc": "One feature beats a week of posting. Offer an exclusive angle.",
       "notes": "",
       "collapsed": true,
       "checklist": [
@@ -348,13 +350,13 @@
     {
       "id": "t13",
       "title": "Explore a paid tier",
+      "desc": "Only after 100 signups.",
       "proj": "general",
       "col": "later",
       "pri": "low",
       "tags": [
         "research"
       ],
-      "desc": "Only after 100 signups.",
       "notes": "",
       "collapsed": true,
       "checklist": []
@@ -362,13 +364,13 @@
     {
       "id": "t14",
       "title": "Translate the landing page",
+      "desc": "",
       "proj": "general",
       "col": "later",
       "pri": "low",
       "tags": [
         "coding"
       ],
-      "desc": "",
       "notes": "",
       "collapsed": true,
       "checklist": []
@@ -376,6 +378,7 @@
     {
       "id": "t15",
       "title": "Video idea — \"the ugly first version\"",
+      "desc": "Show the first prototype next to today. Honest and funny.",
       "proj": "content",
       "col": "bucket",
       "pri": "medium",
@@ -383,7 +386,6 @@
         "video",
         "content"
       ],
-      "desc": "Show the first prototype next to today. Honest and funny.",
       "notes": "",
       "collapsed": true,
       "checklist": [
@@ -404,6 +406,7 @@
     {
       "id": "t16",
       "title": "Video idea — 3 things I would skip next time",
+      "desc": "",
       "proj": "content",
       "col": "bucket",
       "pri": "low",
@@ -411,7 +414,6 @@
         "video",
         "content"
       ],
-      "desc": "",
       "notes": "",
       "collapsed": true,
       "checklist": []
@@ -419,6 +421,7 @@
     {
       "id": "t17",
       "title": "Demo idea — agent updates the board from the terminal",
+      "desc": "Terminal on the left, board on the right. No clicking.",
       "proj": "content",
       "col": "bucket",
       "pri": "medium",
@@ -426,12 +429,9 @@
         "demo",
         "video"
       ],
-      "desc": "Terminal on the left, board on the right. No clicking.",
       "notes": "",
       "collapsed": true,
       "checklist": []
     }
-  ],
-  "version": 1,
-  "updatedAt": "2026-10-10T09:00:17.344Z"
+  ]
 }

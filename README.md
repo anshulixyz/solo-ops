@@ -68,7 +68,7 @@ steer.** The longer version, and what is coming next, is in
 | **Script Viewer** | Reels/shorts scripts: hook, numbered beats, inserts, prep. Reader view, 9:16 preview, teleprompter. A library of scripts. |
 | **Writing Viewer** | Drafts with `~~cuts~~`, `++adds++` and `[[notes for the AI]]`. Copy for AI, copy clean, change log view, images. |
 | **Inspiration** | An inbox for anything worth keeping. A **capture strip sits under the nav on every page**: type or paste anything and press Enter; drag a link, text or image from anywhere toward the page and drop it; paste with nothing focused. Images save the moment they arrive, details are optional. Every item gets basic information for free: a kind tag, the site as a tag for links, and (with the server running) the page's real title and description. Each save shows a toast with Undo. **Assess new inspiration** hands your agent only what you saved since last time. Tag with a workspace, then **Use as** task / post / script / draft, or **Brainstorm with AI** (copies the items plus instructions for your chat). |
-| **Guide** | The tab on the left edge of every screen (or the `?` key). Pick how your agent works once: **runs commands** (Claude Code, Cursor, Claude Desktop with the folder) or **chat only** (ChatGPT, Claude.ai). Then use the prompts, grouped by routine: daily standup, what should I do now, wrap up the day, weekly review, retro and plan, plan a project from scratch, add tasks from a list, break a task into steps, clean up the board, draft next week's posts, write a script, edit a draft, turn inspiration into work, brainstorm post ideas, undo. Prompts with blanks ask you first. In chat mode every prompt carries a snapshot of your data, and **Apply a reply** previews the agent's answer (command lines or a checklist) as a tick list and applies what you keep — no terminal. **Edit any prompt or add your own** (✎ and + in the Guide, or `node solo.js prompts`); they live in `data/prompts.json`. **Copy context** hands your agent exactly the thing you mean: recent changes with each item's state, the last task you touched, the item open on this page, the whole project, everything in Doing, upcoming posts, or the inspiration inbox — and each is a `{{token}}` you can drop into your own prompts. |
+| **Guide** | The panel on the left edge of every screen (or the `?` key). Three tabs by intent: **Do** (search, the two next best moves, prompts for this page, then groups: Daily, Weekly, Projects, Content, Safety, plus Copy context), **Reply** (paste what your agent answered, preview every change, apply) and **Settings** (how your agent works, Protect your work with live backup status, your data with export/import). A visible switch says whether your agent **runs commands** (Claude Code, Cursor, Claude Desktop with the folder) or is **chat only** (ChatGPT, Claude.ai); in chat mode every prompt carries a snapshot of your data. Prompts with blanks ask you first; ✎ edits any prompt, + adds your own. |
 
 Every page has a **⌘K command palette** with the same verbs as the CLI, a
 **theme picker** (auto/light/dark × five palettes) and a **sync pill** that
@@ -129,7 +129,7 @@ any command.
   three posts for launch week".
 - **Claude.ai / ChatGPT (no file access, no terminal):** open the Guide,
   choose "my agent is a chat", copy a prompt (it includes a snapshot of your
-  workspace), paste the agent's reply into **Apply a reply**. The app applies
+  workspace), paste the agent's reply into the **Reply** tab. The app applies
   the commands itself and logs them. `prompts/agent-bootstrap.md` is the long
   form of the same contract.
 - **Every agent change is logged** with `source: agent` and a note. Home →
@@ -147,7 +147,7 @@ any command.
   delete anything (`rm` is ignored).
 - **`node solo.js backup`** keeps `data/` as its own git repo and pushes to
   the remote you give it. It checks GitHub remotes first and **refuses public
-  repositories**. Guide → Setup → *Protect your work* shows when the last
+  repositories**. Guide → Settings → *Protect your work* shows when the last
   backup ran and carries the prompts that set it up with your agent.
 - **`node solo.js doctor`** validates every data file (JSON, `updatedAt`,
   ids, columns), finds attachments that are referenced but missing or on
