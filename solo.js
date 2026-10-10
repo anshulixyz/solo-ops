@@ -597,6 +597,31 @@ function cmdActivity() {
   out(['# Activity', '', activityLine(), ''].concat(days.length ? days.map(function (d) { return '- ' + d + ': ' + Object.keys(a.days[d]).map(function (k) { return k + ' ×' + a.days[d][k]; }).join(', '); }) : ['_nothing logged yet_']), s);
 }
 
+/* ---- backup: data/ as its own private git repo ---------------------------- */
+function cmdBackup() {
+  var cp = require('child_process');
+  function git(args, opts) { try { return cp.execFileSync('git', ['-C', DATA].concat(args), Object.assign({ encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }, opts || {})).trim(); } catch (e) { if (opts && opts.soft) return null; fail('git ' + args.join(' ') + ' failed: ' + ((e.stderr || e.message) + '').trim()); } }
+  fs.mkdirSync(DATA, { recursive: true });
+  var isRepo = fs.existsSync(path.join(DATA, '.git'));
+  if (flags.status) {
+    if (!isRepo) return out('data/ is not a git repo yet. Run: node solo.js backup --remote <private repo url>', { repo: false });
+    var remote = git(['remote', 'get-url', 'origin'], { soft: true }); var last = git(['log', '-1', '--format=%ci %s'], { soft: true }); var dirty = git(['status', '--porcelain'], { soft: true });
+    return out(['data/ is a git repo', '- remote: ' + (remote || 'none (local commits only)'), '- last backup: ' + (last || 'none'), '- changes since: ' + (dirty ? dirty.split('\n').length + ' file(s)' : 'none')], { repo: true, remote: remote, last: last, dirty: !!dirty });
+  }
+  if (!isRepo) {
+    git(['init', '-q']); fs.writeFileSync(path.join(DATA, '.gitignore'), 'log.jsonl\n*.backup-*.json\n');
+    try { cp.execFileSync('git', ['-C', DATA, 'config', 'user.name'], { stdio: 'ignore' }); } catch (e) { git(['config', 'user.name', 'Solo Ops']); git(['config', 'user.email', 'solo-ops@localhost']); }
+  }
+  if (flags.remote) { if (git(['remote', 'get-url', 'origin'], { soft: true })) git(['remote', 'set-url', 'origin', String(flags.remote)]); else git(['remote', 'add', 'origin', String(flags.remote)]); }
+  git(['add', '-A']);
+  var changed = git(['status', '--porcelain'], { soft: true });
+  var msg = 'backup ' + new Date().toISOString().slice(0, 16).replace('T', ' ');
+  if (changed) git(['commit', '-q', '-m', msg]); 
+  var remoteUrl = git(['remote', 'get-url', 'origin'], { soft: true }); var pushed = '';
+  if (remoteUrl) { var branch = git(['rev-parse', '--abbrev-ref', 'HEAD'], { soft: true }) || 'main'; var r = git(['push', '-u', 'origin', branch], { soft: true }); pushed = r === null ? 'push FAILED — check the remote URL and your access (is the repo private and yours?)' : 'pushed to ' + remoteUrl; }
+  out('✓ ' + (changed ? 'Committed ' + changed.split('\n').length + ' file(s): ' + msg : 'Nothing new to commit') + (remoteUrl ? '\n  ' + pushed : '\n  No remote yet — add one with: node solo.js backup --remote <private repo url>') + '\n  Backups never include log.jsonl. Status: node solo.js backup --status', { committed: !!changed, remote: remoteUrl, pushed: pushed });
+}
+
 /* ---- template / theme / config / serve ----------------------------------- */
 function cmdTemplate() {
   if (!T) fail('core/templates.js not found.');
@@ -644,6 +669,7 @@ function cmdHelp() {
     'Inspiration (data/inspiration.json — links, ideas, images; tag with a workspace)', '  inspo list [--ws] [--tag x] [--status new|used|archived]   inspo show <item>', '  inspo add "https://… or an idea #tag" [--ws <id>] [--tags a,b]   inspo tag <item> +a -b   inspo ws <item> <workspace>', '  inspo use <item> --as task|post|script|note [--ws] [--board]   inspo ai [--into tasks] (prompt to paste into an AI)   inspo archive|rm <item>', '',
     'Prompts (data/prompts.json — your own Guide prompts)', '  prompts list|show <p>|add "Title" --text "…"|--file p.md [--cat daily] [--desc "…"]|edit <p> …|rm <p>|restore', '',
     'Studio (data/scripts.json, data/writing.json)', '  scripts list|show <s>|add "Title" [--file x.md]|rm <s>', '  notes list|show <n>|add "Title" [--file x.md]|rm <n>', '',
+    'Safety', '  backup [--remote <private repo url>] [--status]   commit (and push) data/ as its own private git repo', '',
     'Setup', '  template [all|board|social|scripts|writing|settings] [--board id] [--force]', '  theme [show|list|set <warm|paper|forest|dusk|mono>|mode <auto|light|dark>]', '  config                     show solo.config.js summary', '  serve [--port 4321]        start the local server (pages write data/ directly)', '',
     'Add --json to any command for machine-readable output. Ids: tasks t…, posts p…, scripts s…, notes n….',
     'Agents: add --as agent (and --note "why") so the change log attributes the edit to you.'], null);
@@ -660,7 +686,7 @@ var commands = {
   social: cmdSocial, post: cmdSocial, posts: cmdSocial,
   scripts: cmdScripts, script: cmdScripts, notes: cmdNotes,
   inspo: cmdInspo, inspiration: cmdInspo, prompts: cmdPrompts, prompt: cmdPrompts, boards: cmdBoards, board: cmdBoards, activity: cmdActivity, log: cmdLog, history: cmdLog, revert: cmdRevert, undo: cmdRevert, workspaces: cmdWorkspaces, workspace: cmdWorkspaces, ws: cmdWorkspaces,
-  template: cmdTemplate, theme: cmdTheme, config: cmdConfig, serve: cmdServe
+  backup: cmdBackup, template: cmdTemplate, theme: cmdTheme, config: cmdConfig, serve: cmdServe
 };
 var fn = commands[cmd];
 if (!fn) fail('Unknown command "' + cmd + '". Run: node solo.js help');

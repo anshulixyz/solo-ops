@@ -78,6 +78,13 @@ Schema with every field: `data/SCHEMA.md`. Every data file carries
 - Never delete or reset without the user asking. Every write is logged and
   `revert <id>` undoes it, but say what you changed anyway.
 
+## Backups
+
+`node solo.js backup [--remote <private url>] [--status]` keeps `data/` as
+its own git repo (initialised on first run, `log.jsonl` excluded) and pushes
+when a remote is set. Use it before risky bulk edits, and offer to set up a
+daily run. Never point it at a public repo.
+
 ## Working on the code
 
 - Static HTML + CSS + **classic** scripts (`<script src>`), openable over

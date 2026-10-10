@@ -195,8 +195,9 @@
     if (mode === 'static') return staticRead(file);
     return Promise.resolve(null);
   }
+  var lastWriteAt = '';
   function writeOne(spec) {
-    var obj = body(spec);
+    var obj = body(spec); lastWriteAt = now();
     var p = mode === 'server' ? serverWrite(spec.file, obj) : mode === 'folder' ? folderWrite(spec.file, obj) : Promise.resolve();
     setPillState('busy');
     return p.then(function () { lastSeen[spec.file + ':stamp'] = obj.updatedAt; render(); emit('wrote', { file: spec.file }); })
@@ -379,6 +380,9 @@
       return Promise.resolve('');
     },
     attachmentsAvailable: function () { return mode === 'server' || mode === 'folder'; },
+    // write any data file (used by Import all); server or folder modes only
+    writeFile: function (file, obj) { if (mode === 'server') return serverWrite(file, obj); if (mode === 'folder') return folderWrite(file, obj); return Promise.reject(new Error('read-only here')); },
+    lastWrite: function () { return lastWriteAt; },
     // link metadata via the server (title, description); null elsewhere
     meta: function (url) { if (mode !== 'server') return Promise.resolve(null); return fetch('/api/meta?url=' + encodeURIComponent(url), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (j && j.redirect && !j.title) return fetch('/api/meta?url=' + encodeURIComponent(j.redirect)).then(function (r2) { return r2.ok ? r2.json() : null; }); return j; }).catch(function () { return null; }); },
     // describe the latest local change so the log can show "done: Write the README"

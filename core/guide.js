@@ -116,6 +116,12 @@
       { c: 'daily', t: 'Talk through what I just did', d: 'Your last 10 changes with full context — for a second opinion or the next step.', pages: ['home', 'board', 'social', 'scripts', 'writing', 'inspo'],
         p: head + 'Below is what I just did, newest first, with the current state of each item. Tell me (1) anything that looks like a mistake or a loose end, (2) the single next step, (3) what to leave alone. Short.\n\n{{recent}}' },
       // fix
+      { c: 'fix', t: 'Set up a private backup on GitHub', d: 'Your data folder as its own private repo, pushed daily. Nothing public.', pages: ['home'],
+        p: (files ? head : '') + 'Set up a private backup of my Solo Ops data. In the Solo Ops folder, `data/` holds everything (JSON files + data/attachments/) and is git-ignored by the main repo on purpose. Steps: (1) create a PRIVATE GitHub repo called solo-ops-data (`gh repo create solo-ops-data --private` if gh is available, otherwise tell me to create it on github.com and give you the SSH URL); (2) run `node solo.js backup --remote <the repo URL>` — it initialises a git repo inside data/, commits everything and pushes; (3) add a daily job that runs `node solo.js backup` (launchd on macOS, cron elsewhere, or a GitHub-free alternative if I prefer: a scheduled copy to iCloud/Dropbox). Show me each command before running it, and confirm the repo is private.' },
+      { c: 'fix', t: 'Back up now', d: 'Commit and push the data folder.', pages: ['home'],
+        p: (files ? head : '') + 'Run `node solo.js backup` in my Solo Ops folder and tell me what was committed and whether the push succeeded. If no remote is set, say so and offer to set one up privately.' },
+      { c: 'fix', t: 'Restore from backup', d: 'Bring the data folder back from the private repo or a backup file.', pages: ['home'],
+        p: (files ? head : '') + 'I need to restore my Solo Ops data. Options: (a) from the private repo: in the Solo Ops folder run `node solo.js backup --status` to see the repo, then `git -C data log --oneline -20` and check out the version I point at; (b) from an exported backup file: tell me to open any page → Guide → Setup → Import. Before changing anything, back up the current data/ (`node solo.js backup` or a copy of the folder) and show me what will change.' },
       { c: 'fix', t: 'Undo what the agent just did', d: 'Every change is logged; this reverts the last agent step.', pages: ['home'],
         p: files ? head + 'Run `node solo.js log --n 10`, show me the entries with source "agent", and revert the ones I point at with `node solo.js revert ID`. Confirm each.' : 'No prompt needed: open Home → Recent changes and click Revert on the step (works when `node serve.js` is running). From the terminal: `node solo.js log` then `node solo.js revert ID`.' }
     ];
@@ -139,7 +145,7 @@
     setup: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
     link: '<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>'
   };
-  var CATS = [['daily', 'Daily', 'standup · now · wrap up'], ['weekly', 'Weekly', 'review · retro'], ['projects', 'Projects', 'plan · tasks · clean'], ['content', 'Content', 'posts · scripts · drafts'], ['fix', 'Fix', 'undo']];
+  var CATS = [['daily', 'Daily', 'standup · now · wrap up'], ['weekly', 'Weekly', 'review · retro'], ['projects', 'Projects', 'plan · tasks · clean'], ['content', 'Content', 'posts · scripts · drafts'], ['fix', 'Safety', 'undo · backups']];
   var TAB_KEY = 'marathon.guide.tab';
   function tab() { return Store.get(TAB_KEY) || 'prompts'; }
 
@@ -166,6 +172,7 @@
         (m === 'files' ? '<ol class="guide-steps"><li>Open this folder in your agent.</li><li>Say: <b>"Read AGENTS.md, then run node solo.js week"</b>.</li><li>Keep <code>node serve.js</code> running; pages update as the agent works. Images you attach are saved to <code>data/attachments/</code> so it can open them.</li></ol>'
          : m === 'chat' ? '<ol class="guide-steps"><li>Copy a prompt from the Prompts tab — it includes a snapshot.</li><li>When the agent replies with a code block, copy it.</li><li>Apply tab → paste → Preview → Apply. If an item has an image the agent needs, upload it in the chat when asked.</li></ol>' : '') +
         (pstore().hidden.length ? '<p><button type="button" class="guide-snap pe-restore">Show ' + pstore().hidden.length + ' hidden built-in prompt' + (pstore().hidden.length === 1 ? '' : 's') + '</button></p>' : '') +
+        '<h4>Your data</h4>' + dataSection() +
         '<h4>Attachments</h4><p>Images you add to inspiration, notes or posts are kept in the app and, when <code>node serve.js</code> is running or the folder is linked, also written to <code>data/attachments/</code>. Agents with file access open them; chat agents are told to ask you for them.' + (global.Sync && !Sync.attachmentsAvailable() ? ' <b>Right now attachments stay in the browser only.</b>' : '') + '</p>' +
         '<h4>Read more</h4><p><a href="' + r + 'README.md" target="_blank">README</a> · <a href="' + r + 'AGENTS.md" target="_blank">AGENTS.md</a> · <a href="' + r + 'prompts/agent-bootstrap.md" target="_blank">bootstrap prompt</a> · <a href="' + r + 'data/SCHEMA.md" target="_blank">data schema</a></p>' : '') +
       '</div>';
@@ -176,6 +183,7 @@
     Array.prototype.forEach.call(panel.querySelectorAll('.gp-edit'), function (b) { b.onclick = function (e) { e.stopPropagation(); editPrompt(all[+b.dataset.i], b.closest('.guide-prompt')); }; });
     Array.prototype.forEach.call(panel.querySelectorAll('.cat-add'), function (b) { b.onclick = function () { newPrompt(b.dataset.cat, panel.querySelector('.gp-new[data-cat="' + b.dataset.cat + '"]')); }; });
     var pr = panel.querySelector('.pe-restore'); if (pr) pr.onclick = restoreHidden;
+    var ex = panel.querySelector('.gd-export'); if (ex) ex.onclick = exportAll; var im = panel.querySelector('.gd-import'); if (im) im.onclick = importAll;
     if (t === 'apply') { panel.querySelector('.guide-preview').onclick = previewReply; panel.querySelector('.guide-snap').onclick = function () { copyText(snapshot(), this, 'Snapshot copied'); }; panel.querySelector('.guide-reply').addEventListener('input', function () { panel.querySelector('.guide-plan').innerHTML = ''; }); }
     var foot = document.createElement('div'); foot.className = 'guide-foot';
     foot.innerHTML = '<button type="button" class="guide-foot-apply">' + I.apply + 'Apply a reply</button>' +
@@ -193,6 +201,54 @@
     };
     if (panel.querySelector('#guideMoves')) renderMoves(all);
     function row(x) { var i = all.indexOf(x); var n = blanks(x).length; return '<div class="guide-prompt row' + (x.custom ? ' custom' : '') + '" data-i="' + i + '"><button type="button" class="gp-main"><span class="gp-t">' + esc(x.t) + '</span>' + (x.custom ? '<span class="gp-mine">mine</span>' : x.overridden ? '<span class="gp-mine">edited</span>' : '') + (n ? '<span class="gp-n">' + n + '</span>' : '') + (x.go && x.go !== pg ? '<span class="gp-go">→ ' + esc(GO[x.go] ? GO[x.go][1] : x.go) + '</span>' : '') + '</button><button type="button" class="gp-edit" title="Edit this prompt" data-i="' + i + '"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button><div class="gp-d">' + esc(x.d) + '</div><div class="gp-form"></div></div>'; }
+  }
+
+  /* ---- your data: where it is, auto-save, export / import, backups ---- */
+  function dataFiles() {
+    var w = Config.ws(); var files = [];
+    Config.workspaces().forEach(function (x) { Config.boards(x.id).forEach(function (b) { files.push({ file: Config.boardFile(b.id, x.id), key: Config.boardKey(b.id, x.id), wrap: 'tasks', label: x.title + ' · ' + b.title }); });
+      if (x.apps.social) files.push({ file: Config.file('social', x.id), key: Config.key('social', x.id), wrap: 'posts', label: x.title + ' · posts' });
+      if (x.apps.scripts) files.push({ file: Config.file('scripts', x.id), key: Config.key('scripts', x.id), wrap: null, label: x.title + ' · scripts' });
+      if (x.apps.writing) files.push({ file: Config.file('writing', x.id), key: Config.key('writing', x.id), wrap: null, label: x.title + ' · notes' }); });
+    files.push({ file: 'inspiration.json', key: 'marathon.inspiration', wrap: null, label: 'inspiration' }, { file: 'boards.json', key: Config.BOARDS_KEY, wrap: null, label: 'boards registry' }, { file: 'workspaces.json', key: Config.WS_KEY, wrap: null, label: 'workspaces registry' }, { file: 'prompts.json', key: PKEY, wrap: null, label: 'your prompts' }, { file: 'settings.json', key: 'marathon.theme', wrap: 'theme', label: 'theme' });
+    return files;
+  }
+  function dataSection() {
+    var m = global.Sync ? Sync.getMode() : 'manual'; var ok = m === 'server' || m === 'folder';
+    var files = dataFiles(); var total = 0; var rows = files.map(function (f) { var raw = Store.get(f.key) || ''; total += raw.length; return '<li><span>' + esc(f.label) + ' <b>' + esc(f.file) + '</b></span><span>' + (raw ? Math.max(1, Math.round(raw.length / 1024)) + ' KB' : '—') + '</span></li>'; }).join('');
+    return '<div class="guide-status ' + (ok ? 'ok' : '') + '"><span class="dot"></span><span>' + (m === 'server' ? '<b>Auto-saving</b> to this browser and to <code>data/*.json</code> on disk (server running).' : m === 'folder' ? '<b>Auto-saving</b> to this browser and to <code>data/*.json</code> in the linked folder.' : m === 'static' ? '<b>Auto-saving to this browser only</b> — this server cannot write. Export below, or run <code>node serve.js</code>.' : '<b>Auto-saving to this browser only.</b> Link the folder (Chrome/Edge) or run <code>node serve.js</code> to also write <code>data/*.json</code>.') + (global.Sync && Sync.lastWrite && Sync.lastWrite() ? ' Last file write ' + Activity.ago(Sync.lastWrite()) + '.' : '') + '</span></div>' +
+      '<p>Everything is plain JSON in <code>data/</code> — ' + files.length + ' files, about ' + Math.max(1, Math.round(total / 1024)) + ' KB in this browser. Images live in <code>data/attachments/</code>. Nothing is sent anywhere.</p>' +
+      '<ul class="guide-files">' + rows + '</ul>' +
+      '<div class="guide-row"><button type="button" class="gp-copy gd-export">Export everything (one file)</button><button type="button" class="guide-snap gd-import">Import…</button></div>' +
+      '<p><b>Keep a copy somewhere safe.</b> The simplest: make <code>data/</code> its own private git repo and push it. <code>node solo.js backup --remote git@github.com:you/solo-ops-data.git</code> does it once, <code>node solo.js backup</code> every time after (or let a daily cron run it). The prompts under <b>Safety</b> walk your agent through it. Your tasks never go into the public Solo Ops repo: <code>data/</code> is git-ignored there.</p>';
+  }
+  function exportAll() {
+    var files = dataFiles(); var bundle = { version: 1, exportedAt: new Date().toISOString(), app: 'Solo Ops', files: {} };
+    files.forEach(function (f) { var v = Store.getJSON(f.key, null); if (v == null) return; var body = f.wrap ? (function () { var o = {}; o[f.wrap] = v; return o; })() : v; if (f.file.indexOf('.json') > 0 && !f.wrap && f.wrap !== null) {} bundle.files[f.file] = Object.assign({ version: 1, updatedAt: new Date().toISOString() }, body); });
+    var blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }); var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'solo-ops-backup-' + new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-') + '.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+  }
+  function importAll() {
+    var i = document.createElement('input'); i.type = 'file'; i.accept = 'application/json,.json';
+    i.onchange = function () {
+      var f = i.files[0]; if (!f) return; var r = new FileReader();
+      r.onload = function () {
+        var b; try { b = JSON.parse(r.result); } catch (e) { alert('Not a Solo Ops backup.'); return; }
+        if (!b || !b.files) { alert('Not a Solo Ops backup (expected a file made by Export everything).'); return; }
+        var names = Object.keys(b.files); if (!confirm('Import ' + names.length + ' files from ' + (b.exportedAt || 'this backup') + '? Current content of those files is replaced (every file write is logged and revertable).')) return;
+        var known = dataFiles(); var done = 0;
+        var chain = Promise.resolve();
+        names.forEach(function (name) {
+          var obj = b.files[name]; var spec = known.filter(function (k) { return k.file === name; })[0];
+          chain = chain.then(function () {
+            if (global.Sync && (Sync.getMode() === 'server' || Sync.getMode() === 'folder')) { obj.updatedAt = new Date().toISOString(); return Sync.writeFile(name, obj).then(function () { done++; }); }
+            if (spec) { var v = spec.wrap ? obj[spec.wrap] : obj; if (spec.wrap === 'theme') v = obj.theme; if (v != null) { Store.setJSON(spec.key, v); done++; } }
+          }).catch(function () {});
+        });
+        chain.then(function () { if (global.Sync) return Sync.pullAll(false); }).then(function () { alert('Imported ' + done + ' file' + (done === 1 ? '' : 's') + '. Reloading.'); location.reload(); });
+      };
+      r.readAsText(f);
+    };
+    i.click();
   }
 
   /* ---- next best moves: read the workspace, suggest up to 4, each wired to a prompt ---- */
