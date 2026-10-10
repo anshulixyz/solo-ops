@@ -24,7 +24,7 @@
     return {
       id: x.id || uid(), kind: kind, title: esc(x.title), url: esc(x.url), text: esc(x.text), image: x.image || '',
       tags: Array.isArray(x.tags) ? x.tags.map(function (t) { return String(t).toLowerCase().trim(); }).filter(Boolean) : [],
-      ws: esc(x.ws), status: STATUSES.indexOf(x.status) >= 0 ? x.status : 'new', source: esc(x.source || 'ui'),
+      ws: esc(x.ws), status: STATUSES.indexOf(x.status) >= 0 ? x.status : 'new', source: esc(x.source || 'ui'), file: esc(x.file),
       usedAs: Array.isArray(x.usedAs) ? x.usedAs : [], createdAt: x.createdAt || Date.now(), updatedAt: x.updatedAt || Date.now()
     };
   }
@@ -47,7 +47,14 @@
     else { item.kind = 'note'; var lines = text.split('\n'); item.title = lines[0].slice(0, 80); item.text = lines.slice(1).join('\n').trim(); }
     return item;
   }
-  function add(partial) { var it = norm(partial); state.unshift(it); persist(); return it; }
+  function add(partial) {
+    var it = norm(partial); state.unshift(it); persist();
+    if (it.image && global.Sync) {
+      var ext = (it.image.match(/^data:image\/(png|jpeg|jpg|gif|webp)/) || [0, 'png'])[1].replace('jpeg', 'jpg');
+      Sync.saveAttachment('inspo-' + it.id + '.' + ext, it.image).then(function (rel) { if (rel) { it.file = rel; persist({ silent: true }); } });
+    }
+    return it;
+  }
   function update(id, patch) { var it = byId(id); if (!it) return null; Object.keys(patch).forEach(function (k) { if (k !== 'id') it[k] = patch[k]; }); it.updatedAt = Date.now(); state = state.map(norm); persist(); return byId(id); }
   function remove(id) { state = state.filter(function (x) { return x.id !== id; }); persist(); }
   function markUsed(id, app, targetId) { var it = byId(id); if (!it) return; it.usedAs.push({ app: app, id: targetId, at: Date.now() }); it.status = 'used'; it.updatedAt = Date.now(); persist(); }
@@ -71,7 +78,7 @@
       lines.push('## ' + (i + 1) + '. ' + (x.title || x.url || 'untitled') + (x.tags.length ? '  #' + x.tags.join(' #') : ''));
       if (x.url) lines.push(x.url);
       if (x.text) lines.push(x.text);
-      if (x.kind === 'image') lines.push('(image attached in the app — describe it to me if relevant)');
+      if (x.kind === 'image') lines.push(x.file ? '(image: ' + x.file + ' — open it if you can read files; otherwise ask me to upload it)' : '(image attached in the app — ask me to upload it if it matters)');
       lines.push('');
     });
     return lines.join('\n');

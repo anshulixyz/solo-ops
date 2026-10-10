@@ -459,14 +459,14 @@ function parseQuick(text, extra) {
   else { it.kind = 'note'; it.url = ''; var lines = text.split('\n'); it.title = lines[0].slice(0, 80); it.text = lines.slice(1).join('\n').trim(); }
   return it;
 }
-function inspoLine(x) { return '- [' + x.id + '] ' + (x.title || x.url || 'untitled') + (x.url ? ' · ' + x.url : '') + (x.tags.length ? ' · #' + x.tags.join(' #') : '') + (x.ws ? ' · ' + x.ws : '') + ' · ' + x.status + ' · ' + x.source; }
+function inspoLine(x) { return '- [' + x.id + '] ' + (x.title || x.url || 'untitled') + (x.url ? ' · ' + x.url : '') + (x.file ? ' · ' + x.file : (x.image ? ' · (image in browser)' : '')) + (x.tags.length ? ' · #' + x.tags.join(' #') : '') + (x.ws ? ' · ' + x.ws : '') + ' · ' + x.status + ' · ' + x.source; }
 function cmdInspo() {
   var sub = (pos.shift() || 'list').toLowerCase(); var d = inspo();
   if (sub === 'list') {
     var items = d.items.filter(function (x) { return (!flags.ws || x.ws === WS_ID) && (flags.status ? x.status === flags.status : x.status !== 'archived') && (!flags.tag || x.tags.indexOf(flags.tag) >= 0); });
     return out(['## Inspiration (' + items.length + ')'].concat(items.length ? items.map(inspoLine) : ['_empty — inspo add "https://… #tag" or a note_']), items);
   }
-  if (sub === 'show') { var x = find(d.items, pos.join(' '), 'inspiration item'); return out(['# ' + (x.title || x.url), '', x.url ? x.url + '\n' : '', x.text || '', '', 'tags: ' + x.tags.join(', ') + ' · workspace: ' + (x.ws || '—') + ' · ' + x.status + ' · ' + x.source].filter(function (l) { return l !== undefined; }), x); }
+  if (sub === 'show') { var x = find(d.items, pos.join(' '), 'inspiration item'); return out(['# ' + (x.title || x.url), '', x.url ? x.url + '\n' : '', x.text || '', x.file ? '\nattachment: ' + x.file : (x.image ? '\n(image stored in the browser only — open the app with node serve.js to export it)' : ''), '', 'tags: ' + x.tags.join(', ') + ' · workspace: ' + (x.ws || '—') + ' · ' + x.status + ' · ' + x.source].filter(function (l) { return l !== undefined; }), x); }
   if (sub === 'add') {
     var text = pos.join(' ').trim() || flags.text; if (!text) fail('Usage: inspo add "https://… or an idea #tag" [--ws <id>] [--tags a,b] [--title "…"]');
     var it = parseQuick(text, { ws: flags.ws ? WS_ID : '' }); if (flags.title) it.title = flags.title; if (flags.tags) it.tags = it.tags.concat(split(flags.tags).map(function (t) { return t.toLowerCase(); }));

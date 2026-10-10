@@ -149,7 +149,12 @@
             name: file.name,
             kind: kind,
             mime: file.type || 'image/png',
-            size: file.size
+            size: file.size,
+            file: ''
+          });
+          if (global.Sync) Sync.saveAttachment('post-' + postId + '-' + file.name, dataUrl).then(function (rel) {
+            if (!rel) return; var p = SocialModel.getById(postId); if (!p) return;
+            p.assets.forEach(function (a) { if (a.id === assetId) a.file = rel; }); SocialModel.updatePost(postId, { assets: p.assets });
           });
           return SocialAssets.put(assetId, postId, file.name, file);
         });

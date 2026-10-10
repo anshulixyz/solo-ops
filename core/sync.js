@@ -362,6 +362,20 @@
     // app's key, e.g. Home's Start blank, call this so the file is overwritten
     // instead of winning on first contact)
     touch: function (file) { setMeta(file, now()); },
+    // Save an image as a real file in data/attachments/ so agents can open it.
+    // Returns the relative path, or '' when nothing can be written here.
+    saveAttachment: function (name, dataUrl) {
+      if (!dataUrl || !/^data:image\//.test(dataUrl)) return Promise.resolve('');
+      name = String(name).replace(/[^A-Za-z0-9._-]/g, '-');
+      var rel = 'data/attachments/' + name;
+      if (mode === 'server') return fetch('/api/attach/' + name, { method: 'PUT', body: dataUrl }).then(function (r) { return r.ok ? rel : ''; }).catch(function () { return ''; });
+      if (mode === 'folder' && dataDir) {
+        var b64 = dataUrl.split(',')[1]; var bin = atob(b64); var bytes = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return dataDir.getDirectoryHandle('attachments', { create: true }).then(function (d) { return d.getFileHandle(name, { create: true }); }).then(function (fh) { return fh.createWritable(); }).then(function (w) { return w.write(bytes).then(function () { return w.close(); }); }).then(function () { return rel; }).catch(function () { return ''; });
+      }
+      return Promise.resolve('');
+    },
+    attachmentsAvailable: function () { return mode === 'server' || mode === 'folder'; },
     // describe the latest local change so the log can show "done: Write the README"
     note: function (file, text) { lastNote[file] = text || ''; },
     // change log (server mode only in the browser; the CLI covers every mode)

@@ -91,6 +91,24 @@ var server = http.createServer(function (req, res) {
     return json(res, 200, { ok: true, file: rec.file });
   }
 
+  // attachments: images the pages save, as real files agents can open
+  var at = url.match(/^\/api\/attach\/([A-Za-z0-9._-]+)$/);
+  if (at) {
+    var adir = path.join(DATA, 'attachments'); var afile = path.join(adir, at[1]);
+    if (req.method === 'PUT') {
+      var parts = [];
+      req.on('data', function (c) { parts.push(c); });
+      req.on('end', function () {
+        var txt = Buffer.concat(parts).toString('utf8'); var dm = txt.match(/^data:([^;]+);base64,(.*)$/s);
+        if (!dm) return json(res, 400, { error: 'expected a data URL' });
+        fs.mkdir(adir, { recursive: true }, function () { fs.writeFile(afile, Buffer.from(dm[2], 'base64'), function (err) { if (err) return json(res, 500, { error: err.code }); json(res, 200, { ok: true, path: 'data/attachments/' + at[1] }); }); });
+      });
+      return;
+    }
+    if (req.method === 'GET') return fs.readFile(afile, function (err, buf) { if (err) return json(res, 404, { error: 'none' }); send(res, 200, buf, MIME[path.extname(afile).toLowerCase()] || 'application/octet-stream'); });
+    return json(res, 405, { error: 'method' });
+  }
+
   var m = url.match(/^\/api\/data\/([^/]+)$/);
   if (m) {
     var file = safeDataFile(m[1]);

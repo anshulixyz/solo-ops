@@ -96,6 +96,16 @@ Schema with every field: `data/SCHEMA.md`. Every data file carries
 - Sanity: `for f in core/*.js runway/*.js social/*.js studio/*.js *.js; do node --check "$f"; done`
   and `node social/test-social-save.js`.
 
+## Attachments
+
+Images added to inspiration items, notes and posts are stored in the app and,
+when the user runs `node serve.js` or has linked the folder, also written as
+files under `data/attachments/` (`inspo-<id>.png`, `note-<id>-<n>.png`,
+`post-<id>-<name>`). Items reference them (`file` on inspiration items and
+post assets, `files` on notes). Open them when they matter. Links are plain
+URLs. If an item says an image is "in the app" only, ask the user to export
+it (run the server) or upload it to you.
+
 ## If you are a chat agent without file access
 
 The user pastes a SNAPSHOT (boards, posts, scripts, notes, inspiration) and

@@ -71,7 +71,8 @@
       name: esc(a.name),
       kind: ASSET_KINDS.indexOf(a.kind) >= 0 ? a.kind : 'post-image',
       mime: esc(a.mime || 'image/png'),
-      size: a.size || 0
+      size: a.size || 0,
+      file: esc(a.file)
     };
   }
 
