@@ -43,7 +43,8 @@ Last activity 2 h ago · streak 6 days
 | **Social Schedule** | A posting arc: date, copy, type, prep checklist, images, video status; mark posted and log engagement. Calendar with a 52-week streak heatmap. |
 | **Script Viewer** | Reels/shorts scripts: hook, numbered beats, inserts, prep. Reader view, 9:16 preview, teleprompter. A library of scripts. |
 | **Writing Viewer** | Drafts with `~~cuts~~`, `++adds++` and `[[notes for the AI]]`. Copy for AI, copy clean, change log view, images. |
-| **Inspiration** | An inbox for anything worth keeping: links, ideas, screenshots. Tag it with a workspace, then **Use as** task / post / script / draft, or **Brainstorm with AI** (copies the items plus instructions to paste into your chat). `⌘⇧I` or the **+ Inspo** button on any page. |
+| **Inspiration** | An inbox for anything worth keeping. A **capture strip sits under the nav on every page**: type or paste anything and press Enter; drag a link, text or image from anywhere toward the page and drop it; paste with nothing focused. Each save shows a toast with Undo. Tag with a workspace, then **Use as** task / post / script / draft, or **Brainstorm with AI** (copies the items plus instructions for your chat). |
+| **Guide** | The **?** in the nav (or the `?` key) slides in a panel explaining the current page plus copy-ready prompts for your agent — review my week, add tasks from this list, plan this workspace, turn inspiration into posts, draft next week's posts — pre-filled with the open workspace. |
 
 Every page has a **⌘K command palette** with the same verbs as the CLI, a
 **theme picker** (auto/light/dark × five palettes) and a **sync pill** that

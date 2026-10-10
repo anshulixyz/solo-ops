@@ -51,7 +51,8 @@
       el.innerHTML = '<div class="nav-left">' + sw + '</div><div class="nav-items">' + items(root).map(function (it) {
         return '<a class="nav-item' + (it.on ? ' on' : '') + '" href="' + it.href + '" data-nav-id="' + esc(it.id) + '">' + ICON[it.icon] + '<span>' + esc(it.label) + '</span></a>';
       }).join('') +
-      (global.InspoQuick ? '<button type="button" class="nav-item nav-inspo" title="Add to inspiration (⌘⇧I) — a link, an idea, an image" onclick="InspoQuick.open()">' + ICON.plus + '<span>Inspo</span></button>' : '') +
+      (global.InspoQuick ? '<button type="button" class="nav-item nav-inspo" title="Save to inspiration (⌘⇧I) — a link, an idea, an image" onclick="InspoQuick.open()">' + ICON.plus + '<span>Inspo</span></button>' : '') +
+      (global.Guide ? '<button type="button" class="nav-item nav-guide" title="Guide: what this page does + prompts for your agent (?)" onclick="Guide.toggle()"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/></svg><span>Guide</span></button>' : '') +
       '<button type="button" class="nav-item nav-install" id="navInstall" style="display:none" title="Install Solo Ops as an app">' + ICON.install + '<span>Install</span></button>' +
       '</div>';
       bindInstall();

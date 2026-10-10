@@ -37,7 +37,7 @@
   }
   function render() {
     var items = InspoModel.list(filter);
-    document.getElementById('grid').innerHTML = items.length ? items.map(cardHTML).join('') : '<div class="inspo-empty">Nothing here yet. Paste a link or an idea above, drop an image, or from any page press ⌘⇧I.<br>Terminal: <code>node solo.js inspo add "https://… #tag" --ws ' + esc(Config.activeWs()) + '</code></div>';
+    document.getElementById('grid').innerHTML = items.length ? items.map(cardHTML).join('') : '<div class="inspo-empty">Nothing here yet. Type or paste in the strip above, drop anything onto the page, or press ⌘⇧I on any screen.<br>Terminal: <code>node solo.js inspo add "https://… #tag" --ws ' + esc(Config.activeWs()) + '</code></div>';
     var all = InspoModel.getState(); var tags = {}; all.forEach(function (x) { x.tags.forEach(function (t) { tags[t] = (tags[t] || 0) + 1; }); });
     document.getElementById('filters').innerHTML =
       '<select class="meta-sel" onchange="setFilter(\'ws\',this.value)"><option value="">All workspaces</option>' + Config.workspaces().map(function (w) { return '<option value="' + esc(w.id) + '"' + (filter.ws === w.id ? ' selected' : '') + '>' + esc(w.title) + '</option>'; }).join('') + '</select>' +
@@ -61,7 +61,7 @@
 
   // Quick add on this page
   global.quickAdd = function () {
-    var ta = document.getElementById('quickText'); var ws = document.getElementById('quickWs').value; var text = ta.value.trim();
+    var ta = document.getElementById('quickText'); if (!ta) { InspoQuick.open(); return; } var ws = document.getElementById('quickWs').value; var text = ta.value.trim();
     if (!text && !pendingImage) return;
     var item = InspoModel.parseQuick(text, { ws: ws, source: 'ui' });
     if (pendingImage) { item.kind = 'image'; item.image = pendingImage; if (!item.title) item.title = 'Image'; pendingImage = ''; document.getElementById('quickThumb').style.display = 'none'; }
@@ -70,7 +70,7 @@
   var pendingImage = '';
   function readImage(file) { var r = new FileReader(); r.onload = function () { pendingImage = r.result; var t = document.getElementById('quickThumb'); t.src = pendingImage; t.style.display = ''; }; r.readAsDataURL(file); }
   function bindDrop() {
-    var z = document.getElementById('drop');
+    var z = document.getElementById('drop'); if (!z) return;
     ['dragenter', 'dragover'].forEach(function (ev) { z.addEventListener(ev, function (e) { e.preventDefault(); z.classList.add('over'); }); });
     ['dragleave', 'drop'].forEach(function (ev) { z.addEventListener(ev, function (e) { e.preventDefault(); z.classList.remove('over'); }); });
     z.addEventListener('drop', function (e) {
@@ -132,7 +132,7 @@
     Config.applyDOM();
     InspoModel.init(); InspoModel._inited = true;
     filter.ws = new URLSearchParams(location.search).get('all') ? '' : '';
-    document.getElementById('quickWs').innerHTML = Config.workspaces().map(function (w) { return '<option value="' + esc(w.id) + '"' + (w.id === Config.activeWs() ? ' selected' : '') + '>' + esc(w.title) + '</option>'; }).join('') + '<option value="">(no workspace)</option>';
+    if (document.getElementById('quickWs')) document.getElementById('quickWs').innerHTML = Config.workspaces().map(function (w) { return '<option value="' + esc(w.id) + '"' + (w.id === Config.activeWs() ? ' selected' : '') + '>' + esc(w.title) + '</option>'; }).join('') + '<option value="">(no workspace)</option>';
     bindDrop();
     Sync.register({ file: 'inspiration.json', key: InspoModel.KEY, label: 'inspiration', app: 'inspiration', isFresh: InspoModel.isFresh,
       read: function () { return { items: InspoModel.getState() }; },
@@ -145,6 +145,7 @@
       { label: 'Show this workspace only', hint: 'filter', run: function () { setFilter('ws', Config.activeWs()); } }
     ]);
     render();
+    Store.onChange(function (k) { if (k === InspoModel.KEY) render(); });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })(window);

@@ -42,16 +42,6 @@
     </div>
   </header>
 
-  <div class="addpanel open" style="margin-bottom:12px">
-    <div class="inspo-tools">
-      <textarea id="quickText" class="grow" rows="2" placeholder="Paste a link, an idea, a quote, a screenshot… #tags work · ⌘↵ saves" style="min-height:44px;border:1px solid var(--line);border-radius:9px;background:var(--panel-2);color:var(--ink);font:inherit;font-size:13px;padding:9px;resize:vertical"></textarea>
-      <select id="quickWs" class="board-switch" title="Workspace this belongs to"></select>
-      <button class="btn ghost" id="quickImg">Image…</button>
-      <button class="btn primary" onclick="quickAdd()">Add</button>
-    </div>
-    <img id="quickThumb" class="thumb" style="display:none;max-height:120px;border-radius:8px">
-    <div class="inspo-drop" id="drop">Drop images or links anywhere in this box · from any page press <b>⌘⇧I</b> or use the <b>+</b> in the nav · <code>node solo.js inspo add "…"</code></div>
-  </div>
 
   <div class="inspo-filters" id="filters"></div>
   <div class="inspo-grid" id="grid"></div>
@@ -68,6 +58,7 @@
 <script src="../core/palette.js"></script>
 <script src="inspo-model.js"></script>
 <script src="../core/inspo-quick.js"></script>
+<script src="../core/guide.js"></script>
 <script src="../core/nav.js"></script>
 <script src="inspo-main.js"></script>
 </body>
