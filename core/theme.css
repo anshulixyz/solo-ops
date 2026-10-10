@@ -301,3 +301,22 @@ body.guide-open{overflow:hidden;}
 .guide-reply{width:100%; margin:0 0 6px;}
 .guide-row{margin:0 0 8px;}
 .guide-plan,.guide-result{margin:0 0 8px;}
+
+/* guide: prompt editing */
+.guide-prompt.row{display:grid; grid-template-columns:1fr auto; align-items:center;}
+.guide-prompt.row .gp-d,.guide-prompt.row .gp-form{grid-column:1 / -1;}
+.gp-edit{width:26px; height:26px; margin-right:4px; border:0; border-radius:7px; background:transparent; color:var(--faint); cursor:pointer; opacity:0; display:inline-flex; align-items:center; justify-content:center;}
+.gp-edit svg{width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
+.guide-prompt.row:hover .gp-edit,.guide-prompt.row.open .gp-edit{opacity:1;}
+.gp-edit:hover{color:var(--accent); background:var(--accent-soft);}
+.gp-mine{font-family:var(--mono,monospace); font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--green); border:1px solid var(--green-line); border-radius:5px; padding:1px 4px;}
+.cat-add{margin-left:auto; width:22px; height:22px; border:1px solid var(--line); border-radius:7px; background:var(--panel); color:var(--muted); cursor:pointer; font-size:14px; line-height:1; align-self:center;}
+.cat-add:hover{color:var(--accent); border-color:var(--accent);}
+.gp-editor{padding:6px 0 10px;}
+.gp-editor label{display:block; font-family:var(--mono,monospace); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:6px 0;}
+.gp-editor input,.gp-editor select,.gp-editor textarea{display:block; width:100%; box-sizing:border-box; margin-top:3px; border:1px solid var(--line); border-radius:8px; background:var(--panel); color:var(--ink); font:inherit; font-size:12.5px; padding:6px 8px; letter-spacing:0; text-transform:none;}
+.gp-editor textarea{font-family:var(--mono,monospace); font-size:11.5px; resize:vertical;}
+.gp-editor select{height:32px;}
+.pe-hint{font-size:11px; color:var(--faint); line-height:1.45; margin:6px 0 4px;} .pe-hint code{font-family:var(--mono,monospace); background:var(--panel); padding:0 3px; border-radius:3px;}
+.guide-foot-recent{border:1px solid var(--line); background:var(--panel-2); color:var(--muted);}
+.guide-foot-recent:hover{border-color:var(--accent); color:var(--accent);}

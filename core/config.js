@@ -9,7 +9,7 @@
 (function (global) {
   'use strict';
 
-  var RESERVED = ['social', 'scripts', 'writing', 'settings', 'activity', 'boards', 'workspaces', 'calendar', 'home'];
+  var RESERVED = ['social', 'scripts', 'writing', 'settings', 'activity', 'boards', 'workspaces', 'calendar', 'home', 'prompts', 'inspiration', 'log', 'attachments'];
   var BOARDS_KEY = 'marathon.boards';
   var WS_KEY = 'marathon.workspaces';       // runtime-created workspaces (data/workspaces.json)
   var WS_ACTIVE = 'marathon.workspace';     // last used workspace id (this browser)

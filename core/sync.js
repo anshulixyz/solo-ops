@@ -76,9 +76,12 @@
   }
   function applyBody(spec, parsed) {
     applying = true;
+    var keys = spec.keys || [spec.key];
+    if (global.Recent) Recent.beforeApply(keys);
     try {
       setMeta(spec.file, parsed.updatedAt || now());
       spec.apply(parsed);
+      if (global.Recent) Recent.afterApply(keys, 'agent or CLI');
       emit('applied', { file: spec.file, label: spec.label });
     } finally { applying = false; }
   }

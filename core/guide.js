@@ -12,6 +12,18 @@
 (function (global) {
   'use strict';
   var panel = null; var MODE_KEY = 'marathon.guide.mode'; var SEEN_KEY = 'marathon.guide.seen';
+  var PKEY = 'marathon.prompts';   // { custom:[{id,t,d,c,p,pages}], overrides:{ title:{t,d,p} }, hidden:[titles] } ↔ data/prompts.json
+  function pstore() { var v = Store.getJSON(PKEY, null); return v && typeof v === 'object' ? { custom: v.custom || [], overrides: v.overrides || {}, hidden: v.hidden || [] } : { custom: [], overrides: {}, hidden: [] }; }
+  function psave(v) { Store.setJSON(PKEY, v); }
+  function registerPromptsSync() {
+    if (!global.Sync) return;
+    Sync.register({ file: 'prompts.json', key: PKEY, label: 'prompts', activity: false, merge: true,
+      read: function () { return pstore(); },
+      apply: function (body) { var cur = pstore(); var inc = { custom: body.custom || [], overrides: body.overrides || {}, hidden: body.hidden || [] };
+        var seen = {}; var custom = inc.custom.concat(cur.custom).filter(function (c) { if (!c || !c.id || seen[c.id]) return false; seen[c.id] = 1; return true; });
+        Store.setJSON(PKEY, { custom: custom, overrides: Object.assign({}, cur.overrides, inc.overrides), hidden: inc.hidden.concat(cur.hidden).filter(function (h, i, a) { return a.indexOf(h) === i; }) }, { silent: true }); } });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', registerPromptsSync); else setTimeout(registerPromptsSync, 0);
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function mode() { return Store.get(MODE_KEY) === 'files' ? 'files' : (Store.get(MODE_KEY) === 'chat' ? 'chat' : ''); }
   function root() { var n = document.querySelector('[data-nav]'); return (n && n.getAttribute('data-root')) || './'; }
@@ -64,7 +76,7 @@
              : 'I cannot run commands, so: read the snapshot I paste, think, and reply with the exact changes as `node solo.js …` command lines in ONE code block at the end (add / done / start / move / pri / step / social add / social copy / scripts add / notes add). I will paste that block back into the app and it applies them. Keep titles short, no ids for new items. When an item mentions an image or link that matters, ask me to upload or paste it before deciding.') + '\n\n';
     var read = function (cmd, label) { return files ? 'Run `node solo.js ' + cmd + '`' : 'Here is my current ' + (label || 'state') + ' (snapshot below)'; };
     var tail = files ? '' : '\n\nSNAPSHOT:\n{{snapshot}}';
-    return [
+    var list = [
       // daily
       { c: 'daily', t: 'Daily standup', d: 'Three questions, then the board is updated and you have a plan for today.', pages: ['home', 'board'],
         p: head + read('today --ws ' + id, 'situation') + '. Run a standup with me: ask (1) what I finished since yesterday, (2) the ONE thing today is about, (3) what is blocking me. Wait for my answers. Then update the board (done / start / note / step as needed), and give me today\'s plan: max 3 items, in order, each with what "done" looks like.' + tail },
@@ -97,10 +109,19 @@
         p: head + read('inspo list --ws ' + id, 'inbox') + '. For each inspiration item decide: task (which board), post, script, draft, or skip, in a short table. After I confirm, ' + (files ? 'run `inspo use ID --as task|post|script|note` for each so the link back is kept.' : 'reply with `add` / `social add` / `scripts add` / `notes add` lines for the ones I confirmed.') + tail },
       { c: 'content', t: 'Brainstorm 10 post ideas', d: 'Ideas grounded in what you are actually building this week.', pages: ['social', 'inspo', 'home'],
         p: head + read('week --ws ' + id + ' --json', 'week') + '. From what I am building and shipping, give me 10 post ideas: 5 build-in-public, 3 lessons, 2 asks. One line each, with the hook. Then schedule the 3 I pick with `social add`, spaced 2 days apart from tomorrow 9:00.' + tail },
+      { c: 'daily', t: 'Talk through what I just did', d: 'Your last 10 changes with full context — for a second opinion or the next step.', pages: ['home', 'board', 'social', 'scripts', 'writing', 'inspo'],
+        p: head + 'Below is what I just did, newest first, with the current state of each item. Tell me (1) anything that looks like a mistake or a loose end, (2) the single next step, (3) what to leave alone. Short.\n\n{{recent}}' },
       // fix
       { c: 'fix', t: 'Undo what the agent just did', d: 'Every change is logged; this reverts the last agent step.', pages: ['home'],
         p: files ? head + 'Run `node solo.js log --n 10`, show me the entries with source "agent", and revert the ones I point at with `node solo.js revert ID`. Confirm each.' : 'No prompt needed: open Home → Recent changes and click Revert on the step (works when `node serve.js` is running). From the terminal: `node solo.js log` then `node solo.js revert ID`.' }
     ];
+    // your edits (data/prompts.json): overrides of built-ins, hidden built-ins, your own prompts
+    var ps = pstore();
+    list.forEach(function (x) { x.builtin = true; var o = ps.overrides[x.t]; if (o) { if (o.d) x.d = o.d; if (o.p) x.p = o.p; x.overridden = true; } });
+    list = list.filter(function (x) { return ps.hidden.indexOf(x.t) < 0; });
+    ps.custom.forEach(function (c) { list.push({ c: c.c || 'projects', t: c.t || 'My prompt', d: c.d || '', p: c.p || '', pages: c.pages || [], custom: true, id: c.id, go: c.go }); });
+    list.forEach(function (x) { x.p = x.p.split('{{head}}').join(head); if (!files && (x.custom || x.overridden) && x.p.indexOf('{{snapshot}}') < 0 && x.p.indexOf('{{recent}}') < 0) x.p += tail; });
+    return list;
   }
   var I = {
     daily: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
@@ -130,8 +151,8 @@
       (t === 'moves' ? '<div class="guide-moves" id="guideMoves"></div><h4>This page</h4>' + (ABOUT[pg] || []).map(function (x) { return '<p>' + esc(x) + '</p>'; }).join('') + '<h4>Shortcuts</h4><p>⌘K commands · ⌘⇧I capture · ? this guide · n add · 1/2/3 board views</p>' : '') +
       (t === 'prompts' ? '<div class="guide-moves compact" id="guideMoves"></div>' +
         (here.length ? '<div class="guide-cat"><span class="cat-ic">' + I.link + '</span><b>For this page</b></div>' + here.map(row).join('') : '') +
-        CATS.map(function (c) { var g = all.filter(function (x) { return x.c === c[0] && here.indexOf(x) < 0; }); if (!g.length) return ''; return '<div class="guide-cat"><span class="cat-ic">' + I[c[0]] + '</span><b>' + esc(c[1]) + '</b><span class="cat-sub">' + esc(c[2]) + '</span></div>' + g.map(row).join(''); }).join('') +
-        '<p class="guide-foot-note">Click a prompt to copy it' + (m === 'chat' ? ' — it carries a snapshot of this workspace' : '') + '. Prompts with blanks ask first.</p>' : '') +
+        CATS.map(function (c) { var g = all.filter(function (x) { return x.c === c[0] && here.indexOf(x) < 0; }); return '<div class="guide-cat"><span class="cat-ic">' + I[c[0]] + '</span><b>' + esc(c[1]) + '</b><span class="cat-sub">' + esc(c[2]) + '</span><button type="button" class="cat-add" data-cat="' + c[0] + '" title="Add my own prompt here">+</button></div>' + g.map(row).join('') + '<div class="gp-new" data-cat="' + c[0] + '"></div>'; }).join('') +
+        '<p class="guide-foot-note">Click a prompt to copy it' + (m === 'chat' ? ' — it carries a snapshot of this workspace' : '') + '. Prompts with blanks ask first. ✎ edits a prompt, + adds your own; they are saved in data/prompts.json. Terminal: <code>node solo.js prompts</code>.</p>' : '') +
       (t === 'apply' ? '<div class="guide-how"><b>How this works.</b> Your agent answers with <code>node solo.js …</code> lines (or a checklist). Paste them here. The app reads those lines and makes the changes in this workspace itself — tasks, posts, scripts, notes, inspiration. Nothing runs on your computer, nothing is deleted, and every change lands in Home → Recent changes where it can be reverted.</div>' +
         '<textarea class="guide-reply" rows="7" placeholder="Paste your agent\'s reply here."></textarea>' +
         '<div class="guide-row"><button type="button" class="gp-copy guide-preview">Preview changes</button><button type="button" class="guide-snap" title="Copy a text snapshot of this workspace for any chat">Copy snapshot</button></div><div class="guide-plan"></div><div class="guide-result"></div>' : '') +
@@ -140,6 +161,7 @@
         '<label class="guide-mode' + (m === 'chat' ? ' on' : '') + '"><input type="radio" name="gmode" value="chat"' + (m === 'chat' ? ' checked' : '') + '><b>It is a chat</b><span>ChatGPT, Claude.ai, Gemini. Prompts carry a snapshot of your data; you paste the reply into Apply. No terminal needed.</span></label></div>' +
         (m === 'files' ? '<ol class="guide-steps"><li>Open this folder in your agent.</li><li>Say: <b>"Read AGENTS.md, then run node solo.js week"</b>.</li><li>Keep <code>node serve.js</code> running; pages update as the agent works. Images you attach are saved to <code>data/attachments/</code> so it can open them.</li></ol>'
          : m === 'chat' ? '<ol class="guide-steps"><li>Copy a prompt from the Prompts tab — it includes a snapshot.</li><li>When the agent replies with a code block, copy it.</li><li>Apply tab → paste → Preview → Apply. If an item has an image the agent needs, upload it in the chat when asked.</li></ol>' : '') +
+        (pstore().hidden.length ? '<p><button type="button" class="guide-snap pe-restore">Show ' + pstore().hidden.length + ' hidden built-in prompt' + (pstore().hidden.length === 1 ? '' : 's') + '</button></p>' : '') +
         '<h4>Attachments</h4><p>Images you add to inspiration, notes or posts are kept in the app and, when <code>node serve.js</code> is running or the folder is linked, also written to <code>data/attachments/</code>. Agents with file access open them; chat agents are told to ask you for them.' + (global.Sync && !Sync.attachmentsAvailable() ? ' <b>Right now attachments stay in the browser only.</b>' : '') + '</p>' +
         '<h4>Read more</h4><p><a href="' + r + 'README.md" target="_blank">README</a> · <a href="' + r + 'AGENTS.md" target="_blank">AGENTS.md</a> · <a href="' + r + 'prompts/agent-bootstrap.md" target="_blank">bootstrap prompt</a> · <a href="' + r + 'data/SCHEMA.md" target="_blank">data schema</a></p>' : '') +
       '</div>';
@@ -147,14 +169,20 @@
     Array.prototype.forEach.call(panel.querySelectorAll('.guide-tab'), function (b) { b.onclick = function () { Store.set(TAB_KEY, b.dataset.tab, { silent: true }); render(); }; });
     Array.prototype.forEach.call(panel.querySelectorAll('input[name=gmode]'), function (i) { i.onchange = function () { Store.set(MODE_KEY, i.value, { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); Store.set(TAB_KEY, 'prompts', { silent: true }); render(); }; });
     Array.prototype.forEach.call(panel.querySelectorAll('.guide-prompt'), function (cardEl) { bindCard(cardEl, all[+cardEl.dataset.i]); });
+    Array.prototype.forEach.call(panel.querySelectorAll('.gp-edit'), function (b) { b.onclick = function (e) { e.stopPropagation(); editPrompt(all[+b.dataset.i], b.closest('.guide-prompt')); }; });
+    Array.prototype.forEach.call(panel.querySelectorAll('.cat-add'), function (b) { b.onclick = function () { newPrompt(b.dataset.cat, panel.querySelector('.gp-new[data-cat="' + b.dataset.cat + '"]')); }; });
+    var pr = panel.querySelector('.pe-restore'); if (pr) pr.onclick = restoreHidden;
     if (t === 'apply') { panel.querySelector('.guide-preview').onclick = previewReply; panel.querySelector('.guide-snap').onclick = function () { copyText(snapshot(), this, 'Snapshot copied'); }; panel.querySelector('.guide-reply').addEventListener('input', function () { panel.querySelector('.guide-plan').innerHTML = ''; }); }
     var foot = document.createElement('div'); foot.className = 'guide-foot';
-    foot.innerHTML = '<button type="button" class="guide-foot-apply">' + I.apply + 'Apply a reply</button><button type="button" class="guide-foot-snap" title="Copy a text snapshot of this workspace for any chat">' + I.link + 'Snapshot</button>';
+    foot.innerHTML = '<button type="button" class="guide-foot-apply">' + I.apply + 'Apply a reply</button>' +
+      '<button type="button" class="guide-foot-recent" title="Copy what you just did — the last 10 changes with full context — to discuss with your agent">' + I.moves + 'Recent</button>' +
+      '<button type="button" class="guide-foot-snap" title="Copy a text snapshot of this workspace for any chat">' + I.link + 'Snapshot</button>';
     panel.appendChild(foot);
     foot.querySelector('.guide-foot-apply').onclick = function () { Store.set(TAB_KEY, 'apply', { silent: true }); render(); panel.querySelector('.guide-reply').focus(); };
+    foot.querySelector('.guide-foot-recent').onclick = function () { copyText(global.Recent ? Recent.text(10) : 'Recent is not loaded.', this, 'Copied'); };
     foot.querySelector('.guide-foot-snap').onclick = function () { copyText(snapshot(), this, 'Copied'); };
     if (panel.querySelector('#guideMoves')) renderMoves(all);
-    function row(x) { var i = all.indexOf(x); var n = blanks(x).length; return '<div class="guide-prompt row" data-i="' + i + '"><button type="button" class="gp-main"><span class="gp-t">' + esc(x.t) + '</span>' + (n ? '<span class="gp-n">' + n + '</span>' : '') + (x.go && x.go !== pg ? '<span class="gp-go">→ ' + esc(GO[x.go][1]) + '</span>' : '') + '</button><div class="gp-d">' + esc(x.d) + '</div><div class="gp-form"></div></div>'; }
+    function row(x) { var i = all.indexOf(x); var n = blanks(x).length; return '<div class="guide-prompt row' + (x.custom ? ' custom' : '') + '" data-i="' + i + '"><button type="button" class="gp-main"><span class="gp-t">' + esc(x.t) + '</span>' + (x.custom ? '<span class="gp-mine">mine</span>' : x.overridden ? '<span class="gp-mine">edited</span>' : '') + (n ? '<span class="gp-n">' + n + '</span>' : '') + (x.go && x.go !== pg ? '<span class="gp-go">→ ' + esc(GO[x.go] ? GO[x.go][1] : x.go) + '</span>' : '') + '</button><button type="button" class="gp-edit" title="Edit this prompt" data-i="' + i + '"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button><div class="gp-d">' + esc(x.d) + '</div><div class="gp-form"></div></div>'; }
   }
 
   /* ---- next best moves: read the workspace, suggest up to 4, each wired to a prompt ---- */
@@ -200,6 +228,42 @@
     });
   }
 
+  /* ---- edit / add prompts ---- */
+  function promptForm(x, cat) {
+    return '<div class="gp-editor"><label>Title<input class="pe-t" value="' + esc(x ? x.t : '') + '" placeholder="e.g. Monday planning"></label>' +
+      '<label>Category<select class="pe-c">' + CATS.map(function (c) { return '<option value="' + c[0] + '"' + ((x ? x.c : cat) === c[0] ? ' selected' : '') + '>' + esc(c[1]) + '</option>'; }).join('') + '</select></label>' +
+      '<label>One line, what it does<input class="pe-d" value="' + esc(x ? x.d : '') + '"></label>' +
+      '<label>Prompt<textarea class="pe-p" rows="8">' + esc(x ? x.p : '{{head}}') + '</textarea></label>' +
+      '<div class="pe-hint">Blanks like <code>&lt;idea&gt;</code> become fields. <code>{{head}}</code> inserts the agent preamble (workspace, how to reply). <code>{{snapshot}}</code> inserts your data in chat mode.</div>' +
+      '<div class="guide-row"><button type="button" class="gp-copy pe-save">Save</button>' + (x && x.builtin && x.overridden ? '<button type="button" class="guide-snap pe-reset">Reset to default</button>' : '') + (x && x.custom ? '<button type="button" class="guide-snap pe-del">Delete</button>' : x && x.builtin ? '<button type="button" class="guide-snap pe-hide" title="Hide this built-in prompt">Hide</button>' : '') + '<button type="button" class="guide-snap pe-cancel">Cancel</button></div></div>';
+  }
+  function editPrompt(x, card) {
+    var form = card.querySelector('.gp-form'); if (form.querySelector('.gp-editor')) { form.innerHTML = ''; card.classList.remove('open'); return; }
+    card.classList.add('open'); form.innerHTML = promptForm(x);
+    form.querySelector('.pe-cancel').onclick = function () { form.innerHTML = ''; card.classList.remove('open'); };
+    form.querySelector('.pe-save').onclick = function () {
+      var ps = pstore(); var v = { t: form.querySelector('.pe-t').value.trim() || x.t, d: form.querySelector('.pe-d').value.trim(), p: form.querySelector('.pe-p').value, c: form.querySelector('.pe-c').value };
+      if (x.custom) { ps.custom = ps.custom.map(function (c) { return c.id === x.id ? Object.assign({}, c, v) : c; }); }
+      else { ps.overrides[x.t] = { d: v.d, p: v.p }; if (v.c !== x.c || v.t !== x.t) { ps.hidden.push(x.t); ps.custom.push({ id: 'c' + Date.now().toString(36), t: v.t, d: v.d, p: v.p, c: v.c, pages: x.pages }); delete ps.overrides[x.t]; } }
+      psave(ps); if (global.Sync) Sync.note('prompts.json', 'edited prompt: ' + v.t); render();
+    };
+    var rs = form.querySelector('.pe-reset'); if (rs) rs.onclick = function () { var ps = pstore(); delete ps.overrides[x.t]; psave(ps); render(); };
+    var dl = form.querySelector('.pe-del'); if (dl) dl.onclick = function () { if (!confirm('Delete "' + x.t + '"?')) return; var ps = pstore(); ps.custom = ps.custom.filter(function (c) { return c.id !== x.id; }); psave(ps); render(); };
+    var hd = form.querySelector('.pe-hide'); if (hd) hd.onclick = function () { var ps = pstore(); ps.hidden.push(x.t); psave(ps); render(); };
+  }
+  function newPrompt(cat, slot) {
+    if (slot.innerHTML) { slot.innerHTML = ''; return; }
+    slot.innerHTML = promptForm(null, cat);
+    slot.querySelector('.pe-cancel').onclick = function () { slot.innerHTML = ''; };
+    slot.querySelector('.pe-save').onclick = function () {
+      var t = slot.querySelector('.pe-t').value.trim(); if (!t) { slot.querySelector('.pe-t').focus(); return; }
+      var ps = pstore(); ps.custom.push({ id: 'c' + Date.now().toString(36), t: t, d: slot.querySelector('.pe-d').value.trim(), p: slot.querySelector('.pe-p').value, c: slot.querySelector('.pe-c').value, pages: [page()] });
+      psave(ps); if (global.Sync) Sync.note('prompts.json', 'new prompt: ' + t); render();
+    };
+    slot.querySelector('.pe-t').focus();
+  }
+  function restoreHidden() { var ps = pstore(); ps.hidden = []; psave(ps); render(); }
+
   function bindCard(card, x) {
     var form = card.querySelector('.gp-form'); var main = card.querySelector('.gp-main');
     main.onclick = function () {
@@ -214,7 +278,7 @@
     };
   }
   function finish(text, card, x) {
-    text = text.replace('{{snapshot}}', snapshot());
+    text = text.replace('{{snapshot}}', snapshot()).replace('{{recent}}', global.Recent ? Recent.text(10) : '');
     copyText(text, card, 'Copied — paste into your agent' + (x.go && x.go !== page() ? ' · then open ' + GO[x.go][1] : ''));
   }
   function blanks(x) { var seen = {}, out = []; (x.p.match(/<([^<>\n]{2,60})>/g) || []).forEach(function (m) { var k = m.slice(1, -1); if (!seen[k]) { seen[k] = 1; out.push(k); } }); return out; }

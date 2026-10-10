@@ -17,6 +17,7 @@ document is the whole contract; read it once and you can operate the system.
 | `data/inspiration.json` | the inbox: links, ideas, images the user wants to keep, tagged with a workspace | `inspo …` |
 | `data/log.jsonl` | every change with who/when/what + previous content; revertable | `log`, `revert <id>` |
 | `data/activity.json` | per-day change counts, last-active stamps (written automatically) | `activity` |
+| `data/prompts.json` | the user's own Guide prompts and edits to built-ins | `prompts …` |
 | `data/settings.json` | theme | `theme …` |
 | `solo.config.js` | apps on/off, boards, projects, tags, post types, labels, idle hours, default theme | `config` |
 
@@ -95,6 +96,13 @@ Schema with every field: `data/SCHEMA.md`. Every data file carries
   `index.html`.
 - Sanity: `for f in core/*.js runway/*.js social/*.js studio/*.js *.js; do node --check "$f"; done`
   and `node social/test-social-save.js`.
+
+## "What did I just do?"
+
+The pages record every change (theirs and yours) as short events. When the
+user pastes a block headed "What I just did", treat it as the ground truth
+of their last session: each line is an action, "now:" is the item's current
+state. Point out loose ends and the single next step; do not re-list it.
 
 ## Attachments
 

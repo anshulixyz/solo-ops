@@ -20,7 +20,7 @@ var ROOT = __dirname;
 var DATA = path.join(ROOT, 'data');
 var cfg = safeRequire(path.join(ROOT, 'solo.config.js')) || {};
 var T = safeRequire(path.join(ROOT, 'core', 'templates.js'));
-var RESERVED = ['social', 'scripts', 'writing', 'settings', 'activity', 'boards', 'workspaces', 'calendar', 'home'];
+var RESERVED = ['social', 'scripts', 'writing', 'settings', 'activity', 'boards', 'workspaces', 'calendar', 'home', 'prompts', 'inspiration', 'log', 'attachments'];
 var COLS = ['todo', 'doing', 'done', 'later', 'bucket'];
 var COL_LABEL = { todo: 'To Do', doing: 'Doing', done: 'Done', later: 'Later', bucket: 'Bucket List' };
 var PRI = { high: 0, medium: 1, low: 2 };
@@ -66,7 +66,7 @@ function write(name, body, opts) {
   var text = JSON.stringify(body, null, 2) + '\n';
   if (name !== 'activity' && !(opts && opts.noLog)) { var prev = ''; try { prev = fs.readFileSync(fileOf(name), 'utf8'); } catch (e) { /* new */ } if (prev !== text) logChange(name + '.json', prev); }
   fs.writeFileSync(fileOf(name), text);
-  if (!(opts && opts.noActivity) && ['activity', 'boards', 'workspaces', 'settings'].indexOf(name) < 0) logActivity(name);
+  if (!(opts && opts.noActivity) && ['activity', 'boards', 'workspaces', 'settings', 'prompts'].indexOf(name) < 0) logActivity(name);
   return body;
 }
 function logActivity(app) {
@@ -496,6 +496,24 @@ function cmdInspo() {
   fail('Unknown inspo command "' + sub + '". Try: list, show, add, tag, ws, use, archive, rm, ai');
 }
 
+/* ---- prompts (data/prompts.json — your own prompts for the Guide) --------- */
+function cmdPrompts() {
+  var sub = (pos.shift() || 'list').toLowerCase(); var d = read('prompts') || { custom: [], overrides: {}, hidden: [] };
+  d.custom = d.custom || []; d.overrides = d.overrides || {}; d.hidden = d.hidden || [];
+  if (sub === 'list') return out(['## My prompts (' + d.custom.length + ')'].concat(d.custom.length ? d.custom.map(function (c) { return '- [' + c.id + '] ' + c.t + ' · ' + (c.c || 'projects') + (c.d ? ' — ' + c.d : ''); }) : ['_none yet — prompts add "Title" --cat daily --text "…" (or --file prompt.md)_']).concat(Object.keys(d.overrides).length ? ['', '## Edited built-ins', Object.keys(d.overrides).map(function (k) { return '- ' + k; }).join('\n')] : []).concat(d.hidden.length ? ['', '## Hidden built-ins: ' + d.hidden.join(', ')] : []), d);
+  if (sub === 'show') { var x = find(d.custom, pos.join(' '), 'prompt'); return out(['# ' + x.t, '', x.d || '', '', x.p], x); }
+  if (sub === 'add') {
+    var title = pos.join(' ').trim() || flags.title; var text = flags.file ? fs.readFileSync(path.resolve(flags.file), 'utf8') : (flags.text || '');
+    if (!title || !text) fail('Usage: prompts add "Title" --text "…" | --file prompt.md [--cat daily|weekly|projects|content|fix] [--desc "one line"]\n  {{head}} = agent preamble, {{snapshot}} = your data (chat mode), <blank> = a field to fill');
+    var c = { id: 'c' + Date.now().toString(36), t: title, d: flags.desc || '', p: text, c: flags.cat || 'projects', pages: [] }; d.custom.push(c); write('prompts', d);
+    return out('✓ Prompt [' + c.id + '] ' + title + ' added to ' + c.c + ' — it shows in the Guide on every page', c);
+  }
+  if (sub === 'edit') { var e = find(d.custom, pos.join(' '), 'prompt'); if (flags.title) e.t = flags.title; if (flags.desc !== undefined) e.d = flags.desc; if (flags.cat) e.c = flags.cat; if (flags.text) e.p = flags.text; if (flags.file) e.p = fs.readFileSync(path.resolve(flags.file), 'utf8'); write('prompts', d); return out('✓ [' + e.id + '] ' + e.t + ' updated', e); }
+  if (sub === 'rm') { var r = find(d.custom, pos.join(' '), 'prompt'); d.custom = d.custom.filter(function (c) { return c.id !== r.id; }); write('prompts', d); return out('✓ Deleted [' + r.id + '] ' + r.t, r); }
+  if (sub === 'restore') { d.hidden = []; d.overrides = flags.all ? {} : d.overrides; write('prompts', d); return out('✓ Built-in prompts restored' + (flags.all ? ' (edits cleared too)' : ''), d); }
+  fail('Unknown prompts command "' + sub + '". Try: list, show, add, edit, rm, restore');
+}
+
 /* ---- boards -------------------------------------------------------------- */
 function cmdBoards() {
   var sub = (pos.shift() || 'list').toLowerCase();
@@ -624,6 +642,7 @@ function cmdHelp() {
     'Share', '  share [todo|board|all]      markdown checklist (paste anywhere)', '  import <list.md> [--col]    "- [ ] item" lines become tasks, indented lines become steps', '',
     'Posts (data/social.json)', '  social list|next|week|show <post>', '  social add "Title" [--at 2026-10-20T09:00 | +3d 17:30] [--type launch] [--project X] [--copy "…"] [--prep "a|b"]', '  social posted|ready|draft <post> [--url …]   social move <post> <when>', '  social prep <post> "item"   social check <post> <n>   social copy <post> ["text"]   social rm <post>', '',
     'Inspiration (data/inspiration.json — links, ideas, images; tag with a workspace)', '  inspo list [--ws] [--tag x] [--status new|used|archived]   inspo show <item>', '  inspo add "https://… or an idea #tag" [--ws <id>] [--tags a,b]   inspo tag <item> +a -b   inspo ws <item> <workspace>', '  inspo use <item> --as task|post|script|note [--ws] [--board]   inspo ai [--into tasks] (prompt to paste into an AI)   inspo archive|rm <item>', '',
+    'Prompts (data/prompts.json — your own Guide prompts)', '  prompts list|show <p>|add "Title" --text "…"|--file p.md [--cat daily] [--desc "…"]|edit <p> …|rm <p>|restore', '',
     'Studio (data/scripts.json, data/writing.json)', '  scripts list|show <s>|add "Title" [--file x.md]|rm <s>', '  notes list|show <n>|add "Title" [--file x.md]|rm <n>', '',
     'Setup', '  template [all|board|social|scripts|writing|settings] [--board id] [--force]', '  theme [show|list|set <warm|paper|forest|dusk|mono>|mode <auto|light|dark>]', '  config                     show solo.config.js summary', '  serve [--port 4321]        start the local server (pages write data/ directly)', '',
     'Add --json to any command for machine-readable output. Ids: tasks t…, posts p…, scripts s…, notes n….',
@@ -640,7 +659,7 @@ var commands = {
   share: cmdShare, import: cmdImport,
   social: cmdSocial, post: cmdSocial, posts: cmdSocial,
   scripts: cmdScripts, script: cmdScripts, notes: cmdNotes,
-  inspo: cmdInspo, inspiration: cmdInspo, boards: cmdBoards, board: cmdBoards, activity: cmdActivity, log: cmdLog, history: cmdLog, revert: cmdRevert, undo: cmdRevert, workspaces: cmdWorkspaces, workspace: cmdWorkspaces, ws: cmdWorkspaces,
+  inspo: cmdInspo, inspiration: cmdInspo, prompts: cmdPrompts, prompt: cmdPrompts, boards: cmdBoards, board: cmdBoards, activity: cmdActivity, log: cmdLog, history: cmdLog, revert: cmdRevert, undo: cmdRevert, workspaces: cmdWorkspaces, workspace: cmdWorkspaces, ws: cmdWorkspaces,
   template: cmdTemplate, theme: cmdTheme, config: cmdConfig, serve: cmdServe
 };
 var fn = commands[cmd];

@@ -154,6 +154,20 @@ the linked-folder mode. `prev` is the whole previous file (skipped above
 2 MB), which is what `revert <id>` restores. Capped at the last 400 entries.
 Never edit by hand; never commit (it is in `.gitignore` via `data/*`).
 
+## prompts.json — your Guide prompts
+
+```json
+{ "custom": [{ "id": "c…", "t": "Monday planning", "d": "one line", "p": "{{head}}Plan my Monday…", "c": "weekly", "pages": [] }],
+  "overrides": { "Daily standup": { "d": "…", "p": "…" } },
+  "hidden": ["Undo what the agent just did"] }
+```
+
+`custom` are your own prompts (`c` is daily | weekly | projects | content |
+fix). `overrides` replace a built-in's text by its title; `hidden` removes
+built-ins from the Guide. In a prompt, `{{head}}` inserts the agent preamble
+(workspace, how to reply), `{{snapshot}}` the data snapshot, `{{recent}}` the
+last changes, and `<blank>` becomes a field to fill. Merged on sync.
+
 ## settings.json — theme
 
 ```json
