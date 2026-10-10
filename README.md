@@ -1,12 +1,12 @@
-<p align="center"><img src="icons/icon.svg" width="72" alt="Marathon"></p>
+<p align="center"><img src="icons/icon.svg" width="72" alt="Solo Ops"></p>
 
-<h1 align="center">Marathon</h1>
+<h1 align="center">Solo Ops</h1>
 <p align="center"><b>Solo founder ops, in plain files.</b><br>
 Boards · posting schedule · video scripts · drafts · inspiration inbox — local, installable, and native to your AI.</p>
 
 ---
 
-Marathon is for people shipping things alone: the indie hacker juggling a
+Solo Ops is for people shipping things alone: the indie hacker juggling a
 launch, a side project and "business as usual"; the creator with a posting
 calendar and a pile of half-written scripts. It gives you the five tools you
 actually use, keeps everything in **JSON files on your machine**, and makes
@@ -14,7 +14,7 @@ those files the thing your **AI agent** reads and updates — so you stop
 re-typing your to-do list into ChatGPT.
 
 ```
-$ node marathon.js week
+$ node solo.js week
 # Next 7 days · Oct 10 → Oct 17
 Last activity 2 h ago · streak 6 days
 **Launch:** 4/11 done (36%)   **Business as usual:** 2/5 done
@@ -26,11 +26,11 @@ Last activity 2 h ago · streak 6 days
 
 ## Why it is different
 
-| | Marathon |
+| | Solo Ops |
 |---|---|
 | **Where your data lives** | `data/*.json` in a folder you own. No account, no server, no sync service. |
 | **How your AI uses it** | It reads the same files. Paste `AGENTS.md` into Claude, ChatGPT or Claude Code and it knows the schema and the CLI. Every agent change is logged and revertable. |
-| **How you use it without clicking** | `node marathon.js today / week / add / done / social next / inspo add …` |
+| **How you use it without clicking** | `node solo.js today / week / add / done / social next / inspo add …` |
 | **How non-technical people use it** | Download, double-click `index.html`. Or `node serve.js` and click **Install** to get it as an app. |
 | **How many projects** | As many **workspaces** as you like, each with its own boards, schedule, scripts and notes — and a Home that shows all of them at once. |
 
@@ -58,7 +58,7 @@ write `data/*.json` directly; elsewhere use **File → Save / Load**.
 **As an app (recommended).**
 
 ```bash
-git clone https://github.com/<you>/marathon && cd marathon
+git clone https://github.com/<you>/solo-ops && cd solo-ops
 node serve.js          # http://localhost:4321
 ```
 
@@ -69,20 +69,20 @@ your dock or home screen, works offline for the shell, and every change hits
 ## The terminal
 
 ```bash
-node marathon.js today                          # in play now + idle reminder
-node marathon.js week --ws launch --days 14     # a project, a longer window
-node marathon.js add "Write the launch post" --proj launch --pri high --tags content --steps "Outline|Draft"
-node marathon.js start "launch post" ; done t5 ; move t11 later ; check t5 2
-node marathon.js social add "Launch day" --at +3d 9:00 --type launch ; social next ; social posted p4 --url …
-node marathon.js scripts add "Teaser" --file teaser.md ; notes list
-node marathon.js inspo add "https://… worth stealing #launch" --ws launch
-node marathon.js inspo use "worth stealing" --as task
-node marathon.js boards add "Business as usual" --from sample
-node marathon.js workspaces add "Side project" --apps scripts,writing --sample
-node marathon.js share todo | pbcopy            # markdown checklist, anywhere
-node marathon.js import list.md                 # "- [ ] item" lines → tasks
-node marathon.js log ; node marathon.js revert <id>
-node marathon.js help
+node solo.js today                          # in play now + idle reminder
+node solo.js week --ws launch --days 14     # a project, a longer window
+node solo.js add "Write the launch post" --proj launch --pri high --tags content --steps "Outline|Draft"
+node solo.js start "launch post" ; done t5 ; move t11 later ; check t5 2
+node solo.js social add "Launch day" --at +3d 9:00 --type launch ; social next ; social posted p4 --url …
+node solo.js scripts add "Teaser" --file teaser.md ; notes list
+node solo.js inspo add "https://… worth stealing #launch" --ws launch
+node solo.js inspo use "worth stealing" --as task
+node solo.js boards add "Business as usual" --from sample
+node solo.js workspaces add "Side project" --apps scripts,writing --sample
+node solo.js share todo | pbcopy            # markdown checklist, anywhere
+node solo.js import list.md                 # "- [ ] item" lines → tasks
+node solo.js log ; node solo.js revert <id>
+node solo.js help
 ```
 
 `--json` on anything for machine output. `--ws <id>` and `--board <id>` scope
@@ -95,19 +95,19 @@ any command.
   "what should I do this week?", "turn my inspiration into tasks", "draft the
   three posts for launch week".
 - **Claude.ai / ChatGPT (no file access):** paste `prompts/agent-bootstrap.md`
-  once. Then paste `node marathon.js week --json` or an inspiration dump; you
+  once. Then paste `node solo.js week --json` or an inspiration dump; you
   get back CLI commands or a file to save.
 - **Every agent change is logged** with `source: agent` and a note. Home →
-  Recent changes shows it; one click reverts it. `node marathon.js log` from
+  Recent changes shows it; one click reverts it. `node solo.js log` from
   the terminal.
-- **Scheduled nudges:** `node marathon.js today` in cron, a Claude scheduled
+- **Scheduled nudges:** `node solo.js today` in cron, a Claude scheduled
   task or a Shortcut. It prints the idle reminder too.
 - **Telegram** (planned, design in `docs/telegram.md`): `/add`, `/done`,
   `/next` and "just send me the link" into the inbox from your phone.
 
 ## Make it yours
 
-`marathon.config.js` holds the name, workspaces (or just the apps and boards
+`solo.config.js` holds the name, workspaces (or just the apps and boards
 of the default one), projects with colors, tags, post types, prep kinds,
 milestones and focus cards, idle-reminder hours and default theme. Workspaces
 and boards can also be created from Home or the CLI; sample content ships in
@@ -128,8 +128,8 @@ losing side is downloaded as a backup either way. Details: `data/SCHEMA.md`,
 
 ```
 index.html              Home (all projects)
-marathon.config.js      your settings — plain JS, read by pages and CLI
-marathon.js             CLI (node, zero deps)   serve.js  local server + write API + change log
+solo.config.js      your settings — plain JS, read by pages and CLI
+solo.js             CLI (node, zero deps)   serve.js  local server + write API + change log
 manifest.json sw.js icons/   installable app shell
 core/                   store · config · theme · sync · activity · nav · palette · inspo-quick · templates
 data/                   per workspace: <board>.json, social, scripts, writing · plus inspiration, boards, workspaces, activity, settings, log.jsonl

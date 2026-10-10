@@ -17,7 +17,7 @@
       '<img class="thumb" id="inspoQuickThumb" style="display:none">' +
       '<div class="row"><select id="inspoQuickWs">' + wss.map(function (w) { return '<option value="' + esc(w.id) + '"' + (w.id === cur ? ' selected' : '') + '>' + esc(w.title) + '</option>'; }).join('') + '<option value="">(no workspace)</option></select>' +
       '<button type="button" class="btn ghost" id="inspoQuickImg">Image…</button><span style="flex:1"></span><button type="button" class="btn primary" id="inspoQuickSave">Save</button></div>' +
-      '<div class="hint">Later: open Inspiration → “Use as task / post / script / note”, or “Brainstorm with AI”. Terminal: <code>node marathon.js inspo add "…" --ws ' + esc(cur) + '</code></div>';
+      '<div class="hint">Later: open Inspiration → “Use as task / post / script / note”, or “Brainstorm with AI”. Terminal: <code>node solo.js inspo add "…" --ws ' + esc(cur) + '</code></div>';
     document.body.appendChild(pop);
     var ta = pop.querySelector('#inspoQuickText'); ta.focus();
     ta.addEventListener('paste', function (e) { var f = Array.prototype.filter.call((e.clipboardData || {}).files || [], function (x) { return /^image\//.test(x.type); })[0]; if (f) { e.preventDefault(); readImage(f); } });

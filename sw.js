@@ -1,8 +1,8 @@
-/* sw.js — caches the app shell so Marathon opens instantly as an installed
+/* sw.js — caches the app shell so Solo Ops opens instantly as an installed
    app. Data (/api/*, data/*.json) is always network-first and never served
    stale. Bump VERSION when shipping a new build. */
-var VERSION = 'marathon-v1';
-var SHELL = ['./', './index.html', './manifest.json', './marathon.config.js', './icons/icon.svg', './icons/icon-192.png',
+var VERSION = 'solo-ops-v1';
+var SHELL = ['./', './index.html', './manifest.json', './solo.config.js', './icons/icon.svg', './icons/icon-192.png',
   './core/store.js', './core/config.js', './core/templates.js', './core/theme.js', './core/theme-boot.js', './core/theme.css', './core/ui.css',
   './core/sync.js', './core/activity.js', './core/palette.js', './core/nav.js', './core/inspo-quick.js',
   './runway/marathon-board.html', './runway/styles.css', './runway/model.js', './runway/view.js', './runway/main.js',

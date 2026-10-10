@@ -5,7 +5,7 @@ a **Bucket List** for ideas. Collapsible cards with checklists, priority,
 project chip, tags, private notes, drag & drop.
 
 **Open:** `marathon-board.html?board=<id>` (double-click, or via Home). No
-`?board=` opens the first board in `../marathon.config.js`.
+`?board=` opens the first board in `../solo.config.js`.
 
 - Data: `../data/<id>.json` ⇄ this browser (`marathon.board.<id>`)
 - **+ Board** creates another board: blank, the sample sprint, or a copy.
@@ -17,8 +17,8 @@ project chip, tags, private notes, drag & drop.
 - **Sample** — replace the board with the sample sprint (backup downloads first)
 
 Projects, tags, milestones and the two focus cards come from
-`../marathon.config.js`.
+`../solo.config.js`.
 
-Terminal: `node ../marathon.js week`, `add`, `done`, `move` — see `../AGENTS.md`.
+Terminal: `node ../solo.js week`, `add`, `done`, `move` — see `../AGENTS.md`.
 
 Architecture and safety rules: `CURRENT.md`.

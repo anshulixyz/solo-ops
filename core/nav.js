@@ -52,7 +52,7 @@
         return '<a class="nav-item' + (it.on ? ' on' : '') + '" href="' + it.href + '" data-nav-id="' + esc(it.id) + '">' + ICON[it.icon] + '<span>' + esc(it.label) + '</span></a>';
       }).join('') +
       (global.InspoQuick ? '<button type="button" class="nav-item nav-inspo" title="Add to inspiration (⌘⇧I) — a link, an idea, an image" onclick="InspoQuick.open()">' + ICON.plus + '<span>Inspo</span></button>' : '') +
-      '<button type="button" class="nav-item nav-install" id="navInstall" style="display:none" title="Install Marathon as an app">' + ICON.install + '<span>Install</span></button>' +
+      '<button type="button" class="nav-item nav-install" id="navInstall" style="display:none" title="Install Solo Ops as an app">' + ICON.install + '<span>Install</span></button>' +
       '</div>';
       bindInstall();
     }

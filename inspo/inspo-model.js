@@ -66,7 +66,7 @@
     var ws = global.Config ? Config.ws() : null;
     var lines = ['# Inspiration → ' + (intent || 'ideas'), '',
       'Workspace: ' + (ws ? ws.title + ' (' + ws.id + ')' : 'n/a') + '. Turn the items below into concrete ' + (intent || 'next steps') + '.',
-      'Give me back CLI commands I can run (node marathon.js …) or a short list I can paste into the right app. Keep ids out, keep titles short.', ''];
+      'Give me back CLI commands I can run (node solo.js …) or a short list I can paste into the right app. Keep ids out, keep titles short.', ''];
     items.forEach(function (x, i) {
       lines.push('## ' + (i + 1) + '. ' + (x.title || x.url || 'untitled') + (x.tags.length ? '  #' + x.tags.join(' #') : ''));
       if (x.url) lines.push(x.url);

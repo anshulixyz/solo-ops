@@ -10,7 +10,7 @@ Last updated: 2026-10-10 (open-source refactor).
 ## 1. What this is
 
 A **single-page, zero-dependency Kanban board** for solo-builder ops, part of
-the Marathon toolkit. Pure HTML + CSS + vanilla JS. **No backend, no build
+the Solo Ops toolkit. Pure HTML + CSS + vanilla JS. **No backend, no build
 step, no install** — open `runway/marathon-board.html` directly (double-click /
 `file://`) and it runs. The browser's `localStorage` is the working copy;
 `../data/runway.json` is the file agents and the CLI read and write
@@ -49,7 +49,7 @@ runway/
   main.js    -> (handlers)       UI state, handlers, drag&drop, sync registration, palette, init
 ../core/
   store.js     -> `Store`     localStorage w/ in-memory fallback + change events
-  config.js    -> `Config`    reads ../marathon.config.js (projects, tags, labels)
+  config.js    -> `Config`    reads ../solo.config.js (projects, tags, labels)
   templates.js -> `MARATHON_TEMPLATES`  sample data (also required by the CLI)
   theme.js     -> `Theme`, global toggleTheme()   mode + palette, picker
   sync.js      -> `Sync`      data/*.json ⇄ browser (server / folder / manual)
@@ -58,7 +58,7 @@ runway/
 
 Repo hub: `../index.html` · Agent contract: `../AGENTS.md` · Social apps: `../social/`
 
-**Load order in the HTML is significant:** `marathon.config.js → theme-boot`
+**Load order in the HTML is significant:** `solo.config.js → theme-boot`
 in `<head>`, then `store → config → templates → theme → sync → palette → model
 → view → main`. Each file attaches one global; later files depend on earlier
 ones.
@@ -238,8 +238,8 @@ steps: inline edit of title/desc, due dates, search, and archive for done tasks.
   multi-select, visible non-Done tasks can export to detailed Markdown, and a
   full-task Bucket List was added for video/demo ideas.
 - **Open-source refactor (2026-10-10):** `store.js` moved to `../core/`;
-  projects/tags/labels/milestones read from `../marathon.config.js`; seed is
+  projects/tags/labels/milestones read from `../solo.config.js`; seed is
   the generic template; storage keys renamed to `marathon.*` with one-time
   migration; data mirrors to `../data/runway.json` via `core/sync.js`; ⌘K
   palette, keyboard shortcuts, theme palettes; Reset became Sample / Start
-  blank; CLI `../marathon.js` operates on the same file.
+  blank; CLI `../solo.js` operates on the same file.

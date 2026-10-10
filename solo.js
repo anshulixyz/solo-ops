@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /* =========================================================================
-   marathon.js — zero-dependency CLI for Marathon.
+   solo.js — zero-dependency CLI for Solo Ops.
    Reads and writes the same data/*.json files the pages use, so the board,
    the terminal and your agent always see one list.
 
-     node marathon.js help
-     node marathon.js today | week | review
-     node marathon.js add "Write the launch post" --proj launch --pri high --tags content,video
-     node marathon.js done t5 | start t5 | move t5 later | pri t5 high
-     node marathon.js social next | social add "Launch day" --at 2026-10-20T09:00
+     node solo.js help
+     node solo.js today | week | review
+     node solo.js add "Write the launch post" --proj launch --pri high --tags content,video
+     node solo.js done t5 | start t5 | move t5 later | pri t5 high
+     node solo.js social next | social add "Launch day" --at 2026-10-20T09:00
 
    Output is Markdown by default; add --json for machine-readable output.
    ========================================================================= */
@@ -18,7 +18,7 @@ var path = require('path');
 
 var ROOT = __dirname;
 var DATA = path.join(ROOT, 'data');
-var cfg = safeRequire(path.join(ROOT, 'marathon.config.js')) || {};
+var cfg = safeRequire(path.join(ROOT, 'solo.config.js')) || {};
 var T = safeRequire(path.join(ROOT, 'core', 'templates.js'));
 var RESERVED = ['social', 'scripts', 'writing', 'settings', 'activity', 'boards', 'workspaces', 'calendar', 'home'];
 var COLS = ['todo', 'doing', 'done', 'later', 'bucket'];
@@ -105,8 +105,8 @@ function normWs(w) {
 }
 function configWs() {
   var list = Array.isArray(cfg.workspaces) && cfg.workspaces.length ? cfg.workspaces
-    : [{ id: 'main', title: cfg.name || 'Marathon', apps: cfg.apps, boards: cfg.boards || (cfg.runway ? [{ id: 'runway', title: cfg.runway.title }] : undefined) }];
-  var out = list.map(normWs).filter(Boolean); return out.length ? out : [normWs({ id: 'main', title: 'Marathon' })];
+    : [{ id: 'main', title: cfg.name || 'Solo Ops', apps: cfg.apps, boards: cfg.boards || (cfg.runway ? [{ id: 'runway', title: cfg.runway.title }] : undefined) }];
+  var out = list.map(normWs).filter(Boolean); return out.length ? out : [normWs({ id: 'main', title: 'Solo Ops' })];
 }
 function allWorkspaces() {
   var seen = {}, out = []; var rt = read('workspaces');
@@ -153,7 +153,7 @@ function out(md, obj) {
   else process.stdout.write((Array.isArray(md) ? md.join('\n') : md) + '\n');
 }
 function fail(msg) { if (JSON_OUT) out('', { error: msg }); else process.stderr.write('✗ ' + msg + '\n'); process.exit(1); }
-function hint(name) { return 'No data/' + name + '.json yet. Open the app once, or run: node marathon.js template ' + (RESERVED.indexOf(name) < 0 ? 'board --board ' + name : name); }
+function hint(name) { return 'No data/' + name + '.json yet. Open the app once, or run: node solo.js template ' + (RESERVED.indexOf(name) < 0 ? 'board --board ' + name : name); }
 
 /* ---- helpers ------------------------------------------------------------- */
 function newId(prefix) { return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
@@ -320,7 +320,7 @@ function cmdToday() {
   var due = posts.filter(function (p) { return new Date(p.datetime) <= end; });
   var md = ['# Today · ' + now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }), '', activityLine(), ''];
   if (appOn('boards')) {
-    md.push('## Doing (' + doing.length + ')', doing.length ? doing.map(taskLine).join('\n') : '_nothing in progress — start one: node marathon.js start <task>_', '');
+    md.push('## Doing (' + doing.length + ')', doing.length ? doing.map(taskLine).join('\n') : '_nothing in progress — start one: node solo.js start <task>_', '');
     md.push('## High priority, not started (' + high.length + ')', high.length ? high.map(taskLine).join('\n') : '_none_', '');
   }
   if (appOn('social')) md.push('## Posts due today or overdue (' + due.length + ')', due.length ? due.map(postLine).join('\n') : '_none_' + (posts[0] ? ' — next: ' + fmtDT(posts[0].datetime) + ' · ' + posts[0].title : ''), '');
@@ -487,7 +487,7 @@ function cmdInspo() {
   }
   if (sub === 'ai' || sub === 'brainstorm') {
     var sel = d.items.filter(function (x) { return x.status !== 'archived' && (!flags.ws || x.ws === WS_ID); }).slice(0, parseInt(flags.n, 10) || 20);
-    var lines = ['# Inspiration → ' + (flags.into || 'next steps'), '', 'Workspace: ' + WS.title + ' (' + WS_ID + '). Turn the items below into concrete ' + (flags.into || 'next steps') + '.', 'Give me back `node marathon.js …` commands I can run, or a short list I can paste. Keep titles short.', ''];
+    var lines = ['# Inspiration → ' + (flags.into || 'next steps'), '', 'Workspace: ' + WS.title + ' (' + WS_ID + '). Turn the items below into concrete ' + (flags.into || 'next steps') + '.', 'Give me back `node solo.js …` commands I can run, or a short list I can paste. Keep titles short.', ''];
     sel.forEach(function (x, i) { lines.push('## ' + (i + 1) + '. ' + (x.title || x.url) + (x.tags.length ? '  #' + x.tags.join(' #') : '')); if (x.url) lines.push(x.url); if (x.text) lines.push(x.text); lines.push(''); });
     return out(lines, sel);
   }
@@ -512,14 +512,14 @@ function cmdBoards() {
     else if (from !== 'blank') { var src = BOARDS.filter(function (b) { return b.id === slug(from); })[0]; if (!src) fail('No board "' + from + '" to copy.'); tasks = board(src.id).tasks.map(function (t) { return Object.assign({}, t, { id: newId('t') }); }); }
     rt.boards.push({ id: id, title: title, sprintLabel: 'Progress', milestones: [], focus: [], createdAt: Date.now(), ws: WS_ID });
     write('boards', rt); write(prefix() + id, { projects: [], tasks: tasks });
-    return out('✓ Board [' + id + '] ' + title + ' created with ' + tasks.length + ' task' + (tasks.length === 1 ? '' : 's') + ' → data/' + prefix() + id + '.json\n  use it: node marathon.js week --board ' + id + (WS_ID === PRIMARY ? '' : ' --ws ' + WS_ID) + '   ·   open: runway/marathon-board.html?ws=' + WS_ID + '&board=' + id, { id: id, title: title, tasks: tasks.length });
+    return out('✓ Board [' + id + '] ' + title + ' created with ' + tasks.length + ' task' + (tasks.length === 1 ? '' : 's') + ' → data/' + prefix() + id + '.json\n  use it: node solo.js week --board ' + id + (WS_ID === PRIMARY ? '' : ' --ws ' + WS_ID) + '   ·   open: runway/marathon-board.html?ws=' + WS_ID + '&board=' + id, { id: id, title: title, tasks: tasks.length });
   }
   if (sub === 'rename') {
     var bid = slug(pos.shift()); var nt = pos.join(' ').trim(); if (!bid || !nt) fail('Usage: boards rename <id> "New title"');
     var meta = BOARDS.filter(function (b) { return b.id === bid; })[0]; if (!meta) fail('No board "' + bid + '".');
     var hit = false; rt.boards = rt.boards.map(function (b) { if (slug(b.id || b.title) === bid && (b.ws || PRIMARY) === WS_ID) { hit = true; b.title = nt; } return b; });
     if (!hit) rt.boards.push(Object.assign({}, meta, { title: nt, ws: WS_ID }));
-    write('boards', rt); return out('✓ [' + bid + '] → ' + nt + (cfg.boards && cfg.boards.some(function (b) { return slug(b.id || b.title) === bid; }) ? '  (overrides the title in marathon.config.js)' : ''), { id: bid, title: nt });
+    write('boards', rt); return out('✓ [' + bid + '] → ' + nt + (cfg.boards && cfg.boards.some(function (b) { return slug(b.id || b.title) === bid; }) ? '  (overrides the title in solo.config.js)' : ''), { id: bid, title: nt });
   }
   if (sub === 'rm') {
     var rid = slug(pos.shift()); if (!rid) fail('Usage: boards rm <id>');
@@ -527,7 +527,7 @@ function cmdBoards() {
     if (!flags.force) fail('This deletes data/' + rid + '.json. Re-run with --force.');
     rt.boards = rt.boards.filter(function (b) { return !(slug(b.id || b.title) === rid && (b.ws || PRIMARY) === WS_ID); }); write('boards', rt);
     try { fs.unlinkSync(fileOf(prefix() + rid)); } catch (e) { /* none */ }
-    return out('✓ Board [' + rid + '] removed' + (cfg.boards && cfg.boards.some(function (b) { return slug(b.id || b.title) === rid; }) ? ' (it is still listed in marathon.config.js — remove it there too)' : ''), { id: rid });
+    return out('✓ Board [' + rid + '] removed' + (cfg.boards && cfg.boards.some(function (b) { return slug(b.id || b.title) === rid; }) ? ' (it is still listed in solo.config.js — remove it there too)' : ''), { id: rid });
   }
   fail('Unknown boards command "' + sub + '". Try: list, add, rename, rm');
 }
@@ -549,7 +549,7 @@ function cmdWorkspaces() {
     if (w.apps.social) write(pre + 'social', { posts: sample && T ? T.social(now).posts : [] }, { noActivity: true });
     if (w.apps.scripts) write(pre + 'scripts', sample && T ? T.scripts(now) : { activeId: '', scripts: [] }, { noActivity: true });
     if (w.apps.writing) write(pre + 'writing', sample && T ? T.writing(now) : { activeId: '', notes: [] }, { noActivity: true });
-    return out('✓ Workspace [' + id + '] ' + title + ' created (' + apps.join(', ') + (sample ? ', sample content' : ', blank') + ')\n  use it: node marathon.js week --ws ' + id + '   ·   open: index.html?ws=' + id, w);
+    return out('✓ Workspace [' + id + '] ' + title + ' created (' + apps.join(', ') + (sample ? ', sample content' : ', blank') + ')\n  use it: node solo.js week --ws ' + id + '   ·   open: index.html?ws=' + id, w);
   }
   if (sub === 'rename') { var wid = slug(pos.shift()); var nt = pos.join(' ').trim(); if (!wid || !nt) fail('Usage: workspaces rename <id> "Title"'); var meta = WORKSPACES.filter(function (w) { return w.id === wid; })[0]; if (!meta) fail('No workspace "' + wid + '".'); var hit = false; rt.workspaces = rt.workspaces.map(function (w) { if (slug(w.id || w.title) === wid) { hit = true; w.title = nt; } return w; }); if (!hit) rt.workspaces.push(Object.assign({}, meta, { title: nt })); write('workspaces', rt); return out('✓ [' + wid + '] → ' + nt, { id: wid, title: nt }); }
   if (sub === 'rm') { var rid = slug(pos.shift()); if (!rid) fail('Usage: workspaces rm <id>'); if (WORKSPACES.length < 2) fail('Keep at least one workspace.'); rt.workspaces = rt.workspaces.filter(function (w) { return slug(w.id || w.title) !== rid; }); write('workspaces', rt); return out('✓ Workspace [' + rid + '] removed (its data/' + rid + '-*.json files are kept)', { id: rid }); }
@@ -562,7 +562,7 @@ function cmdLog() {
   }) : ['_nothing logged yet — changes made through node serve.js, the CLI and agents land here_']), recs.map(function (r) { return { id: r.id, ts: r.ts, file: r.file, source: r.source, note: r.note, canRevert: r.prev != null }; }));
 }
 function cmdRevert() {
-  var id = pos[0]; if (!id) fail('Usage: revert <log id>   (ids from: node marathon.js log)');
+  var id = pos[0]; if (!id) fail('Usage: revert <log id>   (ids from: node solo.js log)');
   var rec = readLog().filter(function (r) { return r.id === id; })[0];
   if (!rec) fail('No log entry "' + id + '".'); if (rec.prev == null) fail('Entry ' + id + ' has no snapshot (file was new or too large).');
   var target = fileOf(rec.file.replace(/\.json$/, '')); var cur = ''; try { cur = fs.readFileSync(target, 'utf8'); } catch (e) { /* none */ }
@@ -603,16 +603,16 @@ function cmdTheme() {
 }
 function cmdConfig() {
   var projects = (cfg.projects || []).map(function (p) { return typeof p === 'string' ? p : p.name; });
-  out(['# ' + (cfg.name || 'Marathon') + ' config', '', '- workspaces: ' + WORKSPACES.map(function (w) { return w.id + ' (' + w.title + ')'; }).join(', ') + '  — default for CLI: ' + WS_ID,
+  out(['# ' + (cfg.name || 'Solo Ops') + ' config', '', '- workspaces: ' + WORKSPACES.map(function (w) { return w.id + ' (' + w.title + ')'; }).join(', ') + '  — default for CLI: ' + WS_ID,
     '- apps in ' + WS_ID + ': ' + ['boards', 'social', 'scripts', 'writing'].filter(appOn).join(', '),
     '- boards: ' + BOARDS.map(function (b) { return b.id + ' (' + b.title + ')'; }).join(', ') + '  — default for CLI: ' + BOARD_ID,
     '- projects: ' + projects.join(', '), '- task tags: ' + ((cfg.board && cfg.board.tags) || (cfg.runway && cfg.runway.tags) || []).join(', '),
     '- post types: ' + ((cfg.social && cfg.social.postTypes) || []).join(', '), '- idle reminder after: ' + ((cfg.activity && cfg.activity.reminderAfterHours) || 24) + ' h', '- theme default: ' + JSON.stringify(cfg.theme || {}), '- data dir: ' + DATA,
-    '- files: ' + BOARDS.map(function (b) { return prefix() + b.id; }).concat(['social', 'scripts', 'writing'].map(function (a) { return fileName(a); })).concat(['settings', 'activity']).map(function (f) { return f + '.json' + (fs.existsSync(fileOf(f)) ? ' ✓' : ' (missing)'); }).join(' · '), '', 'Edit marathon.config.js to change any of this.'], cfg);
+    '- files: ' + BOARDS.map(function (b) { return prefix() + b.id; }).concat(['social', 'scripts', 'writing'].map(function (a) { return fileName(a); })).concat(['settings', 'activity']).map(function (f) { return f + '.json' + (fs.existsSync(fileOf(f)) ? ' ✓' : ' (missing)'); }).join(' · '), '', 'Edit solo.config.js to change any of this.'], cfg);
 }
 function cmdServe() { require('child_process').spawn(process.execPath, [path.join(ROOT, 'serve.js')].concat(flags.port ? ['--port', String(flags.port)] : []), { stdio: 'inherit' }); }
 function cmdHelp() {
-  out(['# marathon.js — tasks, posts, scripts and notes from the terminal', '',
+  out(['# solo.js — tasks, posts, scripts and notes from the terminal', '',
     'Overviews', '  today                      what is in play now + idle reminder',
     '  log [--n 30]               recent changes by page / cli / agent, with ids', '  revert <id>                restore a file to how it was before that change', '  week [--days 7]            tasks by priority + posts + studio for the window', '  review                     same as week', '  activity                   streak + last 14 days', '',
     'Workspaces (one project = its own boards, schedule, scripts, notes; add --ws <id> to any command)', '  workspaces list', '  workspaces add "Title" [--apps social,scripts,writing] [--boards "A,B"] [--sample]   workspaces rename <id> "Title"   workspaces rm <id>', '',
@@ -623,7 +623,7 @@ function cmdHelp() {
     'Posts (data/social.json)', '  social list|next|week|show <post>', '  social add "Title" [--at 2026-10-20T09:00 | +3d 17:30] [--type launch] [--project X] [--copy "…"] [--prep "a|b"]', '  social posted|ready|draft <post> [--url …]   social move <post> <when>', '  social prep <post> "item"   social check <post> <n>   social copy <post> ["text"]   social rm <post>', '',
     'Inspiration (data/inspiration.json — links, ideas, images; tag with a workspace)', '  inspo list [--ws] [--tag x] [--status new|used|archived]   inspo show <item>', '  inspo add "https://… or an idea #tag" [--ws <id>] [--tags a,b]   inspo tag <item> +a -b   inspo ws <item> <workspace>', '  inspo use <item> --as task|post|script|note [--ws] [--board]   inspo ai [--into tasks] (prompt to paste into an AI)   inspo archive|rm <item>', '',
     'Studio (data/scripts.json, data/writing.json)', '  scripts list|show <s>|add "Title" [--file x.md]|rm <s>', '  notes list|show <n>|add "Title" [--file x.md]|rm <n>', '',
-    'Setup', '  template [all|board|social|scripts|writing|settings] [--board id] [--force]', '  theme [show|list|set <warm|paper|forest|dusk|mono>|mode <auto|light|dark>]', '  config                     show marathon.config.js summary', '  serve [--port 4321]        start the local server (pages write data/ directly)', '',
+    'Setup', '  template [all|board|social|scripts|writing|settings] [--board id] [--force]', '  theme [show|list|set <warm|paper|forest|dusk|mono>|mode <auto|light|dark>]', '  config                     show solo.config.js summary', '  serve [--port 4321]        start the local server (pages write data/ directly)', '',
     'Add --json to any command for machine-readable output. Ids: tasks t…, posts p…, scripts s…, notes n….',
     'Agents: add --as agent (and --note "why") so the change log attributes the edit to you.'], null);
 }
@@ -642,5 +642,5 @@ var commands = {
   template: cmdTemplate, theme: cmdTheme, config: cmdConfig, serve: cmdServe
 };
 var fn = commands[cmd];
-if (!fn) fail('Unknown command "' + cmd + '". Run: node marathon.js help');
+if (!fn) fail('Unknown command "' + cmd + '". Run: node solo.js help');
 fn();

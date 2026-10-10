@@ -143,3 +143,14 @@ nav[data-nav] .nav-inspo:hover{background:var(--accent-soft);}
 /* toast (shared) */
 .toast{position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(10px); background:var(--ink); color:var(--canvas); padding:9px 16px; border-radius:10px; font-size:13px; opacity:0; pointer-events:none; transition:.2s; z-index:9200; font-family:var(--body,'Inter',sans-serif); box-shadow:var(--shadow-lift);}
 .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+/* inspiration quick-add popover (+ Inspo on every page) */
+.inspo-pop{position:fixed; top:56px; right:16px; width:min(420px,calc(100vw - 32px)); z-index:9100; background:var(--panel); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow-lift); padding:14px;}
+.inspo-pop h4{margin:0 0 8px; font-family:var(--mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint);}
+.inspo-pop textarea{width:100%; min-height:90px; border:1px solid var(--line); border-radius:9px; background:var(--panel-2); color:var(--ink); font:inherit; font-size:13px; padding:9px; resize:vertical;}
+.inspo-pop .row{display:flex; gap:6px; align-items:center; margin-top:8px; flex-wrap:wrap;}
+.inspo-pop .row select{height:30px; font-size:12px;}
+.inspo-pop .row .btn{height:30px;}
+.inspo-pop .hint{font-size:11px; color:var(--muted); margin-top:8px; line-height:1.4;}
+.inspo-pop .thumb{max-height:120px; border-radius:8px; margin-top:8px; display:block;}
+

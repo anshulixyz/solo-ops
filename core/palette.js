@@ -77,7 +77,7 @@
     if (box) return;
     box = document.createElement('div'); box.className = 'cmdk';
     box.innerHTML = '<div class="cmdk-box"><input placeholder="Type a command… (add, done, move, week, theme)" spellcheck="false">' +
-      '<div class="cmdk-list"></div><div class="cmdk-foot"><span>↑↓ choose</span><span>↵ run</span><span>esc close</span><span>same verbs as node marathon.js</span></div></div>';
+      '<div class="cmdk-list"></div><div class="cmdk-foot"><span>↑↓ choose</span><span>↵ run</span><span>esc close</span><span>same verbs as node solo.js</span></div></div>';
     document.body.appendChild(box);
     input = box.querySelector('input'); list = box.querySelector('.cmdk-list');
     input.addEventListener('input', function () { sel = 0; render(); });

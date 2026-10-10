@@ -1,4 +1,4 @@
-# Telegram (planned) — update Marathon from your phone
+# Telegram (planned) — update Solo Ops from your phone
 
 Not built yet. This is the design so the pieces already in place (CLI, change
 log, inspiration inbox) line up with it.
@@ -6,9 +6,9 @@ log, inspiration inbox) line up with it.
 ## How it will work
 
 1. You create a Telegram bot (BotFather) and put its token in a local,
-   git-ignored file (`.marathon/telegram.json`). Nothing else leaves your
+   git-ignored file (`.solo-ops/telegram.json`). Nothing else leaves your
    machine.
-2. `node marathon.js telegram` runs a tiny long-polling loop (zero
+2. `node solo.js telegram` runs a tiny long-polling loop (zero
    dependencies, Node's `https`). It only answers your own chat id.
 3. Messages are either **commands** or **inspiration**:
    - `/today`, `/week`, `/add Write the launch post #launch !high`,
@@ -20,7 +20,7 @@ log, inspiration inbox) line up with it.
    in `data/log.jsonl` with `source: "telegram"` and can be reverted.
 5. **Agent in the loop (optional):** with Claude Code (or any agent) open on
    the laptop, `/ask plan my week` hands the message to the agent via a file
-   drop (`.marathon/inbox/*.md`) that the `marathon` skill watches; the agent
+   drop (`.solo-ops/inbox/*.md`) that the `marathon` skill watches; the agent
    replies with a proposal, you confirm with `/yes`, and only then does it run
    the commands. Confirmations are logged with `source: "agent"`.
 

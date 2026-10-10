@@ -1,5 +1,5 @@
 /* =========================================================================
-   marathon.config.js — the one file to edit to make Marathon yours.
+   solo.config.js — the one file to edit to make Solo Ops yours.
    Loaded by every page as a classic script AND required by the CLI, so it
    must stay plain JavaScript (no imports). Agents: edit values, keep shape.
    ========================================================================= */
@@ -10,7 +10,7 @@
 })(this, function () {
   return {
     /* ---- identity --------------------------------------------------- */
-    name: 'Marathon',                 // shown on Home and in page titles
+    name: 'Solo Ops',                 // shown on Home and in page titles
     eyebrow: 'Solo founder ops',      // small label above every page title
 
     /* ---- workspaces --------------------------------------------------
@@ -81,7 +81,7 @@
     /* ---- activity --------------------------------------------------
        Every change (page or CLI) is logged per day in data/activity.json.
        Home shows a streak + heatmap and turns amber after this many idle
-       hours; `node marathon.js today` prints the same reminder. */
+       hours; `node solo.js today` prints the same reminder. */
     activity: { reminderAfterHours: 24 },
 
     /* ---- theme defaults (the Theme button overrides these per browser) --

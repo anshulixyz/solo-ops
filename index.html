@@ -7,16 +7,18 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#CC6B4A">
-<title>Home — Marathon</title>
+<title>Home — Solo Ops</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="marathon.config.js"></script>
+<script src="solo.config.js"></script>
 <script src="core/theme-boot.js"></script>
 <link rel="stylesheet" href="runway/styles.css">
 <link rel="stylesheet" href="core/theme.css">
 <link rel="stylesheet" href="core/ui.css">
 <style>
+  .h1-sub{font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); font-weight:500; margin-left:6px; vertical-align:middle;}
+  .focus-h .board-tools .btn{height:26px; padding:0 9px; font-size:11.5px;}
   .sec-h .sec-sub{font-family:var(--body); letter-spacing:0; text-transform:none; font-size:12px; color:var(--faint); margin-left:0;}
   .sec-h.small{margin-top:14px;}
   .focus-wrap{margin-top:22px; padding:4px 16px 16px; border:1px dashed var(--line); border-radius:var(--r);}
@@ -106,12 +108,9 @@
   <header>
     <div class="eyebrow"><span data-cfg="eyebrow"></span> · local, file-based, agent-native</div>
     <div class="title-row">
-      <h1><span id="wsTitle">Marathon</span><span class="dot">.</span></h1>
+      <h1><span data-cfg="name">Solo Ops</span><span class="dot">.</span> <small class="h1-sub">all projects</small></h1>
       <div class="board-tools">
-        <button class="btn ghost small" onclick="toggleWsPanel()" title="Create a workspace: pick the apps and boards it includes">+ Workspace</button>
-        <button class="btn ghost small" onclick="renameWs()">Rename</button>
-        <button class="btn ghost small" id="wsEditBtn" onclick="toggleWsPanel('edit')" title="Change which apps this workspace includes">Apps</button>
-        <button class="btn ghost small" id="wsDeleteBtn" onclick="deleteWs()" style="display:none">Delete</button>
+        <button class="btn primary small" onclick="toggleWsPanel()" title="Create a workspace: pick the apps and boards it includes">+ Workspace</button>
       </div>
       <div class="hub-controls" style="margin-left:auto">
         <span data-sync-pill></span>
@@ -143,11 +142,11 @@
 
   <div class="first-run" id="firstRun" style="display:none">
     <h2>First time here?</h2>
-    <p>Everything is sample content right now. Keep it to explore, or start clean. Your data lives in <code>data/*.json</code> and in this browser — nothing leaves your machine. Switch apps on or off and rename things in <code>marathon.config.js</code>.</p>
+    <p>Everything is sample content right now. Keep it to explore, or start clean. Your data lives in <code>data/*.json</code> and in this browser — nothing leaves your machine. Switch apps on or off and rename things in <code>solo.config.js</code>.</p>
     <div class="row">
       <button class="btn primary" onclick="startBlank()">Start blank</button>
       <button class="btn" onclick="keepSample()">Keep the samples</button>
-      <button class="btn ghost" id="linkBtn" onclick="Sync.linkFolder()">Link the Marathon folder</button>
+      <button class="btn ghost" id="linkBtn" onclick="Sync.linkFolder()">Link the Solo Ops folder</button>
     </div>
   </div>
 
@@ -161,7 +160,12 @@
   <div class="today" id="today"></div>
 
   <div class="focus-wrap" id="focusWrap">
-    <div class="sec-h focus-h"><span>Open project · <b id="wsSecTitle"></b></span><span class="sec-sub">what the nav shows</span></div>
+    <div class="sec-h focus-h"><span>Open project · <b id="wsSecTitle"></b></span><span class="sec-sub">what the nav shows · switch with the Workspace menu above</span>
+      <span class="board-tools" style="margin-left:auto">
+        <button class="btn ghost small" onclick="renameWs()">Rename</button>
+        <button class="btn ghost small" id="wsEditBtn" onclick="toggleWsPanel('edit')" title="Change which apps this workspace includes">Apps</button>
+        <button class="btn ghost small" id="wsDeleteBtn" onclick="deleteWs()" style="display:none">Delete</button>
+      </span></div>
     <div class="sec-h small" data-app="boards">Boards <a href="runway/marathon-board.html#new">+ New board</a></div>
     <div class="hub-grid" id="boards" data-app="boards"></div>
     <div class="sec-h small" id="appsHead">Apps</div>
@@ -182,13 +186,13 @@
   <div class="agents">
     <h2>Run it from the terminal or your agent</h2>
     <p>The same data, no clicking. Paste <code>AGENTS.md</code> into Claude, ChatGPT or Claude Code and it knows the files, the schema and these commands.</p>
-<pre><b>node marathon.js</b> today            # what is in play + idle reminder
-<b>node marathon.js</b> week             # tasks + posts for the next 7 days, every board
-<b>node marathon.js</b> add "Write the launch post" --proj launch --pri high
-<b>node marathon.js</b> done t5 --board runway
-<b>node marathon.js</b> boards add "Business as usual" --from sample
-<b>node marathon.js</b> social next     # next unposted post
-<b>node marathon.js</b> share todo      # markdown list to paste anywhere</pre>
+<pre><b>node solo.js</b> today            # what is in play + idle reminder
+<b>node solo.js</b> week             # tasks + posts for the next 7 days, every board
+<b>node solo.js</b> add "Write the launch post" --proj launch --pri high
+<b>node solo.js</b> done t5 --board runway
+<b>node solo.js</b> boards add "Business as usual" --from sample
+<b>node solo.js</b> social next     # next unposted post
+<b>node solo.js</b> share todo      # markdown list to paste anywhere</pre>
     <div class="links">Docs: <a href="README.md">README.md</a> · <a href="AGENTS.md">AGENTS.md</a> · <a href="data/SCHEMA.md">data/SCHEMA.md</a> · <span style="color:var(--muted)">⌘K opens the same commands on every page</span></div>
   </div>
 
@@ -379,7 +383,7 @@
   function renderLog() {
     var card = document.getElementById('logCard'); var hint = document.getElementById('logHint');
     Sync.log(10).then(function (recs) {
-      if (recs === null) { hint.textContent = 'live when served by node serve.js'; card.innerHTML = '<div class="empty" style="color:var(--faint);font-size:13px">Run <code>node serve.js</code> to see every change here and revert any of them. The CLI always has it: <code>node marathon.js log</code>.</div>'; return; }
+      if (recs === null) { hint.textContent = 'live when served by node serve.js'; card.innerHTML = '<div class="empty" style="color:var(--faint);font-size:13px">Run <code>node serve.js</code> to see every change here and revert any of them. The CLI always has it: <code>node solo.js log</code>.</div>'; return; }
       hint.textContent = 'who changed what · revert any step';
       card.innerHTML = recs.length ? '<ul class="log-list">' + recs.map(function (r) {
         return '<li><span class="src ' + esc(r.source) + '">' + esc(r.source) + '</span><span class="what" title="' + esc(r.note) + '">' + esc(r.note || r.file) + ' <small>' + esc(r.file) + ' · ' + esc(Activity.ago(r.ts)) + '</small></span>' + (r.canRevert ? '<button class="rv" onclick="revertLog(\'' + esc(r.id) + '\')">Revert</button>' : '') + '</li>';
@@ -425,7 +429,7 @@
     var dismissed = false; try { dismissed = !!localStorage.getItem('marathon.hub.sampleOk'); } catch (e) {}
     document.getElementById('firstRun').style.display = (isSample() && !dismissed) ? '' : 'none';
     var lb = document.getElementById('linkBtn'); if (lb) lb.style.display = (Sync.fsSupported && Sync.getMode() === 'manual') ? '' : 'none';
-    document.getElementById('wsTitle').textContent = W.title;
+
     document.getElementById('wsSecTitle').textContent = W.title;
     renderProjects(); renderInspo(); renderLog();
     document.title = W.title === Config.get('name') ? W.title : W.title + ' — ' + Config.get('name');

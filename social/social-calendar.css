@@ -174,7 +174,7 @@
 }
 .cal-post.is-posted .cal-post-bar{filter:saturate(1.1);}
 
-/* project bar colors come from marathon.config.js hues (inline --h) */
+/* project bar colors come from solo.config.js hues (inline --h) */
 .cal-post-bar,.leg-swatch{background:hsl(var(--h,30) 42% 46%);}
 [data-theme="dark"] .cal-post-bar,[data-theme="dark"] .leg-swatch{background:hsl(var(--h,30) 38% 52%);}
 

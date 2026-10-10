@@ -11,5 +11,5 @@
 - Both share `script-viewer.css` (tokens, sidebar, toast); `writing-viewer.css`
   adds the track-changes styling
 
-Terminal: `node ../marathon.js scripts list|show|add`, `notes list|show|add`.
+Terminal: `node ../solo.js scripts list|show|add`, `notes list|show|add`.
 Agents get the raw Markdown text and can write back the same way.

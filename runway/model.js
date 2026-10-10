@@ -6,7 +6,7 @@
    Task shape:
      { id, title, desc, proj, col, pri, tags:[], notes:'', collapsed:bool,
        checklist:[{text, done}] }
-   Projects and tags come from marathon.config.js; the seed comes from
+   Projects and tags come from solo.config.js; the seed comes from
    core/templates.js. One page serves many boards: ?board=<id> picks one
    (default: the first configured board). Each board has its own Store key
    (marathon.board.<id>) and data file (data/<id>.json) via core/sync.js.

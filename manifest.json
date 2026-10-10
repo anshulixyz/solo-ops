@@ -1,6 +1,6 @@
 {
-  "name": "Marathon — solo founder ops",
-  "short_name": "Marathon",
+  "name": "Solo Ops — solo founder ops",
+  "short_name": "Solo Ops",
   "description": "Boards, posting schedule, scripts, drafts and an inspiration inbox — local files your AI can read.",
   "start_url": "./index.html",
   "scope": "./",

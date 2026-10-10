@@ -298,7 +298,7 @@
       folder: 'Every change is written straight to data/*.json in the linked folder.',
       static: 'This server cannot write. Changes stay in the browser; use Save file to export.',
       prompt: 'Click to grant access to the linked folder again for this session.',
-      manual: fsSupported ? 'Link the Marathon folder once so the browser writes data/*.json directly.' : 'Use Save file / Load file, or run node serve.js.'
+      manual: fsSupported ? 'Link the Solo Ops folder once so the browser writes data/*.json directly.' : 'Use Save file / Load file, or run node serve.js.'
     }[state] || '';
   }
   function onPillClick(e) {
@@ -313,7 +313,7 @@
     pop.innerHTML = '<h4>Sync · ' + mode + '</h4><div class="mt-hint">' + tooltip(mode) + '</div><div class="mt-row">' +
       '<button type="button" data-act="pull">Reload from files</button>' +
       (mode === 'folder' ? '<button type="button" data-act="unlink">Unlink</button>' : '') + '</div>' +
-      '<div class="mt-hint">Terminal: <code>node marathon.js week</code></div>';
+      '<div class="mt-hint">Terminal: <code>node solo.js week</code></div>';
     document.body.appendChild(pop);
     var r = anchor.getBoundingClientRect();
     pop.style.top = (r.bottom + 8) + 'px'; pop.style.right = Math.max(10, window.innerWidth - r.right) + 'px';

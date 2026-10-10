@@ -1,5 +1,5 @@
 /* core/theme-boot.js — runs in <head> before paint: applies the saved theme
-   (or the config default) so there is no flash. Load after marathon.config.js. */
+   (or the config default) so there is no flash. Load after solo.config.js. */
 (function () {
   var mode = 'auto', palette = 'warm';
   try {

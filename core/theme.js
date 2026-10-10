@@ -59,7 +59,7 @@
     }).join('') + '</div><h4>Palette</h4><div class="mt-swatches">' + PALETTES.map(function (p) {
       return '<button type="button" class="mt-sw ' + (cur.palette === p.id ? 'on' : '') + '" data-palette="' + p.id + '" title="' + esc(p.label) + '">' +
         '<i style="background:linear-gradient(135deg,' + p.sw[0] + ' 55%,' + p.sw[1] + ' 55%)"></i><span>' + esc(p.label) + '</span></button>';
-    }).join('') + '</div><div class="mt-hint">Also from the terminal: <code>node marathon.js theme set dusk</code></div>';
+    }).join('') + '</div><div class="mt-hint">Also from the terminal: <code>node solo.js theme set dusk</code></div>';
     var btns = pop.querySelectorAll('button');
     for (var i = 0; i < btns.length; i++) {
       btns[i].onclick = function () {

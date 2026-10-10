@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* =========================================================================
-   serve.js — zero-dependency local server for Marathon.
+   serve.js — zero-dependency local server for Solo Ops.
      node serve.js            → http://localhost:4321
      node serve.js --port 5000
    Serves the repo as static files and gives the pages a tiny write API so
@@ -16,7 +16,7 @@ var path = require('path');
 var ROOT = __dirname;
 var DATA = path.join(ROOT, 'data');
 var cfg = {};
-try { cfg = require(path.join(ROOT, 'marathon.config.js')); } catch (e) { /* defaults */ }
+try { cfg = require(path.join(ROOT, 'solo.config.js')); } catch (e) { /* defaults */ }
 var argPort = process.argv.indexOf('--port');
 var PORT = argPort > -1 ? parseInt(process.argv[argPort + 1], 10) : ((cfg.sync && cfg.sync.port) || 4321);
 
@@ -39,7 +39,7 @@ function safeDataFile(name) {
 var LOG = path.join(DATA, 'log.jsonl');
 var LOG_MAX = 400, SNAP_MAX = 2 * 1024 * 1024;
 // Append one change record (with the previous content as a snapshot) so any
-// write — page, CLI or agent — can be reverted. Same format as marathon.js.
+// write — page, CLI or agent — can be reverted. Same format as solo.js.
 function logChange(file, prevText, source, note) {
   var rec = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ts: new Date().toISOString(), file: file, source: source || 'ui', note: note || '',
     prev: prevText && prevText.length <= SNAP_MAX ? prevText : null, prevBytes: prevText ? prevText.length : 0 };
@@ -120,5 +120,5 @@ var server = http.createServer(function (req, res) {
 });
 
 server.listen(PORT, '127.0.0.1', function () {
-  console.log('Marathon → http://localhost:' + PORT + '   (writes data/*.json · Ctrl-C to stop)');
+  console.log('Solo Ops → http://localhost:' + PORT + '   (writes data/*.json · Ctrl-C to stop)');
 });

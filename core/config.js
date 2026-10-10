@@ -1,5 +1,5 @@
 /* =========================================================================
-   core/config.js — reads marathon.config.js (window.MARATHON_CONFIG), fills
+   core/config.js — reads solo.config.js (window.MARATHON_CONFIG), fills
    defaults, and exposes helpers + a tiny DOM binder. Global `Config`.
    Usage in HTML: <span data-cfg="eyebrow"></span> gets the config value;
    [data-app="social"] elements are hidden when that app is switched off.
@@ -14,7 +14,7 @@
   var WS_KEY = 'marathon.workspaces';       // runtime-created workspaces (data/workspaces.json)
   var WS_ACTIVE = 'marathon.workspace';     // last used workspace id (this browser)
   var DEFAULTS = {
-    name: 'Marathon', eyebrow: 'Solo founder ops',
+    name: 'Solo Ops', eyebrow: 'Solo founder ops',
     apps: { boards: true, social: true, scripts: true, writing: true },
     projects: [{ name: 'general', hue: 45 }],
     boards: [{ id: 'runway', title: 'Launch Runway', sprintLabel: 'Sprint progress', milestones: [], focus: [] }],

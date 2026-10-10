@@ -1,7 +1,7 @@
 # data/ — the contract
 
-Everything Marathon knows lives in this folder as plain JSON. The pages, the
-CLI (`node marathon.js`) and your agents all read and write these same files.
+Everything Solo Ops knows lives in this folder as plain JSON. The pages, the
+CLI (`node solo.js`) and your agents all read and write these same files.
 Edit them by hand or with a script; open pages pick up changes within seconds
 (in served or linked-folder mode), and the CLI reads them fresh every run.
 
@@ -19,7 +19,7 @@ Images are never stored here. Post images and note images stay in the browser
 
 ## File names and workspaces
 
-A workspace is one project. The **first workspace** (from `marathon.config.js`,
+A workspace is one project. The **first workspace** (from `solo.config.js`,
 id `main` unless you list your own) uses the short names below. Every other
 workspace prefixes its id: `side-project-social.json`,
 `ops-admin.json` (board `admin` in workspace `ops`).
@@ -30,7 +30,7 @@ workspace prefixes its id: `side-project-social.json`,
 { "workspaces": [{ "id": "side-project", "title": "Side project", "apps": { "social": false, "scripts": true, "writing": true }, "boards": [], "createdAt": 0 }] }
 ```
 
-Workspaces listed in `marathon.config.js` are implicit. Merged on sync.
+Workspaces listed in `solo.config.js` are implicit. Merged on sync.
 
 ## `<board>.json` — one board's tasks
 
@@ -66,7 +66,7 @@ convention). Only `todo/doing/done` count toward sprint progress.
 { "boards": [{ "id": "business-as-usual", "ws": "main", "title": "Business as usual", "sprintLabel": "Progress", "milestones": [], "focus": [], "createdAt": 0 }] }
 ```
 
-Boards listed in `marathon.config.js` are implicit and need no entry here. A
+Boards listed in `solo.config.js` are implicit and need no entry here. A
 runtime entry with the same id overrides the config title. Merged, never
 replaced, on sync.
 
@@ -78,7 +78,7 @@ replaced, on sync.
 
 Pages and the CLI both increment counts; sync merges by taking the larger
 count per cell. Home reads it for the streak, heatmap and idle reminder;
-`node marathon.js activity` prints it. Agents should not edit it.
+`node solo.js activity` prints it. Agents should not edit it.
 
 ## social.json — posting schedule
 
@@ -164,9 +164,9 @@ Never edit by hand; never commit (it is in `.gitignore` via `data/*`).
 
 ## Rules of thumb for agents
 
-- Prefer the CLI (`node marathon.js …`) for single changes; edit JSON directly
+- Prefer the CLI (`node solo.js …`) for single changes; edit JSON directly
   for bulk changes, then set `updatedAt` to now.
 - Never invent new fields; unknown fields are dropped on load.
 - Keep ids stable. New ids: prefix + anything unique (`t` tasks, `p` posts,
   `s` scripts, `n` notes).
-- `node marathon.js week --json` is the cheapest way to get the whole picture.
+- `node solo.js week --json` is the cheapest way to get the whole picture.

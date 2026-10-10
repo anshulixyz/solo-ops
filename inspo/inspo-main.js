@@ -37,7 +37,7 @@
   }
   function render() {
     var items = InspoModel.list(filter);
-    document.getElementById('grid').innerHTML = items.length ? items.map(cardHTML).join('') : '<div class="inspo-empty">Nothing here yet. Paste a link or an idea above, drop an image, or from any page press ⌘⇧I.<br>Terminal: <code>node marathon.js inspo add "https://… #tag" --ws ' + esc(Config.activeWs()) + '</code></div>';
+    document.getElementById('grid').innerHTML = items.length ? items.map(cardHTML).join('') : '<div class="inspo-empty">Nothing here yet. Paste a link or an idea above, drop an image, or from any page press ⌘⇧I.<br>Terminal: <code>node solo.js inspo add "https://… #tag" --ws ' + esc(Config.activeWs()) + '</code></div>';
     var all = InspoModel.getState(); var tags = {}; all.forEach(function (x) { x.tags.forEach(function (t) { tags[t] = (tags[t] || 0) + 1; }); });
     document.getElementById('filters').innerHTML =
       '<select class="meta-sel" onchange="setFilter(\'ws\',this.value)"><option value="">All workspaces</option>' + Config.workspaces().map(function (w) { return '<option value="' + esc(w.id) + '"' + (filter.ws === w.id ? ' selected' : '') + '>' + esc(w.title) + '</option>'; }).join('') + '</select>' +

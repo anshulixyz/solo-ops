@@ -20,7 +20,7 @@
   }
   function projLabel(p) { return p || 'general'; }
 
-  // Hues come from marathon.config.js (projects + runway.tagHues); anything
+  // Hues come from solo.config.js (projects + runway.tagHues); anything
   // unknown gets a deterministic hashed hue. Only the hue is emitted (as a
   // CSS var); light/dark shading is handled in CSS so theme changes need no
   // re-render. Projects render as neutral chip + dot, tags as soft fills, so

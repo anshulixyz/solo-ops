@@ -5,17 +5,17 @@
       "id": "s1",
       "title": "My Reel Script",
       "text": "# My Reel Script\n\n## Hook (first 2 seconds)\nStop scrolling — this one change doubled my reply rate.\n\n## Script\n1. I used to send the same cold DM to everyone.\n2. Then I tried one thing: mention something specific from their last post.\n3. Not flattery — one real detail that shows you actually looked.\n4. My reply rate went from 4% to 12% in a week.\n5. Try it on your next five DMs. You'll feel the difference.\n\n## Inserts\n- Beat 2: screenshot of generic vs personalized DM\n- Beat 4: simple bar chart — 4% → 12%\n\n(Pause after beat 1 — let it land)\n",
-      "createdAt": 1791530580876,
-      "updatedAt": 1791530580876
+      "createdAt": 1791531248465,
+      "updatedAt": 1791531248465
     },
     {
       "id": "s2",
       "title": "Launch demo — 60 seconds",
       "text": "# Launch demo — 60 seconds\n\n## Hook\nI built this in two weeks. Here is the whole thing in one minute.\n\n## Script\n1. The problem: you have a list of things to do, and it lives in six places.\n2. This puts the list in one file your tools and your AI can both read.\n3. Add a task from the terminal — it shows up on the board.\n4. Ask your agent what is due this week — it reads the same file.\n5. Link in the first reply. It is free and it is open source.\n\n## Inserts\n- Beat 3: terminal on the left, board on the right\n- Beat 4: chat window asking \"what is due this week?\"\n\n## Prep\n- [x] Script locked\n- [ ] Record screen\n- [ ] Captions\n",
-      "createdAt": 1791616980876,
-      "updatedAt": 1791616980876
+      "createdAt": 1791617648465,
+      "updatedAt": 1791617648465
     }
   ],
   "version": 1,
-  "updatedAt": "2026-10-10T07:23:00.876Z"
+  "updatedAt": "2026-10-10T07:34:08.465Z"
 }

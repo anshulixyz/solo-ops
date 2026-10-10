@@ -10,9 +10,9 @@ Plan a posting arc, prep each post, mark it posted, log engagement.
 - Data: `../data/social.json` ⇄ this browser (`marathon.social.v3`). Post
   images stay in the browser (IndexedDB) and in **Save file** bundles.
 - `⌘K`: `add Launch day @launch #launch +3d 9:00`, `posted …`, `ready …`
-- Post types, prep kinds, projects, milestones: `../marathon.config.js`
+- Post types, prep kinds, projects, milestones: `../solo.config.js`
 - Styles extend `../runway/styles.css` (shared theme tokens)
 
-Terminal: `node ../marathon.js social next|week|add|posted`.
+Terminal: `node ../solo.js social next|week|add|posted`.
 
 Test: `node test-social-save.js` (save/load round trip).

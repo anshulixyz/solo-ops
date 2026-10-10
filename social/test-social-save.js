@@ -23,7 +23,7 @@ ctx.window = ctx;
 ctx.global = ctx;
 
 vm.createContext(ctx);
-vm.runInContext(fs.readFileSync(path.join(dir, '..', 'marathon.config.js'), 'utf8'), ctx);
+vm.runInContext(fs.readFileSync(path.join(dir, '..', 'solo.config.js'), 'utf8'), ctx);
 vm.runInContext(fs.readFileSync(path.join(dir, '..', 'core', 'store.js'), 'utf8'), ctx);
 vm.runInContext(fs.readFileSync(path.join(dir, '..', 'core', 'config.js'), 'utf8'), ctx);
 vm.runInContext(fs.readFileSync(path.join(dir, '..', 'core', 'templates.js'), 'utf8'), ctx);

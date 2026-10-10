@@ -1,7 +1,7 @@
 /* =========================================================================
    core/activity.js — daily activity log. Every data change (pages or CLI)
    bumps a counter for that day and app. Home shows a streak + heatmap and
-   an inactivity reminder; `marathon.js today` prints the same.
+   an inactivity reminder; `solo.js today` prints the same.
    Store key `marathon.activity`, file data/activity.json:
      { days: { "2026-10-10": { runway: 5, social: 1 } }, lastActive: ISO,
        lastByApp: { runway: ISO } }
