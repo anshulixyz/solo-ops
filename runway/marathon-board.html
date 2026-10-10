@@ -3,39 +3,33 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Launch Runway — Anshuli</title>
+<link rel="icon" href="data:,">
+<title>Launch Runway — Marathon</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<!-- set theme before paint to avoid a flash -->
-<script>(function(){try{var t=localStorage.getItem('anshuli.runway.theme')||((window.matchMedia&&matchMedia('(prefers-color-scheme:dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',t);document.documentElement.style.colorScheme=t;}catch(e){document.documentElement.setAttribute('data-theme','light');}})();</script>
+<!-- config + theme before paint, so there is no flash -->
+<script src="../marathon.config.js"></script>
+<script src="../core/theme-boot.js"></script>
 <link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="../core/theme.css">
 </head>
 <body>
 <div class="wrap">
   <header>
-    <div class="eyebrow">Nokk Labs · solo founder ops</div>
-    <h1>Launch Runway<span class="dot">.</span></h1>
+    <div class="eyebrow"><span data-cfg="name"></span> · <span data-cfg="eyebrow"></span></div>
+    <h1><span data-cfg="runway.title" data-cfg-title="runway.title">Launch Runway</span><span class="dot">.</span></h1>
 
     <div class="runway">
       <div class="runway-top">
-        <span class="runway-label">Sprint progress</span>
+        <span class="runway-label" data-cfg="runway.sprintLabel">Sprint progress</span>
         <span class="runway-count"><b id="doneN">0</b> of <span id="totalN">0</span> board tasks done · <span id="pctN">0</span>%</span>
       </div>
       <div class="bar"><div class="bar-fill" id="barFill"></div></div>
-      <div class="ticks"><span>Setup</span><span>nmai prep</span><span>Launch</span><span>openDM prep</span><span>Reveal</span></div>
+      <div class="ticks" data-cfg-ticks="runway.milestones"></div>
     </div>
 
-    <div class="priorities">
-      <div class="pri">
-        <span class="k">P1</span>
-        <span><span class="t">nextmillionai — HN + Product Hunt</span><br><span class="s">A2A hiring demo anchors it · launching next week</span></span>
-      </div>
-      <div class="pri two">
-        <span class="k">P1</span>
-        <span><span class="t">openDM — surprise reveal</span><br><span class="s">"50 DMs" hero + 4-5 launch cuts + beta page · ~1 week after</span></span>
-      </div>
-    </div>
+    <div class="priorities" data-cfg-focus="runway.focus"></div>
   </header>
 
   <div class="controls">
@@ -47,13 +41,15 @@
     <div class="right-controls">
       <div class="filters" id="filters"></div>
       <button class="btn ghost" id="collapseAllBtn" onclick="toggleCollapseAll()" title="Collapse or expand all cards">Collapse all</button>
-      <a class="btn ghost" href="../social/social-board.html" title="X posting schedule">X Schedule</a>
-      <button class="btn primary" onclick="toggleAdd()">+ Add task</button>
+      <a class="btn ghost" href="../social/social-board.html" title="Posting schedule">Social</a>
+      <a class="btn ghost" href="../index.html" title="All apps">Hub</a>
+      <button class="btn primary" onclick="toggleAdd()" title="Add a task (n)">+ Add task</button>
       <button class="btn" onclick="exportMarkdown()" title="Export visible non-Done tasks as Markdown">Export MD</button>
       <button class="btn" onclick="exportState()" title="Download your current board as a file">Save file</button>
-      <button class="btn" onclick="document.getElementById('importFile').click()" title="Load a board from a saved file">Load file</button>
+      <button class="btn" onclick="document.getElementById('importFile').click()" title="Load a board from a saved file or data/runway.json">Load file</button>
       <input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="importState(this)">
-      <button class="btn ghost" onclick="resetBoard()" title="Restore the original list">Reset</button>
+      <button class="btn ghost" onclick="loadTemplate()" title="Replace the board with the sample sprint (backup downloads first)">Sample</button>
+      <span data-sync-pill></span>
       <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Toggle light / dark" aria-label="Toggle theme">
         <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
         <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M22 12h-2.5M4.5 12H2M19 5l-1.8 1.8M6.8 17.2 5 19M19 19l-1.8-1.8M6.8 6.8 5 5"/></svg>
@@ -91,12 +87,7 @@
     </div>
   </div>
 
-  <datalist id="tagOptions">
-    <option value="coding"></option><option value="video"></option><option value="demo"></option>
-    <option value="outreach"></option><option value="launch"></option><option value="research"></option>
-    <option value="content"></option><option value="setup"></option>
-    <option value="f1"></option><option value="f2"></option><option value="f3"></option><option value="f4"></option><option value="daily"></option>
-  </datalist>
+  <datalist id="tagOptions"></datalist>
 
   <div id="boardView">
     <div class="board">
@@ -137,7 +128,12 @@
 </div>
 
 <!-- classic scripts (load order matters), so the file still opens by double-click -->
-<script src="store.js"></script>
+<script src="../core/store.js"></script>
+<script src="../core/config.js"></script>
+<script src="../core/templates.js"></script>
+<script src="../core/theme.js"></script>
+<script src="../core/sync.js"></script>
+<script src="../core/palette.js"></script>
 <script src="model.js"></script>
 <script src="view.js"></script>
 <script src="main.js"></script>

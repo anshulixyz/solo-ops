@@ -11,12 +11,15 @@
 (function (global) {
   'use strict';
 
-  var KEY = 'anshuli.social.v2';
+  var KEY = 'marathon.social.v3';
   var EXPORT_VER = 2;
-  var POST_TYPES = ['announcement', 'launch', 'update', 'thread', 'teaser'];
+  var POST_TYPES = (Config.get('social.postTypes') || ['announcement', 'launch', 'update', 'thread', 'teaser']).slice();
   var FORMATS = ['text', 'video', 'text+video'];
-  var PROJECTS = ['general', 'openproof', 'openagents', 'openhiring', 'openDM'];
-  var PREP_KINDS = ['content', 'video', 'dev', 'design', 'outreach', 'other'];
+  var PROJECTS = Config.projectNames();
+  var PREP_KINDS = (Config.get('social.prepKinds') || ['content', 'video', 'dev', 'design', 'outreach', 'other']).slice();
+
+  // one-time migration from the pre-open-source key
+  Store.migrate('anshuli.social.v2', KEY);
   var STATUSES = ['draft', 'ready', 'scheduled', 'posted'];
   var VIDEO_STATUSES = ['none', 'idea', 'scripted', 'recorded', 'edited', 'ready'];
   var LINK_KINDS = ['video', 'post', 'reference', 'other'];
@@ -77,9 +80,9 @@
       id: p.id || uid('p'),
       datetime: p.datetime || new Date().toISOString().slice(0, 16),
       title: esc(p.title),
-      postType: POST_TYPES.indexOf(p.postType) >= 0 ? p.postType : 'update',
+      postType: POST_TYPES.indexOf(p.postType) >= 0 ? p.postType : (POST_TYPES[2] || POST_TYPES[0]),
       format: FORMATS.indexOf(p.format) >= 0 ? p.format : 'text',
-      project: PROJECTS.indexOf(p.project) >= 0 ? p.project : 'general',
+      project: (typeof p.project === 'string' && p.project.trim()) ? p.project.trim() : PROJECTS[0],
       copy: esc(p.copy),
       video: {
         title: esc((p.video && p.video.title) || ''),
@@ -102,74 +105,28 @@
     };
   }
 
-  function seed() {
-    return [
-      {
-        id: 'p-announce',
-        datetime: '2026-09-10T09:00',
-        title: 'Leaving software — shifting to agents & robots',
-        postType: 'announcement',
-        format: 'text',
-        project: 'general',
-        copy: 'After years building software, I\'m making a deliberate shift.\n\nLess code-for-code\'s-sake. More agents, robots, and systems that act in the world.\n\nStarting here on X — sharing the journey, launches, and what I learn along the way.',
-        video: { title: '', status: 'none', notes: '', link: '' },
-        links: [],
-        assets: [],
-        prep: [
-          { text: 'Draft tweet copy — personal tone, no hype', done: true, kind: 'content' },
-          { text: 'Pick pinned reply thread outline (3 tweets)', done: false, kind: 'content' },
-          { text: 'Screenshot or simple graphic optional', done: false, kind: 'design' }
-        ],
-        notes: 'Anchor post — sets narrative for everything after.',
-        status: 'draft',
-        posted: { url: '', postedAt: '', stats: {}, notes: '', screenshotId: '' }
-      },
-      {
-        id: 'p-openagents',
-        datetime: '2026-09-12T17:30',
-        title: 'openagents — what I\'m building first',
-        postType: 'launch',
-        format: 'video',
-        project: 'openagents',
-        copy: 'openagents — my first bet in this new chapter.\n\n[one-line what it does]\n\nDemo clip below. More soon.',
-        video: { title: 'openagents intro — face + screen', status: 'scripted', notes: 'F1 face-talk format, ~60s', link: '' },
-        links: [],
-        assets: [],
-        prep: [
-          { text: 'Finalize openagents one-liner', done: false, kind: 'content' },
-          { text: 'Script F1 talking-head intro', done: true, kind: 'video' },
-          { text: 'Record + light edit demo clip', done: false, kind: 'video' },
-          { text: 'Landing page live before post', done: false, kind: 'dev' }
-        ],
-        notes: '2 days after announcement.',
-        status: 'draft',
-        posted: { url: '', postedAt: '', stats: {}, notes: '', screenshotId: '' }
-      },
-      {
-        id: 'p-opendm-teaser',
-        datetime: '2026-09-15T12:00',
-        title: 'openDM teaser — 50 DMs hero',
-        postType: 'teaser',
-        format: 'text+video',
-        project: 'openDM',
-        copy: 'Been quietly building openDM.\n\nOne hero moment: send 50 DMs from one intent.\n\nReveal next week — here\'s a 15s peek.',
-        video: { title: 'openDM hero clip', status: 'idea', notes: 'Screen capture, no voice or short VO', link: '' },
-        links: [],
-        assets: [],
-        prep: [
-          { text: 'Capture hero flow screen recording', done: false, kind: 'video' },
-          { text: 'Beta signup page stub', done: false, kind: 'dev' },
-          { text: 'Align timing with openagents momentum', done: false, kind: 'outreach' }
-        ],
-        notes: '3 days after openagents post.',
-        status: 'draft',
-        posted: { url: '', postedAt: '', stats: {}, notes: '', screenshotId: '' }
-      }
-    ].map(normalizePost);
+  function seed() { return MARATHON_TEMPLATES.social(new Date()).posts.map(normalizePost); }
+
+  // config projects + anything already used on a post (first wins)
+  function getProjects() {
+    var seen = {}, out = [];
+    PROJECTS.concat((state || []).map(function (p) { return p.project; })).forEach(function (p) {
+      if (p && !seen[p]) { seen[p] = 1; out.push(p); }
+    });
+    return out;
   }
 
-  function persist() {
-    Store.set(KEY, JSON.stringify(state));
+  // find by id, or by case-insensitive title substring (palette + CLI parity)
+  function find(q) {
+    q = String(q || '').trim(); if (!q) return [];
+    var exact = state.filter(function (p) { return p.id === q; }); if (exact.length) return exact;
+    var l = q.toLowerCase();
+    return state.filter(function (p) { return p.title.toLowerCase().indexOf(l) >= 0; });
+  }
+
+  var fresh = false;
+  function persist(opts) {
+    Store.set(KEY, JSON.stringify(state), opts);
   }
 
   function load() {
@@ -189,16 +146,9 @@
         return;
       } catch (e) { /* fall through */ }
     }
-    var old = Store.get('anshuli.social.v1');
-    if (old) {
-      try {
-        state = JSON.parse(old).map(normalizePost);
-        persist();
-        return;
-      } catch (e) { /* fall through */ }
-    }
+    fresh = true;
     state = seed();
-    persist();
+    persist({ silent: true });
   }
 
   function sorted() {
@@ -239,7 +189,11 @@
     ASSET_KINDS: ASSET_KINDS,
 
     init: load,
+    isFresh: function () { return fresh; },
+    getProjects: getProjects,
+    find: find,
     getState: function () { return state; },
+    replaceAll: function (posts, opts) { state = (posts || []).map(normalizePost); persist(opts); return state; },
     getSorted: sorted,
     getPosted: function () { return sorted().filter(function (p) { return p.status === 'posted'; }); },
     getById: function (id) {
@@ -409,6 +363,12 @@
       }
       if (Array.isArray(parsed)) {
         state = parsed.map(normalizePost);
+        persist();
+        return Promise.resolve(state.length);
+      }
+      // data/social.json wrapper
+      if (parsed && Array.isArray(parsed.posts)) {
+        state = parsed.posts.map(normalizePost);
         persist();
         return Promise.resolve(state.length);
       }

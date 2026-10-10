@@ -1,18 +1,18 @@
-# Social schedule (X / Twitter)
+# Social schedule
 
-Plan and track a posting arc alongside the launch board.
+Plan a posting arc, prep each post, mark it posted, log engagement.
 
 | File | What it is |
 |------|------------|
-| **`social-board.html`** | Main schedule — timeline, post editor, OpenThings graph |
-| **`social-calendar.html`** | Month grid + streak heatmap (`#streak` in URL) |
+| **`social-board.html`** | Sequence + post detail (copy, images, links, video, prep, posted results) |
+| **`social-calendar.html`** | Month grid + 52-week streak heatmap (`#streak` in URL) |
 
-**Entry point:** open `social-board.html`.
+- Data: `../data/social.json` ⇄ this browser (`marathon.social.v3`). Post
+  images stay in the browser (IndexedDB) and in **Save file** bundles.
+- `⌘K`: `add Launch day @launch #launch +3d 9:00`, `posted …`, `ready …`
+- Post types, prep kinds, projects, milestones: `../marathon.config.js`
+- Styles extend `../runway/styles.css` (shared theme tokens)
 
-**Styles:** extends `../runway/styles.css` (shared theme tokens with Launch Runway).
+Terminal: `node ../marathon.js social next|week|add|posted`.
 
-**Scripts:** `social-main.js`, `social-view.js`, `social-model.js`, graph and calendar modules, image/asset stores. Classic global scripts, `file://` safe.
-
-**Tests:** `test-social-save.js` (node) — run manually if touching persistence.
-
-**Related:** build tasks on `../runway/marathon-board.html`.
+Test: `node test-social-save.js` (save/load round trip).

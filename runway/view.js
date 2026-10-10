@@ -20,22 +20,13 @@
   }
   function projLabel(p) { return p || 'general'; }
 
-  // projects use a curated hue where we have one, hashed otherwise — but they
-  // render with a distinct treatment (neutral chip + dot), so hue collisions
-  // with a tag never read as the same category.
-  var PROJ_HUES = { openDM: 20, nextmillion: 190, general: 45 };
-  function projHue(p) { return PROJ_HUES.hasOwnProperty(p) ? PROJ_HUES[p] : hueFor(p); }
-
-  /* deterministic color per tag: curated hues for the known set, hashed hue
-     for anything custom. Only the hue is emitted (as a CSS var); light/dark
-     shading is handled in CSS so it follows theme toggles without re-render. */
-  var TAG_HUES = { coding: 205, video: 20, demo: 145, outreach: 38, launch: 0, research: 270, content: 320, setup: 95 };
-  function hueFor(tag) {
-    if (TAG_HUES.hasOwnProperty(tag)) return TAG_HUES[tag];
-    var h = 0, i;
-    for (i = 0; i < tag.length; i++) { h = (h * 31 + tag.charCodeAt(i)) >>> 0; }
-    return h % 360;
-  }
+  // Hues come from marathon.config.js (projects + runway.tagHues); anything
+  // unknown gets a deterministic hashed hue. Only the hue is emitted (as a
+  // CSS var); light/dark shading is handled in CSS so theme changes need no
+  // re-render. Projects render as neutral chip + dot, tags as soft fills, so
+  // a hue collision never reads as the same category.
+  function projHue(p) { return Config.projectHue(p); }
+  function hueFor(tag) { return Config.tagHue(tag); }
   function progress(t) {
     var total = t.checklist.length;
     var done = t.checklist.filter(function (c) { return c.done; }).length;

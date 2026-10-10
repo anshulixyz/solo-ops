@@ -4,7 +4,8 @@
 (function (global) {
   'use strict';
 
-  var KEY = 'anshuli.social.imgdata.v1';
+  var KEY = 'marathon.social.imgdata';
+  Store.migrate('anshuli.social.imgdata.v1', KEY);
   var cache = null;
 
   function load() {

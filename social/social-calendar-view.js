@@ -16,9 +16,7 @@
     });
   }
 
-  function projClass(p) {
-    return 'cal-proj-' + (p || 'general').replace(/[^a-zA-Z0-9]/g, '');
-  }
+  function projStyle(p) { return 'style="--h:' + Config.projectHue(p) + '"'; }
 
   function pad2(n) { return n < 10 ? '0' + n : '' + n; }
 
@@ -227,7 +225,7 @@
       ? '<div class="cal-thumb" data-asset-id="' + esc(thumb.id) + '" data-asset-post="' + esc(p.id) + '" data-asset-name="' + esc(thumb.name || '') + '"></div>'
       : '';
     return '<a class="cal-post' + (posted ? ' is-posted' : '') + '" href="social-board.html?id=' + esc(p.id) + '">'
-      + '<div class="cal-post-bar ' + projClass(p.project) + '">' + esc(p.project) + ' · X</div>'
+      + '<div class="cal-post-bar" ' + projStyle(p.project) + '>' + esc(p.project) + '</div>'
       + '<div class="cal-post-time">' + esc(fmtTime(p.datetime)) + '</div>'
       + '<div class="cal-post-title">' + esc(p.title) + '</div>'
       + thumbHtml
@@ -255,9 +253,9 @@
       + '</div>';
 
     html += '<div class="cal-legend">'
-      + '<span><i class="leg-swatch cal-proj-general"></i> general</span>'
-      + '<span><i class="leg-swatch cal-proj-openagents"></i> openagents</span>'
-      + '<span><i class="leg-swatch cal-proj-openDM"></i> openDM</span>'
+      + SocialModel.getProjects().map(function (pr) {
+        return '<span><i class="leg-swatch" ' + projStyle(pr) + '></i> ' + esc(pr) + '</span>';
+      }).join('')
       + '<span class="leg-muted">— faded = not posted yet</span>'
       + '</div>';
 

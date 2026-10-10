@@ -4,7 +4,6 @@
 (function (global) {
   'use strict';
 
-  var THEME_KEY = 'anshuli.runway.theme';
   var viewYear, viewMonth;
 
   function render() {
@@ -30,17 +29,21 @@
     render();
   };
 
-  global.toggleTheme = function () {
-    var cur = document.documentElement.getAttribute('data-theme') || 'light';
-    var next = cur === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', next);
-    document.documentElement.style.colorScheme = next;
-    Store.set(THEME_KEY, next);
-  };
-
   function init() {
+    Config.applyDOM();
     SocialModel.init();
     SocialAssets.open().catch(function () {});
+    Sync.register({
+      file: 'social.json', key: SocialModel.KEY, label: 'schedule',
+      read: function () { return { posts: SocialModel.getState() }; },
+      apply: function (body) { if (Array.isArray(body.posts)) { SocialModel.replaceAll(body.posts, { silent: true }); render(); } }
+    });
+    Palette.init({ root: '../' });
+    Palette.register([
+      { label: 'Previous month', hint: 'calendar', run: global.calPrev },
+      { label: 'Next month', hint: 'calendar', run: global.calNext },
+      { label: 'Today', hint: 'calendar', run: global.calToday }
+    ]);
     var n = new Date();
     viewYear = n.getFullYear();
     viewMonth = n.getMonth();

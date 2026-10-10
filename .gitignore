@@ -1,0 +1,8 @@
+.DS_Store
+node_modules/
+*.log
+# backups the pages download before destructive actions
+*.backup-*.json
+# If you fork Marathon for yourself and do not want your tasks public,
+# uncomment the next line (the sample data stays in git for new users):
+# data/

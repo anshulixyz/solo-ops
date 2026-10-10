@@ -1,8 +1,9 @@
 /* =========================================================================
    main.js — wiring & UI state
-   Holds ephemeral UI state (current view, filter, which notes are open),
+   Holds ephemeral UI state (current view, filters, which notes are open),
    defines the global handlers referenced by the markup, and owns drag & drop,
-   theme, import/export, and init.
+   import/export, sync registration, palette commands, shortcuts, and init.
+   Theme lives in core/theme.js (global toggleTheme), sync in core/sync.js.
    ========================================================================= */
 (function (global) {
   'use strict';
@@ -10,8 +11,7 @@
   var view = 'board';
   var selectedProjects = new Set(); // empty means all; selected projects match with OR
   var selectedTags = new Set();     // empty means all; selected tags match with OR
-  var notesOpen = new Set();   // task ids whose notes panel is expanded
-  var THEME_KEY = 'anshuli.runway.theme';
+  var notesOpen = new Set();        // task ids whose notes panel is expanded
 
   // Add-panel tag picker state
   var pickerTags = Model.KNOWN_TAGS.slice();  // options shown as toggle chips
@@ -20,25 +20,24 @@
   /* single render entry point: re-render + rebind drag handlers */
   function taskMatchesFilters(t) {
     var projectMatch = selectedProjects.size === 0 || selectedProjects.has(t.proj);
-    var tagMatch = selectedTags.size === 0 || (t.tags || []).some(function (tag) {
-      return selectedTags.has(tag);
-    });
+    var tagMatch = selectedTags.size === 0 || (t.tags || []).some(function (tag) { return selectedTags.has(tag); });
     return projectMatch && tagMatch;
   }
-  function filteredTasks() {
-    return Model.getState().filter(taskMatchesFilters);
-  }
+  function filteredTasks() { return Model.getState().filter(taskMatchesFilters); }
   function render() {
     View.render(view, filteredTasks(), selectedProjects, selectedTags, notesOpen);
     bindDrag();
+    updateCollapseAllLabel();
+  }
+  function fullRefresh() {
+    selectedProjects.clear(); selectedTags.clear(); notesOpen.clear();
+    renderProjectSelect(); renderTagDatalist(); render();
   }
 
   /* ---- view / filter / add panel ------------------------------------- */
   global.setView = function (v) {
     view = v;
-    document.querySelectorAll('.tab').forEach(function (t) {
-      t.classList.toggle('active', t.dataset.view === v);
-    });
+    document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('active', t.dataset.view === v); });
     document.getElementById('boardView').style.display = v === 'board' ? '' : 'none';
     document.getElementById('laterView').style.display = v === 'later' ? '' : 'none';
     document.getElementById('bucketView').style.display = v === 'bucket' ? '' : 'none';
@@ -56,7 +55,11 @@
     else selectedTags.add(t);
     render();
   };
-  global.toggleAdd = function () { document.getElementById('addpanel').classList.toggle('open'); };
+  global.toggleAdd = function (focus) {
+    var p = document.getElementById('addpanel');
+    p.classList.toggle('open');
+    if (p.classList.contains('open') && focus !== false) document.getElementById('newTitle').focus();
+  };
 
   /* ---- projects (add-panel select + add-new) ------------------------- */
   function escAttr(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -64,10 +67,16 @@
     var sel = document.getElementById('newProj');
     if (!sel) return;
     var cur = sel.value;
-    sel.innerHTML = Model.getProjects().map(function (p) {
-      return '<option value="' + escAttr(p) + '">' + escAttr(p) + '</option>';
-    }).join('');
+    sel.innerHTML = Model.getProjects().map(function (p) { return '<option value="' + escAttr(p) + '">' + escAttr(p) + '</option>'; }).join('');
     if (cur) sel.value = cur;
+  }
+  function renderTagDatalist() {
+    var dl = document.getElementById('tagOptions');
+    if (!dl) return;
+    var set = {};
+    Model.KNOWN_TAGS.forEach(function (t) { set[t] = 1; });
+    Model.getState().forEach(function (t) { (t.tags || []).forEach(function (x) { set[x] = 1; }); });
+    dl.innerHTML = Object.keys(set).sort().map(function (t) { return '<option value="' + escAttr(t) + '"></option>'; }).join('');
   }
   global.addNewProject = function (input) {
     var name = Model.addProject(input.value);
@@ -85,7 +94,7 @@
     if (!el) return;
     el.innerHTML = pickerTags.map(function (tag) {
       return '<button type="button" class="tp-chip hue ' + (newTags.has(tag) ? 'sel' : '') + '" ' +
-        'style="--h:' + View.hueFor(tag) + '" onclick="toggleNewTag(\'' + tag + '\')">' + tag + '</button>';
+        'style="--h:' + View.hueFor(tag) + '" onclick="toggleNewTag(\'' + escAttr(tag) + '\')">' + escAttr(tag) + '</button>';
     }).join('');
   }
   global.toggleNewTag = function (tag) {
@@ -102,34 +111,36 @@
   };
 
   /* ---- task CRUD ----------------------------------------------------- */
+  function createTask(t) {
+    var task = Model.add({
+      id: Model.newId(), title: t.title, proj: t.proj || Model.getProjects()[0], pri: t.pri || 'medium',
+      col: t.col || 'todo', tags: t.tags || [], desc: t.desc || '', notes: '', collapsed: true, checklist: []
+    });
+    var targetView = task.col === 'later' ? 'later' : (task.col === 'bucket' ? 'bucket' : 'board');
+    renderTagDatalist();
+    if (targetView !== view) setView(targetView); else render();
+    return task;
+  }
   global.addTask = function () {
     var title = document.getElementById('newTitle').value.trim();
     if (!title) return;
-    var t = {
-      id: 't' + Date.now(),
+    createTask({
       title: title,
       proj: document.getElementById('newProj').value,
       pri: document.getElementById('newPri').value,
       col: document.getElementById('newCol').value,
-      tags: Array.from(newTags), desc: '', notes: '', collapsed: true, checklist: []
-    };
-    Model.add(t);
+      tags: Array.from(newTags)
+    });
     document.getElementById('newTitle').value = '';
     newTags.clear();
     pickerTags = Model.KNOWN_TAGS.slice();
     renderTagPicker();
-    var targetView = t.col === 'later' ? 'later' : (t.col === 'bucket' ? 'bucket' : 'board');
-    if (targetView !== view) setView(targetView);
-    else render();
   };
   global.setPri = function (id, val) { Model.setPri(id, val); render(); };
   global.delTask = function (id) { Model.del(id); notesOpen.delete(id); render(); };
   global.move = function (id, dir) { Model.move(id, dir); render(); };
-  // Later → board: park a long-term item into the active To Do column.
   global.sendToBoard = function (id) { Model.moveTo(id, 'todo'); render(); flash('Moved to To Do.'); };
-  // board → Later: send a board task to the long-term parking lot.
   global.sendToLater = function (id) { Model.moveTo(id, 'later'); render(); flash('Moved to Later.'); };
-  // Any idea can be moved into the dedicated video/demo idea bucket.
   global.sendToBucket = function (id) { Model.moveTo(id, 'bucket'); render(); flash('Moved to Bucket List.'); };
 
   /* ---- checklist ----------------------------------------------------- */
@@ -138,20 +149,14 @@
   global.delStep = function (id, idx) { Model.delStep(id, idx); render(); };
 
   /* ---- tags ---------------------------------------------------------- */
-  global.addTagFromInput = function (id, input) {
-    Model.addTag(id, input.value);
-    input.value = '';
-    render();
-  };
+  global.addTagFromInput = function (id, input) { Model.addTag(id, input.value); input.value = ''; renderTagDatalist(); render(); };
   global.removeTag = function (id, tag) { Model.removeTag(id, tag); render(); };
 
   /* ---- collapse / expand --------------------------------------------- */
   global.toggleCollapse = function (id) { Model.toggleCollapse(id); render(); };
   global.toggleCollapseAll = function () {
-    // if anything is expanded, collapse everything; otherwise expand everything
     var anyExpanded = Model.getState().some(function (t) { return !t.collapsed; });
     Model.setCollapsedAll(anyExpanded);
-    updateCollapseAllLabel();
     render();
   };
   function updateCollapseAllLabel() {
@@ -163,7 +168,7 @@
   /* ---- notes --------------------------------------------------------- */
   global.toggleNotes = function (id) {
     var t = Model.getState().find(function (x) { return x.id === id; });
-    if (t && t.collapsed) Model.toggleCollapse(id);   // expand so the panel is visible
+    if (t && t.collapsed) Model.toggleCollapse(id);
     if (notesOpen.has(id)) notesOpen.delete(id); else notesOpen.add(id);
     render();
     if (notesOpen.has(id)) {
@@ -178,11 +183,8 @@
     if (btn) btn.classList.toggle('has-notes', !!ta.value.trim());
   };
 
-  /* ---- reset / import / export --------------------------------------- */
-
-  function timestamp() {
-    return new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
-  }
+  /* ---- template / import / export ------------------------------------ */
+  function timestamp() { return new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-'); }
   function downloadFile(content, filename, mimeType) {
     var blob = new Blob([content], { type: mimeType });
     var url = URL.createObjectURL(blob);
@@ -191,28 +193,22 @@
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
   }
-  // Download the current board as a timestamped JSON file. Shared by the
-  // Save-file button and the safety backup Reset takes before wiping state.
+  // The file format is the same wrapper data/runway.json uses, so a saved
+  // file can be dropped straight into data/ for the CLI and agents.
+  function boardFile() {
+    return { version: 1, updatedAt: new Date().toISOString(), projects: Model.getCustomProjects(), tasks: Model.getState() };
+  }
   function downloadBoard() {
-    downloadFile(
-      JSON.stringify(Model.getState(), null, 2),
-      'runway-board-' + timestamp() + '.json',
-      'application/json'
-    );
+    downloadFile(JSON.stringify(boardFile(), null, 2) + '\n', 'runway-' + timestamp() + '.json', 'application/json');
   }
 
   function mdInline(value) {
-    return String(value == null ? '' : value)
-      .replace(/\\/g, '\\\\')
-      .replace(/\r?\n/g, ' ')
-      .replace(/([`*_[\]<>#])/g, '\\$1');
+    return String(value == null ? '' : value).replace(/\\/g, '\\\\').replace(/\r?\n/g, ' ').replace(/([`*_[\]<>#])/g, '\\$1');
   }
   function mdBlock(value) {
     var text = String(value == null ? '' : value).trim();
     if (!text) return '_None._';
-    return text.split(/\r?\n/).map(function (line) {
-      return '> ' + mdInline(line);
-    }).join('\n');
+    return text.split(/\r?\n/).map(function (line) { return '> ' + mdInline(line); }).join('\n');
   }
   function statusLabel(col) {
     return { todo: 'To Do', doing: 'Doing', done: 'Done', later: 'Later', bucket: 'Bucket List' }[col] || col;
@@ -222,40 +218,24 @@
     var total = (t.checklist || []).length;
     var pct = total ? Math.round(done / total * 100) : 0;
     var lines = [
-      '### ' + mdInline(t.title),
-      '',
+      '### ' + mdInline(t.title), '',
       '- **Status:** ' + mdInline(statusLabel(t.col)),
       '- **Project:** ' + mdInline(t.proj || 'general'),
       '- **Priority:** ' + mdInline(t.pri || 'medium'),
       '- **Tags:** ' + ((t.tags || []).length ? t.tags.map(function (tag) { return '`' + mdInline(tag) + '`'; }).join(', ') : 'None'),
       '- **Checklist progress:** ' + done + '/' + total + ' (' + pct + '%)',
-      '- **Task ID:** `' + mdInline(t.id) + '`',
-      '',
-      '**Description**',
-      '',
-      mdBlock(t.desc),
-      '',
-      '**Checklist**',
-      ''
+      '- **Task ID:** `' + mdInline(t.id) + '`', '',
+      '**Description**', '', mdBlock(t.desc), '', '**Checklist**', ''
     ];
-    if (total) {
-      t.checklist.forEach(function (item) {
-        lines.push('- [' + (item.done ? 'x' : ' ') + '] ' + mdInline(item.text));
-      });
-    } else {
-      lines.push('_No checklist items._');
-    }
+    if (total) t.checklist.forEach(function (item) { lines.push('- [' + (item.done ? 'x' : ' ') + '] ' + mdInline(item.text)); });
+    else lines.push('_No checklist items._');
     lines.push('', '**Notes**', '', mdBlock(t.notes), '');
     return lines.join('\n');
   }
-
   global.exportMarkdown = function () {
     var allowed = view === 'board' ? ['todo', 'doing'] : [view === 'bucket' ? 'bucket' : 'later'];
     var tasks = filteredTasks().filter(function (t) { return allowed.indexOf(t.col) !== -1 && t.col !== 'done'; });
-    if (!tasks.length) {
-      flash('No visible non-Done tasks to export.');
-      return;
-    }
+    if (!tasks.length) { flash('No visible non-Done tasks to export.'); return; }
     tasks.sort(function (a, b) {
       var colDiff = allowed.indexOf(a.col) - allowed.indexOf(b.col);
       return colDiff || (Model.PRI_RANK[a.pri] || 0) - (Model.PRI_RANK[b.pri] || 0);
@@ -263,40 +243,36 @@
     var sections = [];
     allowed.forEach(function (col) {
       var group = tasks.filter(function (t) { return t.col === col; });
-      if (group.length) {
-        sections.push('## ' + statusLabel(col) + '\n\n' + group.map(taskMarkdown).join('\n'));
-      }
+      if (group.length) sections.push('## ' + statusLabel(col) + '\n\n' + group.map(taskMarkdown).join('\n'));
     });
     var viewLabel = view === 'board' ? 'Board' : statusLabel(view);
     var markdown = [
-      '# Launch Runway Export',
-      '',
+      '# ' + Config.get('runway.title') + ' export', '',
       '- **Exported:** ' + new Date().toISOString(),
       '- **View:** ' + viewLabel,
       '- **Projects:** ' + (selectedProjects.size ? Array.from(selectedProjects).map(mdInline).join(', ') : 'All'),
       '- **Tags:** ' + (selectedTags.size ? Array.from(selectedTags).map(mdInline).join(', ') : 'All'),
       '- **Tasks:** ' + tasks.length,
-      '- **Done tasks:** Excluded',
-      '',
+      '- **Done tasks:** Excluded', '',
       sections.join('\n')
     ].join('\n');
     downloadFile(markdown, 'runway-' + view + '-' + timestamp() + '.md', 'text/markdown;charset=utf-8');
     flash('Exported ' + tasks.length + ' task' + (tasks.length === 1 ? '' : 's') + ' to Markdown.');
   };
+  global.exportState = function () { downloadBoard(); flash('Saved a copy of your board.'); };
 
-  global.exportState = function () {
+  // Both are destructive (replace everything), so a backup downloads first.
+  global.loadTemplate = function () {
+    if (!confirm('Load the sample board?\n\nYour current board will be replaced. A backup file is downloaded first, so you can restore it any time with "Load file".')) return;
     downloadBoard();
-    flash('Saved a backup of your board.');
+    Model.reset(); fullRefresh();
+    flash('Sample board loaded — your previous board was downloaded as a backup.');
   };
-
-  // Reset is destructive (replaces everything with the seed), so we always
-  // download a backup of the current board first — nothing is unrecoverable.
-  global.resetBoard = function () {
-    if (!confirm('Reset to the original task list?\n\nYour current board will be replaced. A backup file is downloaded first, so you can restore it any time with "Load file".')) return;
+  global.clearBoard = function () {
+    if (!confirm('Start with an empty board?\n\nA backup of the current board is downloaded first.')) return;
     downloadBoard();
-    Model.reset(); selectedProjects.clear(); selectedTags.clear(); notesOpen.clear();
-    renderProjectSelect(); render(); updateCollapseAllLabel();
-    flash('Board reset — a backup of your previous board was downloaded.');
+    Model.clearAll(); fullRefresh();
+    flash('Board cleared — backup downloaded.');
   };
   global.importState = function (input) {
     var file = input.files && input.files[0];
@@ -304,20 +280,18 @@
     var reader = new FileReader();
     reader.onload = function (e) {
       try {
-        var data = JSON.parse(e.target.result);
-        if (!Array.isArray(data) || !data.every(function (t) { return t && t.id && t.title; })) {
-          throw new Error('shape');
-        }
+        var parsed = JSON.parse(e.target.result);
+        var data = Sync.unwrap(parsed, 'tasks');
+        if (!Array.isArray(data.tasks) || !data.tasks.every(function (t) { return t && t.id && t.title; })) throw new Error('shape');
         if (!confirm('Replace your current board with this saved file?')) { input.value = ''; return; }
-        Model.replaceAll(data); selectedProjects.clear(); selectedTags.clear(); notesOpen.clear();
-        renderProjectSelect();
-        setView(Model.getState().some(function (t) {
-          return t.col === 'todo' || t.col === 'doing' || t.col === 'done';
-        }) ? 'board' : (Model.getState().some(function (t) { return t.col === 'later'; }) ? 'later' : 'bucket'));
-        updateCollapseAllLabel();
+        Model.replaceAll(data.tasks);
+        if (Array.isArray(data.projects)) Model.setCustomProjects(data.projects);
+        fullRefresh();
+        setView(Model.getState().some(function (t) { return t.col === 'todo' || t.col === 'doing' || t.col === 'done'; })
+          ? 'board' : (Model.getState().some(function (t) { return t.col === 'later'; }) ? 'later' : 'bucket'));
         flash('Board loaded from file.');
       } catch (err) {
-        alert("That file didn't look like a saved board. Pick a file you exported with Save file.");
+        alert("That file didn't look like a saved board. Pick a file you exported with Save file, or data/runway.json.");
       }
       input.value = '';
     };
@@ -326,10 +300,15 @@
 
   function flash(msg) {
     var n = document.getElementById('storeNote');
-    var prev = n.textContent;
+    var prev = n.dataset.base || n.textContent;
+    n.dataset.base = prev;
     n.textContent = msg; n.style.color = 'var(--green)';
     clearTimeout(n._t);
-    n._t = setTimeout(function () { n.textContent = prev; n.style.color = ''; }, 2600);
+    n._t = setTimeout(function () { n.textContent = n.dataset.base; n.style.color = ''; }, 2600);
+  }
+  function setBaseNote(msg) {
+    var n = document.getElementById('storeNote');
+    n.dataset.base = msg; if (!n._t) n.textContent = msg;
   }
 
   /* ---- drag & drop --------------------------------------------------- */
@@ -353,32 +332,112 @@
     });
   }
 
-  /* ---- theme --------------------------------------------------------- */
-  function applyTheme(t) {
-    document.documentElement.setAttribute('data-theme', t);
-    document.documentElement.style.colorScheme = t;
-    Store.set(THEME_KEY, t);
+  /* ---- sync: data/runway.json ---------------------------------------- */
+  function registerSync() {
+    Sync.register({
+      file: 'runway.json', keys: [Model.KEY, Model.PROJ_KEY], label: 'board',
+      read: function () { return { projects: Model.getCustomProjects(), tasks: Model.getState() }; },
+      apply: function (body) {
+        if (Array.isArray(body.tasks)) Model.replaceAll(body.tasks, { silent: true });
+        if (Array.isArray(body.projects)) Model.setCustomProjects(body.projects, { silent: true });
+        renderProjectSelect(); renderTagDatalist(); render();
+      }
+    });
+    Sync.on(function (evt, d) {
+      if (evt === 'applied' && d.file === 'runway.json') flash('Board updated from data/runway.json.');
+      if (evt === 'linked') flash('Folder linked — the board now writes data/runway.json directly.');
+      if (evt === 'error') console.warn('sync', d);
+    });
   }
-  global.toggleTheme = function () {
-    var cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-    applyTheme(cur === 'dark' ? 'light' : 'dark');
-  };
+
+  /* ---- command palette + shortcuts ----------------------------------- */
+  // "add Fix the header @launch #video !high" → task in To Do
+  function parseAddArg(arg) {
+    var t = { tags: [] };
+    var title = arg.replace(/(^|\s)@(\S+)/g, function (_, sp, p) { t.proj = Model.addProject(p) || p; return sp; })
+      .replace(/(^|\s)#(\S+)/g, function (_, sp, tag) { t.tags.push(tag.toLowerCase()); return sp; })
+      .replace(/(^|\s)!(high|medium|med|low)\b/gi, function (_, sp, p) { t.pri = p.toLowerCase() === 'med' ? 'medium' : p.toLowerCase(); return sp; })
+      .replace(/(^|\s)>(todo|doing|done|later|bucket)\b/gi, function (_, sp, c) { t.col = c.toLowerCase(); return sp; })
+      .replace(/\s+/g, ' ').trim();
+    t.title = title;
+    return t;
+  }
+  function pick(q, verb) {
+    var m = Model.find(q);
+    if (!m.length) { flash('No task matches "' + q + '".'); return null; }
+    if (m.length > 1) {
+      var exact = m.filter(function (t) { return t.title.toLowerCase() === q.toLowerCase(); });
+      if (exact.length === 1) return exact[0];
+      flash(m.length + ' tasks match "' + q + '" — be more specific.'); return null;
+    }
+    return m[0];
+  }
+  function registerPalette() {
+    Palette.init({ root: '../' });
+    Palette.register([
+      { label: 'Add task', prefix: 'add', hint: 'add <title> @proj #tag !high >later', keywords: 'new create task', run: function (arg) {
+        var t = parseAddArg(arg); if (!t.title) { flash('Give the task a title.'); return; }
+        createTask(t); flash('Added "' + t.title + '".');
+      } },
+      { label: 'Mark done', prefix: 'done', hint: 'done <id or title>', keywords: 'finish complete', run: function (arg) {
+        var t = pick(arg); if (t) { Model.moveTo(t.id, 'done'); render(); flash('Done: ' + t.title); }
+      } },
+      { label: 'Start task (move to Doing)', prefix: 'start', hint: 'start <id or title>', keywords: 'doing begin', run: function (arg) {
+        var t = pick(arg); if (t) { Model.moveTo(t.id, 'doing'); render(); flash('Doing: ' + t.title); }
+      } },
+      { label: 'Move task', prefix: 'move', hint: 'move <id or title> <todo|doing|done|later|bucket>', run: function (arg) {
+        var m = arg.match(/^(.*)\s+(todo|doing|done|later|bucket)$/i);
+        if (!m) { flash('Usage: move <task> <column>'); return; }
+        var t = pick(m[1].trim()); if (t) { Model.moveTo(t.id, m[2].toLowerCase()); render(); flash('Moved to ' + statusLabel(m[2].toLowerCase()) + ': ' + t.title); }
+      } },
+      { label: 'Find / expand task', prefix: 'find', hint: 'find <title>', keywords: 'search open', run: function (arg) {
+        var t = pick(arg); if (!t) return;
+        var v = t.col === 'later' ? 'later' : (t.col === 'bucket' ? 'bucket' : 'board');
+        if (t.collapsed) Model.toggleCollapse(t.id);
+        setView(v);
+        var el = document.querySelector('.card[data-id="' + t.id + '"]'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } },
+      { label: 'Delete task', prefix: 'rm', hint: 'rm <id or title>', keywords: 'delete remove', run: function (arg) {
+        var t = pick(arg); if (t && confirm('Delete "' + t.title + '"?')) { Model.del(t.id); render(); flash('Deleted.'); }
+      } },
+      { label: 'Show board', hint: 'view', keywords: 'todo doing done', run: function () { setView('board'); } },
+      { label: 'Show Later', hint: 'view', run: function () { setView('later'); } },
+      { label: 'Show Bucket List', hint: 'view', run: function () { setView('bucket'); } },
+      { label: 'Collapse / expand all', hint: 'view', run: function () { global.toggleCollapseAll(); } },
+      { label: 'Clear filters', hint: 'view', run: function () { selectedProjects.clear(); selectedTags.clear(); render(); } },
+      { label: 'Export visible tasks as Markdown', hint: 'export', keywords: 'md share', run: global.exportMarkdown },
+      { label: 'Save board to file', hint: 'export', keywords: 'download json backup', run: global.exportState },
+      { label: 'Load board from file', hint: 'import', keywords: 'upload json', run: function () { document.getElementById('importFile').click(); } },
+      { label: 'Load sample board', hint: 'template', keywords: 'reset example', run: global.loadTemplate },
+      { label: 'Start with an empty board', hint: 'template', keywords: 'clear blank', run: global.clearBoard },
+      { label: 'Go to social schedule', hint: 'nav', run: function () { location.href = '../social/social-board.html'; } }
+    ]);
+    document.addEventListener('keydown', function (e) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      var tag = (e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
+      if (Palette.isOpen()) return;
+      if (e.key === 'n') { e.preventDefault(); var p = document.getElementById('addpanel'); if (!p.classList.contains('open')) toggleAdd(); else document.getElementById('newTitle').focus(); }
+      else if (e.key === '1') setView('board');
+      else if (e.key === '2') setView('later');
+      else if (e.key === '3') setView('bucket');
+      else if (e.key === '/') { e.preventDefault(); Palette.open(); }
+      else if (e.key === '?') { e.preventDefault(); flash('Shortcuts: n add · 1/2/3 views · / or ⌘K commands'); }
+    });
+  }
 
   /* ---- init ---------------------------------------------------------- */
   function init() {
-    applyTheme(Store.get(THEME_KEY) || document.documentElement.getAttribute('data-theme') || 'light');
+    Config.applyDOM();
     renderTagPicker();
     renderProjectSelect();
+    renderTagDatalist();
     render();
-    updateCollapseAllLabel();
-    document.getElementById('storeNote').textContent = Store.ok
-      ? 'Saved to this browser. Open this file locally to keep your progress across sessions.'
-      : 'Heads up: storage is blocked here, so changes last only this session. Download the file and open it in your browser to save progress.';
+    registerSync();
+    registerPalette();
+    setBaseNote(Store.ok
+      ? (Model.isFresh() ? 'This is the sample board. Add your own tasks, or load a file. ⌘K for commands.' : 'Saved in this browser · ⌘K for commands · n adds a task')
+      : 'Heads up: storage is blocked here, so changes last only this session. Use Save file to keep your work.');
   }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })(window);

@@ -1,7 +1,10 @@
-/* Script Viewer — parse, render, teleprompter */
+/* Script Viewer — parse, render, teleprompter, scripts library.
+   Storage: `marathon.scripts` → { activeId, scripts:[{id,title,text,createdAt,updatedAt}] }
+   Mirrors to data/scripts.json via core/sync.js. Theme lives in core/theme.js. */
 
-const STORAGE_KEY = 'marathon.scriptViewer';
-const THEME_KEY = 'marathon.scriptViewer.theme';
+const KEY = 'marathon.scripts';
+const LEGACY_TEXT_KEY = 'marathon.scriptViewer';
+const SCALE_KEY = 'marathon.scripts.scale';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -13,43 +16,12 @@ let state = {
   prompterRAF: null,
 };
 
-const EXAMPLE = `# My Reel Script
+const EXAMPLE = MARATHON_TEMPLATES.SCRIPT;
 
-## Hook (first 2 seconds)
-Stop scrolling — this one change doubled my reply rate.
-
-## Script
-1. I used to send the same cold DM to everyone.
-2. Then I tried one thing: mention something specific from their last post.
-3. Not flattery — one real detail that shows you actually looked.
-4. My reply rate went from 4% to 12% in a week.
-5. Try it on your next five DMs. You'll feel the difference.
-
-## Inserts
-- Beat 2: screenshot of generic vs personalized DM
-- Beat 4: simple bar chart — 4% → 12%
-
-(Pause after beat 1 — let it land)
-`;
-
-/* ---- Theme ---- */
-function initTheme() {
-  try {
-    const t = localStorage.getItem(THEME_KEY) ||
-      (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    document.documentElement.setAttribute('data-theme', t);
-    document.documentElement.style.colorScheme = t;
-  } catch {
-    document.documentElement.setAttribute('data-theme', 'light');
-  }
-}
-
-function toggleTheme() {
-  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', next);
-  document.documentElement.style.colorScheme = next;
-  try { localStorage.setItem(THEME_KEY, next); } catch {}
-}
+/** @type {{ activeId: string, scripts: { id: string, title: string, text: string, createdAt: number, updatedAt: number }[] }} */
+let library = { activeId: '', scripts: [] };
+let listTimer;
+let fresh = false;
 
 /* ---- Parser ---- */
 function parseScript(text) {
@@ -458,13 +430,107 @@ function updatePrompterBtn() {
   if (btn) btn.textContent = state.prompterRunning ? 'Pause' : 'Play';
 }
 
+/* ---- Library ---- */
+function newId() { return `s_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`; }
+function titleOf(text) {
+  const m = text.match(/^#\s+(.+)/m);
+  if (m) return m[1].trim().slice(0, 60);
+  const line = text.split('\n').map((l) => l.trim()).find((l) => l && !/^#/.test(l));
+  return line ? line.slice(0, 56) : 'Untitled script';
+}
+function normalizeLib(data) {
+  const scripts = (data && Array.isArray(data.scripts) ? data.scripts : []).map((s) => ({
+    id: s.id || newId(), title: s.title || titleOf(s.text || ''), text: s.text || '',
+    createdAt: s.createdAt || Date.now(), updatedAt: s.updatedAt || Date.now(),
+  }));
+  let activeId = data && data.activeId;
+  if (!scripts.some((s) => s.id === activeId)) activeId = scripts[0] ? scripts[0].id : '';
+  return { activeId, scripts };
+}
+function loadLibrary() {
+  const saved = Store.getJSON(KEY, null);
+  if (saved && Array.isArray(saved.scripts) && saved.scripts.length) return normalizeLib(saved);
+  const legacy = Store.get(LEGACY_TEXT_KEY);
+  if (legacy && legacy.trim()) {
+    const id = newId();
+    return { activeId: id, scripts: [{ id, title: titleOf(legacy), text: legacy, createdAt: Date.now(), updatedAt: Date.now() }] };
+  }
+  fresh = true;
+  return normalizeLib(MARATHON_TEMPLATES.scripts(new Date()));
+}
+function persistLibrary(opts) { Store.setJSON(KEY, library, opts); }
+function getActive() { return library.scripts.find((s) => s.id === library.activeId); }
+function flushActive() {
+  const s = getActive(); const ta = $('#scriptInput');
+  if (!s || !ta) return false;
+  if (s.text === ta.value) return false;
+  s.text = ta.value; s.title = titleOf(ta.value); s.updatedAt = Date.now();
+  return true;
+}
+function fmtWhen(ts) {
+  return new Date(ts).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+function renderList() {
+  const list = $('#scriptsList'); if (!list) return;
+  const sorted = [...library.scripts].sort((a, b) => b.updatedAt - a.updatedAt);
+  list.innerHTML = sorted.map((s) => {
+    const doc = parseScript(s.text);
+    const active = s.id === library.activeId ? ' active' : '';
+    return `<button type="button" class="note-item${active}" data-id="${esc(s.id)}">
+      <span class="note-item-title">${esc(s.title || titleOf(s.text))}</span>
+      <span class="note-item-preview">${esc(doc.spokenLines[0] || 'Empty script')}</span>
+      <span class="note-item-meta">${countBeats(doc)} beats · ${esc(fmtWhen(s.updatedAt))}</span>
+    </button>`;
+  }).join('');
+  list.querySelectorAll('.note-item').forEach((b) => b.addEventListener('click', () => switchScript(b.dataset.id)));
+}
+function scheduleList() { clearTimeout(listTimer); listTimer = setTimeout(renderList, 350); }
+function switchScript(id) {
+  if (!id || id === library.activeId) return;
+  flushActive();
+  library.activeId = id;
+  const s = getActive();
+  $('#scriptInput').value = s ? s.text : '';
+  persistLibrary();
+  renderList();
+  updatePreview({ skipSave: true });
+}
+function createScript(text) {
+  flushActive();
+  const id = newId();
+  const t = text ?? '# New script\n\n## Hook\n\n## Script\n1. \n';
+  library.scripts.unshift({ id, title: titleOf(t), text: t, createdAt: Date.now(), updatedAt: Date.now() });
+  library.activeId = id;
+  $('#scriptInput').value = t;
+  persistLibrary(); renderList(); updatePreview({ skipSave: true });
+  $('#scriptInput').focus();
+}
+function duplicateScript() {
+  flushActive();
+  const src = getActive(); if (!src) return;
+  createScript(src.text);
+}
+function deleteScript() {
+  const s = getActive(); if (!s) return;
+  if (library.scripts.length <= 1) {
+    if (!confirm('Clear this script?')) return;
+    s.text = '# New script\n\n'; s.title = titleOf(s.text); s.updatedAt = Date.now();
+    $('#scriptInput').value = s.text; persistLibrary(); renderList(); updatePreview({ skipSave: true }); return;
+  }
+  if (!confirm(`Delete "${s.title}"?`)) return;
+  library.scripts = library.scripts.filter((x) => x.id !== s.id);
+  library.activeId = library.scripts[0].id;
+  $('#scriptInput').value = library.scripts[0].text;
+  persistLibrary(); renderList(); updatePreview({ skipSave: true });
+}
+
 /* ---- Main update ---- */
 let parsedDoc = null;
 
-function updatePreview() {
+function updatePreview(opts = {}) {
   const text = $('#scriptInput').value;
   parsedDoc = parseScript(text);
-  saveScript(text);
+  if (!opts.skipSave && flushActive()) { persistLibrary(); scheduleList(); }
 
   const preview = $('#preview');
   const pane = $('#previewPane');
@@ -489,43 +555,86 @@ function setView(view) {
   document.querySelectorAll('.view-tab').forEach(t => {
     t.classList.toggle('active', t.dataset.view === view);
   });
-  updatePreview();
+  updatePreview({ skipSave: true });
 }
 
 function setFontScale(val) {
   state.fontScale = val;
   document.documentElement.style.setProperty('--script-size', val);
-  try { localStorage.setItem(STORAGE_KEY + '.scale', val); } catch {}
+  Store.set(SCALE_KEY, String(val), { silent: true });
 }
 
-function saveScript(text) {
-  try { localStorage.setItem(STORAGE_KEY, text); } catch {}
+async function copyScript() {
+  const text = $('#scriptInput').value.trim();
+  if (!text) return;
+  try { await navigator.clipboard.writeText(text); flash('Copied script — paste it into your agent chat'); }
+  catch { flash('Copy failed — select the text and copy manually'); }
+}
+function flash(msg) {
+  let t = $('#toast');
+  if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); }
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(flash._t); flash._t = setTimeout(() => t.classList.remove('show'), 2200);
 }
 
-function loadScript() {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) return saved;
-  } catch {}
-  return EXAMPLE;
+/* ---- Sync + palette ---- */
+function registerSync() {
+  Sync.register({
+    file: 'scripts.json', key: KEY, label: 'scripts',
+    read: () => ({ activeId: library.activeId, scripts: library.scripts }),
+    apply: (body) => {
+      const incoming = normalizeLib(body);
+      if (!incoming.scripts.length) return;
+      const activeBefore = getActive();
+      library = incoming;
+      if (activeBefore && library.scripts.some((s) => s.id === activeBefore.id)) library.activeId = activeBefore.id;
+      const s = getActive();
+      if (s && $('#scriptInput').value !== s.text) $('#scriptInput').value = s.text;
+      renderList(); updatePreview({ skipSave: true }); flash('Scripts updated from data/scripts.json');
+    }
+  });
+}
+function registerPalette() {
+  Palette.init({ root: '../' });
+  Palette.register([
+    { label: 'New script', hint: 'script', keywords: 'add create', run: () => createScript() },
+    { label: 'Duplicate script', hint: 'script', run: duplicateScript },
+    { label: 'Delete script', hint: 'script', keywords: 'remove', run: deleteScript },
+    { label: 'Open script', prefix: 'find', hint: 'find <title>', keywords: 'search switch', run: (q) => {
+      const l = q.toLowerCase(); const m = library.scripts.filter((s) => (s.title || '').toLowerCase().includes(l));
+      if (m.length === 1) switchScript(m[0].id); else flash(m.length ? 'Several scripts match — be more specific' : 'No script matches');
+    } },
+    { label: 'Load example script', hint: 'script', run: () => createScript(EXAMPLE) },
+    { label: 'Start teleprompter', hint: 'view', keywords: 'prompter record', run: () => $('#teleprompterBtn').click() },
+    { label: 'View: script', hint: 'view', run: () => setView('script') },
+    { label: 'View: reader', hint: 'view', run: () => setView('reader') },
+    { label: 'View: 9:16 phone', hint: 'view', run: () => setView('phone') },
+    { label: 'Copy script for AI', hint: 'export', keywords: 'clipboard', run: copyScript },
+    { label: 'Print', hint: 'export', run: () => window.print() },
+    { label: 'Go to writing viewer', hint: 'nav', run: () => { location.href = 'writing-viewer.html'; } }
+  ]);
 }
 
 /* ---- Init ---- */
 function init() {
-  initTheme();
+  Config.applyDOM();
+  library = loadLibrary();
+  persistLibrary({ silent: true });
 
   const input = $('#scriptInput');
-  input.value = loadScript();
+  const active = getActive();
+  input.value = active ? active.text : '';
 
-  const scale = localStorage.getItem(STORAGE_KEY + '.scale');
+  const scale = Store.get(SCALE_KEY) || Store.get(LEGACY_TEXT_KEY + '.scale');
   if (scale) {
     state.fontScale = parseFloat(scale) || 1;
     $('#fontScale').value = state.fontScale;
     setFontScale(state.fontScale);
   }
 
+  renderList();
   input.addEventListener('input', debounce(updatePreview, 120));
-  updatePreview();
+  updatePreview({ skipSave: true });
 
   $('#fontScale').addEventListener('input', (e) => setFontScale(e.target.value));
   $('#prompterSpeed').addEventListener('input', (e) => { state.prompterSpeed = parseInt(e.target.value, 10); });
@@ -541,22 +650,24 @@ function init() {
   $('#closePrompter').addEventListener('click', closePrompter);
   $('#prompterPlayBtn').addEventListener('click', togglePrompter);
 
-  $('#loadExample').addEventListener('click', () => {
-    input.value = EXAMPLE;
-    updatePreview();
-  });
+  $('#loadExample').addEventListener('click', () => createScript(EXAMPLE));
+  $('#copyScriptBtn').addEventListener('click', copyScript);
   $('#clearScript').addEventListener('click', () => {
-    if (confirm('Clear the script?')) {
-      input.value = '';
-      updatePreview();
-    }
+    if (confirm('Clear this script?')) { input.value = ''; updatePreview(); }
   });
+  $('#newScriptBtn').addEventListener('click', () => createScript());
+  $('#dupScriptBtn').addEventListener('click', duplicateScript);
+  $('#delScriptBtn').addEventListener('click', deleteScript);
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && $('#teleprompter').classList.contains('active')) {
-      closePrompter();
-    }
+    if (e.key === 'Escape' && $('#teleprompter').classList.contains('active')) closePrompter();
+    const mod = e.metaKey || e.ctrlKey;
+    if (mod && e.key === 's') { e.preventDefault(); if (flushActive()) persistLibrary(); renderList(); flash('Script saved'); }
   });
+
+  registerSync();
+  registerPalette();
+  if (fresh) flash('Sample scripts loaded — ⌘K for commands');
 }
 
 function debounce(fn, ms) {

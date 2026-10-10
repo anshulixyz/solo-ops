@@ -3,54 +3,195 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Marathon Marketing</title>
+<link rel="icon" href="data:,">
+<title>Marathon</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="marathon.config.js"></script>
+<script src="core/theme-boot.js"></script>
+<link rel="stylesheet" href="runway/styles.css">
+<link rel="stylesheet" href="core/theme.css">
 <style>
-  :root { --bg:#F4F1EA; --ink:#2B2A26; --muted:#6E6A60; --accent:#CC6B4A; --line:#E6E1D5; }
-  * { box-sizing: border-box; }
-  body { margin: 0; font-family: Inter, sans-serif; background: var(--bg); color: var(--ink); padding: 40px 24px 80px; }
-  h1 { font-family: Lora, serif; font-weight: 600; font-size: 28px; margin: 0 0 8px; }
-  .sub { color: var(--muted); font-size: 14px; margin-bottom: 32px; max-width: 520px; line-height: 1.5; }
-  .grid { display: grid; gap: 12px; max-width: 640px; }
-  a.card {
-    display: block; padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px;
-    background: #FBFAF6; text-decoration: none; color: inherit; transition: .15s;
-  }
-  a.card:hover { border-color: var(--accent); }
-  a.card strong { display: block; font-size: 15px; margin-bottom: 4px; }
-  a.card span { font-size: 13px; color: var(--muted); line-height: 1.45; }
-  .folder { font-size: 11px; color: var(--muted); font-family: ui-monospace, monospace; margin-top: 6px; }
-  footer { margin-top: 40px; font-size: 12px; color: var(--muted); }
-  footer a { color: var(--accent); }
+  .hub-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px; margin-top:14px;}
+  .hub-card{display:block; background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:16px 18px; box-shadow:var(--shadow); text-decoration:none; color:inherit; transition:.15s;}
+  a.hub-card:hover{border-color:var(--accent); box-shadow:var(--shadow-lift);}
+  .hub-card h2{font-family:var(--serif); font-size:18px; margin:0 0 4px;}
+  .hub-card .sub{color:var(--muted); font-size:13px; line-height:1.45; margin-bottom:10px;}
+  .hub-card .stat{display:flex; flex-wrap:wrap; gap:8px 14px; font-size:13px;}
+  .hub-card .stat b{color:var(--accent); font-weight:600;}
+  .hub-card .folder{font-family:var(--mono); font-size:10px; letter-spacing:.08em; color:var(--faint); margin-top:10px; text-transform:uppercase;}
+  .today{margin-top:18px; display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px;}
+  .today .panel-h{font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin:0 0 10px;}
+  .today ul{list-style:none; margin:0; padding:0;}
+  .today li{display:flex; gap:10px; align-items:baseline; padding:7px 0; border-top:1px solid var(--line-2); font-size:13.5px;}
+  .today li:first-child{border-top:0;}
+  .today li .id{font-family:var(--mono); font-size:10.5px; color:var(--faint); min-width:52px;}
+  .today li .meta{margin-left:auto; font-family:var(--mono); font-size:10.5px; color:var(--muted); white-space:nowrap;}
+  .today li a{color:inherit; text-decoration:none;} .today li a:hover{color:var(--accent);}
+  .today .empty{color:var(--faint); font-size:13px; padding:6px 0;}
+  .first-run{margin-top:14px; background:var(--accent-soft); border:1px solid var(--line); border-radius:var(--r); padding:16px 18px;}
+  .first-run h2{font-family:var(--serif); font-size:18px; margin:0 0 6px;}
+  .first-run p{margin:0 0 12px; color:var(--muted); font-size:13.5px; line-height:1.5;}
+  .first-run .row{display:flex; flex-wrap:wrap; gap:8px;}
+  .agents{margin-top:18px; background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:16px 18px; box-shadow:var(--shadow);}
+  .agents h2{font-family:var(--serif); font-size:18px; margin:0 0 6px;}
+  .agents p{color:var(--muted); font-size:13.5px; line-height:1.5; margin:0 0 10px;}
+  .agents pre{margin:0; background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:12px 14px; font-family:var(--mono); font-size:12px; line-height:1.6; overflow:auto; color:var(--ink);}
+  .agents pre b{color:var(--accent); font-weight:500;}
+  .agents .links{margin-top:10px; font-size:13px;} .agents .links a{color:var(--accent);}
+  .hub-controls{display:flex; justify-content:flex-end; gap:8px; align-items:center; flex-wrap:wrap; margin-top:6px;}
 </style>
 </head>
 <body>
-  <h1>Marathon Marketing</h1>
-  <p class="sub">Local browser tools for launch ops, social scheduling, and video writing. No build step — open any entry point with <code>file://</code> or a static server.</p>
-  <div class="grid">
-    <a class="card" href="runway/marathon-board.html">
-      <strong>Launch Runway</strong>
-      <span>Kanban for build & launch tasks — Board, Later, Bucket List.</span>
-      <div class="folder">runway/</div>
-    </a>
-    <a class="card" href="social/social-board.html">
-      <strong>X / Social schedule</strong>
-      <span>Posting timeline, graph, and calendar with streak heatmap.</span>
-      <div class="folder">social/</div>
-    </a>
-    <a class="card" href="studio/writing-viewer.html">
-      <strong>Writing viewer</strong>
-      <span>Drafts with cuts, notes, and copy-for-AI; multiple notes.</span>
-      <div class="folder">studio/</div>
-    </a>
-    <a class="card" href="studio/script-viewer.html">
-      <strong>Script viewer</strong>
-      <span>Reels/shorts scripts — hooks, beats, teleprompter.</span>
-      <div class="folder">studio/</div>
-    </a>
+<div class="wrap">
+  <header>
+    <div class="eyebrow"><span data-cfg="eyebrow"></span> · local, file-based, agent-native</div>
+    <h1><span data-cfg="name">Marathon</span><span class="dot">.</span></h1>
+    <div class="hub-controls">
+      <span data-sync-pill></span>
+      <button class="theme-btn" onclick="toggleTheme()" title="Toggle light / dark" aria-label="Toggle theme">
+        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M22 12h-2.5M4.5 12H2M19 5l-1.8 1.8M6.8 17.2 5 19M19 19l-1.8-1.8M6.8 6.8 5 5"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="first-run" id="firstRun" style="display:none">
+    <h2>First time here?</h2>
+    <p>Everything is sample content right now. Keep it to explore, or start clean. Your data lives in <code>data/*.json</code> and in this browser — nothing leaves your machine.</p>
+    <div class="row">
+      <button class="btn primary" onclick="startBlank()">Start blank</button>
+      <button class="btn" onclick="keepSample()">Keep the samples</button>
+      <button class="btn ghost" id="linkBtn" onclick="Sync.linkFolder()">Link the Marathon folder</button>
+    </div>
   </div>
-  <footer>Agents: read <a href="AGENTS.md">AGENTS.md</a> for layout and conventions.</footer>
+
+  <div class="hub-grid" id="cards"></div>
+
+  <div class="today" id="today"></div>
+
+  <div class="agents">
+    <h2>Run it from the terminal or your agent</h2>
+    <p>The same data, no clicking. Paste <code>AGENTS.md</code> into Claude, ChatGPT or Claude Code and it knows the files, the schema and these commands.</p>
+<pre><b>node marathon.js</b> today            # what is in play right now
+<b>node marathon.js</b> week             # tasks + posts for the next 7 days
+<b>node marathon.js</b> add "Write the launch post" --proj launch --pri high --tags content
+<b>node marathon.js</b> done t5         # by id or title
+<b>node marathon.js</b> social next     # next unposted post
+<b>node marathon.js</b> share todo      # markdown list to paste anywhere
+<b>node marathon.js</b> theme set dusk</pre>
+    <div class="links">Docs: <a href="README.md">README.md</a> · <a href="AGENTS.md">AGENTS.md</a> · <a href="data/SCHEMA.md">data/SCHEMA.md</a> · <span style="color:var(--muted)">⌘K opens the same commands on every page</span></div>
+  </div>
+
+  <p class="note" id="note">Loading…</p>
+</div>
+
+<script src="core/store.js"></script>
+<script src="core/config.js"></script>
+<script src="core/templates.js"></script>
+<script src="core/theme.js"></script>
+<script src="core/sync.js"></script>
+<script src="core/palette.js"></script>
+<script>
+(function () {
+  'use strict';
+  var KEYS = { runway: 'marathon.runway.v3', social: 'marathon.social.v3', scripts: 'marathon.scripts', writing: 'marathon.writing' };
+  var data = { tasks: null, posts: null, scripts: null, notes: null };
+  var fromFiles = false;
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function loadLocal() {
+    data.tasks = Store.getJSON(KEYS.runway, null);
+    data.posts = Store.getJSON(KEYS.social, null);
+    var s = Store.getJSON(KEYS.scripts, null); data.scripts = s && s.scripts ? s.scripts : null;
+    var w = Store.getJSON(KEYS.writing, null); data.notes = w && w.notes ? w.notes : null;
+  }
+  function loadFiles() {
+    var m = Sync.getMode();
+    if (m !== 'server' && m !== 'folder' && m !== 'static') return Promise.resolve(false);
+    return Promise.all(['runway.json', 'social.json', 'scripts.json', 'writing.json'].map(Sync.peek)).then(function (r) {
+      if (r[0] && r[0].tasks) data.tasks = r[0].tasks;
+      if (r[1] && r[1].posts) data.posts = r[1].posts;
+      if (r[2] && r[2].scripts) data.scripts = r[2].scripts;
+      if (r[3] && r[3].notes) data.notes = r[3].notes;
+      fromFiles = !!(r[0] || r[1] || r[2] || r[3]);
+      return fromFiles;
+    });
+  }
+  function fmt(dt) { var d = new Date(dt); return isNaN(d) ? dt : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
+  function isSample() {
+    var T = MARATHON_TEMPLATES.runway().tasks.map(function (t) { return t.id; }).join();
+    var ids = (data.tasks || []).map(function (t) { return t.id; }).join();
+    return !data.tasks || ids === T;
+  }
+  function render() {
+    var tasks = data.tasks || [], posts = data.posts || [], scripts = data.scripts || [], notes = data.notes || [];
+    var doing = tasks.filter(function (t) { return t.col === 'doing'; });
+    var todo = tasks.filter(function (t) { return t.col === 'todo'; });
+    var done = tasks.filter(function (t) { return t.col === 'done'; });
+    var board = doing.length + todo.length + done.length;
+    var unposted = posts.filter(function (p) { return p.status !== 'posted'; }).sort(function (a, b) { return a.datetime.localeCompare(b.datetime); });
+    var posted = posts.length - unposted.length;
+    document.getElementById('cards').innerHTML =
+      card('runway/marathon-board.html', Config.get('runway.title'), 'Kanban for build & launch tasks — Board, Later, Bucket List.',
+        '<span><b>' + doing.length + '</b> doing</span><span><b>' + todo.length + '</b> to do</span><span><b>' + done.length + '</b> of ' + board + ' done</span>', 'runway/ · data/runway.json') +
+      card('social/social-board.html', Config.get('social.title'), Config.get('social.network') + ' posting arc, prep lists, calendar + streak heatmap.',
+        '<span><b>' + posts.length + '</b> posts</span><span><b>' + posted + '</b> posted</span>' + (unposted[0] ? '<span>next <b>' + esc(fmt(unposted[0].datetime)) + '</b></span>' : ''), 'social/ · data/social.json') +
+      card('studio/script-viewer.html', Config.get('studio.scriptTitle'), 'Reels & shorts scripts — hooks, beats, inserts, teleprompter, 9:16 preview.',
+        '<span><b>' + scripts.length + '</b> scripts</span>' + (scripts[0] ? '<span>latest <b>' + esc(latest(scripts).title) + '</b></span>' : ''), 'studio/ · data/scripts.json') +
+      card('studio/writing-viewer.html', Config.get('studio.writingTitle'), 'Drafts with ~~cuts~~, ++adds++, [[notes for AI]], copy-for-AI.',
+        '<span><b>' + notes.length + '</b> notes</span>' + (notes[0] ? '<span>latest <b>' + esc(noteTitle(latest(notes).text)) + '</b></span>' : ''), 'studio/ · data/writing.json');
+
+    var pri = { high: 0, medium: 1, low: 2 };
+    var focus = doing.concat(todo.filter(function (t) { return t.pri === 'high'; })).sort(function (a, b) { return (a.col === 'doing' ? 0 : 1) - (b.col === 'doing' ? 0 : 1) || pri[a.pri] - pri[b.pri]; }).slice(0, 7);
+    var now = new Date(); var weekEnd = new Date(now.getTime() + 7 * 86400000);
+    var week = unposted.filter(function (p) { return new Date(p.datetime) <= weekEnd; }).slice(0, 6);
+    document.getElementById('today').innerHTML =
+      '<div class="hub-card"><h2 class="panel-h">In play · tasks</h2>' + (focus.length ? '<ul>' + focus.map(function (t) {
+        var n = (t.checklist || []).length, d = (t.checklist || []).filter(function (c) { return c.done; }).length;
+        return '<li><span class="id">' + esc(t.id) + '</span><a href="runway/marathon-board.html">' + esc(t.title) + '</a><span class="meta">' + esc(t.col) + ' · ' + esc(t.pri) + (n ? ' · ' + d + '/' + n : '') + '</span></li>';
+      }).join('') + '</ul>' : '<div class="empty">Nothing in Doing and no high-priority To Do. Add one with ⌘K → add.</div>') + '</div>' +
+      '<div class="hub-card"><h2 class="panel-h">Next 7 days · posts</h2>' + (week.length ? '<ul>' + week.map(function (p) {
+        var n = (p.prep || []).length, d = (p.prep || []).filter(function (c) { return c.done; }).length;
+        return '<li><span class="id">' + esc(p.id) + '</span><a href="social/social-board.html?id=' + esc(p.id) + '">' + esc(p.title) + '</a><span class="meta">' + esc(fmt(p.datetime)) + (n ? ' · ' + d + '/' + n + ' prep' : '') + '</span></li>';
+      }).join('') + '</ul>' : '<div class="empty">No unposted posts in the next week.</div>') + '</div>';
+
+    document.getElementById('firstRun').style.display = isSample() ? '' : 'none';
+    var lb = document.getElementById('linkBtn'); if (lb) lb.style.display = (Sync.fsSupported && Sync.getMode() === 'manual') ? '' : 'none';
+    document.getElementById('note').textContent = (fromFiles ? 'Counts read from data/*.json' : 'Counts read from this browser') + ' · ⌘K to jump anywhere · theme follows marathon.config.js until you pick one';
+  }
+  function card(href, title, sub, stat, folder) {
+    return '<a class="hub-card" href="' + href + '"><h2>' + esc(title) + '</h2><div class="sub">' + esc(sub) + '</div><div class="stat">' + stat + '</div><div class="folder">' + esc(folder) + '</div></a>';
+  }
+  function latest(arr) { return arr.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); })[0]; }
+  function noteTitle(text) { var m = (text || '').match(/^#\s+(.+)/m); return m ? m[1].trim().slice(0, 50) : (text || '').split('\n')[0].slice(0, 50) || 'Untitled'; }
+
+  // first-run choices write the app keys directly (same keys the apps use)
+  window.startBlank = function () {
+    if (!confirm('Replace the sample content in every app with empty lists?')) return;
+    Store.setJSON(KEYS.runway, []); Store.setJSON(KEYS.social, []);
+    Store.setJSON(KEYS.scripts, { activeId: '', scripts: [] }); Store.setJSON(KEYS.writing, { activeId: '', notes: [] });
+    // the apps own the file writes; nudge them by opening the board
+    loadLocal(); render(); location.href = 'runway/marathon-board.html';
+  };
+  window.keepSample = function () { document.getElementById('firstRun').style.display = 'none'; try { localStorage.setItem('marathon.hub.sampleOk', '1'); } catch (e) {} };
+
+  Config.applyDOM();
+  Palette.init({ root: './' });
+  Palette.register([
+    { label: 'Start blank (clear all sample data)', hint: 'setup', run: window.startBlank }
+  ]);
+  Sync.on(function (evt) { if (evt === 'linked' || evt === 'pulled') loadFiles().then(render); });
+
+  loadLocal(); render();
+  var tries = 0;
+  (function waitReady() {
+    if (Sync.ready()) { loadFiles().then(render); return; }
+    if (tries++ < 40) setTimeout(waitReady, 100);
+  })();
+  try { if (localStorage.getItem('marathon.hub.sampleOk')) document.getElementById('firstRun').style.display = 'none'; } catch (e) {}
+})();
+</script>
 </body>
 </html>

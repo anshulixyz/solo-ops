@@ -10,10 +10,7 @@
     });
   }
 
-  function projHue(p) {
-    var map = { general: 30, openproof: 260, openagents: 145, openhiring: 200, openDM: 12 };
-    return map[p] || 30;
-  }
+  function projHue(p) { return Config.projectHue(p); }
 
   function fmtDate(dt) {
     if (!dt) return '—';
@@ -65,7 +62,7 @@
       + '<input type="datetime-local" class="meta-when" value="' + esc(p.datetime) + '" title="Schedule" onchange="updateField(\'' + esc(p.id) + '\',\'datetime\',this.value)">'
       + '<select class="meta-sel" title="Type" onchange="updateField(\'' + esc(p.id) + '\',\'postType\',this.value)">' + opts(SocialModel.POST_TYPES, p.postType, TYPE_LABELS) + '</select>'
       + '<select class="meta-sel" title="Format" onchange="updateField(\'' + esc(p.id) + '\',\'format\',this.value)">' + opts(SocialModel.FORMATS, p.format, FORMAT_LABELS) + '</select>'
-      + '<select class="meta-sel" title="Project" onchange="updateField(\'' + esc(p.id) + '\',\'project\',this.value)">' + opts(SocialModel.PROJECTS, p.project) + '</select>'
+      + '<select class="meta-sel" title="Project" onchange="updateField(\'' + esc(p.id) + '\',\'project\',this.value)">' + opts(SocialModel.getProjects(), p.project) + '</select>'
       + '<select class="meta-sel meta-status' + (p.status === 'posted' ? ' is-posted' : '') + '" title="Status" onchange="updateField(\'' + esc(p.id) + '\',\'status\',this.value)">' + opts(SocialModel.STATUSES, p.status, STATUS_LABELS) + '</select>'
       + '</div>';
   }
@@ -194,7 +191,7 @@
 
   function detailHTML(p) {
     if (!p) {
-      return '<div class="detail-empty"><div class="de-icon">←</div><p>Select a post from the timeline to see copy, assets, video, and prep work.</p></div>';
+      return '<div class="detail-empty"><div class="de-icon">←</div><p>Select a post from the sequence to see copy, assets, video, and prep work.</p></div>';
     }
 
     var prepDoneN = prepDone(p.prep);

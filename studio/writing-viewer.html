@@ -3,19 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Writing Viewer — Drafts & AI handoff</title>
+<link rel="icon" href="data:,">
+<title>Writing Viewer — Marathon</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script>(function(){try{var t=localStorage.getItem('marathon.writingViewer.theme')||((window.matchMedia&&matchMedia('(prefers-color-scheme:dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',t);document.documentElement.style.colorScheme=t;}catch(e){document.documentElement.setAttribute('data-theme','light');}})();</script>
+<script src="../marathon.config.js"></script>
+<script src="../core/theme-boot.js"></script>
 <link rel="stylesheet" href="writing-viewer.css">
+<link rel="stylesheet" href="../core/theme.css">
 </head>
 <body>
 <div class="app writing-app">
   <header class="topbar">
     <div class="brand">
-      <span class="eyebrow">Studio</span>
-      <h1>Writing Viewer<span class="dot">.</span></h1>
+      <span class="eyebrow"><span data-cfg="name"></span> · Studio</span>
+      <h1><span data-cfg="studio.writingTitle" data-cfg-title="studio.writingTitle">Writing Viewer</span><span class="dot">.</span></h1>
     </div>
     <div class="toolbar">
       <div class="view-tabs">
@@ -42,7 +45,9 @@
       <button class="btn ghost" id="copyAiPreviewBtn" title="Preview before copying">Preview</button>
       <button class="btn" id="copyCleanBtn" title="Final text only, no markup">Copy clean</button>
       <a class="btn ghost" href="script-viewer.html">Scripts</a>
+      <a class="btn ghost" href="../index.html">Hub</a>
       <button class="btn ghost" onclick="window.print()">Print</button>
+      <span data-sync-pill></span>
       <button class="theme-btn" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">
         <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
         <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M22 12h-2.5M4.5 12H2M19 5l-1.8 1.8M6.8 17.2 5 19M19 19l-1.8-1.8M6.8 6.8 5 5"/></svg>
@@ -117,6 +122,12 @@ Image button → [Image uploaded 1] in text (preview shows the pic)
   </div>
 </div>
 
+<script src="../core/store.js"></script>
+<script src="../core/config.js"></script>
+<script src="../core/templates.js"></script>
+<script src="../core/theme.js"></script>
+<script src="../core/sync.js"></script>
+<script src="../core/palette.js"></script>
 <script src="writing-viewer.js"></script>
 </body>
 </html>

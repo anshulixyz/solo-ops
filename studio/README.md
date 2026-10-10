@@ -1,16 +1,15 @@
-# Studio — writing & scripts
-
-Tools for video and social copy while iterating with AI.
+# Studio — scripts & writing
 
 | File | Purpose |
 |------|---------|
-| **`script-viewer.html`** | Reels/shorts scripts — hooks, numbered beats, inserts, teleprompter, 9:16 preview |
-| **`writing-viewer.html`** | General drafts — `~~cuts~~`, `++adds++`, `[[notes]]`, multiple notes (sidebar), copy-for-AI |
+| **`script-viewer.html`** | Reels/shorts scripts — hooks, numbered beats, inserts, prep, teleprompter, 9:16 preview. Scripts library in the sidebar. |
+| **`writing-viewer.html`** | Drafts — `~~cuts~~`, `++adds++`, `[[notes for AI]]`, images, undo, copy-for-AI. Notes library in the sidebar. |
 
-Both use Lora/Inter styling; writing viewer imports `script-viewer.css` for shared chrome.
+- Data: `../data/scripts.json` and `../data/writing.json` ⇄ this browser
+  (`marathon.scripts`, `marathon.writing`)
+- `⌘K` for commands; `⌘S` saves; `⌘⇧C` copies the draft for an agent
+- Both share `script-viewer.css` (tokens, sidebar, toast); `writing-viewer.css`
+  adds the track-changes styling
 
-**Storage:** `localStorage` per app (`marathon.scriptViewer`, `marathon.writingViewer.library`). Uploaded images in writing viewer are stored on the note object, referenced in text as `[Image uploaded 1]`.
-
-**Video pipeline docs** (commands, specs): `../videos docs/` — not part of this folder.
-
-**Related:** launch tasks `../runway/marathon-board.html`, posts `../social/social-board.html`.
+Terminal: `node ../marathon.js scripts list|show|add`, `notes list|show|add`.
+Agents get the raw Markdown text and can write back the same way.

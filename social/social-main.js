@@ -5,7 +5,6 @@
   'use strict';
 
   var selectedId = null;
-  var THEME_KEY = 'anshuli.runway.theme';
 
   function render() {
     SocialView.render(selectedId);
@@ -309,21 +308,112 @@
     reader.readAsText(file);
   };
 
-  global.resetBoard = function () {
-    if (!confirm('Reset to the default 3-post schedule? Posts, images, and edits will be lost.')) return;
-    SocialModel.reset();
-    selectedId = SocialModel.getSorted()[0] ? SocialModel.getSorted()[0].id : null;
-    flash('Reset to defaults.');
-    render();
+  // Destructive: a backup downloads first (same as the task board).
+  global.loadTemplate = function () {
+    if (!confirm('Load the sample posting arc?\n\nYour current schedule will be replaced. A backup file (with images) is downloaded first.')) return;
+    SocialModel.exportBundle().then(function (json) {
+      var blob = new Blob([json], { type: 'application/json' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'social-backup-' + new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-') + '.json';
+      a.click(); URL.revokeObjectURL(a.href);
+      SocialModel.reset();
+      selectedId = SocialModel.getSorted()[0] ? SocialModel.getSorted()[0].id : null;
+      flash('Sample schedule loaded — backup downloaded.');
+      render();
+    });
+  };
+  global.clearBoard = function () {
+    if (!confirm('Start with an empty schedule?\n\nA backup file is downloaded first.')) return;
+    SocialModel.exportBundle().then(function (json) {
+      var blob = new Blob([json], { type: 'application/json' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'social-backup.json'; a.click(); URL.revokeObjectURL(a.href);
+      SocialModel.replaceAll([]); selectedId = null; flash('Schedule cleared — backup downloaded.'); render();
+    });
   };
 
-  global.toggleTheme = function () {
-    var cur = document.documentElement.getAttribute('data-theme') || 'light';
-    var next = cur === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', next);
-    document.documentElement.style.colorScheme = next;
-    Store.set(THEME_KEY, next);
-  };
+  /* ---- sync: data/social.json (posts only; images stay in the browser and
+          in Save file bundles) ---------------------------------------- */
+  function registerSync() {
+    Sync.register({
+      file: 'social.json', key: SocialModel.KEY, label: 'schedule',
+      read: function () { return { posts: SocialModel.getState() }; },
+      apply: function (body) {
+        if (!Array.isArray(body.posts)) return;
+        SocialModel.replaceAll(body.posts, { silent: true });
+        if (selectedId && !SocialModel.getById(selectedId)) selectedId = null;
+        render();
+      }
+    });
+    Sync.on(function (evt, d) {
+      if (evt === 'applied' && d.file === 'social.json') flash('Schedule updated from data/social.json.');
+      if (evt === 'linked') flash('Folder linked — the schedule now writes data/social.json directly.');
+    });
+  }
+
+  /* ---- command palette ------------------------------------------------ */
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  function localDT(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+  // "add Launch day @launch +3d 9:00 #launch" → post 3 days from now at 9:00
+  function parseAddArg(arg) {
+    var o = { postType: null, project: null };
+    var d = new Date(); d.setHours(9, 0, 0, 0); d.setDate(d.getDate() + 1);
+    var title = arg.replace(/(^|\s)@(\S+)/g, function (_, sp, p) { o.project = p; return sp; })
+      .replace(/(^|\s)#(\S+)/g, function (_, sp, t) { o.postType = t.toLowerCase(); return sp; })
+      .replace(/(^|\s)\+(\d+)d\b/g, function (_, sp, n) { d = new Date(); d.setHours(9, 0, 0, 0); d.setDate(d.getDate() + parseInt(n, 10)); return sp; })
+      .replace(/(^|\s)(\d{4}-\d{2}-\d{2})(?:T(\d{2}:\d{2}))?/g, function (_, sp, day, hm) { d = new Date(day + 'T' + (hm || '09:00')); return sp; })
+      .replace(/(^|\s)(\d{1,2}):(\d{2})\b/g, function (_, sp, h, m) { d.setHours(parseInt(h, 10), parseInt(m, 10), 0, 0); return sp; })
+      .replace(/\s+/g, ' ').trim();
+    o.title = title; o.datetime = localDT(d);
+    return o;
+  }
+  function pick(q) {
+    var m = SocialModel.find(q);
+    if (!m.length) { flash('No post matches "' + q + '".'); return null; }
+    if (m.length > 1) { flash(m.length + ' posts match "' + q + '" — be more specific.'); return null; }
+    return m[0];
+  }
+  function registerPalette() {
+    Palette.init({ root: '../' });
+    Palette.register([
+      { label: 'Add post', prefix: 'add', hint: 'add <title> @project #type +3d 17:30', keywords: 'new post schedule', run: function (arg) {
+        var o = parseAddArg(arg); if (!o.title) { flash('Give the post a title.'); return; }
+        var partial = { title: o.title, datetime: o.datetime };
+        if (o.project) partial.project = o.project;
+        if (o.postType) partial.postType = o.postType;
+        selectedId = SocialModel.addPost(partial); render(); flash('Added "' + o.title + '" for ' + o.datetime.replace('T', ' ') + '.');
+      } },
+      { label: 'Mark as posted', prefix: 'posted', hint: 'posted <id or title>', keywords: 'done live', run: function (arg) {
+        var p = pick(arg); if (p) { SocialModel.markPosted(p.id); selectedId = p.id; render(); flash('Posted: ' + p.title); }
+      } },
+      { label: 'Mark ready', prefix: 'ready', hint: 'ready <id or title>', run: function (arg) {
+        var p = pick(arg); if (p) { SocialModel.updatePost(p.id, { status: 'ready' }); selectedId = p.id; render(); flash('Ready: ' + p.title); }
+      } },
+      { label: 'Open post', prefix: 'find', hint: 'find <title>', keywords: 'open select search', run: function (arg) {
+        var p = pick(arg); if (p) { selectPost(p.id); }
+      } },
+      { label: 'Delete post', prefix: 'rm', hint: 'rm <id or title>', keywords: 'delete remove', run: function (arg) {
+        var p = pick(arg); if (p) deletePost(p.id);
+      } },
+      { label: 'Next unposted', hint: 'view', keywords: 'upcoming', run: function () {
+        var n = SocialModel.getSorted().find(function (p) { return p.status !== 'posted'; }); if (n) selectPost(n.id); else flash('Everything is posted.');
+      } },
+      { label: 'Open calendar', hint: 'nav', run: function () { location.href = 'social-calendar.html'; } },
+      { label: 'Save schedule to file', hint: 'export', keywords: 'download json backup', run: global.exportState },
+      { label: 'Load schedule from file', hint: 'import', keywords: 'upload', run: function () { document.getElementById('importFile').click(); } },
+      { label: 'Load sample schedule', hint: 'template', keywords: 'reset example', run: global.loadTemplate },
+      { label: 'Start with an empty schedule', hint: 'template', keywords: 'clear blank', run: global.clearBoard }
+    ]);
+    document.addEventListener('keydown', function (e) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      var tag = (e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
+      if (Palette.isOpen()) return;
+      if (e.key === 'n') { e.preventDefault(); var p = document.getElementById('addpanel'); if (!p.classList.contains('open')) toggleAdd(); document.getElementById('newTitle').focus(); }
+      else if (e.key === '/') { e.preventDefault(); Palette.open(); }
+    });
+  }
 
   function bindFileInputs() {
     var postInp = document.getElementById('filePostImage');
@@ -351,9 +441,12 @@
   }
 
   function init() {
+    Config.applyDOM();
     SocialModel.init();
     SocialAssets.open().catch(function () {});
     bindFileInputs();
+    registerSync();
+    registerPalette();
     var params = new URLSearchParams(location.search);
     var fromGraph = params.get('id');
     var posts = SocialModel.getSorted();
@@ -361,8 +454,8 @@
     render();
     var note = document.getElementById('storeNote');
     if (note) {
-      note.textContent = (Store.ok ? 'Auto-saves to browser' : 'Storage limited — use Save file')
-        + ' · select a post, then + Post image';
+      note.textContent = (Store.ok ? (SocialModel.isFresh() ? 'This is the sample posting arc — edit it or add your own.' : 'Auto-saves to browser') : 'Storage limited — use Save file')
+        + ' · ⌘K for commands · n adds a post · images stay in this browser (Save file bundles them)';
     }
   }
 

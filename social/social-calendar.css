@@ -174,12 +174,9 @@
 }
 .cal-post.is-posted .cal-post-bar{filter:saturate(1.1);}
 
-/* project bar colors (like mockup platform headers) */
-.cal-proj-general,.leg-swatch.cal-proj-general{background:#B68426;}
-.cal-proj-openproof,.leg-swatch.cal-proj-openproof{background:#6B5B95;}
-.cal-proj-openagents,.leg-swatch.cal-proj-openagents{background:#5C7E54;}
-.cal-proj-openhiring,.leg-swatch.cal-proj-openhiring{background:#4A7C8C;}
-.cal-proj-openDM,.leg-swatch.cal-proj-openDM{background:#CC6B4A;}
+/* project bar colors come from marathon.config.js hues (inline --h) */
+.cal-post-bar,.leg-swatch{background:hsl(var(--h,30) 42% 46%);}
+[data-theme="dark"] .cal-post-bar,[data-theme="dark"] .leg-swatch{background:hsl(var(--h,30) 38% 52%);}
 
 /* ---- Image lightbox & previews ---- */
 .clickable-preview{cursor:zoom-in;}

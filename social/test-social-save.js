@@ -22,8 +22,12 @@ var ctx = {
 ctx.window = ctx;
 ctx.global = ctx;
 
-vm.runInContext(fs.readFileSync(path.join(dir, '..', 'store.js'), 'utf8'), vm.createContext(ctx));
-ctx.Store = ctx.window.Store;
+vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(path.join(dir, '..', 'marathon.config.js'), 'utf8'), ctx);
+vm.runInContext(fs.readFileSync(path.join(dir, '..', 'core', 'store.js'), 'utf8'), ctx);
+vm.runInContext(fs.readFileSync(path.join(dir, '..', 'core', 'config.js'), 'utf8'), ctx);
+vm.runInContext(fs.readFileSync(path.join(dir, '..', 'core', 'templates.js'), 'utf8'), ctx);
+ctx.Store = ctx.window.Store; ctx.Config = ctx.window.Config; ctx.MARATHON_TEMPLATES = ctx.window.MARATHON_TEMPLATES;
 
 // Mock SocialAssets in-memory
 var blobs = {};
@@ -43,12 +47,12 @@ ctx.window.SocialAssets = {
   removeForPost: function () { return Promise.resolve(); }
 };
 
-vm.runInContext(fs.readFileSync(path.join(dir, 'social-model.js'), 'utf8'), vm.createContext(ctx));
+vm.runInContext(fs.readFileSync(path.join(dir, 'social-model.js'), 'utf8'), ctx);
 var SocialModel = ctx.window.SocialModel;
 
 SocialModel.init();
 var posts = SocialModel.getState();
-if (posts.length !== 3) throw new Error('Expected 3 seed posts, got ' + posts.length);
+if (posts.length !== 5) throw new Error('Expected 5 template posts, got ' + posts.length);
 
 SocialModel.updatePost(posts[0].id, { title: 'Modified title' });
 SocialModel.addLink(posts[0].id, 'Test', 'https://example.com', 'reference');
@@ -56,7 +60,7 @@ SocialModel.addLink(posts[0].id, 'Test', 'https://example.com', 'reference');
 SocialModel.exportBundle().then(function (json) {
   var bundle = JSON.parse(json);
   if (bundle.version !== 2) throw new Error('Bad version');
-  if (!bundle.posts || bundle.posts.length !== 3) throw new Error('Bad posts in export');
+  if (!bundle.posts || bundle.posts.length !== 5) throw new Error('Bad posts in export');
   if (bundle.posts[0].title !== 'Modified title') throw new Error('Title not persisted in export');
   if (!bundle.posts[0].links.length) throw new Error('Links not in export');
 

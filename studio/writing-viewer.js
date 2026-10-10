@@ -1,9 +1,13 @@
-/* Writing Viewer — markdown + track changes + undo + word count */
+/* Writing Viewer — markdown + track changes + undo + word count + notes library.
+   Storage: `marathon.writing` → { activeId, notes:[{id,text,images,createdAt,updatedAt}] }
+   Mirrors to data/writing.json via core/sync.js. Theme lives in core/theme.js. */
 
-const STORAGE_KEY = 'marathon.writingViewer';
-const LIBRARY_KEY = 'marathon.writingViewer.library';
+const STORAGE_KEY = 'marathon.writingViewer';          // legacy single draft (migrate only)
+const LIBRARY_KEY = 'marathon.writing';
+const LEGACY_LIBRARY_KEY = 'marathon.writingViewer.library';
 const SNAPSHOT_KEY = 'marathon.writingViewer.snapshot'; // legacy migrate only
-const THEME_KEY = 'marathon.writingViewer.theme';
+const SCALE_KEY = 'marathon.writing.scale';
+let fresh = false;
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -20,43 +24,7 @@ let library = { activeId: '', notes: [] };
 
 let listRenderTimer;
 
-const EXAMPLE = `# The draft I'm wrestling with
-
-> The best writing feels like you're thinking out loud — but on purpose.
-
-This is the paragraph I'm shaping for a LinkedIn post about ~~building in public~~ ++shipping in public++.
-
-I want it to land with founders who are tired of performative updates.
-
-[[AI: tighten the second sentence — less preachy, more specific]]
-
-## Alternate hook
-
-++What if your "building in public" post is just another performance?++
-
----
-
-Still figuring out the close. ~~Let me know what you think.~~ ++Tell me if you've felt this — genuinely curious.++
-`;
-
-/* ---- Theme (shared keys with writing viewer) ---- */
-function initTheme() {
-  try {
-    const t = localStorage.getItem(THEME_KEY) ||
-      (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    document.documentElement.setAttribute('data-theme', t);
-    document.documentElement.style.colorScheme = t;
-  } catch {
-    document.documentElement.setAttribute('data-theme', 'light');
-  }
-}
-
-function toggleTheme() {
-  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', next);
-  document.documentElement.style.colorScheme = next;
-  try { localStorage.setItem(THEME_KEY, next); } catch {}
-}
+const EXAMPLE = MARATHON_TEMPLATES.NOTE;
 
 /* ---- Word count ---- */
 function countWords(text) {
@@ -510,33 +478,36 @@ function notePreview(text) {
   return plain.slice(0, 90) || 'Empty note';
 }
 
-function persistLibrary() {
+function persistLibrary(opts) {
   try {
-    localStorage.setItem(LIBRARY_KEY, JSON.stringify(library));
+    Store.setJSON(LIBRARY_KEY, library, opts);
   } catch {
     showToast('Save failed — try removing large images');
   }
 }
 
+function normalizeLibrary(data) {
+  const notes = (data && Array.isArray(data.notes) ? data.notes : []).map((n) => ({
+    id: n.id || newNoteId(), text: n.text || '', images: n.images || {},
+    createdAt: n.createdAt || Date.now(), updatedAt: n.updatedAt || Date.now(),
+  }));
+  let activeId = data && data.activeId;
+  if (!notes.some((n) => n.id === activeId)) activeId = notes[0] ? notes[0].id : '';
+  return { activeId, notes };
+}
+
 function loadLibrary() {
+  Store.migrate(LEGACY_LIBRARY_KEY, LIBRARY_KEY);
   try {
-    const raw = localStorage.getItem(LIBRARY_KEY);
-    if (raw) {
-      const data = JSON.parse(raw);
-      if (data?.notes?.length && data.activeId) {
-        data.notes.forEach((n) => {
-          if (!n.images) n.images = {};
-        });
-        return data;
-      }
-    }
+    const data = Store.getJSON(LIBRARY_KEY, null);
+    if (data?.notes?.length) return normalizeLibrary(data);
   } catch {}
 
   const notes = [];
   let activeId = null;
 
   try {
-    const draft = localStorage.getItem(STORAGE_KEY);
+    const draft = Store.get(STORAGE_KEY);
     if (draft?.trim()) {
       const id = newNoteId();
       notes.push({ id, text: draft, createdAt: Date.now(), updatedAt: Date.now() });
@@ -545,7 +516,7 @@ function loadLibrary() {
   } catch {}
 
   try {
-    const snapRaw = localStorage.getItem(SNAPSHOT_KEY);
+    const snapRaw = Store.get(SNAPSHOT_KEY);
     if (snapRaw) {
       const snap = JSON.parse(snapRaw);
       if (snap?.text?.trim()) {
@@ -562,9 +533,8 @@ function loadLibrary() {
   } catch {}
 
   if (!notes.length) {
-    const id = newNoteId();
-    notes.push({ id, text: EXAMPLE, createdAt: Date.now(), updatedAt: Date.now() });
-    activeId = id;
+    fresh = true;
+    return normalizeLibrary(MARATHON_TEMPLATES.writing(new Date()));
   }
 
   if (!activeId) activeId = notes[0].id;
@@ -730,7 +700,7 @@ function setView(view) {
 function setFontScale(val) {
   state.fontScale = val;
   document.documentElement.style.setProperty('--write-size', val);
-  try { localStorage.setItem(STORAGE_KEY + '.scale', val); } catch {}
+  Store.set(SCALE_KEY, String(val), { silent: true });
 }
 
 function refreshPreview() {
@@ -759,11 +729,50 @@ function onEdit() {
   }, 400);
 }
 
-function init() {
-  initTheme();
+/* ---- Sync + palette ---- */
+function registerSync() {
+  Sync.register({
+    file: 'writing.json', key: LIBRARY_KEY, label: 'notes',
+    read: () => ({ activeId: library.activeId, notes: library.notes }),
+    apply: (body) => {
+      const incoming = normalizeLibrary(body);
+      if (!incoming.notes.length) return;
+      const before = getActiveNote();
+      library = incoming;
+      if (before && library.notes.some((n) => n.id === before.id)) library.activeId = before.id;
+      const n = getActiveNote();
+      const ta = $('#writingInput');
+      if (n && ta.value !== n.text) { ta.value = n.text; resetEditorHistory(n.text); }
+      renderNotesList(); refresh({ skipFlush: true }); showToast('Notes updated from data/writing.json');
+    }
+  });
+}
+function registerPalette() {
+  Palette.init({ root: '../' });
+  Palette.register([
+    { label: 'New note', hint: 'note', keywords: 'add create', run: () => createNote() },
+    { label: 'Duplicate note', hint: 'note', run: duplicateActiveNote },
+    { label: 'Delete note', hint: 'note', keywords: 'remove', run: deleteActiveNote },
+    { label: 'Open note', prefix: 'find', hint: 'find <title>', keywords: 'search switch', run: (q) => {
+      const l = q.toLowerCase(); const m = library.notes.filter((n) => noteTitle(n.text).toLowerCase().includes(l));
+      if (m.length === 1) switchNote(m[0].id); else showToast(m.length ? 'Several notes match — be more specific' : 'No note matches');
+    } },
+    { label: 'Load example note', hint: 'note', run: () => createNote(EXAMPLE) },
+    { label: 'Copy for AI (with markup)', hint: 'export', keywords: 'clipboard agent', run: copyForAi },
+    { label: 'Copy clean text', hint: 'export', keywords: 'clipboard final', run: () => copyText(buildPlainClean(getEditorSlice().text)) },
+    { label: 'View: draft', hint: 'view', run: () => setView('draft') },
+    { label: 'View: read', hint: 'view', run: () => setView('read') },
+    { label: 'View: changes', hint: 'view', run: () => setView('changes') },
+    { label: 'Undo', hint: 'edit', run: undo }, { label: 'Redo', hint: 'edit', run: redo },
+    { label: 'Print', hint: 'export', run: () => window.print() },
+    { label: 'Go to script viewer', hint: 'nav', run: () => { location.href = 'script-viewer.html'; } }
+  ]);
+}
 
+function init() {
+  Config.applyDOM();
   library = loadLibrary();
-  persistLibrary();
+  persistLibrary({ silent: true });
 
   const ta = $('#writingInput');
   const active = getActiveNote();
@@ -773,7 +782,7 @@ function init() {
   history.locking = false;
   renderNotesList();
 
-  const scale = localStorage.getItem(STORAGE_KEY + '.scale');
+  const scale = Store.get(SCALE_KEY) || Store.get(STORAGE_KEY + '.scale');
   if (scale) {
     $('#fontScale').value = scale;
     setFontScale(parseFloat(scale) || 1);
@@ -855,6 +864,9 @@ function init() {
 
   updateCopyAiButton();
   refresh({ skipFlush: true });
+  registerSync();
+  registerPalette();
+  if (fresh) showToast('Sample notes loaded — ⌘K for commands');
 }
 
 document.addEventListener('DOMContentLoaded', init);

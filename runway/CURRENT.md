@@ -3,19 +3,18 @@
 Single source of truth for **what this repo is, how it's built, and how to work
 on it safely**. Read this first (then `README.md` for the user-facing summary).
 
-Last updated: 2026-07-13.
+Last updated: 2026-10-10 (open-source refactor).
 
 ---
 
 ## 1. What this is
 
-A **single-page, zero-dependency Kanban board** ("5-Day Runway") for solo-founder
-ops. Pure HTML + CSS + vanilla JS. **No backend, no build step, no install** —
-you open `runway/marathon-board.html` directly (double-click / `file://`) and it runs.
-All data lives in the browser's `localStorage`, with JSON export/import as the
-only way data leaves or enters.
-
-Private repo: `github.com/anshulixyz/runway-board` · branch `main`.
+A **single-page, zero-dependency Kanban board** for solo-builder ops, part of
+the Marathon toolkit. Pure HTML + CSS + vanilla JS. **No backend, no build
+step, no install** — open `runway/marathon-board.html` directly (double-click /
+`file://`) and it runs. The browser's `localStorage` is the working copy;
+`../data/runway.json` is the file agents and the CLI read and write
+(see `../core/sync.js` and `../data/SCHEMA.md`).
 
 ## 2. How to run / develop
 
@@ -41,20 +40,28 @@ for f in *.js; do node --check "$f"; done   # syntax only
 
 ```
 runway/
-  marathon-board.html   # structure + font links + <script> includes (load order matters)
+  marathon-board.html   # structure + <script> includes (load order matters)
   CURRENT.md            # this file
   README.md             # user-facing overview
-  styles.css            # all styles + theme tokens (shared with social/)
-  store.js   -> global `Store`   persistence: localStorage w/ in-memory fallback
-  model.js   -> global `Model`   data: seed, migration/normalize, state + all mutations
+  styles.css            # all styles + the default ('warm') theme tokens (shared with social/)
+  model.js   -> global `Model`   data: template seed, migration/normalize, state + all mutations
   view.js    -> global `View`    rendering only (HTML out, no state mutation)
-  main.js    -> (handlers)       UI state, event handlers, drag&drop, theme, init
+  main.js    -> (handlers)       UI state, handlers, drag&drop, sync registration, palette, init
+../core/
+  store.js     -> `Store`     localStorage w/ in-memory fallback + change events
+  config.js    -> `Config`    reads ../marathon.config.js (projects, tags, labels)
+  templates.js -> `MARATHON_TEMPLATES`  sample data (also required by the CLI)
+  theme.js     -> `Theme`, global toggleTheme()   mode + palette, picker
+  sync.js      -> `Sync`      data/*.json ⇄ browser (server / folder / manual)
+  palette.js   -> `Palette`   ⌘K command palette
 ```
 
-Repo hub: `../index.html` · Agent map: `../AGENTS.md` · Social apps: `../social/`
+Repo hub: `../index.html` · Agent contract: `../AGENTS.md` · Social apps: `../social/`
 
-**Load order in the HTML is significant:** `store → model → view → main`. Each
-file attaches one global; later files depend on earlier globals.
+**Load order in the HTML is significant:** `marathon.config.js → theme-boot`
+in `<head>`, then `store → config → templates → theme → sync → palette → model
+→ view → main`. Each file attaches one global; later files depend on earlier
+ones.
 
 **Data flow (one direction):**
 
@@ -83,16 +90,22 @@ focus): the notes textarea (`onNotesInput` saves silently) and the checklist
 ## 4. Data model & storage
 
 `localStorage` keys:
-- `anshuli.runway.v2` — the whole board (JSON array of tasks).
-- `anshuli.runway.projects.v1` — user-added project names (array of strings).
-- `anshuli.runway.theme` — `'light'` | `'dark'`.
+- `marathon.runway.v3` — the whole board (JSON array of tasks). Migrated once
+  from the legacy `anshuli.runway.v2`.
+- `marathon.runway.projects` — user-added project names (array of strings).
+- `marathon.theme` — `{ mode, palette }` (shared by every app, owned by core/theme.js).
+- `marathon.sync.meta` — per-file `updatedAt` stamps used by core/sync.js.
+
+File: `../data/runway.json` = `{ version, updatedAt, projects, tasks }`. Any
+`Store.set` on the two board keys schedules a write; a newer file on disk
+replaces state via `Model.replaceAll(tasks, { silent: true })` + re-render.
 
 Task shape:
 
 ```js
 {
   id, title, desc,
-  proj: 'openDM' | 'nextmillion' | 'general',
+  proj: 'general' | 'launch' | 'content' | <any project from config or added>,
   col:  'todo' | 'doing' | 'done' | 'later' | 'bucket',
   pri:  'high' | 'medium' | 'low',
   tags: ['coding', 'video', …],   // any number, free-text; colored by hue
@@ -108,9 +121,10 @@ Task shape:
   as a `tags` array exists, so user edits stick);
 - missing `notes` → `''`, missing `collapsed` → `true`.
 
-The **built-in seed** (`Model.seed()`) is the user's latest real board. If you
-change the model shape, update `seed()` and `normalize()` together, and consider
-bumping the storage key (`v1` → `v2`) only as a deliberate migration.
+The **built-in seed** (`Model.seed()`) is the generic sample sprint from
+`../core/templates.js`. If you change the model shape, update the template,
+`normalize()`, `../data/SCHEMA.md` and the CLI together, and bump the storage
+key only as a deliberate migration.
 
 ## 5. Features (current)
 
@@ -133,7 +147,7 @@ bumping the storage key (`v1` → `v2`) only as a deliberate migration.
   + custom-tag input (NOT a `<datalist>` — that broke on comma-separated
   multi-values). Inline add/remove on cards.
 - **User-addable projects.** Projects are dynamic: `Model.getProjects()` =
-  defaults ∪ user-added (persisted under `anshuli.runway.projects.v1`) ∪ any
+  config projects ∪ user-added (persisted under `marathon.runway.projects`) ∪ any
   project seen on a task. Add via the add-panel "New project" input
   (`addNewProject` → `Model.addProject`).
 - **Multi-select filters:** by project and by tag (two rows). Multiple values
@@ -149,27 +163,38 @@ bumping the storage key (`v1` → `v2`) only as a deliberate migration.
   autosaves. When a note exists the **notes button is highlighted** (accent
   background + dot); `onNotesInput` toggles the `has-notes` class live.
 - Priority dropdown per card; cards sort by priority.
-- Light/dark theme (respects `prefers-color-scheme`, remembered).
+- Theme: mode (auto/light/dark) × palette presets, shared across apps
+  (`../core/theme.js`), mirrored to `../data/settings.json`.
 - `localStorage` with safe in-memory fallback when storage is blocked.
+- **⌘K command palette** (`../core/palette.js`): `add <title> @proj #tag !high
+  >later`, `done`, `start`, `move … <col>`, `find`, `rm`, views, export, sample.
+  Shortcuts: `n` add, `1/2/3` views, `/` palette.
+- **Sync pill** (`../core/sync.js`): served → writes `data/runway.json` on every
+  change; linked folder (Chromium, file://) → same via File System Access API;
+  otherwise Save/Load file.
 
 ## 6. Save / Load / Reset — data-safety behavior (READ BEFORE TOUCHING)
 
-- **Save file** (`exportState`) → downloads `runway-board-<timestamp>.json`
-  containing the full board (all fields — verified lossless round-trip).
+- **Save file** (`exportState`) → downloads `runway-<timestamp>.json` in the
+  same `{version, updatedAt, projects, tasks}` wrapper as `data/runway.json`,
+  so it can be dropped into `data/` directly.
 - **Export MD** (`exportMarkdown`) → downloads the currently visible,
   filtered tasks from the active tab. Board exports To Do + Doing; Later and
   Bucket export their own items. Done tasks are always excluded. Each task
   includes status, project, priority, tags, description, checklist/progress,
   notes, and task ID.
-- **Load file** (`importState`) → validates the JSON is an array of
-  `{id,title,…}`, **confirms** before replacing, then `Model.replaceAll()`
+- **Load file** (`importState`) → accepts the wrapper or a bare legacy array
+  of `{id,title,…}`, **confirms** before replacing, then `Model.replaceAll()`
   (which normalizes). Round-trips every field.
-- **Reset** (`resetBoard`) → **destructive**: replaces the entire board with the
-  seed and clears all your tasks/notes/checklists. To make this non-losable, it
-  now **auto-downloads a backup of the current board first**, then resets, then
-  tells you the backup was saved. Flow: `confirm → downloadBoard() → Model.reset()`.
-  **If you edit reset, keep the auto-backup-before-wipe.** `downloadBoard()` is
-  the shared helper used by both Save and the Reset backup.
+- **Sample** (`loadTemplate`) and **Start blank** (`clearBoard`, palette) →
+  **destructive**: replace the entire board. Both **auto-download a backup of
+  the current board first**. Flow: `confirm → downloadBoard() → Model.reset()`.
+  **If you edit these, keep the auto-backup-before-wipe.** `downloadBoard()` is
+  the shared helper used by Save and the backups.
+- **Sync first contact** (`core/sync.js`): when a data file exists and the
+  browser has no sync stamp yet, identical content just adopts the stamp,
+  sample content yields to the file, and real local content asks the user
+  (backup downloads before loading the file).
 
 `localStorage` is per-browser and easy to lose (cleared cache, other machine,
 private window). Encourage exporting; treat Reset/Load as the only destructive
@@ -183,9 +208,11 @@ actions and always back up before them.
 - **Handlers are global** (attached to `window`) because markup uses inline
   `on*`. Keep new handlers global and defined in `main.js`.
 - **Chip colors:** never hard-code per-value colors — emit a hue via inline
-  `--h` and let CSS shade it (so custom tags/projects + theme all work). Keep the
-  three category *treatments* distinct (priority=saturated, project=neutral+dot,
-  tag=`#`soft) so they're never mistaken for each other.
+  `--h` (from `Config.projectHue` / `Config.tagHue`) and let CSS shade it. Keep
+  the three category *treatments* distinct (priority=saturated,
+  project=neutral+dot, tag=`#`soft) so they're never mistaken for each other.
+- **Store.set with `{ silent: true }`** skips change listeners — use it only
+  when applying data that came *from* the file (otherwise sync writes it back).
 - **No re-render inside text inputs** (notes/step/tag inputs) — it drops focus.
 - Fonts load from a CDN (Google Fonts); there's no offline fallback yet.
 
@@ -204,10 +231,14 @@ steps: inline edit of title/desc, due dates, search, and archive for done tasks.
 - Made **Reset auto-download a backup** before wiping. Verified JSON
   export/import round-trips every field losslessly.
 - **v2 sprint board (2026-07-09):** storage key bumped `v1 → v2`; seed replaced
-  with the video + launch sprint (nmai HN/PH next week, openDM surprise reveal
-  ~1wk after). New tags: `f1`–`f4` (video formats: face+screen, launch film,
-  raw screen demo, Remotion concept piece) and `daily`. Old v1 boards still
-  import cleanly via Load file. Header updated for the two-launch runway.
+  with a two-launch video sprint. New tags for video formats and `daily`. Old
+  v1 boards still import cleanly via Load file.
 - **Filtered Markdown + Bucket List (2026-07-13):** project/tag filters became
   multi-select, visible non-Done tasks can export to detailed Markdown, and a
   full-task Bucket List was added for video/demo ideas.
+- **Open-source refactor (2026-10-10):** `store.js` moved to `../core/`;
+  projects/tags/labels/milestones read from `../marathon.config.js`; seed is
+  the generic template; storage keys renamed to `marathon.*` with one-time
+  migration; data mirrors to `../data/runway.json` via `core/sync.js`; ⌘K
+  palette, keyboard shortcuts, theme palettes; Reset became Sample / Start
+  blank; CLI `../marathon.js` operates on the same file.

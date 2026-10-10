@@ -1,0 +1,122 @@
+/* =========================================================================
+   core/theme.css — palette presets + shared UI for theme picker, command
+   palette and sync pill. Loaded AFTER each app's own stylesheet.
+   The 'warm' palette is the default defined in runway/styles.css and
+   studio/script-viewer.css; the presets below override those tokens.
+   ========================================================================= */
+
+/* ---- paper: cool neutrals, indigo accent ---- */
+:root[data-palette="paper"]{
+  --canvas:#F3F4F6; --panel:#FFFFFF; --panel-2:#F3F4F6; --ink:#1F2328; --muted:#5F6672; --faint:#9AA1AC;
+  --line:#E2E5EA; --line-2:#EBEDF1;
+  --accent:#4F5BD5; --accent-strong:#3B46B8; --accent-soft:#E6E8FA; --on-accent:#FFFFFF; --on-strong:#FFFFFF;
+  --p1:#3B46B8; --p1-soft:#E6E8FA; --check-border:#B4BAC4;
+}
+:root[data-palette="paper"][data-theme="dark"]{
+  --canvas:#15171B; --panel:#1E2127; --panel-2:#191C21; --ink:#E6E8EC; --muted:#9BA3AF; --faint:#6B7380;
+  --line:#2C3039; --line-2:#262A32;
+  --accent:#8B95F0; --accent-strong:#A3ABF5; --accent-soft:#272B45; --on-accent:#0F1120; --on-strong:#0F1120;
+  --p1:#A3ABF5; --p1-soft:#272B45; --check-border:#4A5160;
+}
+
+/* ---- forest: mossy canvas, deep green accent ---- */
+:root[data-palette="forest"]{
+  --canvas:#EEF2EA; --panel:#F8FAF5; --panel-2:#EEF2EA; --ink:#1F2A1F; --muted:#5C6B58; --faint:#94A08F;
+  --line:#DCE3D6; --line-2:#E5EBE0;
+  --accent:#3F7A4E; --accent-strong:#2F6340; --accent-soft:#DDEBDF; --on-accent:#F4FBF4; --on-strong:#F4FBF4;
+  --p1:#2F6340; --p1-soft:#DDEBDF; --check-border:#AEBAA8;
+}
+:root[data-palette="forest"][data-theme="dark"]{
+  --canvas:#171C17; --panel:#20271F; --panel-2:#1B211A; --ink:#E4EAE0; --muted:#9FAD9A; --faint:#6F7D6B;
+  --line:#2E372D; --line-2:#293128;
+  --accent:#7FBC8C; --accent-strong:#98CCA3; --accent-soft:#243527; --on-accent:#0E180F; --on-strong:#0E180F;
+  --p1:#98CCA3; --p1-soft:#243527; --check-border:#4D5A4A;
+}
+
+/* ---- dusk: lavender grey, plum accent ---- */
+:root[data-palette="dusk"]{
+  --canvas:#F0EEF5; --panel:#FBFAFD; --panel-2:#F0EEF5; --ink:#27222E; --muted:#6A6274; --faint:#9F97A8;
+  --line:#E3DFEA; --line-2:#EAE6F0;
+  --accent:#7A4E8C; --accent-strong:#643C75; --accent-soft:#ECE1F1; --on-accent:#FBF6FD; --on-strong:#FBF6FD;
+  --p1:#643C75; --p1-soft:#ECE1F1; --check-border:#B9B0C2;
+}
+:root[data-palette="dusk"][data-theme="dark"]{
+  --canvas:#1A171F; --panel:#242029; --panel-2:#1F1B24; --ink:#E9E3EE; --muted:#A79EB0; --faint:#766D7F;
+  --line:#352F3B; --line-2:#2F2935;
+  --accent:#B88BC9; --accent-strong:#CBA4D9; --accent-soft:#33283A; --on-accent:#17111B; --on-strong:#17111B;
+  --p1:#CBA4D9; --p1-soft:#33283A; --check-border:#564E5E;
+}
+
+/* ---- mono: pure greyscale ---- */
+:root[data-palette="mono"]{
+  --canvas:#F2F2F2; --panel:#FFFFFF; --panel-2:#F2F2F2; --ink:#161616; --muted:#5E5E5E; --faint:#9C9C9C;
+  --line:#E1E1E1; --line-2:#EAEAEA;
+  --accent:#222222; --accent-strong:#000000; --accent-soft:#E6E6E6; --on-accent:#FFFFFF; --on-strong:#FFFFFF;
+  --p1:#000000; --p1-soft:#E6E6E6; --check-border:#B5B5B5;
+  --amber:#555; --amber-soft:#EAEAEA; --amber-line:#CFCFCF; --green:#333; --green-soft:#E8E8E8; --green-line:#CFCFCF; --teal:#444; --teal-soft:#E8E8E8;
+}
+:root[data-palette="mono"][data-theme="dark"]{
+  --canvas:#131313; --panel:#1D1D1D; --panel-2:#181818; --ink:#ECECEC; --muted:#A3A3A3; --faint:#707070;
+  --line:#2C2C2C; --line-2:#262626;
+  --accent:#E6E6E6; --accent-strong:#FFFFFF; --accent-soft:#2E2E2E; --on-accent:#111111; --on-strong:#111111;
+  --p1:#FFFFFF; --p1-soft:#2E2E2E; --check-border:#555;
+  --amber:#BDBDBD; --amber-soft:#2A2A2A; --amber-line:#3A3A3A; --green:#CFCFCF; --green-soft:#262626; --green-line:#3A3A3A; --teal:#C4C4C4; --teal-soft:#262626;
+}
+
+/* =========================================================================
+   Shared widgets
+   ========================================================================= */
+.mt-pop{
+  position:fixed; z-index:9000; min-width:220px; background:var(--panel); color:var(--ink);
+  border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow-lift); padding:10px;
+  font-family:var(--body,'Inter',sans-serif); font-size:13px;
+}
+.mt-pop h4{margin:0 0 6px; font-family:var(--mono,monospace); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); font-weight:500;}
+.mt-seg{display:flex; gap:4px; margin-bottom:10px;}
+.mt-seg button{flex:1; border:1px solid var(--line); background:var(--panel-2); color:var(--ink); border-radius:8px; padding:6px 8px; font:inherit; font-size:12px; cursor:pointer;}
+.mt-seg button.on{background:var(--accent); border-color:var(--accent); color:var(--on-accent);}
+.mt-swatches{display:grid; grid-template-columns:repeat(5,1fr); gap:6px;}
+.mt-sw{border:2px solid transparent; border-radius:10px; padding:3px; cursor:pointer; background:none; text-align:center;}
+.mt-sw.on{border-color:var(--accent);}
+.mt-sw i{display:block; height:26px; border-radius:7px; border:1px solid rgba(0,0,0,.08);}
+.mt-sw span{display:block; font-size:10px; color:var(--muted); margin-top:3px;}
+.mt-pop .mt-row{display:flex; gap:6px; margin-top:8px;}
+.mt-pop .mt-row button{flex:1; border:1px solid var(--line); background:var(--panel-2); color:var(--ink); border-radius:8px; padding:6px 8px; font:inherit; font-size:12px; cursor:pointer;}
+.mt-pop .mt-row button:hover{border-color:var(--accent);}
+.mt-pop .mt-hint{font-size:11px; color:var(--muted); margin-top:8px; line-height:1.4;}
+.mt-pop .mt-hint code{font-family:var(--mono,monospace); font-size:10px; background:var(--panel-2); padding:1px 4px; border-radius:4px;}
+
+/* theme picker trigger */
+.palette-btn{
+  display:inline-flex; align-items:center; gap:5px; height:34px; padding:0 10px; border-radius:10px;
+  border:1px solid var(--line); background:var(--panel); color:var(--muted); cursor:pointer; font:inherit; font-size:12px;
+}
+.palette-btn:hover{color:var(--ink); border-color:var(--accent);}
+.palette-btn i{width:12px; height:12px; border-radius:50%; background:var(--accent); display:inline-block;}
+
+/* sync pill */
+.sync-pill{
+  display:inline-flex; align-items:center; gap:6px; height:34px; padding:0 11px; border-radius:999px;
+  border:1px solid var(--line); background:var(--panel); color:var(--muted); cursor:pointer; font:inherit; font-size:12px; white-space:nowrap;
+}
+.sync-pill:hover{border-color:var(--accent); color:var(--ink);}
+.sync-pill::before{content:''; width:7px; height:7px; border-radius:50%; background:var(--faint);}
+.sync-pill[data-state="server"]::before,.sync-pill[data-state="folder"]::before{background:var(--green);}
+.sync-pill[data-state="static"]::before{background:var(--amber);}
+.sync-pill[data-state="prompt"]::before{background:var(--accent);}
+.sync-pill[data-state="busy"]::before{animation:mt-pulse 1s infinite;}
+@keyframes mt-pulse{0%,100%{opacity:.3}50%{opacity:1}}
+
+/* command palette */
+.cmdk{position:fixed; inset:0; z-index:9500; background:rgba(0,0,0,.28); display:none; align-items:flex-start; justify-content:center; padding-top:12vh;}
+.cmdk.open{display:flex;}
+.cmdk-box{width:min(560px,92vw); background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow-lift); overflow:hidden; font-family:var(--body,'Inter',sans-serif);}
+.cmdk-box input{width:100%; border:0; outline:0; background:transparent; color:var(--ink); font:inherit; font-size:16px; padding:14px 16px; border-bottom:1px solid var(--line);}
+.cmdk-list{max-height:50vh; overflow:auto; padding:6px;}
+.cmdk-item{display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:9px; cursor:pointer; font-size:13.5px;}
+.cmdk-item.on{background:var(--accent-soft);}
+.cmdk-item .lb{flex:1;}
+.cmdk-item .hint{font-family:var(--mono,monospace); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--faint);}
+.cmdk-item .arg{color:var(--accent); font-weight:600;}
+.cmdk-empty{padding:14px; color:var(--muted); font-size:13px;}
+.cmdk-foot{display:flex; gap:14px; padding:8px 14px; border-top:1px solid var(--line); font-family:var(--mono,monospace); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint);}

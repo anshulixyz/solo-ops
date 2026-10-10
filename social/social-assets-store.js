@@ -4,7 +4,7 @@
 (function (global) {
   'use strict';
 
-  var DB_NAME = 'anshuli.social.assets';
+  var DB_NAME = 'marathon.social.assets';
   var DB_VER = 1;
   var STORE = 'blobs';
   var db = null;
