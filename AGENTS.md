@@ -90,6 +90,11 @@ and before a bulk edit.
 
 ## Working on the code
 
+**Start with `NEXT.md`.** It is the list of what comes next (major and
+minor) and the known issues, in priority order. Take an item from there,
+name it in your commit, move it to Done with the hash. Found a bug you are
+not fixing? Add it under *Minor / issues* instead of leaving a TODO.
+
 - Static HTML + CSS + **classic** scripts (`<script src>`), openable over
   `file://`. No ES modules, no bundler, no `fetch` of local files, no npm.
 - `core/` is shared: `store.js` (localStorage + change events + sample-data

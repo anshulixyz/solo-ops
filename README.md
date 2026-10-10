@@ -163,7 +163,11 @@ any command.
 
 ## What is coming
 
-Designed, not shipped, in roughly this order. Details in [`about.html`](about.html).
+Designed, not shipped, in roughly this order. The working list, with the
+known issues, is [`NEXT.md`](NEXT.md); the story is in [`about.html`](about.html).
+
+- **Undo / redo everywhere**, like ⌘Z, including pages opened by double-click.
+- **The Guide redesigned by intent**: Do · Reply · Settings.
 
 - **Collaborators through agents, no shared app:** an editor or writer
   installs Solo Ops, points their agent at the same private data repo, and
