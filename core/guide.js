@@ -94,8 +94,10 @@
         p: head + 'I am starting "' + w.title + '". Goal: <goal in one sentence>. Deadline: <deadline>. Ask me at most 5 questions, then create: the boards I need (' + (files ? '`boards add`' : 'tell me their names and I will add them') + '), 10–20 tasks in priority order with steps, and a 2-week posting arc (`social add`). Keep it realistic for one person.' + tail },
       { c: 'projects', t: 'Add tasks from this list', d: 'Turns a pasted list into tasks with priority and steps.', pages: ['home', 'board'],
         p: head + 'Turn the list below into tasks on board "' + b + '". One task per line, high priority for anything blocking, steps when a line has obvious sub-steps, tags from the content.\n\nLIST:\n<paste your list — one item per line>', block: 'paste your list — one item per line' },
-      { c: 'projects', t: 'Break this task into steps', d: 'A task you keep avoiding becomes 3–7 concrete steps.', pages: ['board'],
-        p: head + 'Task: <task title>. Break it into 3–7 concrete steps, each finishable in under an hour, first step something I can start in 5 minutes. Add them with `step`, and if the task is too big for a week, say so and propose the split.' + tail },
+      { c: 'projects', t: 'Break this task into steps', d: 'The last task you touched becomes 3–7 concrete steps.', pages: ['board'],
+        p: head + 'Break this task into 3–7 concrete steps, each finishable in under an hour, first step something I can start in 5 minutes. Add them with `step`, and if the task is too big for a week, say so and propose the split.\n\n{{last_task}}' },
+      { c: 'content', t: 'Improve what is open', d: 'The script, draft or post on this page — tightened, with changes marked.', pages: ['scripts', 'writing', 'social'],
+        p: 'Below is what I am working on. Tighten it: stronger first line, shorter sentences, cut anything that does not earn its place. Return the full text; for a draft keep the ~~/++ markup so I can see changes; for a script keep the # / ## structure.\n\n{{this}}' },
       { c: 'projects', t: 'Clean up the board', d: 'Stale, duplicate or vague tasks get fixed or parked.', pages: ['board', 'home'],
         p: head + read('list all --ws ' + id, 'board') + '. Find tasks that are stale (no progress, in Doing too long), duplicates, or too vague to start. Propose: park to Later, merge, rewrite the title, or delete (ask me before deleting). Apply what I approve.' + tail },
       // content
@@ -155,7 +157,7 @@
         '<p class="guide-foot-note">Click a prompt to copy it' + (m === 'chat' ? ' — it carries a snapshot of this workspace' : '') + '. Prompts with blanks ask first. ✎ edits a prompt, + adds your own; they are saved in data/prompts.json. Terminal: <code>node solo.js prompts</code>.</p>' : '') +
       (t === 'apply' ? '<div class="guide-how"><b>How this works.</b> Your agent answers with <code>node solo.js …</code> lines (or a checklist). Paste them here. The app reads those lines and makes the changes in this workspace itself — tasks, posts, scripts, notes, inspiration. Nothing runs on your computer, nothing is deleted, and every change lands in Home → Recent changes where it can be reverted.</div>' +
         '<textarea class="guide-reply" rows="7" placeholder="Paste your agent\'s reply here."></textarea>' +
-        '<div class="guide-row"><button type="button" class="gp-copy guide-preview">Preview changes</button><button type="button" class="guide-snap" title="Copy a text snapshot of this workspace for any chat">Copy snapshot</button></div><div class="guide-plan"></div><div class="guide-result"></div>' : '') +
+        '<div class="guide-row"><button type="button" class="gp-copy guide-preview">Preview changes</button><button type="button" class="guide-snap" title="Copy a text snapshot of this workspace for any chat">Copy project</button></div><div class="guide-plan"></div><div class="guide-result"></div>' : '') +
       (t === 'setup' ? '<h4>How does your AI agent work?</h4><div class="guide-modes">' +
         '<label class="guide-mode' + (m === 'files' ? ' on' : '') + '"><input type="radio" name="gmode" value="files"' + (m === 'files' ? ' checked' : '') + '><b>It can run commands</b><span>Claude Code, Cursor, Codex, Claude Desktop with this folder. It reads your files, opens attachments, runs <code>node solo.js</code> itself.</span></label>' +
         '<label class="guide-mode' + (m === 'chat' ? ' on' : '') + '"><input type="radio" name="gmode" value="chat"' + (m === 'chat' ? ' checked' : '') + '><b>It is a chat</b><span>ChatGPT, Claude.ai, Gemini. Prompts carry a snapshot of your data; you paste the reply into Apply. No terminal needed.</span></label></div>' +
@@ -175,12 +177,18 @@
     if (t === 'apply') { panel.querySelector('.guide-preview').onclick = previewReply; panel.querySelector('.guide-snap').onclick = function () { copyText(snapshot(), this, 'Snapshot copied'); }; panel.querySelector('.guide-reply').addEventListener('input', function () { panel.querySelector('.guide-plan').innerHTML = ''; }); }
     var foot = document.createElement('div'); foot.className = 'guide-foot';
     foot.innerHTML = '<button type="button" class="guide-foot-apply">' + I.apply + 'Apply a reply</button>' +
-      '<button type="button" class="guide-foot-recent" title="Copy what you just did — the last 10 changes with full context — to discuss with your agent">' + I.moves + 'Recent</button>' +
-      '<button type="button" class="guide-foot-snap" title="Copy a text snapshot of this workspace for any chat">' + I.link + 'Snapshot</button>';
+      '<div class="guide-ctx"><button type="button" class="guide-foot-ctx" title="Copy context for your agent: recent changes, the last task, this item, the whole project…">' + I.link + 'Copy context <span class="chev">▾</span></button><div class="guide-ctx-menu"></div></div>';
     panel.appendChild(foot);
     foot.querySelector('.guide-foot-apply').onclick = function () { Store.set(TAB_KEY, 'apply', { silent: true }); render(); panel.querySelector('.guide-reply').focus(); };
-    foot.querySelector('.guide-foot-recent').onclick = function () { copyText(global.Recent ? Recent.text(10) : 'Recent is not loaded.', this, 'Copied'); };
-    foot.querySelector('.guide-foot-snap').onclick = function () { copyText(snapshot(), this, 'Copied'); };
+    var ctxBtn = foot.querySelector('.guide-foot-ctx'); var ctxMenu = foot.querySelector('.guide-ctx-menu');
+    ctxBtn.onclick = function (e) {
+      e.stopPropagation();
+      if (ctxMenu.classList.contains('open')) { ctxMenu.classList.remove('open'); return; }
+      ctxMenu.innerHTML = (global.Context ? Context.menu() : []).map(function (it) { return '<button type="button" data-ctx="' + it.id + '"><b>' + esc(it.label) + '</b><span>' + esc(it.hint) + '</span><code>{{' + it.id + '}}</code></button>'; }).join('') + '<div class="guide-ctx-foot">Use any of these as a token inside your own prompts.</div>';
+      Array.prototype.forEach.call(ctxMenu.querySelectorAll('[data-ctx]'), function (b) { b.onclick = function () { var txt = Context.get(b.dataset.ctx); ctxMenu.classList.remove('open'); copyText(txt, ctxBtn, 'Copied ' + Context.info(b.dataset.ctx).label.toLowerCase()); }; });
+      ctxMenu.classList.add('open');
+      setTimeout(function () { document.addEventListener('mousedown', function h(ev) { if (!ctxMenu.contains(ev.target) && ev.target !== ctxBtn) { ctxMenu.classList.remove('open'); document.removeEventListener('mousedown', h); } }); }, 0);
+    };
     if (panel.querySelector('#guideMoves')) renderMoves(all);
     function row(x) { var i = all.indexOf(x); var n = blanks(x).length; return '<div class="guide-prompt row' + (x.custom ? ' custom' : '') + '" data-i="' + i + '"><button type="button" class="gp-main"><span class="gp-t">' + esc(x.t) + '</span>' + (x.custom ? '<span class="gp-mine">mine</span>' : x.overridden ? '<span class="gp-mine">edited</span>' : '') + (n ? '<span class="gp-n">' + n + '</span>' : '') + (x.go && x.go !== pg ? '<span class="gp-go">→ ' + esc(GO[x.go] ? GO[x.go][1] : x.go) + '</span>' : '') + '</button><button type="button" class="gp-edit" title="Edit this prompt" data-i="' + i + '"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button><div class="gp-d">' + esc(x.d) + '</div><div class="gp-form"></div></div>'; }
   }
@@ -203,7 +211,7 @@
     if (act && act.lastActive && act.idle) out.push({ s: 'Nothing has moved for ' + Math.round(act.hoursIdle) + ' hours. A standup gets you back in.', p: by('Daily standup') });
     if (tasks.length && !doing.length) out.push({ s: 'Nothing is in Doing. Pick the next step.', p: by('What should I do right now?') });
     if (doing.length > 3) out.push({ s: doing.length + ' tasks in Doing — more than one person can carry. Trim it.', p: by('Clean up the board') });
-    if (noSteps.length) out.push({ s: noSteps.length + ' important task' + (noSteps.length === 1 ? ' has' : 's have') + ' no steps yet: "' + noSteps[0].title.slice(0, 40) + '"…', p: by('Break this task into steps'), fill: { 'task title': noSteps[0].title } });
+    if (noSteps.length) out.push({ s: noSteps.length + ' important task' + (noSteps.length === 1 ? ' has' : 's have') + ' no steps yet: "' + noSteps[0].title.slice(0, 40) + '"…', p: by('Break this task into steps') });
     if (noCopy.length) out.push({ s: noCopy.length + ' post' + (noCopy.length === 1 ? '' : 's') + ' in the next 7 days ' + (noCopy.length === 1 ? 'has' : 'have') + ' no copy.', p: by('Draft next week\'s posts') });
     if (w.apps.social && !unposted.length && !anyFresh) out.push({ s: 'No posts scheduled. Keep the cadence going.', p: by('Brainstorm 10 post ideas') });
     if (ins >= 3) out.push({ s: ins + ' inspiration items waiting to become work.', p: by('Turn inspiration into work') });
@@ -234,7 +242,7 @@
       '<label>Category<select class="pe-c">' + CATS.map(function (c) { return '<option value="' + c[0] + '"' + ((x ? x.c : cat) === c[0] ? ' selected' : '') + '>' + esc(c[1]) + '</option>'; }).join('') + '</select></label>' +
       '<label>One line, what it does<input class="pe-d" value="' + esc(x ? x.d : '') + '"></label>' +
       '<label>Prompt<textarea class="pe-p" rows="8">' + esc(x ? x.p : '{{head}}') + '</textarea></label>' +
-      '<div class="pe-hint">Blanks like <code>&lt;idea&gt;</code> become fields. <code>{{head}}</code> inserts the agent preamble (workspace, how to reply). <code>{{snapshot}}</code> inserts your data in chat mode.</div>' +
+      '<div class="pe-hint">Blanks like <code>&lt;idea&gt;</code> become fields. <code>{{head}}</code> = agent preamble. Context tokens: <code>{{recent}}</code> <code>{{last_task}}</code> <code>{{this}}</code> <code>{{project}}</code> <code>{{board}}</code> <code>{{doing}}</code> <code>{{posts}}</code> <code>{{inspiration}}</code> — the same things as the Copy context menu.</div>' +
       '<div class="guide-row"><button type="button" class="gp-copy pe-save">Save</button>' + (x && x.builtin && x.overridden ? '<button type="button" class="guide-snap pe-reset">Reset to default</button>' : '') + (x && x.custom ? '<button type="button" class="guide-snap pe-del">Delete</button>' : x && x.builtin ? '<button type="button" class="guide-snap pe-hide" title="Hide this built-in prompt">Hide</button>' : '') + '<button type="button" class="guide-snap pe-cancel">Cancel</button></div></div>';
   }
   function editPrompt(x, card) {
@@ -278,7 +286,7 @@
     };
   }
   function finish(text, card, x) {
-    text = text.replace('{{snapshot}}', snapshot()).replace('{{recent}}', global.Recent ? Recent.text(10) : '');
+    text = global.Context ? Context.fill(text) : text.replace('{{snapshot}}', snapshot());
     copyText(text, card, 'Copied — paste into your agent' + (x.go && x.go !== page() ? ' · then open ' + GO[x.go][1] : ''));
   }
   function blanks(x) { var seen = {}, out = []; (x.p.match(/<([^<>\n]{2,60})>/g) || []).forEach(function (m) { var k = m.slice(1, -1); if (!seen[k]) { seen[k] = 1; out.push(k); } }); return out; }

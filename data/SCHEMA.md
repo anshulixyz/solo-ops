@@ -165,8 +165,11 @@ Never edit by hand; never commit (it is in `.gitignore` via `data/*`).
 `custom` are your own prompts (`c` is daily | weekly | projects | content |
 fix). `overrides` replace a built-in's text by its title; `hidden` removes
 built-ins from the Guide. In a prompt, `{{head}}` inserts the agent preamble
-(workspace, how to reply), `{{snapshot}}` the data snapshot, `{{recent}}` the
-last changes, and `<blank>` becomes a field to fill. Merged on sync.
+(workspace, how to reply); context tokens insert data: `{{recent}}` (last 10
+changes with state), `{{last_task}}`, `{{this}}` (what is open on the page),
+`{{project}}` (full snapshot; `{{snapshot}}` is an alias), `{{board}}`,
+`{{doing}}`, `{{posts}}`, `{{inspiration}}`; `<blank>` becomes a field to
+fill. Merged on sync.
 
 ## settings.json — theme
 
