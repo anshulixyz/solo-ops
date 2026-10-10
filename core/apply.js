@@ -45,12 +45,12 @@
     var d2 = new Date(v); return isNaN(d2) ? localDT(d) : localDT(d2);
   }
 
-  function ctx(wsId) {
+  function ctx(wsId, dry) {
     var ws = wsId || Config.activeWs(); var boards = Config.boards(ws);
-    var touched = {};
+    var touched = {}; var mem = {};   // mem: dry-run overlay, so a preview sees its own earlier adds
     function boardKey(id) { return Config.boardKey(id, ws); }
-    function loadBoard(id) { return Store.getJSON(boardKey(id), []) || []; }
-    function saveBoard(id, tasks) { Store.setJSON(boardKey(id), tasks); touched[Config.boardFile(id, ws)] = 1; }
+    function loadBoard(id) { if (dry && mem['b:' + id]) return mem['b:' + id]; return Store.getJSON(boardKey(id), []) || []; }
+    function saveBoard(id, tasks) { if (dry) { mem['b:' + id] = tasks; return; } Store.setJSON(boardKey(id), tasks); touched[Config.boardFile(id, ws)] = 1; }
     function pickBoard(flags) {
       var want = flags.board ? Config.slug(flags.board) : null;
       var b = want ? boards.filter(function (x) { return x.id === want || x.title.toLowerCase().indexOf(String(flags.board).toLowerCase()) >= 0; })[0] : boards[0];
@@ -67,14 +67,50 @@
       var h = findTask(q, flags); if (!h) return 'no task matches "' + q + '"'; if (h.ambiguous) return h.ambiguous + ' tasks match "' + q + '" — use the id';
       var tasks = loadBoard(h.board); var t = tasks.filter(function (x) { return x.id === h.t.id; })[0]; var r = fn(t); saveBoard(h.board, tasks); return r;
     }
-    function sched() { return Store.getJSON(Config.key('social', ws), []) || []; }
-    function saveSched(p) { Store.setJSON(Config.key('social', ws), p); touched[Config.file('social', ws)] = 1; }
+    function sched() { if (dry && mem.s) return mem.s; return Store.getJSON(Config.key('social', ws), []) || []; }
+    function saveSched(p) { if (dry) { mem.s = p; return; } Store.setJSON(Config.key('social', ws), p); touched[Config.file('social', ws)] = 1; }
     function findPost(q) { q = String(q || '').trim().toLowerCase(); var hits = sched().filter(function (p) { return p.id === q || p.title.toLowerCase().indexOf(q) >= 0; }); return hits.length === 1 ? hits[0] : null; }
-    return { ws: ws, boards: boards, touched: touched, loadBoard: loadBoard, saveBoard: saveBoard, pickBoard: pickBoard, mutateTask: mutateTask, sched: sched, saveSched: saveSched, findPost: findPost };
+    return { ws: ws, dry: !!dry, boards: boards, touched: touched, loadBoard: loadBoard, saveBoard: saveBoard, pickBoard: pickBoard, mutateTask: mutateTask, sched: sched, saveSched: saveSched, findPost: findPost };
   }
 
-  function run(text, opts) {
-    var c = ctx(opts && opts.ws); var applied = [], skipped = [];
+  // Split a reply into units: one command (plus its fenced block) or one
+  // checklist item (plus its indented steps). Used for the preview.
+  function segment(text) {
+    var lines = String(text || '').split('\n'); var units = []; var i = 0;
+    function isCmd(line) { return /^(\$\s*)?(node\s+solo\.js|node\s+marathon\.js|solo|marathon)\s+/.test(line) || /^(add|done|start|later|bucket|todo|move|pri|tag|step|check|note|rm|del|social|post|scripts|notes|inspo)\s/.test(line); }
+    while (i < lines.length) {
+      var raw = lines[i]; var line = raw.trim();
+      if (!line || line.indexOf('```') === 0 || (line.indexOf('#') === 0)) { i++; continue; }
+      var cl = raw.match(/^(\s*)[-*]\s+(?:\[([ xX])\]\s+)?(.+)$/);
+      if (cl && !isCmd(line) && cl[1].length === 0) {
+        var block = [raw]; var j = i + 1;
+        while (j < lines.length) { var m2 = lines[j].match(/^(\s+)[-*]\s+/); if (m2 && !isCmd(lines[j].trim())) { block.push(lines[j]); j++; } else break; }
+        units.push({ text: block.join('\n') }); i = j; continue;
+      }
+      if (isCmd(line)) {
+        var block2 = [raw]; var k = i + 1; while (k < lines.length && !lines[k].trim()) k++;
+        if (/^(scripts|notes)\s+add|solo\.js\s+(scripts|notes)\s+add|^(solo|marathon)\s+(scripts|notes)\s+add/.test(line.replace(/^\$\s*/, '')) && k < lines.length && lines[k].trim().indexOf('```') === 0) {
+          block2.push(lines[k]); k++; while (k < lines.length && lines[k].trim().indexOf('```') !== 0) { block2.push(lines[k]); k++; } if (k < lines.length) { block2.push(lines[k]); k++; }
+          units.push({ text: block2.join('\n') }); i = k; continue;
+        }
+        units.push({ text: raw }); i++; continue;
+      }
+      i++;
+    }
+    return units;
+  }
+  // Preview: what each unit would do, without writing anything.
+  function plan(text, opts) {
+    var c = ctx(opts && opts.ws, true);
+    return segment(text).map(function (u) {
+      var r = exec(c, u.text);
+      return { text: u.text, label: r.applied[0] || r.skipped[0] || u.text.slice(0, 80), ok: !!r.applied.length, reason: r.applied.length ? '' : '' };
+    });
+  }
+
+  function run(text, opts) { return exec(ctx(opts && opts.ws, !!(opts && opts.dry)), text); }
+  function exec(c, text) {
+    var applied = [], skipped = []; var dry = c.dry;
     var lines = String(text || '').split('\n'); var i = 0;
     function fenceAfter(k) {   // a ``` block right after line k → its content
       var j = k + 1; while (j < lines.length && !lines[j].trim()) j++;
@@ -149,15 +185,15 @@
           var fence = fenceAfter(i); var body = a.flags.text || (fence ? fence.text : '');
           if (cmd === 'scripts') {
             var k = Config.key('scripts', c.ws); var lib = Store.getJSON(k, { activeId: '', scripts: [] }) || { activeId: '', scripts: [] }; lib.scripts = lib.scripts || [];
-            var si = { id: uid('s'), title: title2 || 'Untitled', text: body || ('# ' + title2 + '\n\n## Hook\n\n## Script\n1. \n'), createdAt: Date.now(), updatedAt: Date.now() }; lib.scripts.unshift(si); lib.activeId = si.id; Store.setJSON(k, lib); c.touched[Config.file('scripts', c.ws)] = 1; applied.push('script added: ' + si.title);
+            var si = { id: uid('s'), title: title2 || 'Untitled', text: body || ('# ' + title2 + '\n\n## Hook\n\n## Script\n1. \n'), createdAt: Date.now(), updatedAt: Date.now() }; lib.scripts.unshift(si); lib.activeId = si.id; if (!dry) { Store.setJSON(k, lib); c.touched[Config.file('scripts', c.ws)] = 1; } applied.push('script added: ' + si.title + (body ? '' : ' (empty — no code block followed)'));
           } else {
             var k2 = Config.key('writing', c.ws); var nl = Store.getJSON(k2, { activeId: '', notes: [] }) || { activeId: '', notes: [] }; nl.notes = nl.notes || [];
-            var ni = { id: uid('n'), text: body || ('# ' + title2 + '\n\n'), images: {}, createdAt: Date.now(), updatedAt: Date.now() }; nl.notes.unshift(ni); nl.activeId = ni.id; Store.setJSON(k2, nl); c.touched[Config.file('writing', c.ws)] = 1; applied.push('note added: ' + (title2 || 'untitled'));
+            var ni = { id: uid('n'), text: body || ('# ' + title2 + '\n\n'), images: {}, createdAt: Date.now(), updatedAt: Date.now() }; nl.notes.unshift(ni); nl.activeId = ni.id; if (!dry) { Store.setJSON(k2, nl); c.touched[Config.file('writing', c.ws)] = 1; } applied.push('note added: ' + (title2 || 'untitled'));
           }
           if (fence) i = fence.end;
         } else if (cmd === 'inspo') {
           var sub3 = (a.pos.shift() || '').toLowerCase();
-          if (sub3 === 'add' && global.InspoModel) { if (!InspoModel._inited) { InspoModel.init(); InspoModel._inited = true; } var it = InspoModel.parseQuick(a.pos.join(' '), { ws: c.ws, source: 'agent' }); if (a.flags.tags) it.tags = (it.tags || []).concat(split(a.flags.tags)); InspoModel.add(it); applied.push('inspiration saved: ' + (it.title || it.url)); }
+          if (sub3 === 'add' && global.InspoModel) { if (!InspoModel._inited) { InspoModel.init(); InspoModel._inited = true; } var it = InspoModel.parseQuick(a.pos.join(' '), { ws: c.ws, source: 'agent' }); if (a.flags.tags) it.tags = (it.tags || []).concat(split(a.flags.tags)); if (!dry) InspoModel.add(it); applied.push('inspiration saved: ' + (it.title || it.url)); }
           else skipped.push('inspo ' + sub3 + ' is not supported here');
         } else if (['week', 'today', 'list', 'show', 'log', 'activity', 'boards', 'workspaces', 'config', 'help', 'share', 'review'].indexOf(cmd) >= 0) {
           /* read-only commands: nothing to apply */
@@ -165,8 +201,8 @@
       } catch (e) { skipped.push('could not apply: ' + line.slice(0, 60)); }
       i++;
     }
-    Object.keys(c.touched).forEach(function (f) { if (global.Sync) { Sync.touch(f); Sync.note(f, 'agent reply applied'); } });
+    if (!dry) Object.keys(c.touched).forEach(function (f) { if (global.Sync) { Sync.touch(f); Sync.note(f, 'agent reply applied'); } });
     return { applied: applied, skipped: skipped };
   }
-  global.Apply = { run: run, tokens: tokens };
+  global.Apply = { run: run, plan: plan, segment: segment, tokens: tokens };
 })(window);

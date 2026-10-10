@@ -108,6 +108,7 @@
     var connectOpen = !m || !Store.get(SEEN_KEY);
     panel.innerHTML = '<div class="guide-head"><b>Guide</b><span class="guide-sub">' + esc(w.title) + '</span><button type="button" class="guide-close" aria-label="Close">×</button></div>' +
       '<div class="guide-body">' +
+      '<div class="guide-moves" id="guideMoves"></div>' +
       '<details class="guide-sec" ' + (connectOpen ? 'open' : '') + '><summary>1 · Connect your AI agent <span class="guide-hint">' + (m ? (m === 'files' ? 'runs commands' : 'chat only') : 'choose once') + '</span></summary>' +
         '<div class="guide-modes">' +
         '<label class="guide-mode' + (m === 'files' ? ' on' : '') + '"><input type="radio" name="gmode" value="files"' + (m === 'files' ? ' checked' : '') + '><b>My agent can run commands</b><span>Claude Code, Cursor, Claude Desktop with this folder, Codex… It reads your files and runs <code>node solo.js</code> itself.</span></label>' +
@@ -119,10 +120,10 @@
       '</details>' +
       (here.length ? '<h4>For this page</h4>' + here.map(card).join('') : '') +
       CATS.map(function (c) { var g = all.filter(function (x) { return x.c === c[0] && here.indexOf(x) < 0; }); if (!g.length) return ''; return '<details class="guide-sec"><summary>' + esc(c[1]) + ' <span class="guide-hint">' + g.length + '</span></summary>' + g.map(card).join('') + '</details>'; }).join('') +
-      '<details class="guide-sec" id="guideApply" ' + (m === 'chat' ? 'open' : '') + '><summary>Apply a reply <span class="guide-hint">paste what your agent sent back</span></summary>' +
-        '<textarea class="guide-reply" rows="6" placeholder="Paste the code block (node solo.js add … / done … / social add …) or a checklist (- [ ] task). Nothing is deleted from a pasted reply."></textarea>' +
-        '<div class="guide-row"><button type="button" class="gp-copy guide-apply">Apply to ' + esc(w.title) + '</button><button type="button" class="guide-snap" title="Copy a text snapshot of this workspace to paste into any chat">Copy snapshot</button></div><div class="guide-result"></div>' +
-      '</details>' +
+      '<div class="guide-sec guide-applybox" id="guideApply"><div class="guide-applyhead"><b>Apply a reply</b><span class="guide-hint">paste what your agent sent back · you choose what to apply</span></div>' +
+        '<textarea class="guide-reply" rows="5" placeholder="Paste the code block (node solo.js add … / done … / social add …) or a checklist (- [ ] task)."></textarea>' +
+        '<div class="guide-row"><button type="button" class="gp-copy guide-preview">Preview changes</button></div><div class="guide-plan"></div><div class="guide-result"></div>' +
+      '</div>' +
       '<h4>This page</h4>' + (ABOUT[pg] || []).map(function (t) { return '<p>' + esc(t) + '</p>'; }).join('') +
       '<h4>Shortcuts</h4><p>⌘K commands · ⌘⇧I capture · ? this guide · n add · 1/2/3 board views</p>' +
       '<h4>Read more</h4><p><a href="' + r + 'README.md" target="_blank">README</a> · <a href="' + r + 'AGENTS.md" target="_blank">AGENTS.md</a> · <a href="' + r + 'prompts/agent-bootstrap.md" target="_blank">bootstrap prompt</a> · <a href="' + r + 'data/SCHEMA.md" target="_blank">data schema</a></p>' +
@@ -130,10 +131,58 @@
     panel.querySelector('.guide-close').onclick = close;
     Array.prototype.forEach.call(panel.querySelectorAll('input[name=gmode]'), function (i) { i.onchange = function () { Store.set(MODE_KEY, i.value, { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); render(); }; });
     Array.prototype.forEach.call(panel.querySelectorAll('.guide-prompt'), function (cardEl) { bindCard(cardEl, all[+cardEl.dataset.i]); });
-    panel.querySelector('.guide-apply').onclick = applyReply;
-    panel.querySelector('.guide-snap').onclick = function () { copyText(snapshot(), this, 'Snapshot copied'); };
+    panel.querySelector('.guide-preview').onclick = previewReply;
+    panel.querySelector('.guide-reply').addEventListener('input', function () { panel.querySelector('.guide-plan').innerHTML = ''; });
+    var foot = document.createElement('div'); foot.className = 'guide-foot';
+    foot.innerHTML = '<button type="button" class="guide-foot-apply"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12l7 7 7-7"/></svg>Apply a reply</button><button type="button" class="guide-foot-snap" title="Copy a text snapshot of this workspace for any chat"><svg viewBox="0 0 24 24"><rect x="8" y="3" width="13" height="13" rx="2"/><path d="M5 8H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-1"/></svg>Copy snapshot</button>';
+    panel.appendChild(foot);
+    foot.querySelector('.guide-foot-apply').onclick = function () { var box = panel.querySelector('#guideApply'); box.scrollIntoView({ behavior: 'smooth', block: 'start' }); box.classList.add('flash'); setTimeout(function () { box.classList.remove('flash'); }, 900); panel.querySelector('.guide-reply').focus(); };
+    foot.querySelector('.guide-foot-snap').onclick = function () { copyText(snapshot(), this, 'Snapshot copied'); };
+    renderMoves(all);
     function card(x) { var i = all.indexOf(x); var n = blanks(x).length; return '<div class="guide-prompt" data-i="' + i + '"><button type="button" class="gp-main"><span class="gp-t">' + esc(x.t) + '</span><span class="gp-p">' + esc(x.d) + '</span>' + (n ? '<span class="gp-n">' + n + ' blank' + (n === 1 ? '' : 's') + ' to fill</span>' : '') + (x.go && x.go !== pg ? '<span class="gp-n gp-go">→ ' + esc(GO[x.go][1]) + '</span>' : '') + '</button><div class="gp-form"></div></div>'; }
   }
+  /* ---- next best moves: read the workspace, suggest up to 4, each wired to a prompt ---- */
+  function moves(all) {
+    var w = Config.ws(); var out = []; var m = mode();
+    var tasks = []; var anyFresh = false;
+    Config.boards(w.id).forEach(function (b) { var k = Config.boardKey(b.id, w.id); if (Store.isFresh(k)) anyFresh = true; (Store.getJSON(k, []) || []).forEach(function (t) { tasks.push(t); }); });
+    var doing = tasks.filter(function (t) { return t.col === 'doing'; }); var todo = tasks.filter(function (t) { return t.col === 'todo'; });
+    var noSteps = tasks.filter(function (t) { return (t.col === 'doing' || (t.col === 'todo' && t.pri === 'high')) && !(t.checklist || []).length; });
+    var posts = w.apps.social ? (Store.getJSON(Config.key('social', w.id), []) || []) : [];
+    var soon = new Date(Date.now() + 7 * 86400000); var noCopy = posts.filter(function (p) { return p.status !== 'posted' && !p.copy && new Date(p.datetime) <= soon; });
+    var unposted = posts.filter(function (p) { return p.status !== 'posted'; });
+    var ins = global.InspoModel ? (function () { if (!InspoModel._inited) { InspoModel.init(); InspoModel._inited = true; } return InspoModel.list({ status: 'new' }).filter(function (x) { return !x.ws || x.ws === w.id; }).length; })() : 0;
+    var act = global.Activity ? Activity.summary() : null;
+    function by(t) { return all.filter(function (x) { return x.t === t; })[0]; }
+    if (!m) out.push({ s: 'Tell the Guide how your agent works — one choice, remembered.', open: 'connect' });
+    if (anyFresh) out.push({ s: 'This is still the sample board. Plan your real project.', p: by('Plan a project from scratch') });
+    if (act && act.lastActive && act.idle) out.push({ s: 'Nothing has moved for ' + Math.round(act.hoursIdle) + ' hours. A standup gets you back in.', p: by('Daily standup') });
+    if (tasks.length && !doing.length) out.push({ s: 'Nothing is in Doing. Pick the next step.', p: by('What should I do right now?') });
+    if (doing.length > 3) out.push({ s: doing.length + ' tasks in Doing — more than one person can carry. Trim it.', p: by('Clean up the board') });
+    if (noSteps.length) out.push({ s: noSteps.length + ' important task' + (noSteps.length === 1 ? ' has' : 's have') + ' no steps yet: "' + noSteps[0].title.slice(0, 40) + '"…', p: by('Break this task into steps'), fill: { 'task title': noSteps[0].title } });
+    if (noCopy.length) out.push({ s: noCopy.length + ' post' + (noCopy.length === 1 ? '' : 's') + ' in the next 7 days ' + (noCopy.length === 1 ? 'has' : 'have') + ' no copy.', p: by('Draft next week\'s posts') });
+    if (w.apps.social && !unposted.length && !anyFresh) out.push({ s: 'No posts scheduled. Keep the cadence going.', p: by('Brainstorm 10 post ideas') });
+    if (ins >= 3) out.push({ s: ins + ' inspiration items waiting to become work.', p: by('Turn inspiration into work') });
+    if (todo.length > 25) out.push({ s: todo.length + ' items in To Do. Park what is not this month.', p: by('Clean up the board') });
+    return out.slice(0, 4);
+  }
+  function renderMoves(all) {
+    var el = panel.querySelector('#guideMoves'); var list = moves(all);
+    if (!list.length) { el.innerHTML = '<div class="guide-move ok"><span class="dot"></span><span>Board looks healthy. Standup in the morning, wrap up at night.</span></div>'; return; }
+    el.innerHTML = '<div class="guide-moves-h">Next best moves</div>' + list.map(function (mv, i) { return '<button type="button" class="guide-move" data-i="' + i + '"><span class="dot"></span><span>' + esc(mv.s) + '</span><span class="go">' + (mv.p ? esc(mv.p.t) + ' →' : 'Choose →') + '</span></button>'; }).join('');
+    Array.prototype.forEach.call(el.querySelectorAll('.guide-move'), function (b) {
+      b.onclick = function () {
+        var mv = list[+b.dataset.i];
+        if (mv.open === 'connect') { var d = panel.querySelector('.guide-sec'); d.open = true; d.scrollIntoView({ behavior: 'smooth' }); return; }
+        if (!mv.p) return;
+        var idx = all.indexOf(mv.p); var card = panel.querySelector('.guide-prompt[data-i="' + idx + '"]'); if (!card) return;
+        var sec = card.closest('details'); if (sec) sec.open = true;
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' }); card.classList.add('flash'); setTimeout(function () { card.classList.remove('flash'); }, 900);
+        if (mv.fill) { card.querySelector('.gp-main').click(); setTimeout(function () { Object.keys(mv.fill).forEach(function (k) { var inp = Array.prototype.filter.call(card.querySelectorAll('.gp-field'), function (f) { return f.querySelector('span').textContent === k; })[0]; if (inp) inp.querySelector('input,textarea').value = mv.fill[k]; }); }, 30); }
+      };
+    });
+  }
+
   function bindCard(card, x) {
     var form = card.querySelector('.gp-form'); var main = card.querySelector('.gp-main');
     main.onclick = function () {
@@ -158,11 +207,26 @@
       setTimeout(function () { el.classList.remove('copied'); t.textContent = old; }, 2200);
     }).catch(function () { prompt('Copy this:', text); });
   }
-  function applyReply() {
-    var ta = panel.querySelector('.guide-reply'); var out = panel.querySelector('.guide-result'); var text = ta.value.trim();
+  function previewReply() {
+    var ta = panel.querySelector('.guide-reply'); var out = panel.querySelector('.guide-result'); var planEl = panel.querySelector('.guide-plan'); var text = ta.value.trim();
+    out.innerHTML = '';
     if (!text) { out.textContent = 'Paste the agent\'s reply first.'; return; }
     if (!global.Apply) { out.textContent = 'Apply is not loaded on this page.'; return; }
+    var units = Apply.plan(text, { ws: Config.activeWs() });
+    if (!units.length) { out.textContent = 'No commands or checklist items found in that text.'; return; }
+    planEl.innerHTML = '<div class="guide-plan-h">' + units.filter(function (u) { return u.ok; }).length + ' change' + (units.length === 1 ? '' : 's') + ' found — untick anything you do not want</div>' +
+      units.map(function (u, i) { return '<label class="guide-unit' + (u.ok ? '' : ' off') + '"><input type="checkbox" data-i="' + i + '"' + (u.ok ? ' checked' : ' disabled') + '><span>' + esc(u.label) + (u.ok ? '' : ' <em>' + esc(u.reason) + '</em>') + '</span></label>'; }).join('') +
+      '<button type="button" class="gp-copy guide-apply">Apply selected to ' + esc(Config.ws().title) + '</button>';
+    planEl.querySelector('.guide-apply').onclick = function () {
+      var chosen = Array.prototype.filter.call(planEl.querySelectorAll('input[type=checkbox]'), function (c) { return c.checked && !c.disabled; }).map(function (c) { return units[+c.dataset.i].text; });
+      if (!chosen.length) { out.textContent = 'Nothing selected.'; return; }
+      applyReply(chosen.join('\n'));
+    };
+  }
+  function applyReply(text) {
+    var ta = panel.querySelector('.guide-reply'); var out = panel.querySelector('.guide-result'); var planEl = panel.querySelector('.guide-plan');
     var res = Apply.run(text, { ws: Config.activeWs() });
+    planEl.innerHTML = '';
     out.innerHTML = (res.applied.length ? '<b>Applied ' + res.applied.length + ':</b><ul>' + res.applied.map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('') + '</ul>' : '<b>Nothing applied.</b> ') +
       (res.skipped.length ? '<b>Skipped ' + res.skipped.length + ':</b><ul>' + res.skipped.map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('') + '</ul>' : '') +
       (res.applied.length ? '<p>Every applied change is in Home → Recent changes and can be reverted.' + ((page() === 'board' || page() === 'social') ? '' : ' Reloading in a moment…') + '</p>' : '');
