@@ -13,6 +13,8 @@ actually use, keeps everything in **JSON files on your machine**, and makes
 those files the thing your **AI agent** reads and updates — so you stop
 re-typing your to-do list into ChatGPT.
 
+<p align="center"><img src="docs/screenshots/home.png" width="900" alt="Home: activity, every project, what is in play"></p>
+
 ```
 $ node solo.js week
 # Next 7 days · Oct 10 → Oct 17
@@ -23,6 +25,17 @@ Last activity 2 h ago · streak 6 days
 …
 ```
 …and the board in your browser updates by itself.
+
+<table><tr>
+<td><img src="docs/screenshots/board.png" alt="Board"></td>
+<td><img src="docs/screenshots/guide.png" alt="Guide with agent prompts"></td>
+</tr><tr>
+<td><img src="docs/screenshots/social.png" alt="Social schedule"></td>
+<td><img src="docs/screenshots/inspiration.png" alt="Inspiration inbox"></td>
+</tr><tr>
+<td><img src="docs/screenshots/scripts.png" alt="Script viewer"></td>
+<td><img src="docs/screenshots/home-dark.png" alt="Dark mode, dusk palette"></td>
+</tr></table>
 
 ## Why it is different
 

@@ -81,7 +81,7 @@
   }
   function registerSW(root) {
     if (!('serviceWorker' in navigator) || location.protocol.indexOf('http') !== 0) return;
-    var hadController = !!navigator.serviceWorker.controller;
+    var hadController = !!navigator.serviceWorker.controller; var firstInstallAt = 0;
     navigator.serviceWorker.register(root + 'sw.js', { scope: root, updateViaCache: 'none' }).then(function (reg) {
       // look for a newer worker whenever the page is shown again, and every 10 min
       var check = function () { reg.update().catch(function () {}); };
@@ -89,8 +89,10 @@
       setInterval(check, 10 * 60 * 1000);
     }).catch(function () {});
     // a new worker activated (skipWaiting + claim): offer a reload, never force it
-    navigator.serviceWorker.addEventListener('controllerchange', function () { if (hadController) updateToast(); hadController = true; });
-    navigator.serviceWorker.addEventListener('message', function (e) { if (e.data && e.data.type === 'sw-activated' && hadController) updateToast(); });
+    // first install of the worker is not an update: no toast for it (or for the
+    // activation message that follows within a few seconds)
+    navigator.serviceWorker.addEventListener('controllerchange', function () { if (hadController) updateToast(); else firstInstallAt = Date.now(); hadController = true; });
+    navigator.serviceWorker.addEventListener('message', function (e) { if (e.data && e.data.type === 'sw-activated' && hadController && Date.now() - firstInstallAt > 15000) updateToast(); });
   }
   var toastShown = false;
   function updateToast() {

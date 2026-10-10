@@ -433,7 +433,7 @@
 
     renderInPlay();
 
-    var dismissed = false; try { dismissed = !!localStorage.getItem('marathon.hub.sampleOk'); } catch (e) {}
+    var dismissed = /[?&]shot=/.test(location.search); try { dismissed = dismissed || !!localStorage.getItem('marathon.hub.sampleOk'); } catch (e) {}
     document.getElementById('firstRun').style.display = (isSample() && !dismissed) ? '' : 'none';
     var lb = document.getElementById('linkBtn'); if (lb) lb.style.display = (Sync.fsSupported && Sync.getMode() === 'manual') ? '' : 'none';
 

@@ -13,6 +13,7 @@
       if (legacy === 'dark' || legacy === 'light') mode = legacy;
     }
   } catch (e) { /* ignore */ }
+  try { var qt = new URLSearchParams(location.search).get('theme'); if (qt === 'dark' || qt === 'light') mode = qt; var qp = new URLSearchParams(location.search).get('palette'); if (qp) palette = qp; } catch (e) { /* ignore */ }
   var resolved = mode === 'auto'
     ? ((window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light')
     : mode;

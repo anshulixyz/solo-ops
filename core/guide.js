@@ -403,5 +403,7 @@
     if (e.key === 'Escape') close();
   });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountHandle); else mountHandle();
+  // ?guide=prompts|moves|apply|setup opens the panel on load (used for screenshots and deep links)
+  (function () { var g = new URLSearchParams(location.search).get('guide'); if (!g) return; if (['moves', 'prompts', 'apply', 'setup'].indexOf(g) >= 0) Store.set(TAB_KEY, g, { silent: true }); if (!Store.get(MODE_KEY)) Store.set(MODE_KEY, 'chat', { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); setTimeout(open, 400); })();
   global.Guide = { open: open, close: close, toggle: toggle, snapshot: snapshot, mode: mode };
 })(window);

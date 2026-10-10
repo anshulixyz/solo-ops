@@ -1,0 +1,14 @@
+{
+  "name": "solo-ops",
+  "version": "1.0.0",
+  "description": "Solo founder ops in plain files: boards, posting schedule, scripts, drafts and an inspiration inbox — local, installable, and native to your AI agent.",
+  "license": "MIT",
+  "private": false,
+  "bin": { "solo": "./solo.js" },
+  "scripts": {
+    "start": "node serve.js",
+    "test": "node social/test-social-save.js && for f in core/*.js runway/*.js social/*.js studio/*.js inspo/*.js *.js; do node --check \"$f\" || exit 1; done && echo ok"
+  },
+  "engines": { "node": ">=18" },
+  "keywords": ["kanban", "solo-founder", "indie-hacker", "local-first", "pwa", "ai-agent", "claude", "chatgpt", "content-calendar", "teleprompter"]
+}
