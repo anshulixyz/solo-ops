@@ -194,9 +194,25 @@ nav[data-nav] .nav-inspo:hover{background:var(--accent-soft);}
 .guide-body h4 .guide-hint{font-family:var(--body,'Inter',sans-serif); letter-spacing:0; text-transform:none; color:var(--faint); margin-left:6px; font-size:11px;}
 .guide-body p{margin:0 0 8px; color:var(--muted);}
 .guide-body a{color:var(--accent);}
-.guide-prompt{display:block; width:100%; text-align:left; margin:0 0 6px; padding:9px 11px; border:1px solid var(--line); border-radius:10px; background:var(--panel-2); color:var(--ink); font:inherit; cursor:pointer;}
-.guide-prompt:hover{border-color:var(--accent);}
+.guide-prompt{margin:0 0 6px; border:1px solid var(--line); border-radius:10px; background:var(--panel-2); color:var(--ink);}
+.guide-prompt:hover,.guide-prompt.open{border-color:var(--accent);}
 .guide-prompt.copied{border-color:var(--green); background:var(--green-soft);}
+.gp-main{display:block; width:100%; text-align:left; padding:9px 11px; border:0; background:transparent; color:inherit; font:inherit; cursor:pointer;}
 .gp-t{display:block; font-weight:600; font-size:13px; margin-bottom:2px;}
 .gp-p{display:block; font-size:11.5px; color:var(--faint); line-height:1.35; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.gp-n{display:inline-block; margin-top:5px; font-family:var(--mono,monospace); font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--accent);}
+.gp-form{padding:0 11px;}
+.gp-form:empty{display:none;}
+.gp-field{display:block; margin:6px 0;}
+.gp-field span{display:block; font-family:var(--mono,monospace); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-bottom:3px;}
+.gp-field input,.gp-field textarea{width:100%; box-sizing:border-box; border:1px solid var(--line); border-radius:8px; background:var(--panel); color:var(--ink); font:inherit; font-size:13px; padding:7px 9px;}
+.gp-field textarea{resize:vertical; min-height:90px; font-family:var(--mono,monospace); font-size:12px;}
+.gp-copy{display:block; width:100%; margin:8px 0 11px; height:32px; border-radius:8px; border:1px solid var(--accent); background:var(--accent); color:var(--on-accent); font:inherit; font-size:13px; cursor:pointer;}
+/* always-there handle on the left edge */
+.guide-handle{position:fixed; left:0; top:140px; z-index:9350; display:flex; flex-direction:column; align-items:center; gap:4px; width:30px; padding:9px 0; border:1px solid var(--line); border-left:0; border-radius:0 10px 10px 0; background:var(--panel); color:var(--muted); cursor:pointer; box-shadow:var(--shadow); font-family:var(--mono,monospace); font-size:9px; letter-spacing:.12em; text-transform:uppercase;}
+.guide-handle svg{width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
+.guide-handle span{writing-mode:vertical-rl; transform:rotate(180deg);}
+.guide-handle:hover{color:var(--accent); border-color:var(--accent);}
+body.guide-open .guide-handle{display:none;}
+@media print{ .guide-handle, .capture{display:none !important;} }
 body.guide-open{overflow:hidden;}
