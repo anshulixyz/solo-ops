@@ -5,17 +5,17 @@
       "id": "n1",
       "text": "# The draft I'm wrestling with\n\n> The best writing feels like you're thinking out loud — but on purpose.\n\nThis is the paragraph I'm shaping for a post about ~~building in public~~ ++shipping in public++.\n\nI want it to land with founders who are tired of performative updates.\n\n[[AI: tighten the second sentence — less preachy, more specific]]\n\n## Alternate hook\n\n++What if your \"building in public\" post is just another performance?++\n\n---\n\nStill figuring out the close. ~~Let me know what you think.~~ ++Tell me if you've felt this — genuinely curious.++\n",
       "images": {},
-      "createdAt": 1791611468735,
-      "updatedAt": 1791611468735
+      "createdAt": 1791612094375,
+      "updatedAt": 1791612094375
     },
     {
       "id": "n2",
       "text": "# Launch post — draft 1\n\nI have been building a small tool for the last two weeks.\n\nIt does one thing: ~~it keeps your tasks in a file~~ ++it keeps your tasks where both you and your AI can see them++.\n\n[[AI: suggest 3 alternative opening lines, each under 12 words]]\n\n## What it is not\n\nIt is not another project manager. There is no login, no server, no sync service.\n",
       "images": {},
-      "createdAt": 1791615068735,
-      "updatedAt": 1791615068735
+      "createdAt": 1791615694375,
+      "updatedAt": 1791615694375
     }
   ],
   "version": 1,
-  "updatedAt": "2026-10-10T06:51:08.735Z"
+  "updatedAt": "2026-10-10T07:01:34.375Z"
 }

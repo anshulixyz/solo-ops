@@ -18,7 +18,10 @@
   // into this browser yet: the id is enough to pick the Store key and file,
   // and the title fills in once boards.json arrives.
   var wanted = Config.slug(new URLSearchParams(location.search).get('board') || '');
-  var BOARD = (wanted && Config.RESERVED.indexOf(wanted) < 0) ? wanted : Config.boards()[0].id;
+  var firstBoard = Config.boards()[0];
+  // a workspace without boards still gets a provisional "board" so the page
+  // can offer "+ Board" instead of crashing
+  var BOARD = (wanted && Config.RESERVED.indexOf(wanted) < 0) ? wanted : (firstBoard ? firstBoard.id : 'board');
   var KEY = Config.boardKey(BOARD);
   var PROJ_KEY = KEY + '.projects';
   var PRI_RANK = { high: 0, medium: 1, low: 2 };

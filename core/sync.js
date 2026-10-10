@@ -347,6 +347,10 @@
     register: register, mount: mount, on: function (fn) { listeners.push(fn); },
     linkFolder: linkFolder, unlink: unlink, reconnect: reconnect, pullAll: pullAll,
     download: download, unwrap: unwrap, fsSupported: fsSupported,
+    // mark a file's browser copy as just changed (pages that write another
+    // app's key, e.g. Home's Start blank, call this so the file is overwritten
+    // instead of winning on first contact)
+    touch: function (file) { setMeta(file, now()); },
     // read a data file without registering (used by the hub); null when unavailable
     peek: function (file) { return readFile(file).catch(function () { return null; }); },
     ready: function () { return ready; },

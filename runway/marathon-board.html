@@ -13,6 +13,7 @@
 <script src="../core/theme-boot.js"></script>
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="../core/theme.css">
+<link rel="stylesheet" href="../core/ui.css">
 </head>
 <body>
 <div class="wrap">
@@ -59,11 +60,19 @@
       <div class="filters" id="filters"></div>
       <button class="btn ghost" id="collapseAllBtn" onclick="toggleCollapseAll()" title="Collapse or expand all cards">Collapse all</button>
       <button class="btn primary" onclick="toggleAdd()" title="Add a task (n)">+ Add task</button>
-      <button class="btn" onclick="exportMarkdown()" title="Export visible non-Done tasks as Markdown">Export MD</button>
-      <button class="btn" onclick="exportState()" title="Download your current board as a file">Save file</button>
-      <button class="btn" onclick="document.getElementById('importFile').click()" title="Load a board from a saved file or data/runway.json">Load file</button>
+      <details class="menu" id="fileMenu">
+        <summary>File</summary>
+        <div onclick="document.getElementById('fileMenu').removeAttribute('open')">
+          <div class="hint">This board</div>
+          <button class="btn" onclick="exportState()" title="Download your current board as a file">Save to file…</button>
+          <button class="btn" onclick="document.getElementById('importFile').click()" title="Load a board from a saved file or data/runway.json">Load from file…</button>
+          <button class="btn" onclick="exportMarkdown()" title="Export visible non-Done tasks as Markdown">Export visible as Markdown</button>
+          <div class="sep"></div>
+          <button class="btn" onclick="loadTemplate()" title="Replace the board with the sample sprint (backup downloads first)">Load sample sprint…</button>
+          <button class="btn" onclick="clearBoard()" title="Empty this board (backup downloads first)">Start this board blank…</button>
+        </div>
+      </details>
       <input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="importState(this)">
-      <button class="btn ghost" onclick="loadTemplate()" title="Replace the board with the sample sprint (backup downloads first)">Sample</button>
       <span data-sync-pill></span>
       <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Toggle light / dark" aria-label="Toggle theme">
         <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>

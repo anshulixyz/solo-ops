@@ -1,0 +1,69 @@
+/* =========================================================================
+   core/ui.css — shared control polish, loaded last on every page.
+   One height for everything in a toolbar, real padding + chevron on
+   selects, a native <details> dropdown for grouped actions.
+   ========================================================================= */
+:root{ --ctl-h:34px; --ctl-r:9px; }
+
+/* same box for every toolbar control */
+.btn, .theme-btn, .palette-btn, .sync-pill, .board-switch, .nav-ws, select.meta-sel, .meta-when, .tag-custom, .inline-inp,
+.addrow input, .addrow select, .toolbar .btn, .menu > summary{
+  box-sizing:border-box; height:var(--ctl-h); line-height:1; display:inline-flex; align-items:center;
+}
+.btn{padding:0 13px; border-radius:var(--ctl-r); gap:6px;}
+.btn.small{height:30px; padding:0 10px;}
+.btn.compact{height:30px; padding:0 10px; font-size:12px;}
+.theme-btn{width:var(--ctl-h); height:var(--ctl-h);}
+.addrow input, .addrow select{padding:0 10px;}
+.addrow .tagpick{min-height:var(--ctl-h);}
+.addrow .tag-custom{margin-top:6px;}
+.field label{margin-bottom:5px;}
+
+/* selects: padding, custom chevron, no native arrow */
+select, .board-switch, .nav-ws, select.meta-sel, #newPrepKind, #newLinkKind{
+  -webkit-appearance:none; appearance:none; padding:0 30px 0 11px !important; border:1px solid var(--line); border-radius:var(--ctl-r);
+  background-color:var(--panel); color:var(--ink); font:inherit; font-size:13px; cursor:pointer;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat:no-repeat; background-position:right 10px center;
+}
+select:focus, .board-switch:focus, .nav-ws:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);}
+select.pri-select{padding:0 18px 0 8px !important; height:22px; background-position:right 5px center; background-size:9px;}
+.card select.pri-select{line-height:1;}
+
+/* inputs */
+input[type="text"], input:not([type]), input[type="datetime-local"], input[type="url"], textarea{font:inherit;}
+.addrow input:focus, .inline-inp:focus, .tag-custom:focus, .meta-when:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);}
+
+/* toolbar rhythm */
+.controls{row-gap:10px;}
+.right-controls{gap:8px;}
+.right-controls .filters{margin-right:6px;}
+.title-row{align-items:center;}
+.board-tools{gap:6px;}
+.board-tools .board-switch{font-weight:600;}
+.toolbar{gap:8px !important;}
+
+/* grouped actions: <details class="menu"><summary>File</summary><div>…</div></details> */
+.menu{position:relative; display:inline-block;}
+.menu > summary{list-style:none; cursor:pointer; padding:0 11px 0 13px; border-radius:var(--ctl-r); border:1px solid var(--line); background:var(--panel); color:var(--ink); font-family:var(--display,'Inter',sans-serif); font-weight:500; font-size:13px; gap:6px; box-shadow:var(--shadow);}
+.menu > summary::-webkit-details-marker{display:none;}
+.menu > summary::after{content:''; width:7px; height:7px; border-right:1.6px solid currentColor; border-bottom:1.6px solid currentColor; transform:rotate(45deg) translateY(-2px); opacity:.6;}
+.menu[open] > summary{border-color:var(--accent);}
+.menu > div{position:absolute; right:0; top:calc(100% + 6px); z-index:50; min-width:220px; background:var(--panel); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow-lift); padding:6px; display:flex; flex-direction:column;}
+.menu > div .btn{height:34px; justify-content:flex-start; border:0; box-shadow:none; background:transparent; border-radius:8px; width:100%; text-align:left;}
+.menu > div .btn:hover{background:var(--accent-soft);}
+.menu > div .sep{height:1px; background:var(--line); margin:4px 6px;}
+.menu > div .hint{font-family:var(--mono,monospace); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); padding:6px 10px 2px;}
+
+/* chips & tabs sit on the same baseline as buttons */
+.chip{height:28px; display:inline-flex; align-items:center;}
+.tabs{padding:3px;}
+.tab{height:28px; padding:0 14px;}
+
+/* studio toolbar */
+.view-tabs{height:var(--ctl-h); align-items:center;}
+.size-control{height:var(--ctl-h);}
+
+/* first-run / panels */
+.first-run .row .btn{height:var(--ctl-h);}
+.ws-apps label{height:28px;}

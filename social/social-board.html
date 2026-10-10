@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="social-graph.css">
 <link rel="stylesheet" href="social-calendar.css">
 <link rel="stylesheet" href="../core/theme.css">
+<link rel="stylesheet" href="../core/ui.css">
 </head>
 <body>
 <div class="wrap">
@@ -42,10 +43,18 @@
     </div>
     <div class="right-controls">
       <button class="btn primary" onclick="toggleAdd()" title="Add a post (n)">+ Add post</button>
-      <button class="btn" onclick="exportState()" title="Download schedule + images as JSON">Save file</button>
-      <button class="btn" onclick="document.getElementById('importFile').click()" title="Load a saved schedule or data/social.json">Load file</button>
+      <details class="menu" id="fileMenu">
+        <summary>File</summary>
+        <div onclick="document.getElementById('fileMenu').removeAttribute('open')">
+          <div class="hint">This schedule</div>
+          <button class="btn" onclick="exportState()" title="Download schedule + images as JSON">Save to file…</button>
+          <button class="btn" onclick="document.getElementById('importFile').click()" title="Load a saved schedule or data/social.json">Load from file…</button>
+          <div class="sep"></div>
+          <button class="btn" onclick="loadTemplate()" title="Replace with the sample posting arc (backup downloads first)">Load sample arc…</button>
+          <button class="btn" onclick="clearBoard()" title="Empty the schedule (backup downloads first)">Start blank…</button>
+        </div>
+      </details>
       <input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="importState(this)">
-      <button class="btn ghost" onclick="loadTemplate()" title="Replace with the sample posting arc (backup downloads first)">Sample</button>
       <span data-sync-pill></span>
       <button class="theme-btn" onclick="toggleTheme()" title="Toggle light / dark" aria-label="Toggle theme">
         <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>

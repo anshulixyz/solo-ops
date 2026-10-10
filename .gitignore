@@ -3,6 +3,12 @@ node_modules/
 *.log
 # backups the pages download before destructive actions
 *.backup-*.json
-# If you fork Marathon for yourself and do not want your tasks public,
-# uncomment the next line (the sample data stays in git for new users):
-# data/
+# Only the sample data files ship with the repo. Everything else you create
+# in data/ (extra boards, workspaces, activity, registries) stays private.
+data/*
+!data/SCHEMA.md
+!data/runway.json
+!data/social.json
+!data/scripts.json
+!data/writing.json
+!data/settings.json

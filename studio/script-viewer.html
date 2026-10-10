@@ -12,6 +12,7 @@
 <script src="../core/theme-boot.js"></script>
 <link rel="stylesheet" href="script-viewer.css">
 <link rel="stylesheet" href="../core/theme.css">
+<link rel="stylesheet" href="../core/ui.css">
 </head>
 <body>
 <div class="app">
@@ -33,8 +34,12 @@
       </div>
       <button class="btn primary" id="teleprompterBtn">Teleprompter</button>
       <button class="btn" id="copyScriptBtn" title="Copy the raw script — paste into your agent chat">Copy for AI</button>
-      <button class="btn ghost" id="loadExample" title="Add the example script">Example</button>
-      <button class="btn ghost" onclick="window.print()" title="Print script">Print</button>
+      <details class="menu" id="moreMenu"><summary>More</summary>
+        <div onclick="document.getElementById('moreMenu').removeAttribute('open')">
+          <div class="hint">This script</div>
+          <button class="btn" id="loadExample" title="Add the example script">Add the example script</button>
+          <button class="btn" onclick="window.print()" title="Print script">Print</button>
+        </div></details>
       <span data-sync-pill></span>
       <button class="theme-btn" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">
         <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>

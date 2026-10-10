@@ -491,7 +491,7 @@
     render();
     registerSync();
     registerPalette();
-    if (location.hash === '#new') { toggleBoardPanel(); history.replaceState(null, '', location.pathname + location.search); }
+    if (location.hash === '#new' || !Config.boards().length) { toggleBoardPanel(); history.replaceState(null, '', location.pathname + location.search); }
     setBaseNote(Store.ok
       ? (Model.isFresh() ? 'This is the sample board. Add your own tasks, or load a file. ⌘K for commands.' : 'Saved in this browser · ⌘K for commands · n adds a task')
       : 'Heads up: storage is blocked here, so changes last only this session. Use Save file to keep your work.');

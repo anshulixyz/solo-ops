@@ -12,6 +12,7 @@
 <script src="core/theme-boot.js"></script>
 <link rel="stylesheet" href="runway/styles.css">
 <link rel="stylesheet" href="core/theme.css">
+<link rel="stylesheet" href="core/ui.css">
 <style>
   .ws-apps{display:flex; flex-wrap:wrap; gap:6px 14px; font-size:13px; padding-top:6px;}
   .ws-apps label{display:inline-flex; align-items:center; gap:6px; cursor:pointer;}
@@ -281,10 +282,11 @@
     }).join('') + '</ul>' : '<div class="empty">No unposted posts in the next week.</div>') + '</div>';
     document.getElementById('today').innerHTML = html;
 
-    document.getElementById('firstRun').style.display = isSample() ? '' : 'none';
+    var dismissed = false; try { dismissed = !!localStorage.getItem('marathon.hub.sampleOk'); } catch (e) {}
+    document.getElementById('firstRun').style.display = (isSample() && !dismissed) ? '' : 'none';
     var lb = document.getElementById('linkBtn'); if (lb) lb.style.display = (Sync.fsSupported && Sync.getMode() === 'manual') ? '' : 'none';
     document.getElementById('wsTitle').textContent = W.title;
-    document.title = W.title + ' — ' + Config.get('name');
+    document.title = W.title === Config.get('name') ? W.title : W.title + ' — ' + Config.get('name');
     document.getElementById('wsDeleteBtn').style.display = Config.workspaces().length > 1 ? '' : 'none';
     if (!Config.boards(W.id).length) { document.getElementById('boards').style.display = 'none'; document.querySelector('[data-app="boards"].sec-h').style.display = 'none'; }
     document.getElementById('note').textContent = (fromFiles ? 'Counts read from data/*.json' : 'Counts read from this browser') + ' · ⌘K to jump anywhere · workspace "' + W.title + '" · apps per workspace, boards per workspace';
@@ -351,13 +353,22 @@
     var next = Config.workspaces()[0]; Config.setActiveWs(next.id); location.href = 'index.html?ws=' + encodeURIComponent(next.id);
   };
 
+  function firstRunDone() { try { localStorage.setItem('marathon.hub.sampleOk', '1'); } catch (e) {} document.getElementById('firstRun').style.display = 'none'; }
   window.startBlank = function () {
-    if (!confirm('Replace the sample content in every app with empty lists?')) return;
-    Config.boards().forEach(function (b) { Store.setJSON(Config.boardKey(b.id), []); });
-    Store.setJSON(KEYS.social, []); Store.setJSON(KEYS.scripts, { activeId: '', scripts: [] }); Store.setJSON(KEYS.writing, { activeId: '', notes: [] });
-    loadLocal(); render(); location.href = 'runway/marathon-board.html';
+    var ok = true; try { ok = confirm('Replace the sample content in this workspace with empty lists?'); } catch (e) { ok = true; }
+    if (!ok) return;
+    // real (non-silent) writes: the apps and sync treat these as your data, not samples
+    Config.boards().forEach(function (b) { Store.setJSON(Config.boardKey(b.id), []); Sync.touch(Config.boardFile(b.id)); });
+    if (W.apps.social) { Store.setJSON(KEYS.social, []); Sync.touch(Config.file('social')); }
+    if (W.apps.scripts) { Store.setJSON(KEYS.scripts, { activeId: '', scripts: [] }); Sync.touch(Config.file('scripts')); }
+    if (W.apps.writing) { Store.setJSON(KEYS.writing, { activeId: '', notes: [] }); Sync.touch(Config.file('writing')); }
+    firstRunDone();
+    // open the first app of this workspace so its page writes the blank file
+    var first = Config.boards()[0];
+    location.href = first ? 'runway/marathon-board.html?ws=' + encodeURIComponent(W.id) + '&board=' + encodeURIComponent(first.id)
+      : (W.apps.social ? 'social/social-board.html' : W.apps.scripts ? 'studio/script-viewer.html' : 'studio/writing-viewer.html') + '?ws=' + encodeURIComponent(W.id);
   };
-  window.keepSample = function () { document.getElementById('firstRun').style.display = 'none'; try { localStorage.setItem('marathon.hub.sampleOk', '1'); } catch (e) {} };
+  window.keepSample = firstRunDone;
 
   Config.applyDOM();
   Palette.init({ root: './' });
@@ -369,7 +380,6 @@
   loadLocal(); render();
   var tries = 0;
   (function waitReady() { if (Sync.ready()) { loadFiles().then(render); return; } if (tries++ < 40) setTimeout(waitReady, 100); })();
-  try { if (localStorage.getItem('marathon.hub.sampleOk')) document.getElementById('firstRun').style.display = 'none'; } catch (e) {}
 })();
 </script>
 </body>
