@@ -441,6 +441,8 @@
     }
   }
 
+  global.refreshSchedule = function () { SocialModel.replaceAll(Store.getJSON(SocialModel.KEY, []) || [], { silent: true }); render(); };
+
   function init() {
     Config.applyDOM();
     SocialModel.init();

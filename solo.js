@@ -35,8 +35,10 @@ for (var i = 0; i < argv.length; i++) {
   if (a.indexOf('--') === 0) {
     var eq = a.indexOf('=');
     if (eq > -1) flags[a.slice(2, eq)] = a.slice(eq + 1);
-    else if (i + 1 < argv.length && argv[i + 1].indexOf('--') !== 0) flags[a.slice(2)] = argv[++i];
-    else flags[a.slice(2)] = true;
+    else if (i + 1 < argv.length && argv[i + 1].indexOf('--') !== 0) {
+      flags[a.slice(2)] = argv[++i];
+      if (a === '--at' && i + 1 < argv.length && /^\d{1,2}:\d{2}$/.test(argv[i + 1])) flags.at += ' ' + argv[++i];   // --at +3d 9:00 without quotes
+    } else flags[a.slice(2)] = true;
   } else pos.push(a);
 }
 var JSON_OUT = !!flags.json;

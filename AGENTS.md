@@ -96,6 +96,16 @@ Schema with every field: `data/SCHEMA.md`. Every data file carries
 - Sanity: `for f in core/*.js runway/*.js social/*.js studio/*.js *.js; do node --check "$f"; done`
   and `node social/test-social-save.js`.
 
+## If you are a chat agent without file access
+
+The user pastes a SNAPSHOT (boards, posts, scripts, notes, inspiration) and
+expects back ONE code block of `node solo.js …` lines (`add`, `done`,
+`start`, `move`, `pri`, `step`, `check`, `note`, `social add|copy|prep|posted|move`,
+`scripts add "title"` + a ``` block with the script, `notes add "title"` +
+a ``` block, `inspo add`). The app applies that block directly. Keep titles
+short, no ids for new items, never `rm` (it is ignored). A plain
+`- [ ] task` checklist with indented steps also works.
+
 ## Per-folder docs
 
 `runway/CURRENT.md` (deep dive on the board), `runway/README.md`,

@@ -44,7 +44,7 @@ Last activity 2 h ago · streak 6 days
 | **Script Viewer** | Reels/shorts scripts: hook, numbered beats, inserts, prep. Reader view, 9:16 preview, teleprompter. A library of scripts. |
 | **Writing Viewer** | Drafts with `~~cuts~~`, `++adds++` and `[[notes for the AI]]`. Copy for AI, copy clean, change log view, images. |
 | **Inspiration** | An inbox for anything worth keeping. A **capture strip sits under the nav on every page**: type or paste anything and press Enter; drag a link, text or image from anywhere toward the page and drop it; paste with nothing focused. Each save shows a toast with Undo. Tag with a workspace, then **Use as** task / post / script / draft, or **Brainstorm with AI** (copies the items plus instructions for your chat). |
-| **Guide** | The **?** in the nav (or the `?` key) slides in a panel explaining the current page plus copy-ready prompts for your agent — review my week, add tasks from this list, plan this workspace, turn inspiration into posts, draft next week's posts — pre-filled with the open workspace. |
+| **Guide** | The tab on the left edge of every screen (or the `?` key). Pick how your agent works once: **runs commands** (Claude Code, Cursor, Claude Desktop with the folder) or **chat only** (ChatGPT, Claude.ai). Then use the prompts, grouped by routine: daily standup, what should I do now, wrap up the day, weekly review, retro and plan, plan a project from scratch, add tasks from a list, break a task into steps, clean up the board, draft next week's posts, write a script, edit a draft, turn inspiration into work, brainstorm post ideas, undo. Prompts with blanks ask you first. In chat mode every prompt carries a snapshot of your data, and **Apply a reply** turns the agent's answer (command lines or a checklist) into real tasks, posts, scripts and notes — no terminal. |
 
 Every page has a **⌘K command palette** with the same verbs as the CLI, a
 **theme picker** (auto/light/dark × five palettes) and a **sync pill** that
@@ -103,9 +103,11 @@ any command.
   (and `CLAUDE.md`) is the contract: files, schema, CLI, conventions. Ask
   "what should I do this week?", "turn my inspiration into tasks", "draft the
   three posts for launch week".
-- **Claude.ai / ChatGPT (no file access):** paste `prompts/agent-bootstrap.md`
-  once. Then paste `node solo.js week --json` or an inspiration dump; you
-  get back CLI commands or a file to save.
+- **Claude.ai / ChatGPT (no file access, no terminal):** open the Guide,
+  choose "my agent is a chat", copy a prompt (it includes a snapshot of your
+  workspace), paste the agent's reply into **Apply a reply**. The app applies
+  the commands itself and logs them. `prompts/agent-bootstrap.md` is the long
+  form of the same contract.
 - **Every agent change is logged** with `source: agent` and a note. Home →
   Recent changes shows it; one click reverts it. `node solo.js log` from
   the terminal.

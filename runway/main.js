@@ -482,6 +482,9 @@
     });
   }
 
+  // re-read the board from the Store (used after an agent reply is applied in the Guide)
+  global.refreshBoard = function () { Model.replaceAll(Store.getJSON(Model.KEY, []) || [], { silent: true }); renderProjectSelect(); renderTagDatalist(); render(); };
+
   /* ---- init ---------------------------------------------------------- */
   function init() {
     Config.applyDOM({ board: Model.board() });
