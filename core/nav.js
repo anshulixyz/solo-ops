@@ -40,18 +40,20 @@
     for (var i = 0; i < slots.length; i++) {
       var el = slots[i]; var root = el.getAttribute('data-root') || './';
       var all = Config.workspaces(); var w = Config.ws();
-      var sw = all.length > 1
-        ? '<select class="nav-ws" title="Workspace" onchange="Nav.switchWs(this.value)">' + all.map(function (x) { return '<option value="' + esc(x.id) + '"' + (x.id === w.id ? ' selected' : '') + '>' + esc(x.title) + '</option>'; }).join('') + '</select>'
-        : '<span class="nav-ws-one" title="Workspace">' + esc(w.title) + '</span>';
+      var sw = '<label class="nav-wsbox" title="Switch workspace"><span class="nav-wslabel">Workspace</span>' +
+        '<select class="nav-ws" onchange="Nav.switchWs(this.value)">' + all.map(function (x) { return '<option value="' + esc(x.id) + '"' + (x.id === w.id ? ' selected' : '') + '>' + esc(x.title) + '</option>'; }).join('') +
+        '<option disabled>──────</option><option value="__new">+ New workspace…</option></select>' +
+        '<svg class="nav-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></label>';
       el.innerHTML = '<div class="nav-left">' + sw + '</div><div class="nav-items">' + items(root).map(function (it) {
         return '<a class="nav-item' + (it.on ? ' on' : '') + '" href="' + it.href + '" data-nav-id="' + esc(it.id) + '">' + ICON[it.icon] + '<span>' + esc(it.label) + '</span></a>';
       }).join('') + '</div>';
     }
   }
   function switchWs(id) {
+    var root = (document.querySelector('[data-nav]') && document.querySelector('[data-nav]').getAttribute('data-root')) || './';
+    if (id === '__new') { location.href = root + 'index.html?ws=' + encodeURIComponent(Config.activeWs()) + '#new-ws'; return; }
     Config.setActiveWs(id);
     var here = location.pathname.replace(/.*\//, '');
-    var root = (document.querySelector('[data-nav]') || {}).getAttribute ? (document.querySelector('[data-nav]').getAttribute('data-root') || './') : './';
     // board pages belong to one workspace's boards; go to Home for the new one
     if (here === 'marathon-board.html') { location.href = root + 'index.html?ws=' + encodeURIComponent(id); return; }
     location.href = location.pathname + '?ws=' + encodeURIComponent(id);

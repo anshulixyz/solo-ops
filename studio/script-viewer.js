@@ -449,7 +449,7 @@ function normalizeLib(data) {
 }
 function loadLibrary() {
   const saved = Store.getJSON(KEY, null);
-  if (saved && Array.isArray(saved.scripts) && saved.scripts.length) return normalizeLib(saved);
+  if (saved && Array.isArray(saved.scripts)) return normalizeLib(saved);   // empty is a choice, not "fresh"
   const legacy = Store.get(LEGACY_TEXT_KEY);
   if (legacy && legacy.trim()) {
     const id = newId();
@@ -584,12 +584,11 @@ function registerSync() {
     read: () => ({ activeId: library.activeId, scripts: library.scripts }),
     apply: (body) => {
       const incoming = normalizeLib(body);
-      if (!incoming.scripts.length) return;
       const activeBefore = getActive();
       library = incoming;
       if (activeBefore && library.scripts.some((s) => s.id === activeBefore.id)) library.activeId = activeBefore.id;
       const s = getActive();
-      if (s && $('#scriptInput').value !== s.text) $('#scriptInput').value = s.text;
+      $('#scriptInput').value = s ? s.text : '';
       renderList(); updatePreview({ skipSave: true }); flash('Scripts updated from data/' + Config.file('scripts'));
     }
   });

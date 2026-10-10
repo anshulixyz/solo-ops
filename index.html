@@ -30,6 +30,13 @@
   .hub-card .stat b{color:var(--accent); font-weight:600;}
   .hub-card .bar{margin:10px 0 6px;}
   .hub-card .folder{font-family:var(--mono); font-size:10px; letter-spacing:.08em; color:var(--faint); margin-top:10px; text-transform:uppercase;}
+  .hub-card.ws{cursor:pointer;}
+  .hub-card.ws.on{border-color:var(--accent); box-shadow:var(--shadow-lift);}
+  .hub-card.ws .apps{display:flex; flex-wrap:wrap; gap:5px; margin:8px 0 2px;}
+  .hub-card.ws .apps span{font-family:var(--mono); font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); background:var(--panel-2); border:1px solid var(--line); border-radius:6px; padding:3px 6px;}
+  .hub-card.ws .wsbar{display:flex; align-items:center; gap:10px; margin-top:8px;}
+  .hub-card.ws .wsbar .bar{flex:1; margin:0;}
+  .hub-card.ws .wsbar b{font-size:12px; color:var(--accent);}
   .hub-card.new{border-style:dashed; display:flex; align-items:center; justify-content:center; min-height:120px; color:var(--muted); font-size:13.5px; cursor:pointer;}
   .hub-card.new:hover{color:var(--accent); border-color:var(--accent);}
   .hub-card .last{position:absolute; top:14px; right:16px; font-family:var(--mono); font-size:10px; color:var(--faint); letter-spacing:.04em;}
@@ -125,7 +132,10 @@
   <div class="sec-h">Activity</div>
   <div class="act" id="activity"></div>
 
-  <div class="sec-h" data-app="boards">Boards <a href="runway/marathon-board.html#new">+ New board</a></div>
+  <div class="sec-h">Projects <a href="#" onclick="toggleWsPanel('new');return false;">+ New workspace</a></div>
+  <div class="hub-grid" id="projects"></div>
+
+  <div class="sec-h" data-app="boards"><span id="wsSecTitle">Boards</span> <a href="runway/marathon-board.html#new">+ New board</a></div>
   <div class="hub-grid" id="boards" data-app="boards"></div>
 
   <div class="sec-h" id="appsHead">Apps</div>
@@ -237,6 +247,60 @@
     document.getElementById('activity').innerHTML = left + right;
   }
 
+  /* ---- projects overview: stats for every workspace ---- */
+  var wsStats = {};
+  function wsLocal(w) {
+    var o = { tasks: [], posts: null, scripts: null, notes: null };
+    Config.boards(w.id).forEach(function (b) { (Store.getJSON(Config.boardKey(b.id, w.id), null) || []).forEach(function (t) { o.tasks.push(t); }); });
+    if (w.apps.social) o.posts = Store.getJSON(Config.key('social', w.id), null);
+    if (w.apps.scripts) { var sc = Store.getJSON(Config.key('scripts', w.id), null); o.scripts = sc && sc.scripts ? sc.scripts : null; }
+    if (w.apps.writing) { var wr = Store.getJSON(Config.key('writing', w.id), null); o.notes = wr && wr.notes ? wr.notes : null; }
+    return o;
+  }
+  function wsFiles(w) {
+    var m = Sync.getMode(); var o = wsLocal(w);
+    if (m !== 'server' && m !== 'folder' && m !== 'static') return Promise.resolve(o);
+    var boards = Config.boards(w.id);
+    var reads = boards.map(function (b) { return Sync.peek(Config.boardFile(b.id, w.id)); })
+      .concat([w.apps.social ? Sync.peek(Config.file('social', w.id)) : null, w.apps.scripts ? Sync.peek(Config.file('scripts', w.id)) : null, w.apps.writing ? Sync.peek(Config.file('writing', w.id)) : null]);
+    return Promise.all(reads).then(function (r) {
+      var tasks = []; var any = false;
+      boards.forEach(function (b, i) { if (r[i] && r[i].tasks) { any = true; r[i].tasks.forEach(function (t) { tasks.push(t); }); } });
+      if (any) o.tasks = tasks;
+      var n = boards.length;
+      if (r[n] && r[n].posts) o.posts = r[n].posts;
+      if (r[n + 1] && r[n + 1].scripts) o.scripts = r[n + 1].scripts;
+      if (r[n + 2] && r[n + 2].notes) o.notes = r[n + 2].notes;
+      return o;
+    });
+  }
+  function loadProjects() {
+    return Promise.all(Config.workspaces().map(function (w) { return wsFiles(w).then(function (o) { wsStats[w.id] = o; }); })).then(renderProjects);
+  }
+  function renderProjects() {
+    var la = Activity.summary().lastByApp || {};
+    document.getElementById('projects').innerHTML = Config.workspaces().map(function (w) {
+      var o = wsStats[w.id] || wsLocal(w); var c = counts(o.tasks);
+      var posts = o.posts || []; var unposted = posts.filter(function (p) { return p.status !== 'posted'; }).length;
+      var apps = []; var nb = Config.boards(w.id).length;
+      if (nb) apps.push(nb + (nb === 1 ? ' board' : ' boards'));
+      if (w.apps.social) apps.push('schedule'); if (w.apps.scripts) apps.push('scripts'); if (w.apps.writing) apps.push('writing');
+      var stamps = Config.boards(w.id).map(function (b) { return la[b.id]; }).concat([la.schedule, la.scripts, la.notes]).filter(Boolean).sort().reverse();
+      var stat = [];
+      if (nb) stat.push('<span><b>' + c.doing + '</b> doing</span><span><b>' + c.todo + '</b> to do</span>');
+      if (w.apps.social) stat.push('<span><b>' + unposted + '</b> posts queued</span>');
+      if (w.apps.scripts) stat.push('<span><b>' + (o.scripts || []).length + '</b> scripts</span>');
+      if (w.apps.writing) stat.push('<span><b>' + (o.notes || []).length + '</b> notes</span>');
+      return '<div class="hub-card ws' + (w.id === W.id ? ' on' : '') + '" onclick="Nav.switchWs(\'' + esc(w.id) + '\')">' +
+        (w.id === PRIMARY_ID && stamps[0] ? '<span class="last">' + esc(Activity.ago(stamps[0])) + '</span>' : (stamps[0] ? '<span class="last">' + esc(Activity.ago(stamps[0])) + '</span>' : '')) +
+        '<h2>' + esc(w.title) + (w.id === W.id ? ' <small style="font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:.1em">· OPEN</small>' : '') + '</h2>' +
+        '<div class="apps">' + apps.map(function (a) { return '<span>' + esc(a) + '</span>'; }).join('') + '</div>' +
+        (nb ? '<div class="wsbar"><div class="bar"><div class="bar-fill" style="width:' + c.pct + '%"></div></div><b>' + c.pct + '%</b></div>' : '') +
+        '<div class="stat" style="margin-top:8px">' + stat.join('') + '</div></div>';
+    }).join('');
+  }
+  var PRIMARY_ID = Config.PRIMARY;
+
   function render() {
     var boards = Config.boards(); var allTasks = [];
     boards.forEach(function (b) { (data.boards[b.id] || []).forEach(function (t) { allTasks.push(Object.assign({ _board: boards.length > 1 ? b.id : '' }, t)); }); });
@@ -286,6 +350,8 @@
     document.getElementById('firstRun').style.display = (isSample() && !dismissed) ? '' : 'none';
     var lb = document.getElementById('linkBtn'); if (lb) lb.style.display = (Sync.fsSupported && Sync.getMode() === 'manual') ? '' : 'none';
     document.getElementById('wsTitle').textContent = W.title;
+    document.getElementById('wsSecTitle').textContent = 'Boards · ' + W.title;
+    renderProjects();
     document.title = W.title === Config.get('name') ? W.title : W.title + ' — ' + Config.get('name');
     document.getElementById('wsDeleteBtn').style.display = Config.workspaces().length > 1 ? '' : 'none';
     if (!Config.boards(W.id).length) { document.getElementById('boards').style.display = 'none'; document.querySelector('[data-app="boards"].sec-h').style.display = 'none'; }
@@ -375,11 +441,12 @@
   Palette.register([{ label: 'Start blank (clear all sample data)', hint: 'setup', run: window.startBlank },
     { label: 'New workspace', hint: 'workspaces', keywords: 'project', run: function () { toggleWsPanel('new'); } },
     { label: 'New board', hint: 'boards', run: function () { location.href = 'runway/marathon-board.html?ws=' + encodeURIComponent(W.id) + '#new'; } }]);
-  Sync.on(function (evt) { if (evt === 'linked' || evt === 'pulled' || evt === 'applied') loadFiles().then(render); });
+  Sync.on(function (evt) { if (evt === 'linked' || evt === 'pulled' || evt === 'applied') loadFiles().then(render).then(loadProjects); });
 
   loadLocal(); render();
   var tries = 0;
-  (function waitReady() { if (Sync.ready()) { loadFiles().then(render); return; } if (tries++ < 40) setTimeout(waitReady, 100); })();
+  (function waitReady() { if (Sync.ready()) { loadFiles().then(render).then(loadProjects); return; } if (tries++ < 40) setTimeout(waitReady, 100); })();
+  if (location.hash === '#new-ws') { toggleWsPanel('new'); history.replaceState(null, '', location.pathname + location.search); }
 })();
 </script>
 </body>

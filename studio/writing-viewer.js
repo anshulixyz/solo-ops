@@ -500,7 +500,7 @@ function loadLibrary() {
   if (LIBRARY_KEY === 'marathon.writing') Store.migrate(LEGACY_LIBRARY_KEY, LIBRARY_KEY);
   try {
     const data = Store.getJSON(LIBRARY_KEY, null);
-    if (data?.notes?.length) return normalizeLibrary(data);
+    if (data && Array.isArray(data.notes)) return normalizeLibrary(data);   // empty is a choice, not "fresh"
   } catch {}
 
   const notes = [];
@@ -736,13 +736,12 @@ function registerSync() {
     read: () => ({ activeId: library.activeId, notes: library.notes }),
     apply: (body) => {
       const incoming = normalizeLibrary(body);
-      if (!incoming.notes.length) return;
       const before = getActiveNote();
       library = incoming;
       if (before && library.notes.some((n) => n.id === before.id)) library.activeId = before.id;
       const n = getActiveNote();
       const ta = $('#writingInput');
-      if (n && ta.value !== n.text) { ta.value = n.text; resetEditorHistory(n.text); }
+      if (!n) { ta.value = ''; resetEditorHistory(''); } else if (ta.value !== n.text) { ta.value = n.text; resetEditorHistory(n.text); }
       renderNotesList(); refresh({ skipFlush: true }); showToast('Notes updated from data/' + Config.file('writing'));
     }
   });
