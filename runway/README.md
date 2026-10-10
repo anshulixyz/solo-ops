@@ -1,12 +1,15 @@
-# Launch Runway — task board
+# Boards — kanban
 
-Kanban for build & launch work: **To Do / Doing / Done**, a **Later** parking
-lot, and a **Bucket List** for ideas. Collapsible cards with checklists,
-priority, project chip, tags, private notes, drag & drop.
+One page, many boards. **To Do / Doing / Done**, a **Later** parking lot, and
+a **Bucket List** for ideas. Collapsible cards with checklists, priority,
+project chip, tags, private notes, drag & drop.
 
-**Open:** `marathon-board.html` (double-click, or via `../index.html`).
+**Open:** `marathon-board.html?board=<id>` (double-click, or via Home). No
+`?board=` opens the first board in `../marathon.config.js`.
 
-- Data: `../data/runway.json` ⇄ this browser (`marathon.runway.v3`)
+- Data: `../data/<id>.json` ⇄ this browser (`marathon.board.<id>`)
+- **+ Board** creates another board: blank, the sample sprint, or a copy.
+  **Rename** / **Delete** act on the current one (backup downloads first).
 - `⌘K` / `/` opens the command palette (`add …`, `done …`, `move … later`)
 - `n` opens the add panel · `1 / 2 / 3` switch Board / Later / Bucket
 - **Save file** / **Load file** — JSON in the same format as `data/runway.json`

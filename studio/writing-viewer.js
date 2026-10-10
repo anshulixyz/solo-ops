@@ -732,7 +732,7 @@ function onEdit() {
 /* ---- Sync + palette ---- */
 function registerSync() {
   Sync.register({
-    file: 'writing.json', key: LIBRARY_KEY, label: 'notes',
+    file: 'writing.json', key: LIBRARY_KEY, label: 'notes', isFresh: () => fresh || Store.isFresh(LIBRARY_KEY),
     read: () => ({ activeId: library.activeId, notes: library.notes }),
     apply: (body) => {
       const incoming = normalizeLibrary(body);
@@ -773,6 +773,7 @@ function init() {
   Config.applyDOM();
   library = loadLibrary();
   persistLibrary({ silent: true });
+  if (fresh) Store.markFresh(LIBRARY_KEY);
 
   const ta = $('#writingInput');
   const active = getActiveNote();

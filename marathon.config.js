@@ -10,10 +10,13 @@
 })(this, function () {
   return {
     /* ---- identity --------------------------------------------------- */
-    name: 'Marathon',                 // shown in page titles and the hub
+    name: 'Marathon',                 // shown on Home and in page titles
     eyebrow: 'Solo founder ops',      // small label above every page title
 
-    /* ---- projects (shared by the task board and the social schedule) --
+    /* ---- which apps you use (false hides it from Home, nav and CLI) -- */
+    apps: { boards: true, social: true, scripts: true, writing: true },
+
+    /* ---- projects (shared by boards and the social schedule) ---------
        hue: 0–360, drives the colored dot / chip for that project. */
     projects: [
       { name: 'general', hue: 45 },
@@ -21,20 +24,30 @@
       { name: 'content', hue: 190 }
     ],
 
-    /* ---- task board (runway/) --------------------------------------- */
-    runway: {
-      title: 'Launch Runway',
+    /* ---- boards ------------------------------------------------------
+       Each board is its own kanban (To Do / Doing / Done + Later + Bucket)
+       with its own data file: data/<id>.json. Add as many as you like here,
+       or create them from the board page ("New board") / CLI (boards add).
+       milestones: labels under the progress bar. focus: cards under the
+       header ([] hides them). */
+    boards: [
+      {
+        id: 'runway',
+        title: 'Launch Runway',
+        sprintLabel: 'Sprint progress',
+        milestones: ['Setup', 'Build', 'Launch', 'Follow-up'],
+        focus: [
+          { k: 'P1', t: 'Ship the launch', s: 'What has to be live this sprint' },
+          { k: 'P2', t: 'Keep the content engine running', s: 'One post a day, one video a week' }
+        ]
+      }
+    ],
+
+    /* ---- shared board settings -------------------------------------- */
+    board: {
       tags: ['coding', 'video', 'demo', 'outreach', 'launch', 'research', 'content', 'setup', 'daily'],
       // curated tag hues (anything else gets a hashed hue)
-      tagHues: { coding: 205, video: 20, demo: 145, outreach: 38, launch: 0, research: 270, content: 320, setup: 95 },
-      // milestones under the progress bar, left → right
-      milestones: ['Setup', 'Build', 'Launch', 'Follow-up'],
-      // focus cards under the header (use [] to hide the row)
-      focus: [
-        { k: 'P1', t: 'Ship the launch', s: 'What has to be live this sprint' },
-        { k: 'P2', t: 'Keep the content engine running', s: 'One post a day, one video a week' }
-      ],
-      sprintLabel: 'Sprint progress'
+      tagHues: { coding: 205, video: 20, demo: 145, outreach: 38, launch: 0, research: 270, content: 320, setup: 95 }
     },
 
     /* ---- social schedule (social/) ---------------------------------- */
@@ -55,6 +68,12 @@
       scriptTitle: 'Script Viewer',
       writingTitle: 'Writing Viewer'
     },
+
+    /* ---- activity --------------------------------------------------
+       Every change (page or CLI) is logged per day in data/activity.json.
+       Home shows a streak + heatmap and turns amber after this many idle
+       hours; `node marathon.js today` prints the same reminder. */
+    activity: { reminderAfterHours: 24 },
 
     /* ---- theme defaults (the Theme button overrides these per browser) --
        mode: 'auto' | 'light' | 'dark'

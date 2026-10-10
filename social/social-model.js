@@ -149,6 +149,7 @@
     fresh = true;
     state = seed();
     persist({ silent: true });
+    Store.markFresh(KEY);
   }
 
   function sorted() {
@@ -189,7 +190,7 @@
     ASSET_KINDS: ASSET_KINDS,
 
     init: load,
-    isFresh: function () { return fresh; },
+    isFresh: function () { return fresh || Store.isFresh(KEY); },
     getProjects: getProjects,
     find: find,
     getState: function () { return state; },

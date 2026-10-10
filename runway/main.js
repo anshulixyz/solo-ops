@@ -199,7 +199,7 @@
     return { version: 1, updatedAt: new Date().toISOString(), projects: Model.getCustomProjects(), tasks: Model.getState() };
   }
   function downloadBoard() {
-    downloadFile(JSON.stringify(boardFile(), null, 2) + '\n', 'runway-' + timestamp() + '.json', 'application/json');
+    downloadFile(JSON.stringify(boardFile(), null, 2) + '\n', Model.BOARD + '-' + timestamp() + '.json', 'application/json');
   }
 
   function mdInline(value) {
@@ -247,7 +247,7 @@
     });
     var viewLabel = view === 'board' ? 'Board' : statusLabel(view);
     var markdown = [
-      '# ' + Config.get('runway.title') + ' export', '',
+      '# ' + Model.board().title + ' export', '',
       '- **Exported:** ' + new Date().toISOString(),
       '- **View:** ' + viewLabel,
       '- **Projects:** ' + (selectedProjects.size ? Array.from(selectedProjects).map(mdInline).join(', ') : 'All'),
@@ -332,10 +332,57 @@
     });
   }
 
-  /* ---- sync: data/runway.json ---------------------------------------- */
+  /* ---- boards: switcher + create / rename / delete ------------------- */
+  function renderBoards() {
+    var sel = document.getElementById('boardSwitch'); if (!sel) return;
+    var all = Config.boards();
+    sel.innerHTML = all.map(function (b) { return '<option value="' + escAttr(b.id) + '"' + (b.id === Model.BOARD ? ' selected' : '') + '>' + escAttr(b.title) + '</option>'; }).join('');
+    sel.style.display = all.length > 1 ? '' : 'none';
+    var del = document.getElementById('deleteBoardBtn'); if (del) del.style.display = all.length > 1 ? '' : 'none';
+    var from = document.getElementById('newBoardFrom');
+    if (from) from.innerHTML = '<option value="blank">Blank</option><option value="sample">Sample sprint</option>' +
+      all.map(function (b) { return '<option value="copy:' + escAttr(b.id) + '">Copy of ' + escAttr(b.title) + '</option>'; }).join('');
+    Config.applyDOM({ board: Model.board() });
+  }
+  global.switchBoard = function (id) { location.href = location.pathname + '?board=' + encodeURIComponent(id); };
+  global.toggleBoardPanel = function () {
+    var p = document.getElementById('boardPanel'); p.classList.toggle('open');
+    if (p.classList.contains('open')) document.getElementById('newBoardTitle').focus();
+  };
+  global.createBoard = function () {
+    var title = document.getElementById('newBoardTitle').value.trim();
+    var from = document.getElementById('newBoardFrom').value;
+    if (!title) { flash('Give the board a name.'); return; }
+    var id = Config.slug(title);
+    if (!id || Config.RESERVED.indexOf(id) >= 0) { flash('Pick a different name.'); return; }
+    if (Config.board(id)) { flash('A board called "' + title + '" already exists.'); return; }
+    var b = Config.addBoard({ id: id, title: title, sprintLabel: 'Progress', milestones: [], focus: [] });
+    var tasks = [];
+    if (from === 'sample') tasks = Model.seed();
+    else if (from.indexOf('copy:') === 0) tasks = (Store.getJSON(Config.boardKey(from.slice(5)), []) || []).map(function (t) { return Object.assign({}, t, { id: Model.newId() }); });
+    Store.setJSON(Config.boardKey(b.id), Model.normalize(tasks));
+    switchBoard(b.id);
+  };
+  global.renameBoard = function () {
+    var cur = Model.board(); var title = prompt('Rename this board', cur.title);
+    if (!title || !title.trim()) return;
+    Config.updateBoard(Model.BOARD, { title: title.trim() }); renderBoards(); flash('Renamed.');
+  };
+  global.deleteBoard = function () {
+    var cur = Model.board();
+    if (Config.boards().length < 2) { flash('Keep at least one board.'); return; }
+    if (!confirm('Delete the board "' + cur.title + '" and all its tasks?\n\nA backup downloads first.')) return;
+    downloadBoard();
+    Config.removeBoard(Model.BOARD);
+    Store.setJSON(Model.KEY, []);
+    var next = Config.boards()[0];
+    switchBoard(next.id);
+  };
+
+  /* ---- sync: data/<board>.json --------------------------------------- */
   function registerSync() {
     Sync.register({
-      file: 'runway.json', keys: [Model.KEY, Model.PROJ_KEY], label: 'board',
+      file: Config.boardFile(Model.BOARD), keys: [Model.KEY, Model.PROJ_KEY], label: 'board', app: Model.BOARD, isFresh: Model.isFresh,
       read: function () { return { projects: Model.getCustomProjects(), tasks: Model.getState() }; },
       apply: function (body) {
         if (Array.isArray(body.tasks)) Model.replaceAll(body.tasks, { silent: true });
@@ -344,8 +391,9 @@
       }
     });
     Sync.on(function (evt, d) {
-      if (evt === 'applied' && d.file === 'runway.json') flash('Board updated from data/runway.json.');
-      if (evt === 'linked') flash('Folder linked — the board now writes data/runway.json directly.');
+      if (evt === 'applied' && d.file === Config.boardFile(Model.BOARD)) flash('Board updated from data/' + d.file + '.');
+      if (evt === 'applied' && d.file === 'boards.json') renderBoards();
+      if (evt === 'linked') flash('Folder linked — the board now writes data/' + Config.boardFile(Model.BOARD) + ' directly.');
       if (evt === 'error') console.warn('sync', d);
     });
   }
@@ -410,6 +458,13 @@
       { label: 'Load board from file', hint: 'import', keywords: 'upload json', run: function () { document.getElementById('importFile').click(); } },
       { label: 'Load sample board', hint: 'template', keywords: 'reset example', run: global.loadTemplate },
       { label: 'Start with an empty board', hint: 'template', keywords: 'clear blank', run: global.clearBoard },
+      { label: 'Switch board', prefix: 'board', hint: 'board <name>', keywords: 'boards open', run: function (arg) {
+        var l = arg.toLowerCase(); var m = Config.boards().filter(function (b) { return b.id === l || b.title.toLowerCase().indexOf(l) >= 0; });
+        if (m.length === 1) switchBoard(m[0].id); else flash(m.length ? 'Several boards match.' : 'No board called "' + arg + '". Boards: ' + Config.boards().map(function (b) { return b.title; }).join(', '));
+      } },
+      { label: 'New board', hint: 'boards', keywords: 'create copy', run: function () { var p = document.getElementById('boardPanel'); if (!p.classList.contains('open')) toggleBoardPanel(); } },
+      { label: 'Rename this board', hint: 'boards', run: global.renameBoard },
+      { label: 'Delete this board', hint: 'boards', run: global.deleteBoard },
       { label: 'Go to social schedule', hint: 'nav', run: function () { location.href = '../social/social-board.html'; } }
     ]);
     document.addEventListener('keydown', function (e) {
@@ -428,13 +483,15 @@
 
   /* ---- init ---------------------------------------------------------- */
   function init() {
-    Config.applyDOM();
+    Config.applyDOM({ board: Model.board() });
+    renderBoards();
     renderTagPicker();
     renderProjectSelect();
     renderTagDatalist();
     render();
     registerSync();
     registerPalette();
+    if (location.hash === '#new') { toggleBoardPanel(); history.replaceState(null, '', location.pathname + location.search); }
     setBaseNote(Store.ok
       ? (Model.isFresh() ? 'This is the sample board. Add your own tasks, or load a file. ⌘K for commands.' : 'Saved in this browser · ⌘K for commands · n adds a task')
       : 'Heads up: storage is blocked here, so changes last only this session. Use Save file to keep your work.');

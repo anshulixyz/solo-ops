@@ -8,12 +8,14 @@ document is the whole contract; read it once and you can operate the system.
 
 | File | Holds | CLI group |
 |------|-------|-----------|
-| `data/runway.json` | tasks (`todo` `doing` `done` `later` `bucket`) | `today` `week` `list` `add` `done` … |
+| `data/<board>.json` (default `runway.json`) | one board's tasks (`todo` `doing` `done` `later` `bucket`) | `today` `week` `list` `add` `done` … (`--board <id>`) |
+| `data/boards.json` | boards created at runtime (config boards are implicit) | `boards …` |
 | `data/social.json` | scheduled posts with copy, prep, posted stats | `social …` |
 | `data/scripts.json` | video scripts (Markdown text) | `scripts …` |
 | `data/writing.json` | drafts / notes with `~~cut~~ ++add++ [[note]]` markup | `notes …` |
+| `data/activity.json` | per-day change counts, last-active stamps (written automatically) | `activity` |
 | `data/settings.json` | theme | `theme …` |
-| `marathon.config.js` | projects, tags, post types, labels, default theme | `config` |
+| `marathon.config.js` | apps on/off, boards, projects, tags, post types, labels, idle hours, default theme | `config` |
 
 Schema with every field: `data/SCHEMA.md`. Every data file carries
 `updatedAt` (ISO 8601 UTC); sync uses it to decide which side is newer.
@@ -22,8 +24,9 @@ Schema with every field: `data/SCHEMA.md`. Every data file carries
 
 1. **Prefer the CLI** — it validates and stamps `updatedAt`:
    ```bash
-   node marathon.js week --json              # read the whole picture
-   node marathon.js add "Title" --proj launch --pri high --tags content --steps "a|b"
+   node marathon.js week --json              # read the whole picture (every board)
+   node marathon.js boards                   # which boards exist; add --board <id> to any task command
+   node marathon.js add "Title" --proj launch --pri high --tags content --steps "a|b" [--board <id>]
    node marathon.js done <id or title> ; start … ; move … later ; pri … high
    node marathon.js step <task> "text" ; check <task> 2 ; note <task> "text" ; tag <task> +x -y
    node marathon.js social add "Title" --at 2026-10-20T09:00 --type launch --copy "…"
@@ -40,8 +43,12 @@ Schema with every field: `data/SCHEMA.md`. Every data file carries
 
 ## Conventions the user relies on
 
+- Boards are instances: the same columns, different files. Default = first
+  board in config. Never move tasks between boards by editing ids; add + rm.
 - `doing` means in progress now; keep it short. `later` is parked, `bucket` is
   ideas. Priority is `high | medium | low`. Tags are lowercase free text.
+- `today`/`week` start with an activity line. If it says idle, lead with the
+  smallest next step; the user wants a nudge, not a lecture.
 - A weekly review = `node marathon.js week`: Doing, To Do by priority, posts in
   the window with open prep, studio activity. Summarise, then propose moves.
 - Posts: `draft → ready → scheduled → posted`. Marking posted unlocks stats.
@@ -55,11 +62,16 @@ Schema with every field: `data/SCHEMA.md`. Every data file carries
 
 - Static HTML + CSS + **classic** scripts (`<script src>`), openable over
   `file://`. No ES modules, no bundler, no `fetch` of local files, no npm.
-- `core/` is shared: `store.js` (localStorage + change events), `config.js`
-  (reads `marathon.config.js`), `theme.js` (+ `theme.css`, `theme-boot.js`),
-  `sync.js` (files ⇄ browser), `palette.js` (⌘K), `templates.js` (sample data,
-  also `require()`d by the CLI). Load order inside a page:
-  `marathon.config.js → theme-boot → … → store → config → templates → theme → sync → palette → app scripts`.
+- `core/` is shared: `store.js` (localStorage + change events + sample-data
+  flags), `config.js` (reads `marathon.config.js`, boards registry, app
+  switches), `theme.js` (+ `theme.css`, `theme-boot.js`), `sync.js` (files ⇄
+  browser), `activity.js` (daily log), `palette.js` (⌘K), `templates.js`
+  (sample data, also `require()`d by the CLI). Load order inside a page:
+  `marathon.config.js → theme-boot → … → store → config → templates → theme → sync → activity → palette → app scripts`.
+- Sync rules worth knowing: a file newer than the browser wins; a browser
+  change writes the file; on first contact sample data yields to the file,
+  registry files (`boards`, `activity`) merge, and real content on both sides
+  asks the user and downloads the losing side as a backup.
 - Each app keeps `model` (data + mutations) / `view` (render only) / `main`
   (handlers, sync registration, palette commands). Handlers are globals because
   markup uses inline `on*`. All user text goes through `esc()`.

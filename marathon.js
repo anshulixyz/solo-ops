@@ -20,6 +20,9 @@ var ROOT = __dirname;
 var DATA = path.join(ROOT, 'data');
 var cfg = safeRequire(path.join(ROOT, 'marathon.config.js')) || {};
 var T = safeRequire(path.join(ROOT, 'core', 'templates.js'));
+var RESERVED = ['social', 'scripts', 'writing', 'settings', 'activity', 'boards'];
+var APPS = Object.assign({ boards: true, social: true, scripts: true, writing: true }, cfg.apps || {});
+function appOn(a) { return APPS[a] !== false; }
 var COLS = ['todo', 'doing', 'done', 'later', 'bucket'];
 var COL_LABEL = { todo: 'To Do', doing: 'Doing', done: 'Done', later: 'Later', bucket: 'Bucket List' };
 var PRI = { high: 0, medium: 1, low: 2 };
@@ -46,13 +49,59 @@ function fileOf(name) { return path.join(DATA, name + '.json'); }
 function read(name) {
   try { return JSON.parse(fs.readFileSync(fileOf(name), 'utf8')); } catch (e) { return null; }
 }
-function write(name, body) {
+function write(name, body, opts) {
   body.version = 1; body.updatedAt = new Date().toISOString();
   fs.mkdirSync(DATA, { recursive: true });
   fs.writeFileSync(fileOf(name), JSON.stringify(body, null, 2) + '\n');
+  if (!(opts && opts.noActivity) && name !== 'activity' && name !== 'boards' && name !== 'settings') logActivity(name);
   return body;
 }
-function board() { var d = read('runway'); return d && Array.isArray(d.tasks) ? d : { projects: [], tasks: [] }; }
+function logActivity(app) {
+  var a = read('activity'); if (!a || !a.days) a = { days: {}, lastActive: '', lastByApp: {} };
+  var d = new Date(); var key = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  a.days[key] = a.days[key] || {}; a.days[key][app] = (a.days[key][app] || 0) + 1;
+  a.lastActive = d.toISOString(); a.lastByApp = a.lastByApp || {}; a.lastByApp[app] = a.lastActive;
+  write('activity', a, { noActivity: true });
+}
+function activitySummary() {
+  var a = read('activity'); if (!a || !a.days) a = { days: {}, lastActive: '' };
+  var now = new Date(); var hours = a.lastActive ? (now - new Date(a.lastActive)) / 3600000 : Infinity;
+  var limit = (cfg.activity && cfg.activity.reminderAfterHours) || 24;
+  var streak = 0, d = new Date(now); d.setHours(0, 0, 0, 0);
+  var k = function (x) { return x.getFullYear() + '-' + pad(x.getMonth() + 1) + '-' + pad(x.getDate()); };
+  if (!a.days[k(d)]) d.setDate(d.getDate() - 1);
+  while (a.days[k(d)] && Object.keys(a.days[k(d)]).length) { streak++; d.setDate(d.getDate() - 1); }
+  return { lastActive: a.lastActive, hoursIdle: hours, idle: hours >= limit, limit: limit, streak: streak, activeDays: Object.keys(a.days).length };
+}
+function ago(iso) {
+  if (!iso) return 'never'; var m = Math.round((Date.now() - new Date(iso)) / 60000);
+  if (m < 1) return 'just now'; if (m < 60) return m + ' min ago'; var h = Math.round(m / 60); if (h < 48) return h + ' h ago'; return Math.round(h / 24) + ' days ago';
+}
+function activityLine() {
+  var s = activitySummary();
+  if (!s.lastActive) return '_No activity logged yet._';
+  return (s.idle ? '⚠ **Idle for ' + Math.round(s.hoursIdle) + ' h**' : 'Last activity ' + ago(s.lastActive)) + ' · streak ' + s.streak + ' day' + (s.streak === 1 ? '' : 's') + ' · ' + s.activeDays + ' active days logged';
+}
+function slug(x) { return String(x || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32); }
+function normBoard(b) { var id = slug(b.id || b.title); if (!id || RESERVED.indexOf(id) >= 0) return null; return { id: id, title: b.title || id, sprintLabel: b.sprintLabel || 'Progress', milestones: b.milestones || [], focus: b.focus || [], createdAt: b.createdAt || 0 }; }
+function allBoards() {
+  var seen = {}, out = []; var rt = read('boards'); var list = (cfg.boards || []).concat(rt && Array.isArray(rt.boards) ? rt.boards : []);
+  if (cfg.runway && !cfg.boards) list.unshift({ id: 'runway', title: cfg.runway.title });
+  list.map(normBoard).filter(Boolean).forEach(function (b) { if (!seen[b.id]) { seen[b.id] = 1; out.push(b); } });
+  if (!out.length) out.push({ id: 'runway', title: 'Launch Runway', sprintLabel: 'Progress', milestones: [], focus: [] });
+  return out;
+}
+var BOARDS = allBoards();
+var BOARD_ID = (function () {
+  var want = flags.board ? slug(flags.board) : null;
+  if (!want) return BOARDS[0].id;
+  var hit = BOARDS.filter(function (b) { return b.id === want || b.title.toLowerCase().indexOf(String(flags.board).toLowerCase()) >= 0; });
+  if (hit.length !== 1) fail('Unknown board "' + flags.board + '". Boards: ' + BOARDS.map(function (b) { return b.id + ' (' + b.title + ')'; }).join(', '));
+  return hit[0].id;
+})();
+function boardMeta(id) { return BOARDS.filter(function (b) { return b.id === (id || BOARD_ID); })[0]; }
+function board(id) { var d = read(id || BOARD_ID); return d && Array.isArray(d.tasks) ? d : { projects: [], tasks: [] }; }
+function saveBoard(b, id) { return write(id || BOARD_ID, b); }
 function schedule() { var d = read('social'); return d && Array.isArray(d.posts) ? d : { posts: [] }; }
 function scripts() { var d = read('scripts'); return d && Array.isArray(d.scripts) ? d : { activeId: '', scripts: [] }; }
 function notes() { var d = read('writing'); return d && Array.isArray(d.notes) ? d : { activeId: '', notes: [] }; }
@@ -62,7 +111,7 @@ function out(md, obj) {
   else process.stdout.write((Array.isArray(md) ? md.join('\n') : md) + '\n');
 }
 function fail(msg) { if (JSON_OUT) out('', { error: msg }); else process.stderr.write('✗ ' + msg + '\n'); process.exit(1); }
-function hint(name) { return 'No data/' + name + '.json yet. Open the app once, or run: node marathon.js template ' + name; }
+function hint(name) { return 'No data/' + name + '.json yet. Open the app once, or run: node marathon.js template ' + (RESERVED.indexOf(name) < 0 ? 'board --board ' + name : name); }
 
 /* ---- helpers ------------------------------------------------------------- */
 function newId(prefix) { return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
@@ -98,7 +147,7 @@ function find(list, q, label) {
 }
 function taskLine(t) {
   var p = progress(t.checklist);
-  return '- [' + t.id + '] ' + t.title + ' · ' + t.proj + ' · ' + t.pri + (t.tags && t.tags.length ? ' · #' + t.tags.join(' #') : '') + (p ? ' · ' + p + ' steps' : '');
+  return '- [' + t.id + ']' + (t._board ? ' (' + t._board + ')' : '') + ' ' + t.title + ' · ' + t.proj + ' · ' + t.pri + (t.tags && t.tags.length ? ' · #' + t.tags.join(' #') : '') + (p ? ' · ' + p + ' steps' : '');
 }
 function postLine(p) {
   var pr = progress(p.prep);
@@ -111,7 +160,7 @@ function titleOf(text) { var m = (text || '').match(/^#\s+(.+)/m); return m ? m[
 
 /* ---- task commands ------------------------------------------------------- */
 function cmdList() {
-  var b = board(); if (!read('runway')) fail(hint('runway'));
+  var b = board(); if (!read(BOARD_ID)) fail(hint(BOARD_ID));
   var which = (pos[0] || 'board').toLowerCase();
   var cols = which === 'all' ? COLS : which === 'board' ? ['todo', 'doing', 'done'] : COLS.indexOf(which) >= 0 ? [which] : null;
   if (!cols) fail('Unknown list "' + which + '". Use board, all, todo, doing, done, later or bucket.');
@@ -149,13 +198,13 @@ function cmdAdd() {
     checklist: String(flags.steps || '').split('|').map(function (s) { return s.trim(); }).filter(Boolean).map(function (s) { return { text: s, done: false }; })
   };
   if (projects.indexOf(t.proj) < 0) { b.projects = (b.projects || []).concat([t.proj]); }
-  b.tasks.unshift(t); write('runway', b);
+  b.tasks.unshift(t); saveBoard(b);
   out('✓ Added [' + t.id + '] ' + t.title + ' → ' + COL_LABEL[t.col] + ' · ' + t.proj + ' · ' + t.pri, t);
 }
 function moveCmd(col, verb) {
   return function () {
     var b = board(); var t = find(b.tasks, pos.join(' '), 'task');
-    t.col = col; write('runway', b);
+    t.col = col; saveBoard(b);
     out('✓ ' + verb + ': [' + t.id + '] ' + t.title + ' → ' + COL_LABEL[col], t);
   };
 }
@@ -167,7 +216,7 @@ function cmdMove() {
 function cmdPri() {
   var p = (pos[pos.length - 1] || '').toLowerCase(); if (p === 'med') p = 'medium';
   if (!PRI.hasOwnProperty(p)) fail('Usage: pri <task> <high|medium|low>');
-  pos.pop(); var b = board(); var t = find(b.tasks, pos.join(' '), 'task'); t.pri = p; write('runway', b);
+  pos.pop(); var b = board(); var t = find(b.tasks, pos.join(' '), 'task'); t.pri = p; saveBoard(b);
   out('✓ [' + t.id + '] ' + t.title + ' → ' + p, t);
 }
 function cmdTag() {
@@ -175,12 +224,12 @@ function cmdTag() {
   if (!ops.length) fail('Usage: tag <task> +video -coding');
   var b = board(); var t = find(b.tasks, q, 'task'); t.tags = t.tags || [];
   ops.forEach(function (o) { var tag = o.slice(1).toLowerCase(); if (o[0] === '+' && t.tags.indexOf(tag) < 0) t.tags.push(tag); if (o[0] === '-') t.tags = t.tags.filter(function (x) { return x !== tag; }); });
-  write('runway', b); out('✓ [' + t.id + '] tags: ' + (t.tags.join(', ') || 'none'), t);
+  saveBoard(b); out('✓ [' + t.id + '] tags: ' + (t.tags.join(', ') || 'none'), t);
 }
 function cmdStep() {
   var text = flags.text || pos.slice(1).join(' '); var q = flags.text ? pos.join(' ') : pos[0];
   if (!q || !text) fail('Usage: step <task> "Step text"   (or step <task> --text "...")');
-  var b = board(); var t = find(b.tasks, q, 'task'); t.checklist = t.checklist || []; t.checklist.push({ text: text, done: false }); write('runway', b);
+  var b = board(); var t = find(b.tasks, q, 'task'); t.checklist = t.checklist || []; t.checklist.push({ text: text, done: false }); saveBoard(b);
   out('✓ [' + t.id + '] step ' + t.checklist.length + ': ' + text, t);
 }
 function checkCmd(done) {
@@ -188,7 +237,7 @@ function checkCmd(done) {
     var n = parseInt(pos[pos.length - 1], 10); if (!n) fail('Usage: ' + (done ? 'check' : 'uncheck') + ' <task> <step number>');
     pos.pop(); var b = board(); var t = find(b.tasks, pos.join(' '), 'task');
     if (!t.checklist || !t.checklist[n - 1]) fail('[' + t.id + '] has no step ' + n + '.');
-    t.checklist[n - 1].done = done; write('runway', b);
+    t.checklist[n - 1].done = done; saveBoard(b);
     out('✓ [' + t.id + '] ' + (done ? '☑' : '☐') + ' ' + t.checklist[n - 1].text + ' (' + progress(t.checklist) + ')', t);
   };
 }
@@ -197,11 +246,11 @@ function cmdNote() {
   if (!q) fail('Usage: note <task> "text to append"   (or --text)');
   var b = board(); var t = find(b.tasks, q, 'task');
   if (!text) return out(t.notes || '_no notes_', { id: t.id, notes: t.notes });
-  t.notes = (t.notes ? t.notes + '\n' : '') + text; write('runway', b); out('✓ [' + t.id + '] note added', t);
+  t.notes = (t.notes ? t.notes + '\n' : '') + text; saveBoard(b); out('✓ [' + t.id + '] note added', t);
 }
 function cmdRm() {
   var b = board(); var t = find(b.tasks, pos.join(' '), 'task');
-  b.tasks = b.tasks.filter(function (x) { return x.id !== t.id; }); write('runway', b); out('✓ Deleted [' + t.id + '] ' + t.title, t);
+  b.tasks = b.tasks.filter(function (x) { return x.id !== t.id; }); saveBoard(b); out('✓ Deleted [' + t.id + '] ' + t.title, t);
 }
 function cmdEdit() {
   var b = board(); var t = find(b.tasks, pos.join(' '), 'task');
@@ -209,41 +258,60 @@ function cmdEdit() {
   if (flags.pri && PRI.hasOwnProperty(flags.pri)) t.pri = flags.pri;
   if (flags.col && COLS.indexOf(flags.col) >= 0) t.col = flags.col;
   if (flags.tags !== undefined) t.tags = split(flags.tags);
-  write('runway', b); out('✓ Updated [' + t.id + '] ' + t.title, t);
+  saveBoard(b); out('✓ Updated [' + t.id + '] ' + t.title, t);
 }
 
 /* ---- overviews ----------------------------------------------------------- */
+// tasks from every board (or just --board), each tagged with its board id when >1
+function allTasks() {
+  var ids = flags.board ? [BOARD_ID] : BOARDS.map(function (b) { return b.id; });
+  var out = [];
+  ids.forEach(function (id) { board(id).tasks.forEach(function (t) { out.push(ids.length > 1 ? Object.assign({ _board: id }, t) : t); }); });
+  return out;
+}
 function cmdToday() {
-  var b = board(), s = schedule();
+  var tasks = appOn('boards') ? allTasks() : [], s = appOn('social') ? schedule() : { posts: [] };
   var now = new Date(); var end = new Date(now); end.setHours(23, 59, 59, 999);
-  var doing = b.tasks.filter(function (t) { return t.col === 'doing'; }).sort(byPri);
-  var high = b.tasks.filter(function (t) { return t.col === 'todo' && t.pri === 'high'; }).sort(byPri);
+  var doing = tasks.filter(function (t) { return t.col === 'doing'; }).sort(byPri);
+  var high = tasks.filter(function (t) { return t.col === 'todo' && t.pri === 'high'; }).sort(byPri);
   var posts = s.posts.filter(function (p) { return p.status !== 'posted'; }).sort(function (a, c) { return a.datetime.localeCompare(c.datetime); });
   var due = posts.filter(function (p) { return new Date(p.datetime) <= end; });
-  var md = ['# Today · ' + now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }), ''];
-  md.push('## Doing (' + doing.length + ')', doing.length ? doing.map(taskLine).join('\n') : '_nothing in progress — start one: node marathon.js start <task>_', '');
-  md.push('## High priority, not started (' + high.length + ')', high.length ? high.map(taskLine).join('\n') : '_none_', '');
-  md.push('## Posts due today or overdue (' + due.length + ')', due.length ? due.map(postLine).join('\n') : '_none_' + (posts[0] ? ' — next: ' + fmtDT(posts[0].datetime) + ' · ' + posts[0].title : ''), '');
-  out(md, { doing: doing, high: high, due: due, next: posts[0] || null });
+  var md = ['# Today · ' + now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }), '', activityLine(), ''];
+  if (appOn('boards')) {
+    md.push('## Doing (' + doing.length + ')', doing.length ? doing.map(taskLine).join('\n') : '_nothing in progress — start one: node marathon.js start <task>_', '');
+    md.push('## High priority, not started (' + high.length + ')', high.length ? high.map(taskLine).join('\n') : '_none_', '');
+  }
+  if (appOn('social')) md.push('## Posts due today or overdue (' + due.length + ')', due.length ? due.map(postLine).join('\n') : '_none_' + (posts[0] ? ' — next: ' + fmtDT(posts[0].datetime) + ' · ' + posts[0].title : ''), '');
+  out(md, { activity: activitySummary(), doing: doing, high: high, due: due, next: posts[0] || null });
 }
 function cmdWeek() {
   var days = parseInt(flags.days || pos[0], 10) || 7;
-  var b = board(), s = schedule(), sc = scripts(), n = notes();
+  var tasks = appOn('boards') ? allTasks() : [], s = appOn('social') ? schedule() : { posts: [] }, sc = appOn('scripts') ? scripts() : { scripts: [] }, n = appOn('writing') ? notes() : { notes: [] };
   var now = new Date(); var end = new Date(now.getTime() + days * 86400000);
-  var doing = b.tasks.filter(function (t) { return t.col === 'doing'; }).sort(byPri);
-  var todo = b.tasks.filter(function (t) { return t.col === 'todo'; }).sort(byPri);
-  var done = b.tasks.filter(function (t) { return t.col === 'done'; });
+  var doing = tasks.filter(function (t) { return t.col === 'doing'; }).sort(byPri);
+  var todo = tasks.filter(function (t) { return t.col === 'todo'; }).sort(byPri);
+  var done = tasks.filter(function (t) { return t.col === 'done'; });
   var posts = s.posts.filter(function (p) { return p.status !== 'posted' && new Date(p.datetime) <= end; }).sort(function (a, c) { return a.datetime.localeCompare(c.datetime); });
   var overdue = posts.filter(function (p) { return new Date(p.datetime) < now; });
   var prepOpen = posts.reduce(function (acc, p) { return acc + (p.prep || []).filter(function (x) { return !x.done; }).length; }, 0);
-  var md = ['# Next ' + days + ' days · ' + now.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' → ' + end.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }), ''];
-  md.push('**Board:** ' + done.length + ' done · ' + doing.length + ' doing · ' + todo.length + ' to do' + (b.tasks.some(function (t) { return t.col === 'later'; }) ? ' · ' + b.tasks.filter(function (t) { return t.col === 'later'; }).length + ' parked in Later' : ''), '');
-  md.push('## Doing (' + doing.length + ')', doing.length ? doing.map(taskLine).join('\n') : '_nothing in progress_', '');
-  md.push('## To Do by priority (' + todo.length + ')', todo.length ? todo.map(taskLine).join('\n') : '_empty_', '');
-  md.push('## Posts scheduled (' + posts.length + (overdue.length ? ', ' + overdue.length + ' overdue' : '') + ' · ' + prepOpen + ' prep items open)', posts.length ? posts.map(postLine).join('\n') : '_no posts in this window_', '');
-  md.push('## Studio', '- ' + sc.scripts.length + ' script' + (sc.scripts.length === 1 ? '' : 's') + (sc.scripts[0] ? ' · latest: ' + latestOf(sc.scripts).title + ' (' + stamp(latestOf(sc.scripts).updatedAt) + ')' : ''),
-    '- ' + n.notes.length + ' note' + (n.notes.length === 1 ? '' : 's') + (n.notes[0] ? ' · latest: ' + titleOf(latestOf(n.notes).text) + ' (' + stamp(latestOf(n.notes).updatedAt) + ')' : ''), '');
-  out(md, { window: { from: now.toISOString(), days: days }, doing: doing, todo: todo, done: done.length, posts: posts, overdue: overdue, prepOpen: prepOpen, scripts: sc.scripts.length, notes: n.notes.length });
+  var md = ['# Next ' + days + ' days · ' + now.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' → ' + end.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }), '', activityLine(), ''];
+  if (appOn('boards')) {
+    var boardsLine = (flags.board ? [boardMeta()] : BOARDS).map(function (bm) {
+      var bt = board(bm.id).tasks; var dn = bt.filter(function (t) { return t.col === 'done'; }).length; var tot = bt.filter(function (t) { return ['todo', 'doing', 'done'].indexOf(t.col) >= 0; }).length;
+      return '**' + bm.title + ':** ' + dn + '/' + tot + ' done (' + (tot ? Math.round(dn / tot * 100) : 0) + '%)' + (bt.some(function (t) { return t.col === 'later'; }) ? ' · ' + bt.filter(function (t) { return t.col === 'later'; }).length + ' in Later' : '');
+    });
+    md.push(boardsLine.join('  \n'), '');
+    md.push('## Doing (' + doing.length + ')', doing.length ? doing.map(taskLine).join('\n') : '_nothing in progress_', '');
+    md.push('## To Do by priority (' + todo.length + ')', todo.length ? todo.map(taskLine).join('\n') : '_empty_', '');
+  }
+  if (appOn('social')) md.push('## Posts scheduled (' + posts.length + (overdue.length ? ', ' + overdue.length + ' overdue' : '') + ' · ' + prepOpen + ' prep items open)', posts.length ? posts.map(postLine).join('\n') : '_no posts in this window_', '');
+  if (appOn('scripts') || appOn('writing')) {
+    md.push('## Studio');
+    if (appOn('scripts')) md.push('- ' + sc.scripts.length + ' script' + (sc.scripts.length === 1 ? '' : 's') + (sc.scripts[0] ? ' · latest: ' + latestOf(sc.scripts).title + ' (' + stamp(latestOf(sc.scripts).updatedAt) + ')' : ''));
+    if (appOn('writing')) md.push('- ' + n.notes.length + ' note' + (n.notes.length === 1 ? '' : 's') + (n.notes[0] ? ' · latest: ' + titleOf(latestOf(n.notes).text) + ' (' + stamp(latestOf(n.notes).updatedAt) + ')' : ''));
+    md.push('');
+  }
+  out(md, { window: { from: now.toISOString(), days: days }, activity: activitySummary(), boards: BOARDS.map(function (b) { return b.id; }), doing: doing, todo: todo, done: done.length, posts: posts, overdue: overdue, prepOpen: prepOpen, scripts: sc.scripts.length, notes: n.notes.length });
 }
 function latestOf(arr) { return arr.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); })[0]; }
 
@@ -252,7 +320,7 @@ function cmdShare() {
   var b = board(); var which = (pos[0] || 'todo').toLowerCase();
   var cols = which === 'all' ? COLS : which === 'board' ? ['todo', 'doing', 'done'] : [which];
   if (cols.some(function (c) { return COLS.indexOf(c) < 0; })) fail('Usage: share [todo|doing|done|later|bucket|board|all]');
-  var md = ['# ' + (cfg.runway && cfg.runway.title || 'Tasks') + ' — ' + cols.map(function (c) { return COL_LABEL[c]; }).join(', '), ''];
+  var md = ['# ' + boardMeta().title + ' — ' + cols.map(function (c) { return COL_LABEL[c]; }).join(', '), ''];
   cols.forEach(function (c) {
     var g = b.tasks.filter(function (t) { return t.col === c; }).sort(byPri);
     if (!g.length) return;
@@ -282,7 +350,7 @@ function cmdImport() {
     } else if (added.length) added[added.length - 1].checklist.push({ text: title, done: done });
   });
   if (!added.length) fail('No "- [ ] item" lines found in ' + file);
-  write('runway', b); out('✓ Imported ' + added.length + ' task' + (added.length === 1 ? '' : 's') + ' into ' + COL_LABEL[col] + ':\n' + added.map(taskLine).join('\n'), added);
+  saveBoard(b); out('✓ Imported ' + added.length + ' task' + (added.length === 1 ? '' : 's') + ' into ' + COL_LABEL[col] + ':\n' + added.map(taskLine).join('\n'), added);
 }
 
 /* ---- social -------------------------------------------------------------- */
@@ -337,16 +405,61 @@ function libCmd(name, key, label, mk) {
 var cmdScripts = libCmd('scripts', 'scripts', 'script', function (text) { return { id: newId('s'), title: titleOf(text), text: text, createdAt: Date.now(), updatedAt: Date.now() }; });
 var cmdNotes = libCmd('writing', 'notes', 'note', function (text) { return { id: newId('n'), text: text, images: {}, createdAt: Date.now(), updatedAt: Date.now() }; });
 
+/* ---- boards -------------------------------------------------------------- */
+function cmdBoards() {
+  var sub = (pos.shift() || 'list').toLowerCase();
+  var rt = read('boards') || { boards: [] }; rt.boards = Array.isArray(rt.boards) ? rt.boards : [];
+  if (sub === 'list') return out(['## Boards (' + BOARDS.length + ')'].concat(BOARDS.map(function (b) {
+    var bt = board(b.id).tasks; var dn = bt.filter(function (t) { return t.col === 'done'; }).length; var tot = bt.filter(function (t) { return ['todo', 'doing', 'done'].indexOf(t.col) >= 0; }).length;
+    return '- [' + b.id + '] ' + b.title + ' · ' + dn + '/' + tot + ' done · ' + bt.length + ' tasks' + (b.id === BOARD_ID ? ' (default)' : '') + (fs.existsSync(fileOf(b.id)) ? '' : ' · no data file yet');
+  })), BOARDS);
+  if (sub === 'add') {
+    var title = pos.join(' ').trim() || flags.title; if (!title) fail('Usage: boards add "Title" [--from blank|sample|<board id>]');
+    var id = slug(title); if (!id || RESERVED.indexOf(id) >= 0) fail('Pick a different name.');
+    if (BOARDS.some(function (b) { return b.id === id; })) fail('Board "' + id + '" already exists.');
+    if (fs.existsSync(fileOf(id)) && !flags.force) fail('data/' + id + '.json already exists. Re-run with --force to replace it, or pick another name.');
+    var from = (flags.from || 'blank').toLowerCase(); var tasks = [];
+    if (from === 'sample') { if (!T) fail('core/templates.js missing'); tasks = T.runway().tasks; }
+    else if (from !== 'blank') { var src = BOARDS.filter(function (b) { return b.id === slug(from); })[0]; if (!src) fail('No board "' + from + '" to copy.'); tasks = board(src.id).tasks.map(function (t) { return Object.assign({}, t, { id: newId('t') }); }); }
+    rt.boards.push({ id: id, title: title, sprintLabel: 'Progress', milestones: [], focus: [], createdAt: Date.now() });
+    write('boards', rt); write(id, { projects: [], tasks: tasks });
+    return out('✓ Board [' + id + '] ' + title + ' created with ' + tasks.length + ' task' + (tasks.length === 1 ? '' : 's') + ' → data/' + id + '.json\n  use it: node marathon.js week --board ' + id + '   ·   open: runway/marathon-board.html?board=' + id, { id: id, title: title, tasks: tasks.length });
+  }
+  if (sub === 'rename') {
+    var bid = slug(pos.shift()); var nt = pos.join(' ').trim(); if (!bid || !nt) fail('Usage: boards rename <id> "New title"');
+    var meta = BOARDS.filter(function (b) { return b.id === bid; })[0]; if (!meta) fail('No board "' + bid + '".');
+    var hit = false; rt.boards = rt.boards.map(function (b) { if (slug(b.id || b.title) === bid) { hit = true; b.title = nt; } return b; });
+    if (!hit) rt.boards.push(Object.assign({}, meta, { title: nt }));
+    write('boards', rt); return out('✓ [' + bid + '] → ' + nt + (cfg.boards && cfg.boards.some(function (b) { return slug(b.id || b.title) === bid; }) ? '  (overrides the title in marathon.config.js)' : ''), { id: bid, title: nt });
+  }
+  if (sub === 'rm') {
+    var rid = slug(pos.shift()); if (!rid) fail('Usage: boards rm <id>');
+    if (BOARDS.length < 2) fail('Keep at least one board.');
+    if (!flags.force) fail('This deletes data/' + rid + '.json. Re-run with --force.');
+    rt.boards = rt.boards.filter(function (b) { return slug(b.id || b.title) !== rid; }); write('boards', rt);
+    try { fs.unlinkSync(fileOf(rid)); } catch (e) { /* none */ }
+    return out('✓ Board [' + rid + '] removed' + (cfg.boards && cfg.boards.some(function (b) { return slug(b.id || b.title) === rid; }) ? ' (it is still listed in marathon.config.js — remove it there too)' : ''), { id: rid });
+  }
+  fail('Unknown boards command "' + sub + '". Try: list, add, rename, rm');
+}
+function cmdActivity() {
+  var s = activitySummary(); var a = read('activity') || { days: {} };
+  var days = Object.keys(a.days || {}).sort().slice(-14);
+  out(['# Activity', '', activityLine(), ''].concat(days.length ? days.map(function (d) { return '- ' + d + ': ' + Object.keys(a.days[d]).map(function (k) { return k + ' ×' + a.days[d][k]; }).join(', '); }) : ['_nothing logged yet_']), s);
+}
+
 /* ---- template / theme / config / serve ----------------------------------- */
 function cmdTemplate() {
   if (!T) fail('core/templates.js not found.');
-  var which = (pos[0] || 'all').toLowerCase(); var all = ['runway', 'social', 'scripts', 'writing', 'settings'];
-  var targets = which === 'all' ? all : [which]; if (targets.some(function (t) { return all.indexOf(t) < 0; })) fail('Usage: template [runway|social|scripts|writing|settings|all] [--force]');
+  var which = (pos[0] || 'all').toLowerCase(); var all = ['board', 'social', 'scripts', 'writing', 'settings'];
+  if (which === 'runway') which = 'board';
+  var targets = which === 'all' ? all : [which]; if (targets.some(function (t) { return all.indexOf(t) < 0; })) fail('Usage: template [board|social|scripts|writing|settings|all] [--board id] [--force]');
   var done = [];
   targets.forEach(function (t) {
-    if (fs.existsSync(fileOf(t)) && !flags.force) { done.push('- data/' + t + '.json exists — skipped (use --force to overwrite)'); return; }
-    var body = t === 'runway' ? T.runway() : t === 'social' ? T.social(new Date()) : t === 'scripts' ? T.scripts(new Date()) : t === 'writing' ? T.writing(new Date()) : T.settings();
-    write(t, body); done.push('- wrote data/' + t + '.json (sample content)');
+    var name = t === 'board' ? BOARD_ID : t;
+    if (fs.existsSync(fileOf(name)) && !flags.force) { done.push('- data/' + name + '.json exists — skipped (use --force to overwrite)'); return; }
+    var body = t === 'board' ? T.runway() : t === 'social' ? T.social(new Date()) : t === 'scripts' ? T.scripts(new Date()) : t === 'writing' ? T.writing(new Date()) : T.settings();
+    write(name, body, { noActivity: true }); done.push('- wrote data/' + name + '.json (sample content)');
   });
   out(done, { written: targets });
 }
@@ -361,20 +474,23 @@ function cmdTheme() {
 }
 function cmdConfig() {
   var projects = (cfg.projects || []).map(function (p) { return typeof p === 'string' ? p : p.name; });
-  out(['# ' + (cfg.name || 'Marathon') + ' config', '', '- projects: ' + projects.join(', '), '- task tags: ' + ((cfg.runway && cfg.runway.tags) || []).join(', '),
-    '- post types: ' + ((cfg.social && cfg.social.postTypes) || []).join(', '), '- theme default: ' + JSON.stringify(cfg.theme || {}), '- data dir: ' + DATA,
-    '- files: ' + ['runway', 'social', 'scripts', 'writing', 'settings'].map(function (f) { return f + '.json' + (fs.existsSync(fileOf(f)) ? ' ✓' : ' (missing)'); }).join(' · '), '', 'Edit marathon.config.js to change any of this.'], cfg);
+  out(['# ' + (cfg.name || 'Marathon') + ' config', '', '- apps: ' + Object.keys(APPS).map(function (k) { return k + (APPS[k] === false ? ' (off)' : ''); }).join(', '),
+    '- boards: ' + BOARDS.map(function (b) { return b.id + ' (' + b.title + ')'; }).join(', ') + '  — default for CLI: ' + BOARD_ID,
+    '- projects: ' + projects.join(', '), '- task tags: ' + ((cfg.board && cfg.board.tags) || (cfg.runway && cfg.runway.tags) || []).join(', '),
+    '- post types: ' + ((cfg.social && cfg.social.postTypes) || []).join(', '), '- idle reminder after: ' + ((cfg.activity && cfg.activity.reminderAfterHours) || 24) + ' h', '- theme default: ' + JSON.stringify(cfg.theme || {}), '- data dir: ' + DATA,
+    '- files: ' + BOARDS.map(function (b) { return b.id; }).concat(['social', 'scripts', 'writing', 'settings', 'activity']).map(function (f) { return f + '.json' + (fs.existsSync(fileOf(f)) ? ' ✓' : ' (missing)'); }).join(' · '), '', 'Edit marathon.config.js to change any of this.'], cfg);
 }
 function cmdServe() { require('child_process').spawn(process.execPath, [path.join(ROOT, 'serve.js')].concat(flags.port ? ['--port', String(flags.port)] : []), { stdio: 'inherit' }); }
 function cmdHelp() {
   out(['# marathon.js — tasks, posts, scripts and notes from the terminal', '',
-    'Overviews', '  today                      what is in play right now', '  week [--days 7]            tasks by priority + posts + studio for the window', '  review                     same as week', '',
-    'Tasks (data/runway.json)', '  list [board|all|todo|doing|done|later|bucket] [--proj X] [--tag Y]', '  show <task>                 full task (id or title fragment)',
+    'Overviews', '  today                      what is in play now + idle reminder', '  week [--days 7]            tasks by priority + posts + studio for the window', '  review                     same as week', '  activity                   streak + last 14 days', '',
+    'Boards (data/<id>.json — every task command takes --board <id>; default: first board)', '  boards list', '  boards add "Title" [--from blank|sample|<id>]   boards rename <id> "Title"   boards rm <id> --force', '',
+    'Tasks', '  list [board|all|todo|doing|done|later|bucket] [--proj X] [--tag Y]', '  show <task>                 full task (id or title fragment)',
     '  add "Title" [--proj X] [--pri high] [--tags a,b] [--col later] [--desc "…"] [--steps "a|b"]', '  start|done|later|bucket|todo <task>', '  move <task> <column>        pri <task> <high|medium|low>', '  tag <task> +a -b            step <task> "text"   check|uncheck <task> <n>', '  note <task> ["text"]        edit <task> --title … --proj … --pri …', '  rm <task>', '',
     'Share', '  share [todo|board|all]      markdown checklist (paste anywhere)', '  import <list.md> [--col]    "- [ ] item" lines become tasks, indented lines become steps', '',
     'Posts (data/social.json)', '  social list|next|week|show <post>', '  social add "Title" [--at 2026-10-20T09:00 | +3d 17:30] [--type launch] [--project X] [--copy "…"] [--prep "a|b"]', '  social posted|ready|draft <post> [--url …]   social move <post> <when>', '  social prep <post> "item"   social check <post> <n>   social copy <post> ["text"]   social rm <post>', '',
     'Studio (data/scripts.json, data/writing.json)', '  scripts list|show <s>|add "Title" [--file x.md]|rm <s>', '  notes list|show <n>|add "Title" [--file x.md]|rm <n>', '',
-    'Setup', '  template [all|runway|social|scripts|writing|settings] [--force]', '  theme [show|list|set <warm|paper|forest|dusk|mono>|mode <auto|light|dark>]', '  config                     show marathon.config.js summary', '  serve [--port 4321]        start the local server (pages write data/ directly)', '',
+    'Setup', '  template [all|board|social|scripts|writing|settings] [--board id] [--force]', '  theme [show|list|set <warm|paper|forest|dusk|mono>|mode <auto|light|dark>]', '  config                     show marathon.config.js summary', '  serve [--port 4321]        start the local server (pages write data/ directly)', '',
     'Add --json to any command for machine-readable output. Ids: tasks t…, posts p…, scripts s…, notes n….'], null);
 }
 
@@ -388,6 +504,7 @@ var commands = {
   share: cmdShare, import: cmdImport,
   social: cmdSocial, post: cmdSocial, posts: cmdSocial,
   scripts: cmdScripts, script: cmdScripts, notes: cmdNotes,
+  boards: cmdBoards, board: cmdBoards, activity: cmdActivity,
   template: cmdTemplate, theme: cmdTheme, config: cmdConfig, serve: cmdServe
 };
 var fn = commands[cmd];

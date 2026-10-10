@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="data:,">
-<title>Marathon</title>
+<title>Home — Marathon</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -13,20 +13,45 @@
 <link rel="stylesheet" href="runway/styles.css">
 <link rel="stylesheet" href="core/theme.css">
 <style>
-  .hub-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px; margin-top:14px;}
-  .hub-card{display:block; background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:16px 18px; box-shadow:var(--shadow); text-decoration:none; color:inherit; transition:.15s;}
+  .hub-controls{display:flex; justify-content:flex-end; gap:8px; align-items:center; flex-wrap:wrap; margin:-6px 0 10px;}
+  .sec-h{font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin:22px 0 10px; display:flex; align-items:center; gap:10px;}
+  .sec-h a{font-family:var(--body); letter-spacing:0; text-transform:none; font-size:12px; color:var(--accent); text-decoration:none; margin-left:auto;}
+  .hub-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:12px;}
+  .hub-card{display:block; background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:15px 17px; box-shadow:var(--shadow); text-decoration:none; color:inherit; transition:.15s; position:relative;}
   a.hub-card:hover{border-color:var(--accent); box-shadow:var(--shadow-lift);}
-  .hub-card h2{font-family:var(--serif); font-size:18px; margin:0 0 4px;}
-  .hub-card .sub{color:var(--muted); font-size:13px; line-height:1.45; margin-bottom:10px;}
-  .hub-card .stat{display:flex; flex-wrap:wrap; gap:8px 14px; font-size:13px;}
+  .hub-card .ic{width:34px; height:34px; border-radius:10px; background:var(--accent-soft); color:var(--accent); display:inline-flex; align-items:center; justify-content:center; margin-bottom:10px;}
+  .hub-card .ic svg{width:18px; height:18px;}
+  .hub-card h2{font-family:var(--serif); font-size:17px; margin:0 0 3px;}
+  .hub-card .sub{color:var(--muted); font-size:12.5px; line-height:1.45; margin-bottom:10px;}
+  .hub-card .stat{display:flex; flex-wrap:wrap; gap:6px 12px; font-size:12.5px;}
   .hub-card .stat b{color:var(--accent); font-weight:600;}
+  .hub-card .bar{margin:10px 0 6px;}
   .hub-card .folder{font-family:var(--mono); font-size:10px; letter-spacing:.08em; color:var(--faint); margin-top:10px; text-transform:uppercase;}
-  .today{margin-top:18px; display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px;}
-  .today .panel-h{font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin:0 0 10px;}
+  .hub-card.new{border-style:dashed; display:flex; align-items:center; justify-content:center; min-height:120px; color:var(--muted); font-size:13.5px; cursor:pointer;}
+  .hub-card.new:hover{color:var(--accent); border-color:var(--accent);}
+  .hub-card .last{position:absolute; top:14px; right:16px; font-family:var(--mono); font-size:10px; color:var(--faint); letter-spacing:.04em;}
+  /* activity */
+  .act{display:grid; grid-template-columns:minmax(220px,1fr) 2fr; gap:12px; align-items:stretch;}
+  .act-card{background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:15px 17px; box-shadow:var(--shadow);}
+  .act-card.idle{border-color:var(--amber-line); background:var(--amber-soft);}
+  .act-big{font-family:var(--serif); font-size:26px; line-height:1.1; margin:4px 0 2px;}
+  .act-big small{font-family:var(--body); font-size:13px; color:var(--muted); margin-left:6px;}
+  .act-sub{color:var(--muted); font-size:12.5px; line-height:1.5;}
+  .act-sub b{color:var(--ink); font-weight:600;}
+  .act-nudge{margin-top:10px; font-size:13px; line-height:1.45;}
+  .act-nudge a{color:var(--accent); text-decoration:none; font-weight:600;}
+  .hm{display:grid; grid-auto-flow:column; grid-template-rows:repeat(7,11px); gap:3px; margin-top:8px; overflow:auto;}
+  .hm i{display:block; width:11px; height:11px; border-radius:2px; background:var(--line-2);}
+  .hm i.l1{background:hsl(145 35% 78%);} .hm i.l2{background:hsl(145 40% 62%);} .hm i.l3{background:hsl(145 45% 46%);} .hm i.l4{background:hsl(145 50% 34%);}
+  [data-theme="dark"] .hm i.l1{background:hsl(145 30% 28%);} [data-theme="dark"] .hm i.l2{background:hsl(145 36% 38%);} [data-theme="dark"] .hm i.l3{background:hsl(145 42% 48%);} [data-theme="dark"] .hm i.l4{background:hsl(145 50% 60%);}
+  .hm i.today{outline:1.5px solid var(--accent); outline-offset:1px;}
+  .hm-legend{display:flex; gap:12px; flex-wrap:wrap; font-family:var(--mono); font-size:10px; color:var(--faint); margin-top:8px; letter-spacing:.04em;}
+  /* lists */
+  .today{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px;}
   .today ul{list-style:none; margin:0; padding:0;}
   .today li{display:flex; gap:10px; align-items:baseline; padding:7px 0; border-top:1px solid var(--line-2); font-size:13.5px;}
   .today li:first-child{border-top:0;}
-  .today li .id{font-family:var(--mono); font-size:10.5px; color:var(--faint); min-width:52px;}
+  .today li .id{font-family:var(--mono); font-size:10.5px; color:var(--faint); min-width:52px; overflow:hidden; text-overflow:ellipsis;}
   .today li .meta{margin-left:auto; font-family:var(--mono); font-size:10.5px; color:var(--muted); white-space:nowrap;}
   .today li a{color:inherit; text-decoration:none;} .today li a:hover{color:var(--accent);}
   .today .empty{color:var(--faint); font-size:13px; padding:6px 0;}
@@ -34,32 +59,34 @@
   .first-run h2{font-family:var(--serif); font-size:18px; margin:0 0 6px;}
   .first-run p{margin:0 0 12px; color:var(--muted); font-size:13.5px; line-height:1.5;}
   .first-run .row{display:flex; flex-wrap:wrap; gap:8px;}
-  .agents{margin-top:18px; background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:16px 18px; box-shadow:var(--shadow);}
+  .agents{margin-top:22px; background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:16px 18px; box-shadow:var(--shadow);}
   .agents h2{font-family:var(--serif); font-size:18px; margin:0 0 6px;}
   .agents p{color:var(--muted); font-size:13.5px; line-height:1.5; margin:0 0 10px;}
   .agents pre{margin:0; background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:12px 14px; font-family:var(--mono); font-size:12px; line-height:1.6; overflow:auto; color:var(--ink);}
   .agents pre b{color:var(--accent); font-weight:500;}
   .agents .links{margin-top:10px; font-size:13px;} .agents .links a{color:var(--accent);}
-  .hub-controls{display:flex; justify-content:flex-end; gap:8px; align-items:center; flex-wrap:wrap; margin-top:6px;}
+  @media (max-width:760px){ .act{grid-template-columns:1fr;} }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <div class="eyebrow"><span data-cfg="eyebrow"></span> · local, file-based, agent-native</div>
-    <h1><span data-cfg="name">Marathon</span><span class="dot">.</span></h1>
-    <div class="hub-controls">
-      <span data-sync-pill></span>
-      <button class="theme-btn" onclick="toggleTheme()" title="Toggle light / dark" aria-label="Toggle theme">
-        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
-        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M22 12h-2.5M4.5 12H2M19 5l-1.8 1.8M6.8 17.2 5 19M19 19l-1.8-1.8M6.8 6.8 5 5"/></svg>
-      </button>
+    <div class="title-row">
+      <h1><span data-cfg="name">Marathon</span><span class="dot">.</span></h1>
+      <div class="hub-controls" style="margin-left:auto">
+        <span data-sync-pill></span>
+        <button class="theme-btn" onclick="toggleTheme()" title="Toggle light / dark" aria-label="Toggle theme">
+          <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M22 12h-2.5M4.5 12H2M19 5l-1.8 1.8M6.8 17.2 5 19M19 19l-1.8-1.8M6.8 6.8 5 5"/></svg>
+        </button>
+      </div>
     </div>
   </header>
 
   <div class="first-run" id="firstRun" style="display:none">
     <h2>First time here?</h2>
-    <p>Everything is sample content right now. Keep it to explore, or start clean. Your data lives in <code>data/*.json</code> and in this browser — nothing leaves your machine.</p>
+    <p>Everything is sample content right now. Keep it to explore, or start clean. Your data lives in <code>data/*.json</code> and in this browser — nothing leaves your machine. Switch apps on or off and rename things in <code>marathon.config.js</code>.</p>
     <div class="row">
       <button class="btn primary" onclick="startBlank()">Start blank</button>
       <button class="btn" onclick="keepSample()">Keep the samples</button>
@@ -67,20 +94,28 @@
     </div>
   </div>
 
+  <div class="sec-h">Activity</div>
+  <div class="act" id="activity"></div>
+
+  <div class="sec-h" data-app="boards">Boards <a href="runway/marathon-board.html#new">+ New board</a></div>
+  <div class="hub-grid" id="boards" data-app="boards"></div>
+
+  <div class="sec-h" id="appsHead">Apps</div>
   <div class="hub-grid" id="cards"></div>
 
+  <div class="sec-h">In play</div>
   <div class="today" id="today"></div>
 
   <div class="agents">
     <h2>Run it from the terminal or your agent</h2>
     <p>The same data, no clicking. Paste <code>AGENTS.md</code> into Claude, ChatGPT or Claude Code and it knows the files, the schema and these commands.</p>
-<pre><b>node marathon.js</b> today            # what is in play right now
-<b>node marathon.js</b> week             # tasks + posts for the next 7 days
-<b>node marathon.js</b> add "Write the launch post" --proj launch --pri high --tags content
-<b>node marathon.js</b> done t5         # by id or title
+<pre><b>node marathon.js</b> today            # what is in play + idle reminder
+<b>node marathon.js</b> week             # tasks + posts for the next 7 days, every board
+<b>node marathon.js</b> add "Write the launch post" --proj launch --pri high
+<b>node marathon.js</b> done t5 --board runway
+<b>node marathon.js</b> boards add "Business as usual" --from sample
 <b>node marathon.js</b> social next     # next unposted post
-<b>node marathon.js</b> share todo      # markdown list to paste anywhere
-<b>node marathon.js</b> theme set dusk</pre>
+<b>node marathon.js</b> share todo      # markdown list to paste anywhere</pre>
     <div class="links">Docs: <a href="README.md">README.md</a> · <a href="AGENTS.md">AGENTS.md</a> · <a href="data/SCHEMA.md">data/SCHEMA.md</a> · <span style="color:var(--muted)">⌘K opens the same commands on every page</span></div>
   </div>
 
@@ -92,17 +127,25 @@
 <script src="core/templates.js"></script>
 <script src="core/theme.js"></script>
 <script src="core/sync.js"></script>
+<script src="core/activity.js"></script>
 <script src="core/palette.js"></script>
 <script>
 (function () {
   'use strict';
-  var KEYS = { runway: 'marathon.runway.v3', social: 'marathon.social.v3', scripts: 'marathon.scripts', writing: 'marathon.writing' };
-  var data = { tasks: null, posts: null, scripts: null, notes: null };
+  var ICONS = {
+    board: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 3v18M15 3v18"/></svg>',
+    social: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v11H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg>',
+    script: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M8 5v4M16 5v4M10 12l4 2.5-4 2.5z"/></svg>',
+    writing: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
+    flame: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c4 0 7-3 7-7 0-3-2-5-3-7-1 2-2 3-3 3 0-3-1-6-4-8 0 4-3 6-4 9-1 3 1 10 7 10z"/></svg>'
+  };
+  var KEYS = { social: 'marathon.social.v3', scripts: 'marathon.scripts', writing: 'marathon.writing' };
+  var data = { boards: {}, posts: null, scripts: null, notes: null };
   var fromFiles = false;
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function loadLocal() {
-    data.tasks = Store.getJSON(KEYS.runway, null);
+    Config.boards().forEach(function (b) { data.boards[b.id] = Store.getJSON(Config.boardKey(b.id), null); });
     data.posts = Store.getJSON(KEYS.social, null);
     var s = Store.getJSON(KEYS.scripts, null); data.scripts = s && s.scripts ? s.scripts : null;
     var w = Store.getJSON(KEYS.writing, null); data.notes = w && w.notes ? w.notes : null;
@@ -110,86 +153,128 @@
   function loadFiles() {
     var m = Sync.getMode();
     if (m !== 'server' && m !== 'folder' && m !== 'static') return Promise.resolve(false);
-    return Promise.all(['runway.json', 'social.json', 'scripts.json', 'writing.json'].map(Sync.peek)).then(function (r) {
-      if (r[0] && r[0].tasks) data.tasks = r[0].tasks;
-      if (r[1] && r[1].posts) data.posts = r[1].posts;
-      if (r[2] && r[2].scripts) data.scripts = r[2].scripts;
-      if (r[3] && r[3].notes) data.notes = r[3].notes;
-      fromFiles = !!(r[0] || r[1] || r[2] || r[3]);
+    var boards = Config.boards();
+    return Promise.all(boards.map(function (b) { return Sync.peek(Config.boardFile(b.id)); }).concat(['social.json', 'scripts.json', 'writing.json', 'activity.json'].map(Sync.peek))).then(function (r) {
+      boards.forEach(function (b, i) { if (r[i] && r[i].tasks) data.boards[b.id] = r[i].tasks; });
+      var o = boards.length;
+      if (r[o] && r[o].posts) data.posts = r[o].posts;
+      if (r[o + 1] && r[o + 1].scripts) data.scripts = r[o + 1].scripts;
+      if (r[o + 2] && r[o + 2].notes) data.notes = r[o + 2].notes;
+      if (r[o + 3] && r[o + 3].days) Store.setJSON(Activity.KEY, Activity.merge(Activity.load(), r[o + 3]), { silent: true });
+      fromFiles = r.some(Boolean);
       return fromFiles;
     });
   }
   function fmt(dt) { var d = new Date(dt); return isNaN(d) ? dt : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
   function isSample() {
     var T = MARATHON_TEMPLATES.runway().tasks.map(function (t) { return t.id; }).join();
-    var ids = (data.tasks || []).map(function (t) { return t.id; }).join();
-    return !data.tasks || ids === T;
-  }
-  function render() {
-    var tasks = data.tasks || [], posts = data.posts || [], scripts = data.scripts || [], notes = data.notes || [];
-    var doing = tasks.filter(function (t) { return t.col === 'doing'; });
-    var todo = tasks.filter(function (t) { return t.col === 'todo'; });
-    var done = tasks.filter(function (t) { return t.col === 'done'; });
-    var board = doing.length + todo.length + done.length;
-    var unposted = posts.filter(function (p) { return p.status !== 'posted'; }).sort(function (a, b) { return a.datetime.localeCompare(b.datetime); });
-    var posted = posts.length - unposted.length;
-    document.getElementById('cards').innerHTML =
-      card('runway/marathon-board.html', Config.get('runway.title'), 'Kanban for build & launch tasks — Board, Later, Bucket List.',
-        '<span><b>' + doing.length + '</b> doing</span><span><b>' + todo.length + '</b> to do</span><span><b>' + done.length + '</b> of ' + board + ' done</span>', 'runway/ · data/runway.json') +
-      card('social/social-board.html', Config.get('social.title'), Config.get('social.network') + ' posting arc, prep lists, calendar + streak heatmap.',
-        '<span><b>' + posts.length + '</b> posts</span><span><b>' + posted + '</b> posted</span>' + (unposted[0] ? '<span>next <b>' + esc(fmt(unposted[0].datetime)) + '</b></span>' : ''), 'social/ · data/social.json') +
-      card('studio/script-viewer.html', Config.get('studio.scriptTitle'), 'Reels & shorts scripts — hooks, beats, inserts, teleprompter, 9:16 preview.',
-        '<span><b>' + scripts.length + '</b> scripts</span>' + (scripts[0] ? '<span>latest <b>' + esc(latest(scripts).title) + '</b></span>' : ''), 'studio/ · data/scripts.json') +
-      card('studio/writing-viewer.html', Config.get('studio.writingTitle'), 'Drafts with ~~cuts~~, ++adds++, [[notes for AI]], copy-for-AI.',
-        '<span><b>' + notes.length + '</b> notes</span>' + (notes[0] ? '<span>latest <b>' + esc(noteTitle(latest(notes).text)) + '</b></span>' : ''), 'studio/ · data/writing.json');
-
-    var pri = { high: 0, medium: 1, low: 2 };
-    var focus = doing.concat(todo.filter(function (t) { return t.pri === 'high'; })).sort(function (a, b) { return (a.col === 'doing' ? 0 : 1) - (b.col === 'doing' ? 0 : 1) || pri[a.pri] - pri[b.pri]; }).slice(0, 7);
-    var now = new Date(); var weekEnd = new Date(now.getTime() + 7 * 86400000);
-    var week = unposted.filter(function (p) { return new Date(p.datetime) <= weekEnd; }).slice(0, 6);
-    document.getElementById('today').innerHTML =
-      '<div class="hub-card"><h2 class="panel-h">In play · tasks</h2>' + (focus.length ? '<ul>' + focus.map(function (t) {
-        var n = (t.checklist || []).length, d = (t.checklist || []).filter(function (c) { return c.done; }).length;
-        return '<li><span class="id">' + esc(t.id) + '</span><a href="runway/marathon-board.html">' + esc(t.title) + '</a><span class="meta">' + esc(t.col) + ' · ' + esc(t.pri) + (n ? ' · ' + d + '/' + n : '') + '</span></li>';
-      }).join('') + '</ul>' : '<div class="empty">Nothing in Doing and no high-priority To Do. Add one with ⌘K → add.</div>') + '</div>' +
-      '<div class="hub-card"><h2 class="panel-h">Next 7 days · posts</h2>' + (week.length ? '<ul>' + week.map(function (p) {
-        var n = (p.prep || []).length, d = (p.prep || []).filter(function (c) { return c.done; }).length;
-        return '<li><span class="id">' + esc(p.id) + '</span><a href="social/social-board.html?id=' + esc(p.id) + '">' + esc(p.title) + '</a><span class="meta">' + esc(fmt(p.datetime)) + (n ? ' · ' + d + '/' + n + ' prep' : '') + '</span></li>';
-      }).join('') + '</ul>' : '<div class="empty">No unposted posts in the next week.</div>') + '</div>';
-
-    document.getElementById('firstRun').style.display = isSample() ? '' : 'none';
-    var lb = document.getElementById('linkBtn'); if (lb) lb.style.display = (Sync.fsSupported && Sync.getMode() === 'manual') ? '' : 'none';
-    document.getElementById('note').textContent = (fromFiles ? 'Counts read from data/*.json' : 'Counts read from this browser') + ' · ⌘K to jump anywhere · theme follows marathon.config.js until you pick one';
-  }
-  function card(href, title, sub, stat, folder) {
-    return '<a class="hub-card" href="' + href + '"><h2>' + esc(title) + '</h2><div class="sub">' + esc(sub) + '</div><div class="stat">' + stat + '</div><div class="folder">' + esc(folder) + '</div></a>';
+    var first = Config.boards()[0]; var ids = (data.boards[first.id] || []).map(function (t) { return t.id; }).join();
+    return !data.boards[first.id] || ids === T;
   }
   function latest(arr) { return arr.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); })[0]; }
   function noteTitle(text) { var m = (text || '').match(/^#\s+(.+)/m); return m ? m[1].trim().slice(0, 50) : (text || '').split('\n')[0].slice(0, 50) || 'Untitled'; }
+  function counts(tasks) {
+    var c = { doing: 0, todo: 0, done: 0, later: 0, bucket: 0 }; (tasks || []).forEach(function (t) { c[t.col] = (c[t.col] || 0) + 1; });
+    c.board = c.doing + c.todo + c.done; c.pct = c.board ? Math.round(c.done / c.board * 100) : 0; return c;
+  }
 
-  // first-run choices write the app keys directly (same keys the apps use)
+  function renderActivity(allTasks) {
+    var s = Activity.summary();
+    var top = allTasks.filter(function (t) { return t.col === 'doing'; })[0] || allTasks.filter(function (t) { return t.col === 'todo' && t.pri === 'high'; })[0] || allTasks.filter(function (t) { return t.col === 'todo'; })[0];
+    var left = '<div class="act-card' + (s.idle && s.lastActive ? ' idle' : '') + '">' +
+      '<div class="act-sub">' + ICONS.flame.replace('<svg', '<svg style="width:14px;height:14px;vertical-align:-2px;margin-right:4px;color:var(--accent)"') + (s.lastActive ? 'Last activity <b>' + esc(Activity.ago(s.lastActive)) + '</b>' : 'No activity logged yet') + '</div>' +
+      '<div class="act-big">' + s.streak + '<small>day streak</small></div>' +
+      '<div class="act-sub"><b>' + s.todayCount + '</b> change' + (s.todayCount === 1 ? '' : 's') + ' today · <b>' + s.activeDays + '</b> active days logged</div>' +
+      (s.idle && s.lastActive ? '<div class="act-nudge">Nothing has moved for ' + Math.round(s.hoursIdle / 24 * 10) / 10 + ' days.' + (top ? ' Smallest next step: <a href="runway/marathon-board.html' + (top._board ? '?board=' + esc(top._board) : '') + '">' + esc(top.title) + '</a>' : '') + '</div>' :
+        (!s.lastActive ? '<div class="act-nudge">Add a task, schedule a post or edit a draft and it shows up here.</div>' : '')) +
+      '</div>';
+    // 12-week heatmap, Monday rows, ending today
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var start = new Date(today); start.setDate(start.getDate() - 83); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+    var cells = ''; var d = new Date(start); var max = 1;
+    Object.keys(s.days).forEach(function (k) { var n = Object.keys(s.days[k]).reduce(function (a, x) { return a + s.days[k][x]; }, 0); if (n > max) max = n; });
+    while (d <= today) {
+      var k = Activity.dayKey(d); var n = s.days[k] ? Object.keys(s.days[k]).reduce(function (a, x) { return a + s.days[k][x]; }, 0) : 0;
+      var lvl = !n ? 0 : n >= max * 0.75 ? 4 : n >= max * 0.5 ? 3 : n >= max * 0.25 ? 2 : 1;
+      cells += '<i class="l' + lvl + (k === Activity.dayKey(today) ? ' today' : '') + '" title="' + esc(k) + (n ? ' · ' + n + ' change' + (n === 1 ? '' : 's') + ': ' + Object.keys(s.days[k]).map(function (x) { return x + ' ×' + s.days[k][x]; }).join(', ') : ' · quiet') + '"></i>';
+      d.setDate(d.getDate() + 1);
+    }
+    var byApp = Object.keys(s.lastByApp || {}).sort(function (a, b) { return (s.lastByApp[b] || '') > (s.lastByApp[a] || '') ? 1 : -1; }).slice(0, 6)
+      .map(function (a) { return '<span>' + esc(a) + ' ' + esc(Activity.ago(s.lastByApp[a])) + '</span>'; }).join('');
+    var right = '<div class="act-card"><div class="act-sub">Last 12 weeks · every change on any page or from the CLI counts · reminder after ' + s.reminderAfterHours + ' h idle</div>' +
+      '<div class="hm">' + cells + '</div><div class="hm-legend">' + (byApp || '<span>no activity yet</span>') + '</div></div>';
+    document.getElementById('activity').innerHTML = left + right;
+  }
+
+  function render() {
+    var boards = Config.boards(); var allTasks = [];
+    boards.forEach(function (b) { (data.boards[b.id] || []).forEach(function (t) { allTasks.push(Object.assign({ _board: boards.length > 1 ? b.id : '' }, t)); }); });
+    var posts = data.posts || [], scripts = data.scripts || [], notes = data.notes || [];
+    renderActivity(allTasks);
+
+    document.getElementById('boards').innerHTML = boards.map(function (b) {
+      var c = counts(data.boards[b.id]); var la = (Activity.summary().lastByApp || {})[b.id];
+      return '<a class="hub-card" href="runway/marathon-board.html?board=' + esc(b.id) + '">' + (la ? '<span class="last">' + esc(Activity.ago(la)) + '</span>' : '') +
+        '<div class="ic">' + ICONS.board + '</div><h2>' + esc(b.title) + '</h2><div class="sub">' + esc(b.sprintLabel) + ' · ' + c.pct + '%</div>' +
+        '<div class="bar"><div class="bar-fill" style="width:' + c.pct + '%"></div></div>' +
+        '<div class="stat"><span><b>' + c.doing + '</b> doing</span><span><b>' + c.todo + '</b> to do</span><span><b>' + c.done + '</b> done</span>' + (c.later ? '<span><b>' + c.later + '</b> later</span>' : '') + (c.bucket ? '<span><b>' + c.bucket + '</b> ideas</span>' : '') + '</div>' +
+        '<div class="folder">data/' + esc(Config.boardFile(b.id)) + '</div></a>';
+    }).join('') + '<a class="hub-card new" href="runway/marathon-board.html#new">+ New board — blank, sample, or a copy</a>';
+
+    var unposted = posts.filter(function (p) { return p.status !== 'posted'; }).sort(function (a, b) { return a.datetime.localeCompare(b.datetime); });
+    var posted = posts.length - unposted.length; var la = Activity.summary().lastByApp || {};
+    var cards = [];
+    if (Config.appEnabled('social')) cards.push(card('social/social-board.html', ICONS.social, Config.get('social.title'), Config.get('social.network') + ' posting arc, prep lists, calendar + streak heatmap.',
+      '<span><b>' + posts.length + '</b> posts</span><span><b>' + posted + '</b> posted</span>' + (unposted[0] ? '<span>next <b>' + esc(fmt(unposted[0].datetime)) + '</b></span>' : ''), 'data/social.json', la.schedule || la.social));
+    if (Config.appEnabled('scripts')) cards.push(card('studio/script-viewer.html', ICONS.script, Config.get('studio.scriptTitle'), 'Reels & shorts scripts — hooks, beats, inserts, teleprompter, 9:16 preview.',
+      '<span><b>' + scripts.length + '</b> scripts</span>' + (scripts[0] ? '<span>latest <b>' + esc(latest(scripts).title) + '</b></span>' : ''), 'data/scripts.json', la.scripts));
+    if (Config.appEnabled('writing')) cards.push(card('studio/writing-viewer.html', ICONS.writing, Config.get('studio.writingTitle'), 'Drafts with ~~cuts~~, ++adds++, [[notes for AI]], copy-for-AI.',
+      '<span><b>' + notes.length + '</b> notes</span>' + (notes[0] ? '<span>latest <b>' + esc(noteTitle(latest(notes).text)) + '</b></span>' : ''), 'data/writing.json', la.notes || la.writing));
+    document.getElementById('cards').innerHTML = cards.join('');
+    document.getElementById('appsHead').style.display = cards.length ? '' : 'none';
+
+    var pri = { high: 0, medium: 1, low: 2 };
+    var focus = allTasks.filter(function (t) { return t.col === 'doing' || (t.col === 'todo' && t.pri === 'high'); })
+      .sort(function (a, b) { return (a.col === 'doing' ? 0 : 1) - (b.col === 'doing' ? 0 : 1) || pri[a.pri] - pri[b.pri]; }).slice(0, 8);
+    var weekEnd = new Date(Date.now() + 7 * 86400000);
+    var week = unposted.filter(function (p) { return new Date(p.datetime) <= weekEnd; }).slice(0, 6);
+    var html = '';
+    if (Config.appEnabled('boards')) html += '<div class="hub-card"><div class="sec-h" style="margin:0 0 8px">Tasks in play</div>' + (focus.length ? '<ul>' + focus.map(function (t) {
+      var n = (t.checklist || []).length, d = (t.checklist || []).filter(function (c) { return c.done; }).length;
+      return '<li><span class="id">' + esc(t.id) + '</span><a href="runway/marathon-board.html' + (t._board ? '?board=' + esc(t._board) : '') + '">' + esc(t.title) + '</a><span class="meta">' + (t._board ? esc(t._board) + ' · ' : '') + esc(t.col) + ' · ' + esc(t.pri) + (n ? ' · ' + d + '/' + n : '') + '</span></li>';
+    }).join('') + '</ul>' : '<div class="empty">Nothing in Doing and no high-priority To Do. Add one with ⌘K → add.</div>') + '</div>';
+    if (Config.appEnabled('social')) html += '<div class="hub-card"><div class="sec-h" style="margin:0 0 8px">Posts · next 7 days</div>' + (week.length ? '<ul>' + week.map(function (p) {
+      var n = (p.prep || []).length, d = (p.prep || []).filter(function (c) { return c.done; }).length;
+      return '<li><span class="id">' + esc(p.id) + '</span><a href="social/social-board.html?id=' + esc(p.id) + '">' + esc(p.title) + '</a><span class="meta">' + esc(fmt(p.datetime)) + (n ? ' · ' + d + '/' + n + ' prep' : '') + '</span></li>';
+    }).join('') + '</ul>' : '<div class="empty">No unposted posts in the next week.</div>') + '</div>';
+    document.getElementById('today').innerHTML = html;
+
+    document.getElementById('firstRun').style.display = isSample() ? '' : 'none';
+    var lb = document.getElementById('linkBtn'); if (lb) lb.style.display = (Sync.fsSupported && Sync.getMode() === 'manual') ? '' : 'none';
+    document.getElementById('note').textContent = (fromFiles ? 'Counts read from data/*.json' : 'Counts read from this browser') + ' · ⌘K to jump anywhere · apps and boards come from marathon.config.js';
+    Config.applyDOM();
+  }
+  function card(href, icon, title, sub, stat, folder, last) {
+    return '<a class="hub-card" href="' + href + '">' + (last ? '<span class="last">' + esc(Activity.ago(last)) + '</span>' : '') + '<div class="ic">' + icon + '</div><h2>' + esc(title) + '</h2><div class="sub">' + esc(sub) + '</div><div class="stat">' + stat + '</div><div class="folder">' + esc(folder) + '</div></a>';
+  }
+
   window.startBlank = function () {
     if (!confirm('Replace the sample content in every app with empty lists?')) return;
-    Store.setJSON(KEYS.runway, []); Store.setJSON(KEYS.social, []);
-    Store.setJSON(KEYS.scripts, { activeId: '', scripts: [] }); Store.setJSON(KEYS.writing, { activeId: '', notes: [] });
-    // the apps own the file writes; nudge them by opening the board
+    Config.boards().forEach(function (b) { Store.setJSON(Config.boardKey(b.id), []); });
+    Store.setJSON(KEYS.social, []); Store.setJSON(KEYS.scripts, { activeId: '', scripts: [] }); Store.setJSON(KEYS.writing, { activeId: '', notes: [] });
     loadLocal(); render(); location.href = 'runway/marathon-board.html';
   };
   window.keepSample = function () { document.getElementById('firstRun').style.display = 'none'; try { localStorage.setItem('marathon.hub.sampleOk', '1'); } catch (e) {} };
 
   Config.applyDOM();
   Palette.init({ root: './' });
-  Palette.register([
-    { label: 'Start blank (clear all sample data)', hint: 'setup', run: window.startBlank }
-  ]);
-  Sync.on(function (evt) { if (evt === 'linked' || evt === 'pulled') loadFiles().then(render); });
+  Palette.register([{ label: 'Start blank (clear all sample data)', hint: 'setup', run: window.startBlank },
+    { label: 'New board', hint: 'boards', run: function () { location.href = 'runway/marathon-board.html#new'; } }]);
+  Sync.on(function (evt) { if (evt === 'linked' || evt === 'pulled' || evt === 'applied') loadFiles().then(render); });
 
   loadLocal(); render();
   var tries = 0;
-  (function waitReady() {
-    if (Sync.ready()) { loadFiles().then(render); return; }
-    if (tries++ < 40) setTimeout(waitReady, 100);
-  })();
+  (function waitReady() { if (Sync.ready()) { loadFiles().then(render); return; } if (tries++ < 40) setTimeout(waitReady, 100); })();
   try { if (localStorage.getItem('marathon.hub.sampleOk')) document.getElementById('firstRun').style.display = 'none'; } catch (e) {}
 })();
 </script>

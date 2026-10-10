@@ -216,6 +216,8 @@ body {
 .workspace.prompter-only .editor-pane { display: none; }
 .workspace.prompter-only { grid-template-columns: 1fr; }
 
+.home-link svg { width: 14px; height: 14px; margin-right: 5px; vertical-align: -2px; }
+
 /* toast (shared by both studio apps) */
 .toast {
   position: fixed;

@@ -10,6 +10,7 @@
   var mem = {};
   var ok = false;
   var listeners = [];
+  var FRESH = 'marathon.fresh:';   // flag: this key holds untouched sample data
   try {
     localStorage.setItem('__t', '1');
     localStorage.removeItem('__t');
@@ -32,6 +33,7 @@
       mem[k] = v;
     }
     if (opts && opts.silent) return;
+    remove(FRESH + k);   // any real write means this key is no longer sample data
     for (var i = 0; i < listeners.length; i++) {
       try { listeners[i](k, v); } catch (err) { /* ignore */ }
     }
@@ -64,6 +66,10 @@
     getJSON: getJSON,
     setJSON: setJSON,
     // onChange(fn) — fn(key, value) runs after every non-silent set()
-    onChange: function (fn) { listeners.push(fn); }
+    onChange: function (fn) { listeners.push(fn); },
+    // sample-data flags: set when a model seeds the template, cleared by the
+    // first real write; sync lets a data file win over fresh sample data
+    markFresh: function (k) { try { if (ok) localStorage.setItem(FRESH + k, '1'); else mem[FRESH + k] = '1'; } catch (e) { mem[FRESH + k] = '1'; } },
+    isFresh: function (k) { return get(FRESH + k) === '1'; }
   };
 })(typeof window !== 'undefined' ? window : this);

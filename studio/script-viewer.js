@@ -580,7 +580,7 @@ function flash(msg) {
 /* ---- Sync + palette ---- */
 function registerSync() {
   Sync.register({
-    file: 'scripts.json', key: KEY, label: 'scripts',
+    file: 'scripts.json', key: KEY, label: 'scripts', isFresh: () => fresh || Store.isFresh(KEY),
     read: () => ({ activeId: library.activeId, scripts: library.scripts }),
     apply: (body) => {
       const incoming = normalizeLib(body);
@@ -620,6 +620,7 @@ function init() {
   Config.applyDOM();
   library = loadLibrary();
   persistLibrary({ silent: true });
+  if (fresh) Store.markFresh(KEY);
 
   const input = $('#scriptInput');
   const active = getActive();

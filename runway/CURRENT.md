@@ -89,14 +89,15 @@ focus): the notes textarea (`onNotesInput` saves silently) and the checklist
 
 ## 4. Data model & storage
 
-`localStorage` keys:
-- `marathon.runway.v3` — the whole board (JSON array of tasks). Migrated once
-  from the legacy `anshuli.runway.v2`.
-- `marathon.runway.projects` — user-added project names (array of strings).
+`localStorage` keys (per board, `<id>` from `?board=`):
+- `marathon.board.<id>` — the whole board (JSON array of tasks). The `runway`
+  board migrates once from `marathon.runway.v3` / the legacy `anshuli.runway.v2`.
+- `marathon.board.<id>.projects` — user-added project names (array of strings).
+- `marathon.boards` — boards created at runtime (`../data/boards.json`).
 - `marathon.theme` — `{ mode, palette }` (shared by every app, owned by core/theme.js).
 - `marathon.sync.meta` — per-file `updatedAt` stamps used by core/sync.js.
 
-File: `../data/runway.json` = `{ version, updatedAt, projects, tasks }`. Any
+File: `../data/<id>.json` = `{ version, updatedAt, projects, tasks }`. Any
 `Store.set` on the two board keys schedules a write; a newer file on disk
 replaces state via `Model.replaceAll(tasks, { silent: true })` + re-render.
 

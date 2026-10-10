@@ -34,9 +34,9 @@
       <button class="btn" id="copyScriptBtn" title="Copy the raw script — paste into your agent chat">Copy for AI</button>
       <button class="btn ghost" id="loadExample" title="Add the example script">Example</button>
       <button class="btn ghost" onclick="window.print()" title="Print script">Print</button>
-      <a class="btn ghost" href="writing-viewer.html">Writing</a>
-      <a class="btn ghost" href="../runway/marathon-board.html">Board</a>
-      <a class="btn ghost" href="../index.html">Hub</a>
+      <a class="btn ghost" href="writing-viewer.html" data-app="writing">Writing</a>
+      <a class="btn ghost" href="../runway/marathon-board.html" data-app="boards">Board</a>
+      <a class="btn ghost home-link" href="../index.html" title="Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-6H9v6H5a2 2 0 0 1-2-2z"/></svg>Home</a>
       <span data-sync-pill></span>
       <button class="theme-btn" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">
         <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
@@ -100,6 +100,7 @@ CHARACTER: dialogue lines
 <script src="../core/templates.js"></script>
 <script src="../core/theme.js"></script>
 <script src="../core/sync.js"></script>
+<script src="../core/activity.js"></script>
 <script src="../core/palette.js"></script>
 <script src="script-viewer.js"></script>
 </body>

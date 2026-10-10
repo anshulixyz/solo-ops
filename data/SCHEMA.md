@@ -17,7 +17,12 @@ whenever you change a file.** The CLI does this for you.
 Images are never stored here. Post images and note images stay in the browser
 (and in Save-file bundles) so these files remain small and readable.
 
-## runway.json — tasks
+## `<board>.json` — one board's tasks
+
+One file per board, named by the board id (`runway.json` for the sample
+board, `business-as-usual.json` for a board called "Business as usual").
+Board ids are slugs: lowercase, digits and dashes; `social`, `scripts`,
+`writing`, `settings`, `activity`, `boards` are reserved.
 
 ```json
 {
@@ -39,6 +44,26 @@ Images are never stored here. Post images and note images stay in the browser
 
 `later` is the parking lot, `bucket` is the ideas list (video/demo ideas by
 convention). Only `todo/doing/done` count toward sprint progress.
+
+## boards.json — boards created at runtime
+
+```json
+{ "boards": [{ "id": "business-as-usual", "title": "Business as usual", "sprintLabel": "Progress", "milestones": [], "focus": [], "createdAt": 0 }] }
+```
+
+Boards listed in `marathon.config.js` are implicit and need no entry here. A
+runtime entry with the same id overrides the config title. Merged, never
+replaced, on sync.
+
+## activity.json — daily activity (written automatically)
+
+```json
+{ "days": { "2026-10-10": { "runway": 5, "social": 1 } }, "lastActive": "2026-10-10T09:12:00.000Z", "lastByApp": { "runway": "…" } }
+```
+
+Pages and the CLI both increment counts; sync merges by taking the larger
+count per cell. Home reads it for the streak, heatmap and idle reminder;
+`node marathon.js activity` prints it. Agents should not edit it.
 
 ## social.json — posting schedule
 

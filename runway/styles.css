@@ -49,6 +49,13 @@ header{margin-bottom:18px;}
 .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--faint); margin-bottom:8px;}
 h1{font-family:var(--serif); font-weight:600; font-size:32px; letter-spacing:-.01em; margin:0 0 14px;}
 h1 .dot{color:var(--accent);}
+.title-row{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:14px;}
+.title-row h1{margin:0;}
+.board-tools{display:flex; align-items:center; gap:6px; flex-wrap:wrap;}
+.board-switch{height:32px; border:1px solid var(--line); border-radius:9px; background:var(--panel); color:var(--ink); font:inherit; font-size:13px; padding:0 8px;}
+.btn.small{padding:5px 10px; font-size:12px;}
+.board-panel{margin:-6px 0 14px;}
+.home-link svg,.btn svg.ico{width:14px; height:14px; margin-right:5px; vertical-align:-2px;}
 
 /* runway signature */
 .runway{background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:16px 18px; box-shadow:var(--shadow); margin-bottom:14px;}

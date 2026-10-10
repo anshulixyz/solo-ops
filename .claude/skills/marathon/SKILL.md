@@ -12,8 +12,12 @@ automatically when `node serve.js` is running or the folder is linked.
 ## First, get the picture
 
 ```bash
-node marathon.js week --json      # or `today`; add --days 14 for a longer window
+node marathon.js week --json      # every board; or `today`; --days 14 for a longer window
+node marathon.js boards           # ids to pass as --board <id> (default: first board)
 ```
+
+The first line of `today`/`week` is the activity line. If it says idle, lead
+your reply with one small next step.
 
 Read `AGENTS.md` for the contract and `data/SCHEMA.md` for fields.
 
@@ -28,7 +32,10 @@ node marathon.js social add "Title" --at 2026-10-20T09:00|+3d 17:30 --type launc
 node marathon.js social next|week|show <post> ; social posted <post> --url … ; social prep <post> "item"
 node marathon.js scripts add "Title" --file x.md ; notes add "Title" --file x.md ; notes show <n>
 node marathon.js share todo ; import list.md ; theme set dusk
+node marathon.js boards add "Title" --from blank|sample|<id> ; boards rename <id> "Title"
 ```
+
+Every task command accepts `--board <id>`.
 
 Ids: tasks `t…`, posts `p…`, scripts `s…`, notes `n…`. Title fragments work
 when unambiguous; the CLI tells you when they are not.

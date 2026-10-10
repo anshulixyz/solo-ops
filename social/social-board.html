@@ -31,7 +31,7 @@
     </div>
 
     <div class="priorities" data-cfg-focus="social.focus">
-      <div class="pri two">
+      <div class="pri two" data-app="boards">
         <span class="k">↗</span>
         <span><span class="t"><a class="nav-link" href="../runway/marathon-board.html">Task board</a></span><br><span class="s">Kanban for build & launch tasks alongside this schedule</span></span>
       </div>
@@ -44,7 +44,7 @@
       <a class="tab" href="social-calendar.html#streak" style="text-decoration:none;color:inherit;">Calendar</a>
     </div>
     <div class="right-controls">
-      <a class="btn ghost" href="../index.html" title="All apps">Hub</a>
+      <a class="btn ghost home-link" href="../index.html" title="Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-6H9v6H5a2 2 0 0 1-2-2z"/></svg>Home</a>
       <button class="btn primary" onclick="toggleAdd()" title="Add a post (n)">+ Add post</button>
       <button class="btn" onclick="exportState()" title="Download schedule + images as JSON">Save file</button>
       <button class="btn" onclick="document.getElementById('importFile').click()" title="Load a saved schedule or data/social.json">Load file</button>
@@ -117,6 +117,7 @@
 <script src="../core/templates.js"></script>
 <script src="../core/theme.js"></script>
 <script src="../core/sync.js"></script>
+<script src="../core/activity.js"></script>
 <script src="../core/palette.js"></script>
 <script src="social-assets-store.js"></script>
 <script src="social-image-store.js"></script>

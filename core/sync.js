@@ -59,6 +59,7 @@
       if (keys.indexOf(key) < 0) return;
       setMeta(s.file, now());
       scheduleWrite(s);
+      if (s.activity !== false && global.Activity) Activity.bump(s.app || s.label || s.file.replace(/\.json$/, ''));
     });
   });
   function scheduleWrite(spec) {
@@ -202,9 +203,13 @@
       }
       if (!local) {
         var same = stripStamp(parsed) === stripStamp(body(spec));
-        if (same || (spec.isFresh && spec.isFresh())) { applyBody(spec, parsed); lastSeen[spec.file + ':stamp'] = parsed.updatedAt; return; }
-        var useFile = confirm('data/' + spec.file + ' differs from the copy in this browser.\n\nOK = load the file (a backup of the browser copy downloads first)\nCancel = keep the browser copy' + (writable ? ' and overwrite the file' : ''));
+        var fresh = (spec.isFresh && spec.isFresh()) || (spec.keys || [spec.key]).some(function (k) { return Store.isFresh(k); });
+        if (same || spec.merge || fresh) { applyBody(spec, parsed); lastSeen[spec.file + ':stamp'] = parsed.updatedAt; return; }
+        // Real content on both sides and no way to tell which is newer: ask,
+        // and download whichever side loses so nothing is unrecoverable.
+        var useFile = confirm('data/' + spec.file + ' differs from the copy in this browser.\n\nOK = load the file (the browser copy downloads as a backup)\nCancel = keep the browser copy' + (writable ? ' and overwrite the file (the file downloads as a backup)' : ''));
         if (useFile) { download(spec.file, true); applyBody(spec, parsed); lastSeen[spec.file + ':stamp'] = parsed.updatedAt; return; }
+        if (writable) { downloadRaw(spec.file.replace(/\.json$/, '') + '.file-backup-' + now().slice(0, 16).replace(/[:T]/g, '-') + '.json', parsed); }
         setMeta(spec.file, now());
         if (writable) return writeOne(spec);
         return;
@@ -212,6 +217,7 @@
       if (parsed.updatedAt > local) {
         applyBody(spec, parsed);
         lastSeen[spec.file + ':stamp'] = parsed.updatedAt;
+        if (spec.merge && writable && stripStamp(parsed) !== stripStamp(body(spec))) { setMeta(spec.file, now()); return writeOne(spec); }
       } else if (pushIfNewer && writable && parsed.updatedAt < local) {
         return writeOne(spec);
       } else {
@@ -240,6 +246,11 @@
   function stopPolling() { if (pollTimer) clearInterval(pollTimer); pollTimer = null; }
 
   /* ---- manual mode helpers (Save / Load file) --------------------------- */
+  function downloadRaw(name, obj) {
+    var blob = new Blob([JSON.stringify(obj, null, 2) + '\n'], { type: 'application/json' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+  }
   function download(file, asBackup) {
     var spec = specFor(file); if (!spec) return;
     var obj = body(spec);

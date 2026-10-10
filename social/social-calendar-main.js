@@ -34,7 +34,7 @@
     SocialModel.init();
     SocialAssets.open().catch(function () {});
     Sync.register({
-      file: 'social.json', key: SocialModel.KEY, label: 'schedule',
+      file: 'social.json', key: SocialModel.KEY, label: 'schedule', isFresh: SocialModel.isFresh,
       read: function () { return { posts: SocialModel.getState() }; },
       apply: function (body) { if (Array.isArray(body.posts)) { SocialModel.replaceAll(body.posts, { silent: true }); render(); } }
     });

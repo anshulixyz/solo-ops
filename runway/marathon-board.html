@@ -18,18 +18,34 @@
 <div class="wrap">
   <header>
     <div class="eyebrow"><span data-cfg="name"></span> · <span data-cfg="eyebrow"></span></div>
-    <h1><span data-cfg="runway.title" data-cfg-title="runway.title">Launch Runway</span><span class="dot">.</span></h1>
+    <div class="title-row">
+      <h1><span data-cfg="board.title" data-cfg-title="board.title">Board</span><span class="dot">.</span></h1>
+      <div class="board-tools">
+        <select id="boardSwitch" class="board-switch" onchange="switchBoard(this.value)" title="Switch board" style="display:none"></select>
+        <button class="btn ghost small" onclick="toggleBoardPanel()" title="Create another board">+ Board</button>
+        <button class="btn ghost small" onclick="renameBoard()" title="Rename this board">Rename</button>
+        <button class="btn ghost small" id="deleteBoardBtn" onclick="deleteBoard()" title="Delete this board" style="display:none">Delete</button>
+      </div>
+    </div>
+    <div class="addpanel board-panel" id="boardPanel">
+      <div class="addrow">
+        <div class="field grow"><label>New board</label><input id="newBoardTitle" placeholder="Business as usual, Q4 launch, Side project…" onkeydown="if(event.key==='Enter')createBoard()"></div>
+        <div class="field"><label>Start from</label><select id="newBoardFrom"></select></div>
+        <button class="btn primary" onclick="createBoard()">Create</button>
+      </div>
+      <div class="note" style="margin:6px 0 0">Each board is its own file in <code>data/</code>. Same columns, Later and Bucket List; its own tasks and progress.</div>
+    </div>
 
     <div class="runway">
       <div class="runway-top">
-        <span class="runway-label" data-cfg="runway.sprintLabel">Sprint progress</span>
+        <span class="runway-label" data-cfg="board.sprintLabel">Progress</span>
         <span class="runway-count"><b id="doneN">0</b> of <span id="totalN">0</span> board tasks done · <span id="pctN">0</span>%</span>
       </div>
       <div class="bar"><div class="bar-fill" id="barFill"></div></div>
-      <div class="ticks" data-cfg-ticks="runway.milestones"></div>
+      <div class="ticks" data-cfg-ticks="board.milestones"></div>
     </div>
 
-    <div class="priorities" data-cfg-focus="runway.focus"></div>
+    <div class="priorities" data-cfg-focus="board.focus"></div>
   </header>
 
   <div class="controls">
@@ -41,8 +57,8 @@
     <div class="right-controls">
       <div class="filters" id="filters"></div>
       <button class="btn ghost" id="collapseAllBtn" onclick="toggleCollapseAll()" title="Collapse or expand all cards">Collapse all</button>
-      <a class="btn ghost" href="../social/social-board.html" title="Posting schedule">Social</a>
-      <a class="btn ghost" href="../index.html" title="All apps">Hub</a>
+      <a class="btn ghost" href="../social/social-board.html" title="Posting schedule" data-app="social">Social</a>
+      <a class="btn ghost home-link" href="../index.html" title="Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-6H9v6H5a2 2 0 0 1-2-2z"/></svg>Home</a>
       <button class="btn primary" onclick="toggleAdd()" title="Add a task (n)">+ Add task</button>
       <button class="btn" onclick="exportMarkdown()" title="Export visible non-Done tasks as Markdown">Export MD</button>
       <button class="btn" onclick="exportState()" title="Download your current board as a file">Save file</button>
@@ -133,6 +149,7 @@
 <script src="../core/templates.js"></script>
 <script src="../core/theme.js"></script>
 <script src="../core/sync.js"></script>
+<script src="../core/activity.js"></script>
 <script src="../core/palette.js"></script>
 <script src="model.js"></script>
 <script src="view.js"></script>

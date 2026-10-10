@@ -1,11 +1,15 @@
 # Marathon
 
-Local, file-based tools for people shipping things alone: a **task board**, a
-**social posting schedule**, a **script viewer** with teleprompter, and a
-**writing viewer** with track changes. No install, no account, no server
-required — and everything is **native to agents**: your tasks live in plain
-JSON files that Claude, ChatGPT, Claude Code or a cron job can read and update
-without you clicking anything.
+Solo founder ops, in plain files. **Boards** (as many kanbans as you need:
+launch, business as usual, a side project), a **social posting schedule**, a
+**script viewer** with teleprompter, a **writing viewer** with track changes,
+and a **Home** that shows your streak, what is in play, and nudges you when
+nothing has moved. No install, no account, no server required — and everything
+is **native to agents**: your tasks live in JSON files that Claude, ChatGPT,
+Claude Code or a cron job can read and update without you clicking anything.
+
+Use what you need: switch any app off in `marathon.config.js` and it
+disappears from Home, navigation and the CLI.
 
 ```
 node marathon.js week          # terminal on the left…
@@ -33,11 +37,23 @@ themselves are plain HTML + CSS + classic JavaScript.
 
 | App | Open | Data |
 |-----|------|------|
-| Launch Runway — kanban (Board / Later / Bucket List) | `runway/marathon-board.html` | `data/runway.json` |
+| Home — activity streak, idle reminder, every board's progress, what is in play | `index.html` | reads all of the below |
+| Boards — kanban (To Do / Doing / Done + Later + Bucket List), one file per board | `runway/marathon-board.html?board=<id>` | `data/<id>.json` (`runway.json` by default) |
 | Social Schedule — posting arc, prep, calendar, streak | `social/social-board.html` | `data/social.json` |
 | Script Viewer — hooks, beats, inserts, teleprompter | `studio/script-viewer.html` | `data/scripts.json` |
 | Writing Viewer — `~~cuts~~` `++adds++` `[[notes for AI]]` | `studio/writing-viewer.html` | `data/writing.json` |
-| Hub — today at a glance | `index.html` | reads all of the above |
+
+**Boards are instances.** The first one is called "Launch Runway" in the
+sample config — rename it to "To do", "Kanban", whatever you call it. Create
+another from the board page (**+ Board**) or the CLI: blank, from the sample
+sprint, or as a copy of an existing board. Each gets its own `data/<id>.json`,
+its own progress bar on Home, and `--board <id>` in the CLI.
+
+**Activity.** Every change on any page or from the CLI is logged per day in
+`data/activity.json`. Home shows the streak, a 12-week heatmap, when each app
+was last touched, and turns amber with a suggested next step after
+`activity.reminderAfterHours` idle hours (default 24). `node marathon.js today`
+prints the same reminder, so a cron job can nag you.
 
 Every page has a **⌘K / Ctrl-K command palette** with the same verbs as the CLI
 (`add …`, `done …`, `move … later`, `theme`), a **theme picker** (light / dark /
@@ -46,8 +62,10 @@ auto × five palettes), and a **sync pill** that tells you where your data is.
 ## Talk to it from the terminal
 
 ```bash
-node marathon.js today                         # doing + high priority + posts due
-node marathon.js week                          # the next 7 days, tasks + posts + studio
+node marathon.js today                         # doing + high priority + posts due + idle reminder
+node marathon.js week                          # the next 7 days: every board, posts, studio
+node marathon.js boards add "Business as usual" --from sample   # or blank, or --from runway (copy)
+node marathon.js week --board business-as-usual
 node marathon.js add "Write the launch post" --proj launch --pri high --tags content --steps "Outline|Draft"
 node marathon.js start "launch post"           # by id or title fragment
 node marathon.js done t5
@@ -79,8 +97,9 @@ Marathon is designed so an AI agent can manage it end to end:
 
 ## Make it yours
 
-Everything configurable is in **`marathon.config.js`**: name, projects (with
-colors), tags, post types, prep kinds, milestones, focus cards, default theme.
+Everything configurable is in **`marathon.config.js`**: name, which apps you
+use, boards (titles, milestones, focus cards), projects (with colors), tags,
+post types, prep kinds, idle-reminder hours, default theme.
 Sample content ships in `data/`; replace it from the hub (**Start blank**),
 with `node marathon.js template --force`, or just start adding.
 
@@ -101,8 +120,8 @@ index.html            hub
 marathon.config.js    your settings (plain JS, read by pages and CLI)
 marathon.js           CLI (node, zero deps)
 serve.js              local server + write API (node, zero deps)
-core/                 shared: store, config, theme, sync, palette, templates
-data/                 your data (JSON) + SCHEMA.md
+core/                 shared: store, config, theme, sync, activity, palette, templates
+data/                 your data (JSON: one file per board + social, scripts, writing, boards, activity, settings) + SCHEMA.md
 runway/ social/ studio/   the apps (classic scripts, file:// safe)
 prompts/              bootstrap prompt for chat agents
 .claude/skills/       Claude Code skill wrapping the CLI

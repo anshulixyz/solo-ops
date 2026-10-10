@@ -7,21 +7,30 @@
      { id, title, desc, proj, col, pri, tags:[], notes:'', collapsed:bool,
        checklist:[{text, done}] }
    Projects and tags come from marathon.config.js; the seed comes from
-   core/templates.js. Data mirrors to data/runway.json via core/sync.js.
+   core/templates.js. One page serves many boards: ?board=<id> picks one
+   (default: the first configured board). Each board has its own Store key
+   (marathon.board.<id>) and data file (data/<id>.json) via core/sync.js.
    ========================================================================= */
 (function (global) {
   'use strict';
 
-  var KEY = 'marathon.runway.v3';
-  var PROJ_KEY = 'marathon.runway.projects';
+  // ?board=<id> wins even when the registry (data/boards.json) has not synced
+  // into this browser yet: the id is enough to pick the Store key and file,
+  // and the title fills in once boards.json arrives.
+  var wanted = Config.slug(new URLSearchParams(location.search).get('board') || '');
+  var BOARD = (wanted && Config.RESERVED.indexOf(wanted) < 0) ? wanted : Config.boards()[0].id;
+  var KEY = Config.boardKey(BOARD);
+  var PROJ_KEY = KEY + '.projects';
   var PRI_RANK = { high: 0, medium: 1, low: 2 };
   var COLS = ['todo', 'doing', 'done', 'later', 'bucket'];
   var DEFAULT_PROJECTS = Config.projectNames();
-  var KNOWN_TAGS = (Config.get('runway.tags') || []).slice();
+  var KNOWN_TAGS = (Config.get('board.tags') || []).slice();
 
-  // one-time migration from the pre-open-source keys
-  Store.migrate('anshuli.runway.v2', KEY);
-  Store.migrate('anshuli.runway.projects.v1', PROJ_KEY);
+  // one-time migrations: open-source v1 keys, then the pre-open-source keys
+  if (BOARD === 'runway') {
+    Store.migrate('marathon.runway.v3', KEY) || Store.migrate('anshuli.runway.v2', KEY);
+    Store.migrate('marathon.runway.projects', PROJ_KEY) || Store.migrate('anshuli.runway.projects.v1', PROJ_KEY);
+  }
 
   /* ---- projects (user-extendable) ------------------------------------ */
   function loadCustomProjects() {
@@ -106,6 +115,7 @@
     fresh = true;
     var s = normalize(seed());
     Store.setJSON(KEY, s, { silent: true });
+    Store.markFresh(KEY);
     return s;
   }
   function save(opts) { Store.setJSON(KEY, state, opts); }
@@ -182,9 +192,10 @@
 
   /* ---- public API ---------------------------------------------------- */
   global.Model = {
+    BOARD: BOARD, board: function () { return Config.board(BOARD) || { id: BOARD, title: BOARD, milestones: [], focus: [], sprintLabel: 'Progress' }; },
     KEY: KEY, PROJ_KEY: PROJ_KEY, PRI_RANK: PRI_RANK, COLS: COLS, DEFAULT_PROJECTS: DEFAULT_PROJECTS, KNOWN_TAGS: KNOWN_TAGS,
     getProjects: getProjects, addProject: addProject, getCustomProjects: function () { return customProjects.slice(); }, setCustomProjects: setCustomProjects,
-    seed: seed, normalize: normalize, newId: newId, isFresh: function () { return fresh; },
+    seed: seed, normalize: normalize, newId: newId, isFresh: function () { return fresh || Store.isFresh(KEY); },
     getState: function () { return state; },
     save: save, find: find,
     add: add, del: del, update: update, setPri: setPri, move: move, moveTo: moveTo,
