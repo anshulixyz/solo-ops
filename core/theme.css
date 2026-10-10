@@ -154,3 +154,8 @@ nav[data-nav] .nav-inspo:hover{background:var(--accent-soft);}
 .inspo-pop .hint{font-size:11px; color:var(--muted); margin-top:8px; line-height:1.4;}
 .inspo-pop .thumb{max-height:120px; border-radius:8px; margin-top:8px; display:block;}
 
+
+/* "new version ready" toast (core/nav.js) */
+.update-toast{position:fixed; bottom:22px; right:22px; z-index:9300; display:flex; align-items:center; gap:10px; background:var(--panel); color:var(--ink); border:1px solid var(--accent); border-radius:12px; padding:10px 12px 10px 14px; box-shadow:var(--shadow-lift); font-family:var(--body,'Inter',sans-serif); font-size:13px;}
+.update-toast button{height:28px; padding:0 11px; border-radius:8px; border:1px solid var(--accent); background:var(--accent); color:var(--on-accent); font:inherit; font-size:12.5px; cursor:pointer;}
+.update-toast button.later{background:transparent; color:var(--muted); border-color:var(--line); padding:0 8px;}

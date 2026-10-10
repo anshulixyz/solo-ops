@@ -62,9 +62,17 @@ git clone https://github.com/<you>/solo-ops && cd solo-ops
 node serve.js          # http://localhost:4321
 ```
 
-Open it, click **Install** in the nav (Chrome/Edge/Safari 17+). It opens from
-your dock or home screen, works offline for the shell, and every change hits
-`data/` instantly. Zero dependencies; Node is only for the server and the CLI.
+Open it, click **Install** in the nav. Chrome and Edge put it in your
+Applications folder (under "Chrome Apps" on macOS) and it opens in its own
+window with a Dock icon; Safari 17+ uses File → Add to Dock. Zero
+dependencies; Node is only for the server and the CLI.
+
+**Always fresh, works offline.** Code and pages are fetched network-first, so
+a running server always serves the latest files; the service worker keeps a
+copy only as the offline fallback. `data/*.json` and the API are never
+cached. `serve.js` stamps the worker with a hash of every file's modification
+time, so each code change is a new version: open pages get a small
+"New version ready — Reload" toast, and nothing reloads under you.
 
 ## The terminal
 

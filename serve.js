@@ -52,6 +52,22 @@ function logChange(file, prevText, source, note) {
 }
 function readLog() { try { return fs.readFileSync(LOG, 'utf8').split('\n').filter(Boolean).map(function (l) { try { return JSON.parse(l); } catch (e) { return null; } }).filter(Boolean); } catch (e) { return []; } }
 
+var crypto = require('crypto');
+var versionCache = { at: 0, v: '' };
+function buildVersion() {
+  if (Date.now() - versionCache.at < 2000) return versionCache.v;
+  var h = crypto.createHash('sha1');
+  (function walk(dir) {
+    fs.readdirSync(dir).forEach(function (n) {
+      if (n === 'data' || n === '.git' || n === 'node_modules' || n[0] === '.') return;
+      var p = path.join(dir, n); var st = fs.statSync(p);
+      if (st.isDirectory()) walk(p); else if (/\.(html|js|css|json|svg|png)$/.test(n)) h.update(p + ':' + st.mtimeMs + ':' + st.size);
+    });
+  })(ROOT);
+  versionCache = { at: Date.now(), v: h.digest('hex').slice(0, 10) };
+  return versionCache.v;
+}
+
 var server = http.createServer(function (req, res) {
   var url = decodeURIComponent(req.url.split('?')[0]);
 
@@ -103,6 +119,16 @@ var server = http.createServer(function (req, res) {
       return;
     }
     return json(res, 405, { error: 'method' });
+  }
+
+  // service worker: version = hash of every shipped file's mtime, so each code
+  // change becomes a new worker and open pages learn about it
+  if (url === '/sw.js') {
+    return fs.readFile(path.join(ROOT, 'sw.js'), 'utf8', function (err, txt) {
+      if (err) return send(res, 404, 'not found', 'text/plain');
+      res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store', 'Service-Worker-Allowed': '/' });
+      res.end(txt.replace('__VERSION__', 'solo-ops-' + buildVersion()));
+    });
   }
 
   // static files

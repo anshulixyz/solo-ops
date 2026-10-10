@@ -80,7 +80,25 @@
   }
   function registerSW(root) {
     if (!('serviceWorker' in navigator) || location.protocol.indexOf('http') !== 0) return;
-    navigator.serviceWorker.register(root + 'sw.js', { scope: root }).catch(function () {});
+    var hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register(root + 'sw.js', { scope: root, updateViaCache: 'none' }).then(function (reg) {
+      // look for a newer worker whenever the page is shown again, and every 10 min
+      var check = function () { reg.update().catch(function () {}); };
+      document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') check(); });
+      setInterval(check, 10 * 60 * 1000);
+    }).catch(function () {});
+    // a new worker activated (skipWaiting + claim): offer a reload, never force it
+    navigator.serviceWorker.addEventListener('controllerchange', function () { if (hadController) updateToast(); hadController = true; });
+    navigator.serviceWorker.addEventListener('message', function (e) { if (e.data && e.data.type === 'sw-activated' && hadController) updateToast(); });
+  }
+  var toastShown = false;
+  function updateToast() {
+    if (toastShown) return; toastShown = true;
+    var t = document.createElement('div'); t.className = 'update-toast';
+    t.innerHTML = '<span>New version ready.</span><button type="button">Reload</button><button type="button" class="later" title="Reload later">×</button>';
+    t.querySelector('button').onclick = function () { location.reload(); };
+    t.querySelector('.later').onclick = function () { t.remove(); };
+    document.body.appendChild(t);
   }
   function init() {
     Config.setActiveWs(Config.activeWs());
