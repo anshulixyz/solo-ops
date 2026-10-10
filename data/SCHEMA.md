@@ -131,6 +131,29 @@ Track-changes markup: `~~removed~~`, `++added++`, `[[instruction for the AI]]`.
 `images` maps `"1"` → data URL for `[Image uploaded 1]` references; agents can
 leave it empty.
 
+## inspiration.json — the inbox (global, items tagged with a workspace)
+
+```json
+{ "items": [{ "id": "i1", "kind": "link|image|note", "title": "…", "url": "https://…", "text": "…", "image": "data:…" ,
+  "tags": ["launch"], "ws": "main", "status": "new|used|archived", "source": "ui|cli|agent|telegram",
+  "usedAs": [{ "app": "task|post|script|note", "id": "t…", "at": 0 }], "createdAt": 0, "updatedAt": 0 }] }
+```
+
+`ws` is the workspace it belongs to (empty = unsorted). "Use as…" (page) or
+`inspo use <item> --as task|post|script|note` (CLI) creates the target item and
+records it in `usedAs`. Images are data URLs; agents can ignore them.
+
+## log.jsonl — change log (append-only, one JSON object per line)
+
+```json
+{ "id": "mv2…", "ts": "2026-10-10T07:18:00.000Z", "file": "runway.json", "source": "ui|cli|agent|revert", "note": "done: Write the README", "prev": "<previous file content>", "prevBytes": 9603 }
+```
+
+Written by `node serve.js` (page writes), the CLI, agents using the CLI, and
+the linked-folder mode. `prev` is the whole previous file (skipped above
+2 MB), which is what `revert <id>` restores. Capped at the last 400 entries.
+Never edit by hand; never commit (it is in `.gitignore` via `data/*`).
+
 ## settings.json — theme
 
 ```json

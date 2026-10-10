@@ -33,6 +33,7 @@
   var cfg = (global.Config && Config.get('sync')) || { pollMs: 3000 };
   var fsSupported = typeof global.showDirectoryPicker === 'function';
   var listeners = [];
+  var lastNote = {};                            // file → short description of the latest local change
 
   function meta() { return Store.getJSON(META_KEY, {}); }
   function setMeta(file, updatedAt) {
@@ -96,7 +97,7 @@
     });
   }
   function serverWrite(file, obj) {
-    return fetch('/api/data/' + file, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj, null, 2) })
+    return fetch('/api/data/' + file, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Marathon-Source': 'ui', 'X-Marathon-Note': (lastNote[file] || '').slice(0, 120) }, body: JSON.stringify(obj, null, 2) })
       .then(function (r) { if (!r.ok) throw new Error('write failed'); });
   }
   function staticRead(file) {
@@ -146,8 +147,18 @@
     return dataDir.getFileHandle(file).then(function (fh) { return fh.getFile(); })
       .then(function (f) { return f.lastModified !== lastSeen[file]; }).catch(function () { return false; });
   }
+  // folder mode keeps the same data/log.jsonl the server and CLI use
+  function folderLog(file, prevText) {
+    if (/^(activity|log)\.json$/.test(file)) return Promise.resolve();
+    var rec = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ts: now(), file: file, source: 'ui', note: (lastNote[file] || '').slice(0, 120), prev: prevText && prevText.length <= 2 * 1024 * 1024 ? prevText : null, prevBytes: prevText ? prevText.length : 0 };
+    return dataDir.getFileHandle('log.jsonl', { create: true }).then(function (fh) { return fh.getFile().then(function (f) { return f.text(); }).then(function (t) {
+      var lines = t.split('\n').filter(Boolean); lines.push(JSON.stringify(rec)); if (lines.length > 400) lines = lines.slice(lines.length - 400);
+      return fh.createWritable().then(function (w) { return w.write(lines.join('\n') + '\n').then(function () { return w.close(); }); });
+    }); }).catch(function () {});
+  }
   function folderWrite(file, obj) {
-    return dataDir.getFileHandle(file, { create: true }).then(function (fh) { return fh.createWritable(); }).then(function (w) {
+    var prevP = dataDir.getFileHandle(file).then(function (fh) { return fh.getFile(); }).then(function (f) { return f.text(); }).catch(function () { return ''; });
+    return prevP.then(function (prev) { return folderLog(file, prev); }).then(function () { return dataDir.getFileHandle(file, { create: true }); }).then(function (fh) { return fh.createWritable(); }).then(function (w) {
       return w.write(JSON.stringify(obj, null, 2) + '\n').then(function () { return w.close(); });
     }).then(function () { return dataDir.getFileHandle(file).then(function (fh) { return fh.getFile(); }); })
       .then(function (f) { lastSeen[file] = f.lastModified; });
@@ -351,6 +362,11 @@
     // app's key, e.g. Home's Start blank, call this so the file is overwritten
     // instead of winning on first contact)
     touch: function (file) { setMeta(file, now()); },
+    // describe the latest local change so the log can show "done: Write the README"
+    note: function (file, text) { lastNote[file] = text || ''; },
+    // change log (server mode only in the browser; the CLI covers every mode)
+    log: function (n) { if (mode !== 'server') return Promise.resolve(null); return fetch('/api/log?n=' + (n || 20), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); },
+    revert: function (id) { if (mode !== 'server') return Promise.resolve(false); return fetch('/api/revert/' + id, { method: 'POST' }).then(function (r) { return r.ok; }).then(function (ok) { if (ok) return pullAll(false).then(function () { return true; }); return false; }); },
     // read a data file without registering (used by the hub); null when unavailable
     peek: function (file) { return readFile(file).catch(function () { return null; }); },
     ready: function () { return ready; },

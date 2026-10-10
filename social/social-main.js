@@ -11,6 +11,7 @@
   }
 
   function flash(msg) {
+    if (global.Sync) Sync.note(Config.file('social'), msg);
     var el = document.getElementById('flash');
     if (!el) return;
     el.textContent = msg;

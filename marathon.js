@@ -47,10 +47,23 @@ function fileOf(name) { return path.join(DATA, name + '.json'); }
 function read(name) {
   try { return JSON.parse(fs.readFileSync(fileOf(name), 'utf8')); } catch (e) { return null; }
 }
+var LOG = path.join(DATA, 'log.jsonl');
+var LOG_MAX = 400, SNAP_MAX = 2 * 1024 * 1024;
+var SOURCE = (flags.as && ['agent', 'cli', 'ui'].indexOf(String(flags.as)) >= 0) ? String(flags.as) : (process.env.MARATHON_AGENT ? 'agent' : 'cli');
+function logChange(file, prevText, note) {
+  var rec = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ts: new Date().toISOString(), file: file, source: SOURCE, note: note || flags.note || (cmd + ' ' + pos.join(' ')).trim().slice(0, 120),
+    prev: prevText && prevText.length <= SNAP_MAX ? prevText : null, prevBytes: prevText ? prevText.length : 0 };
+  var lines = []; try { lines = fs.readFileSync(LOG, 'utf8').split('\n').filter(Boolean); } catch (e) { /* new */ }
+  lines.push(JSON.stringify(rec)); if (lines.length > LOG_MAX) lines = lines.slice(lines.length - LOG_MAX);
+  fs.writeFileSync(LOG, lines.join('\n') + '\n'); return rec;
+}
+function readLog() { try { return fs.readFileSync(LOG, 'utf8').split('\n').filter(Boolean).map(function (l) { try { return JSON.parse(l); } catch (e) { return null; } }).filter(Boolean); } catch (e) { return []; } }
 function write(name, body, opts) {
   body.version = 1; body.updatedAt = new Date().toISOString();
   fs.mkdirSync(DATA, { recursive: true });
-  fs.writeFileSync(fileOf(name), JSON.stringify(body, null, 2) + '\n');
+  var text = JSON.stringify(body, null, 2) + '\n';
+  if (name !== 'activity' && !(opts && opts.noLog)) { var prev = ''; try { prev = fs.readFileSync(fileOf(name), 'utf8'); } catch (e) { /* new */ } if (prev !== text) logChange(name + '.json', prev); }
+  fs.writeFileSync(fileOf(name), text);
   if (!(opts && opts.noActivity) && ['activity', 'boards', 'workspaces', 'settings'].indexOf(name) < 0) logActivity(name);
   return body;
 }
@@ -434,6 +447,53 @@ function libCmd(name, key, label, mk) {
 var cmdScripts = libCmd('scripts', 'scripts', 'script', function (text) { return { id: newId('s'), title: titleOf(text), text: text, createdAt: Date.now(), updatedAt: Date.now() }; });
 var cmdNotes = libCmd('writing', 'notes', 'note', function (text) { return { id: newId('n'), text: text, images: {}, createdAt: Date.now(), updatedAt: Date.now() }; });
 
+/* ---- inspiration --------------------------------------------------------- */
+function inspo() { var d = read('inspiration'); return d && Array.isArray(d.items) ? d : { items: [] }; }
+function parseQuick(text, extra) {
+  text = String(text || '').trim(); var tags = [];
+  text = text.replace(/(^|\s)#([\w-]+)/g, function (_, sp, t) { tags.push(t.toLowerCase()); return sp; }).trim();
+  var m = text.match(/https?:\/\/\S+/); var it = Object.assign({ id: newId('i'), tags: tags, ws: '', status: 'new', source: SOURCE, usedAs: [], createdAt: Date.now(), updatedAt: Date.now(), image: '' }, extra || {});
+  if (m) { it.kind = 'link'; it.url = m[0]; var rest = text.replace(m[0], '').trim(); it.title = rest.split('\n')[0].slice(0, 80) || m[0].replace(/^https?:\/\//, '').split('/')[0]; it.text = rest.split('\n').slice(1).join('\n'); }
+  else { it.kind = 'note'; it.url = ''; var lines = text.split('\n'); it.title = lines[0].slice(0, 80); it.text = lines.slice(1).join('\n').trim(); }
+  return it;
+}
+function inspoLine(x) { return '- [' + x.id + '] ' + (x.title || x.url || 'untitled') + (x.url ? ' · ' + x.url : '') + (x.tags.length ? ' · #' + x.tags.join(' #') : '') + (x.ws ? ' · ' + x.ws : '') + ' · ' + x.status + ' · ' + x.source; }
+function cmdInspo() {
+  var sub = (pos.shift() || 'list').toLowerCase(); var d = inspo();
+  if (sub === 'list') {
+    var items = d.items.filter(function (x) { return (!flags.ws || x.ws === WS_ID) && (flags.status ? x.status === flags.status : x.status !== 'archived') && (!flags.tag || x.tags.indexOf(flags.tag) >= 0); });
+    return out(['## Inspiration (' + items.length + ')'].concat(items.length ? items.map(inspoLine) : ['_empty — inspo add "https://… #tag" or a note_']), items);
+  }
+  if (sub === 'show') { var x = find(d.items, pos.join(' '), 'inspiration item'); return out(['# ' + (x.title || x.url), '', x.url ? x.url + '\n' : '', x.text || '', '', 'tags: ' + x.tags.join(', ') + ' · workspace: ' + (x.ws || '—') + ' · ' + x.status + ' · ' + x.source].filter(function (l) { return l !== undefined; }), x); }
+  if (sub === 'add') {
+    var text = pos.join(' ').trim() || flags.text; if (!text) fail('Usage: inspo add "https://… or an idea #tag" [--ws <id>] [--tags a,b] [--title "…"]');
+    var it = parseQuick(text, { ws: flags.ws ? WS_ID : '' }); if (flags.title) it.title = flags.title; if (flags.tags) it.tags = it.tags.concat(split(flags.tags).map(function (t) { return t.toLowerCase(); }));
+    d.items.unshift(it); write('inspiration', d); return out('✓ Saved [' + it.id + '] ' + (it.title || it.url) + (it.ws ? ' → ' + it.ws : '') + (it.tags.length ? ' #' + it.tags.join(' #') : ''), it);
+  }
+  if (sub === 'tag') { var xt = find(d.items, pos.filter(function (p) { return !/^[+-]/.test(p); }).join(' '), 'inspiration item'); pos.filter(function (p) { return /^[+-]/.test(p); }).forEach(function (o) { var t = o.slice(1).toLowerCase(); if (o[0] === '+' && xt.tags.indexOf(t) < 0) xt.tags.push(t); if (o[0] === '-') xt.tags = xt.tags.filter(function (y) { return y !== t; }); }); xt.updatedAt = Date.now(); write('inspiration', d); return out('✓ [' + xt.id + '] #' + xt.tags.join(' #'), xt); }
+  if (sub === 'ws') { var xw = find(d.items, pos.slice(0, -1).join(' ') || pos[0], 'inspiration item'); xw.ws = slug(pos[pos.length - 1]); xw.updatedAt = Date.now(); write('inspiration', d); return out('✓ [' + xw.id + '] → workspace ' + xw.ws, xw); }
+  if (sub === 'archive' || sub === 'unarchive') { var xa = find(d.items, pos.join(' '), 'inspiration item'); xa.status = sub === 'archive' ? 'archived' : 'new'; xa.updatedAt = Date.now(); write('inspiration', d); return out('✓ [' + xa.id + '] ' + xa.status, xa); }
+  if (sub === 'rm') { var xr = find(d.items, pos.join(' '), 'inspiration item'); d.items = d.items.filter(function (y) { return y.id !== xr.id; }); write('inspiration', d); return out('✓ Deleted [' + xr.id + '] ' + (xr.title || xr.url), xr); }
+  if (sub === 'use') {
+    var as = (flags.as && ['task', 'post', 'script', 'note'].indexOf(flags.as) >= 0) ? flags.as : (flags.task ? 'task' : flags.post ? 'post' : flags.script ? 'script' : flags.note ? 'note' : null);
+    if (!as) fail('Usage: inspo use <item> --as task|post|script|note [--ws <id>] [--board <id>]');
+    var xu = find(d.items, pos.join(' '), 'inspiration item'); var title = xu.title || xu.url || 'From inspiration'; var body = [xu.url, xu.text].filter(Boolean).join('\n'); var created;
+    if (as === 'task') { var b = board(); var t = { id: newId('t'), title: title, desc: body, proj: ((cfg.projects || [])[0] || {}).name || 'general', col: 'todo', pri: 'medium', tags: xu.tags.slice(), notes: 'From inspiration ' + xu.id, collapsed: true, checklist: [] }; b.tasks.unshift(t); saveBoard(b); created = t.id + ' on ' + BOARD_ID; }
+    else if (as === 'post') { var s2 = schedule(); var np = { id: newId('p'), datetime: parseWhen(flags.at), title: title, postType: 'update', format: 'text', project: ((cfg.projects || [])[0] || {}).name || 'general', copy: body, video: { title: '', status: 'none', notes: '', link: '' }, links: xu.url ? [{ id: newId('l'), label: xu.title, url: xu.url, kind: 'reference' }] : [], assets: [], prep: [], notes: 'From inspiration ' + xu.id, status: 'draft', posted: { url: '', postedAt: '', stats: {}, notes: '', screenshotId: '' } }; s2.posts.push(np); write(fileName('social'), s2); created = np.id; }
+    else if (as === 'script') { var sc = scripts(); var si = { id: newId('s'), title: title, text: '# ' + title + '\n\n## Hook\n\n## Script\n1. \n\n## Inserts\n' + (body ? '\n## Source\n' + body + '\n' : ''), createdAt: Date.now(), updatedAt: Date.now() }; sc.scripts.unshift(si); sc.activeId = si.id; write(fileName('scripts'), sc); created = si.id; }
+    else { var nn = notes(); var ni = { id: newId('n'), text: '# ' + title + '\n\n' + body + '\n\n[[AI: turn this into a draft]]\n', images: {}, createdAt: Date.now(), updatedAt: Date.now() }; nn.notes.unshift(ni); nn.activeId = ni.id; write(fileName('writing'), nn); created = ni.id; }
+    xu.usedAs.push({ app: as, id: created, at: Date.now() }); xu.status = 'used'; xu.updatedAt = Date.now(); write('inspiration', d);
+    return out('✓ [' + xu.id + '] → ' + as + ' ' + created + ' in ' + WS_ID, { item: xu.id, as: as, created: created });
+  }
+  if (sub === 'ai' || sub === 'brainstorm') {
+    var sel = d.items.filter(function (x) { return x.status !== 'archived' && (!flags.ws || x.ws === WS_ID); }).slice(0, parseInt(flags.n, 10) || 20);
+    var lines = ['# Inspiration → ' + (flags.into || 'next steps'), '', 'Workspace: ' + WS.title + ' (' + WS_ID + '). Turn the items below into concrete ' + (flags.into || 'next steps') + '.', 'Give me back `node marathon.js …` commands I can run, or a short list I can paste. Keep titles short.', ''];
+    sel.forEach(function (x, i) { lines.push('## ' + (i + 1) + '. ' + (x.title || x.url) + (x.tags.length ? '  #' + x.tags.join(' #') : '')); if (x.url) lines.push(x.url); if (x.text) lines.push(x.text); lines.push(''); });
+    return out(lines, sel);
+  }
+  fail('Unknown inspo command "' + sub + '". Try: list, show, add, tag, ws, use, archive, rm, ai');
+}
+
 /* ---- boards -------------------------------------------------------------- */
 function cmdBoards() {
   var sub = (pos.shift() || 'list').toLowerCase();
@@ -495,6 +555,22 @@ function cmdWorkspaces() {
   if (sub === 'rm') { var rid = slug(pos.shift()); if (!rid) fail('Usage: workspaces rm <id>'); if (WORKSPACES.length < 2) fail('Keep at least one workspace.'); rt.workspaces = rt.workspaces.filter(function (w) { return slug(w.id || w.title) !== rid; }); write('workspaces', rt); return out('✓ Workspace [' + rid + '] removed (its data/' + rid + '-*.json files are kept)', { id: rid }); }
   fail('Unknown workspaces command "' + sub + '". Try: list, add, rename, rm');
 }
+function cmdLog() {
+  var n = parseInt(flags.n || pos[0], 10) || 30; var recs = readLog().slice(-n).reverse();
+  out(['# Recent changes (' + recs.length + ')', ''].concat(recs.length ? recs.map(function (r) {
+    return '- `' + r.id + '` ' + r.ts.replace('T', ' ').slice(0, 16) + ' · ' + r.source + ' · ' + r.file + (r.note ? ' · ' + r.note : '') + (r.prev == null ? ' · (no snapshot)' : '');
+  }) : ['_nothing logged yet — changes made through node serve.js, the CLI and agents land here_']), recs.map(function (r) { return { id: r.id, ts: r.ts, file: r.file, source: r.source, note: r.note, canRevert: r.prev != null }; }));
+}
+function cmdRevert() {
+  var id = pos[0]; if (!id) fail('Usage: revert <log id>   (ids from: node marathon.js log)');
+  var rec = readLog().filter(function (r) { return r.id === id; })[0];
+  if (!rec) fail('No log entry "' + id + '".'); if (rec.prev == null) fail('Entry ' + id + ' has no snapshot (file was new or too large).');
+  var target = fileOf(rec.file.replace(/\.json$/, '')); var cur = ''; try { cur = fs.readFileSync(target, 'utf8'); } catch (e) { /* none */ }
+  logChange(rec.file, cur, 'revert of ' + id);
+  var restored = rec.prev; try { var o = JSON.parse(rec.prev); o.updatedAt = new Date().toISOString(); restored = JSON.stringify(o, null, 2) + '\n'; } catch (e) { /* raw */ }
+  fs.writeFileSync(target, restored);
+  out('✓ Reverted data/' + rec.file + ' to how it was before ' + rec.ts.replace('T', ' ').slice(0, 16) + ' (' + rec.source + (rec.note ? ': ' + rec.note : '') + ')', { file: rec.file });
+}
 function cmdActivity() {
   var s = activitySummary(); var a = read('activity') || { days: {} };
   var days = Object.keys(a.days || {}).sort().slice(-14);
@@ -504,15 +580,14 @@ function cmdActivity() {
 /* ---- template / theme / config / serve ----------------------------------- */
 function cmdTemplate() {
   if (!T) fail('core/templates.js not found.');
-  var which = (pos[0] || 'all').toLowerCase(); var all = ['board', 'social', 'scripts', 'writing', 'settings'];
+  var which = (pos[0] || 'all').toLowerCase(); var all = ['board', 'social', 'scripts', 'writing', 'inspiration', 'settings'];
   if (which === 'runway') which = 'board';
   var targets = which === 'all' ? all : [which]; if (targets.some(function (t) { return all.indexOf(t) < 0; })) fail('Usage: template [board|social|scripts|writing|settings|all] [--board id] [--force]');
   var done = [];
   targets.forEach(function (t) {
-    var name = t === 'board' ? boardFile() : fileName(t === 'settings' ? 'settings' : t);
-    if (t === 'settings') name = 'settings';
+    var name = t === 'board' ? boardFile() : (t === 'settings' || t === 'inspiration') ? t : fileName(t);
     if (fs.existsSync(fileOf(name)) && !flags.force) { done.push('- data/' + name + '.json exists — skipped (use --force to overwrite)'); return; }
-    var body = t === 'board' ? T.runway() : t === 'social' ? T.social(new Date()) : t === 'scripts' ? T.scripts(new Date()) : t === 'writing' ? T.writing(new Date()) : T.settings();
+    var body = t === 'board' ? T.runway() : t === 'social' ? T.social(new Date()) : t === 'scripts' ? T.scripts(new Date()) : t === 'writing' ? T.writing(new Date()) : t === 'inspiration' ? T.inspiration(new Date()) : T.settings();
     write(name, body, { noActivity: true }); done.push('- wrote data/' + name + '.json (sample content)');
   });
   out(done, { written: targets });
@@ -538,16 +613,19 @@ function cmdConfig() {
 function cmdServe() { require('child_process').spawn(process.execPath, [path.join(ROOT, 'serve.js')].concat(flags.port ? ['--port', String(flags.port)] : []), { stdio: 'inherit' }); }
 function cmdHelp() {
   out(['# marathon.js — tasks, posts, scripts and notes from the terminal', '',
-    'Overviews', '  today                      what is in play now + idle reminder', '  week [--days 7]            tasks by priority + posts + studio for the window', '  review                     same as week', '  activity                   streak + last 14 days', '',
+    'Overviews', '  today                      what is in play now + idle reminder',
+    '  log [--n 30]               recent changes by page / cli / agent, with ids', '  revert <id>                restore a file to how it was before that change', '  week [--days 7]            tasks by priority + posts + studio for the window', '  review                     same as week', '  activity                   streak + last 14 days', '',
     'Workspaces (one project = its own boards, schedule, scripts, notes; add --ws <id> to any command)', '  workspaces list', '  workspaces add "Title" [--apps social,scripts,writing] [--boards "A,B"] [--sample]   workspaces rename <id> "Title"   workspaces rm <id>', '',
     'Boards (data/<id>.json — every task command takes --board <id>; default: first board)', '  boards list', '  boards add "Title" [--from blank|sample|<id>]   boards rename <id> "Title"   boards rm <id> --force', '',
     'Tasks', '  list [board|all|todo|doing|done|later|bucket] [--proj X] [--tag Y]', '  show <task>                 full task (id or title fragment)',
     '  add "Title" [--proj X] [--pri high] [--tags a,b] [--col later] [--desc "…"] [--steps "a|b"]', '  start|done|later|bucket|todo <task>', '  move <task> <column>        pri <task> <high|medium|low>', '  tag <task> +a -b            step <task> "text"   check|uncheck <task> <n>', '  note <task> ["text"]        edit <task> --title … --proj … --pri …', '  rm <task>', '',
     'Share', '  share [todo|board|all]      markdown checklist (paste anywhere)', '  import <list.md> [--col]    "- [ ] item" lines become tasks, indented lines become steps', '',
     'Posts (data/social.json)', '  social list|next|week|show <post>', '  social add "Title" [--at 2026-10-20T09:00 | +3d 17:30] [--type launch] [--project X] [--copy "…"] [--prep "a|b"]', '  social posted|ready|draft <post> [--url …]   social move <post> <when>', '  social prep <post> "item"   social check <post> <n>   social copy <post> ["text"]   social rm <post>', '',
+    'Inspiration (data/inspiration.json — links, ideas, images; tag with a workspace)', '  inspo list [--ws] [--tag x] [--status new|used|archived]   inspo show <item>', '  inspo add "https://… or an idea #tag" [--ws <id>] [--tags a,b]   inspo tag <item> +a -b   inspo ws <item> <workspace>', '  inspo use <item> --as task|post|script|note [--ws] [--board]   inspo ai [--into tasks] (prompt to paste into an AI)   inspo archive|rm <item>', '',
     'Studio (data/scripts.json, data/writing.json)', '  scripts list|show <s>|add "Title" [--file x.md]|rm <s>', '  notes list|show <n>|add "Title" [--file x.md]|rm <n>', '',
     'Setup', '  template [all|board|social|scripts|writing|settings] [--board id] [--force]', '  theme [show|list|set <warm|paper|forest|dusk|mono>|mode <auto|light|dark>]', '  config                     show marathon.config.js summary', '  serve [--port 4321]        start the local server (pages write data/ directly)', '',
-    'Add --json to any command for machine-readable output. Ids: tasks t…, posts p…, scripts s…, notes n….'], null);
+    'Add --json to any command for machine-readable output. Ids: tasks t…, posts p…, scripts s…, notes n….',
+    'Agents: add --as agent (and --note "why") so the change log attributes the edit to you.'], null);
 }
 
 /* ---- dispatch ------------------------------------------------------------ */
@@ -560,7 +638,7 @@ var commands = {
   share: cmdShare, import: cmdImport,
   social: cmdSocial, post: cmdSocial, posts: cmdSocial,
   scripts: cmdScripts, script: cmdScripts, notes: cmdNotes,
-  boards: cmdBoards, board: cmdBoards, activity: cmdActivity, workspaces: cmdWorkspaces, workspace: cmdWorkspaces, ws: cmdWorkspaces,
+  inspo: cmdInspo, inspiration: cmdInspo, boards: cmdBoards, board: cmdBoards, activity: cmdActivity, log: cmdLog, history: cmdLog, revert: cmdRevert, undo: cmdRevert, workspaces: cmdWorkspaces, workspace: cmdWorkspaces, ws: cmdWorkspaces,
   template: cmdTemplate, theme: cmdTheme, config: cmdConfig, serve: cmdServe
 };
 var fn = commands[cmd];

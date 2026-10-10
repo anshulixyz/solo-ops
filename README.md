@@ -1,140 +1,145 @@
-# Marathon
+<p align="center"><img src="icons/icon.svg" width="72" alt="Marathon"></p>
 
-Solo founder ops, in plain files. **Boards** (as many kanbans as you need:
-launch, business as usual, a side project), a **social posting schedule**, a
-**script viewer** with teleprompter, a **writing viewer** with track changes,
-and a **Home** that shows your streak, what is in play, and nudges you when
-nothing has moved. No install, no account, no server required — and everything
-is **native to agents**: your tasks live in JSON files that Claude, ChatGPT,
-Claude Code or a cron job can read and update without you clicking anything.
+<h1 align="center">Marathon</h1>
+<p align="center"><b>Solo founder ops, in plain files.</b><br>
+Boards · posting schedule · video scripts · drafts · inspiration inbox — local, installable, and native to your AI.</p>
 
-**Workspaces.** One workspace = one project. Each picks the apps it uses
-(boards, schedule, scripts, writing) and gets its own data files, blank or
-with sample content. A launch workspace might use everything; a side project
-only scripts and writing. The top nav on every page shows exactly what the
-active workspace includes. Create them from Home (**+ Workspace**), the CLI
-(`workspaces add`), or list them in `marathon.config.js`.
+---
+
+Marathon is for people shipping things alone: the indie hacker juggling a
+launch, a side project and "business as usual"; the creator with a posting
+calendar and a pile of half-written scripts. It gives you the five tools you
+actually use, keeps everything in **JSON files on your machine**, and makes
+those files the thing your **AI agent** reads and updates — so you stop
+re-typing your to-do list into ChatGPT.
 
 ```
-node marathon.js week          # terminal on the left…
+$ node marathon.js week
+# Next 7 days · Oct 10 → Oct 17
+Last activity 2 h ago · streak 6 days
+**Launch:** 4/11 done (36%)   **Business as usual:** 2/5 done
+## Doing (2)
+- [t3] Record a 60-second demo · content · high · 1/4 steps
+…
 ```
-…and the board on the right updates by itself.
+…and the board in your browser updates by itself.
 
-## Two ways to run it
+## Why it is different
 
-**Non-technical:** download the folder, double-click `index.html`. Everything
-works from `file://`. In Chrome or Edge, click **Link folder** once and the pages
-write `data/*.json` directly; elsewhere use **Save file / Load file**.
+| | Marathon |
+|---|---|
+| **Where your data lives** | `data/*.json` in a folder you own. No account, no server, no sync service. |
+| **How your AI uses it** | It reads the same files. Paste `AGENTS.md` into Claude, ChatGPT or Claude Code and it knows the schema and the CLI. Every agent change is logged and revertable. |
+| **How you use it without clicking** | `node marathon.js today / week / add / done / social next / inspo add …` |
+| **How non-technical people use it** | Download, double-click `index.html`. Or `node serve.js` and click **Install** to get it as an app. |
+| **How many projects** | As many **workspaces** as you like, each with its own boards, schedule, scripts and notes — and a Home that shows all of them at once. |
 
-**Technical:**
+## The apps
+
+| | What it does |
+|---|---|
+| **Home** | Helicopter view: activity streak + heatmap, idle reminder with a suggested next step, every project with its stats, tasks and posts in play across all projects, inspiration inbox, recent changes with revert. |
+| **Boards** | Kanban: To Do / Doing / Done, a Later parking lot, a Bucket List for ideas. Checklists, priority, project chips, tags, notes, drag & drop. One file per board; create boards blank, from the sample sprint, or as a copy. |
+| **Social Schedule** | A posting arc: date, copy, type, prep checklist, images, video status; mark posted and log engagement. Calendar with a 52-week streak heatmap. |
+| **Script Viewer** | Reels/shorts scripts: hook, numbered beats, inserts, prep. Reader view, 9:16 preview, teleprompter. A library of scripts. |
+| **Writing Viewer** | Drafts with `~~cuts~~`, `++adds++` and `[[notes for the AI]]`. Copy for AI, copy clean, change log view, images. |
+| **Inspiration** | An inbox for anything worth keeping: links, ideas, screenshots. Tag it with a workspace, then **Use as** task / post / script / draft, or **Brainstorm with AI** (copies the items plus instructions to paste into your chat). `⌘⇧I` or the **+ Inspo** button on any page. |
+
+Every page has a **⌘K command palette** with the same verbs as the CLI, a
+**theme picker** (auto/light/dark × five palettes) and a **sync pill** that
+tells you where your data is.
+
+## Install
+
+**Just open it.** Download or clone, double-click `index.html`. Everything
+works from `file://`. In Chrome/Edge, click **Link folder** once and the pages
+write `data/*.json` directly; elsewhere use **File → Save / Load**.
+
+**As an app (recommended).**
 
 ```bash
-git clone <this repo> marathon && cd marathon
-node serve.js            # → http://localhost:4321 — pages write data/ instantly
-node marathon.js week    # the same data from the terminal
+git clone https://github.com/<you>/marathon && cd marathon
+node serve.js          # http://localhost:4321
 ```
 
-Zero dependencies. Node is only needed for the server and the CLI; the pages
-themselves are plain HTML + CSS + classic JavaScript.
+Open it, click **Install** in the nav (Chrome/Edge/Safari 17+). It opens from
+your dock or home screen, works offline for the shell, and every change hits
+`data/` instantly. Zero dependencies; Node is only for the server and the CLI.
 
-## What is inside
-
-| App | Open | Data (first workspace; others prefix `<ws>-`) |
-|-----|------|------|
-| Home — activity streak, idle reminder, every board's progress, what is in play | `index.html?ws=<id>` | reads all of the below |
-| Boards — kanban (To Do / Doing / Done + Later + Bucket List), one file per board | `runway/marathon-board.html?ws=<id>&board=<id>` | `data/<board>.json` |
-| Social Schedule — posting arc, prep, calendar, streak | `social/social-board.html?ws=<id>` | `data/social.json` |
-| Script Viewer — hooks, beats, inserts, teleprompter | `studio/script-viewer.html?ws=<id>` | `data/scripts.json` |
-| Writing Viewer — `~~cuts~~` `++adds++` `[[notes for AI]]` | `studio/writing-viewer.html?ws=<id>` | `data/writing.json` |
-
-**Boards are instances.** The first one is called "Launch Runway" in the
-sample config — rename it to "To do", "Kanban", whatever you call it. Create
-another from the board page (**+ Board**) or the CLI: blank, from the sample
-sprint, or as a copy of an existing board. Each gets its own `data/<id>.json`,
-its own progress bar on Home, and `--board <id>` in the CLI.
-
-**Activity.** Every change on any page or from the CLI is logged per day in
-`data/activity.json`. Home shows the streak, a 12-week heatmap, when each app
-was last touched, and turns amber with a suggested next step after
-`activity.reminderAfterHours` idle hours (default 24). `node marathon.js today`
-prints the same reminder, so a cron job can nag you.
-
-Every page has a **⌘K / Ctrl-K command palette** with the same verbs as the CLI
-(`add …`, `done …`, `move … later`, `theme`), a **theme picker** (light / dark /
-auto × five palettes), and a **sync pill** that tells you where your data is.
-
-## Talk to it from the terminal
+## The terminal
 
 ```bash
-node marathon.js today                         # doing + high priority + posts due + idle reminder
-node marathon.js week                          # the next 7 days: every board, posts, studio
-node marathon.js boards add "Business as usual" --from sample   # or blank, or --from runway (copy)
-node marathon.js week --board business-as-usual
-node marathon.js workspaces add "Side project" --apps scripts,writing --sample
-node marathon.js week --ws side-project
+node marathon.js today                          # in play now + idle reminder
+node marathon.js week --ws launch --days 14     # a project, a longer window
 node marathon.js add "Write the launch post" --proj launch --pri high --tags content --steps "Outline|Draft"
-node marathon.js start "launch post"           # by id or title fragment
-node marathon.js done t5
-node marathon.js move t11 later
-node marathon.js share todo                    # markdown checklist to paste anywhere
-node marathon.js import list.md                # "- [ ] item" lines become tasks
-node marathon.js social next
-node marathon.js social add "Launch day" --at +3d 9:00 --type launch
-node marathon.js social posted p4 --url https://x.com/…
-node marathon.js scripts add "Teaser" --file teaser.md
-node marathon.js theme set dusk
+node marathon.js start "launch post" ; done t5 ; move t11 later ; check t5 2
+node marathon.js social add "Launch day" --at +3d 9:00 --type launch ; social next ; social posted p4 --url …
+node marathon.js scripts add "Teaser" --file teaser.md ; notes list
+node marathon.js inspo add "https://… worth stealing #launch" --ws launch
+node marathon.js inspo use "worth stealing" --as task
+node marathon.js boards add "Business as usual" --from sample
+node marathon.js workspaces add "Side project" --apps scripts,writing --sample
+node marathon.js share todo | pbcopy            # markdown checklist, anywhere
+node marathon.js import list.md                 # "- [ ] item" lines → tasks
+node marathon.js log ; node marathon.js revert <id>
 node marathon.js help
 ```
 
-Add `--json` to anything for machine-readable output.
+`--json` on anything for machine output. `--ws <id>` and `--board <id>` scope
+any command.
 
-## Let your agent run it
+## Your AI runs it
 
-Marathon is designed so an AI agent can manage it end to end:
-
-- **Claude Code / any coding agent:** open the folder. `AGENTS.md` (and
-  `CLAUDE.md`) tell it where the data lives, the schema, and the CLI. Ask
-  "what should I do this week?" or "add the three tasks from this email".
+- **Claude Code / Cursor / any coding agent:** open the folder. `AGENTS.md`
+  (and `CLAUDE.md`) is the contract: files, schema, CLI, conventions. Ask
+  "what should I do this week?", "turn my inspiration into tasks", "draft the
+  three posts for launch week".
 - **Claude.ai / ChatGPT (no file access):** paste `prompts/agent-bootstrap.md`
-  once, then paste `node marathon.js week --json` output or a data file. It
-  hands you back CLI commands or an updated JSON file.
-- **Scheduled nudges:** `node marathon.js today` in a cron job, a Claude
-  scheduled task, or a Shortcut — pipe it anywhere you read in the morning.
+  once. Then paste `node marathon.js week --json` or an inspiration dump; you
+  get back CLI commands or a file to save.
+- **Every agent change is logged** with `source: agent` and a note. Home →
+  Recent changes shows it; one click reverts it. `node marathon.js log` from
+  the terminal.
+- **Scheduled nudges:** `node marathon.js today` in cron, a Claude scheduled
+  task or a Shortcut. It prints the idle reminder too.
+- **Telegram** (planned, design in `docs/telegram.md`): `/add`, `/done`,
+  `/next` and "just send me the link" into the inbox from your phone.
 
 ## Make it yours
 
-Everything configurable is in **`marathon.config.js`**: name, workspaces (or
-just which apps and boards the default one uses), board titles, milestones
-and focus cards, projects (with colors), tags, post types, prep kinds,
-idle-reminder hours, default theme.
-Sample content ships in `data/`; replace it from the hub (**Start blank**),
-with `node marathon.js template --force`, or just start adding.
-
-Keeping your real tasks private in a fork? Uncomment `data/` in `.gitignore`.
+`marathon.config.js` holds the name, workspaces (or just the apps and boards
+of the default one), projects with colors, tags, post types, prep kinds,
+milestones and focus cards, idle-reminder hours and default theme. Workspaces
+and boards can also be created from Home or the CLI; sample content ships in
+`data/` and only those five files are tracked by git — everything else you
+create stays private.
 
 ## How sync works
 
-`localStorage` is the browser's working copy; `data/*.json` is the source of
-truth that agents and the CLI see. Each file carries `updatedAt`; the newer side
-wins. Served (`node serve.js`) and linked-folder modes write on every change and
-poll for outside edits every few seconds. Details: `data/SCHEMA.md`,
+The browser keeps a working copy in `localStorage`; `data/*.json` is the
+source of truth agents and the CLI see. Each file carries `updatedAt`; the
+newer side wins. Served and linked-folder modes write on every change and
+poll for outside edits every few seconds. On first contact sample data yields
+to the file, registries merge, and real content on both sides asks you — the
+losing side is downloaded as a backup either way. Details: `data/SCHEMA.md`,
 `core/sync.js`.
 
 ## Layout
 
 ```
-index.html            hub
-marathon.config.js    your settings (plain JS, read by pages and CLI)
-marathon.js           CLI (node, zero deps)
-serve.js              local server + write API (node, zero deps)
-core/                 shared: store, config, theme, sync, activity, nav, palette, templates
-data/                 your data: per workspace one file per board + social, scripts, writing; plus boards, workspaces, activity, settings; SCHEMA.md
-runway/ social/ studio/   the apps (classic scripts, file:// safe)
-prompts/              bootstrap prompt for chat agents
-.claude/skills/       Claude Code skill wrapping the CLI
+index.html              Home (all projects)
+marathon.config.js      your settings — plain JS, read by pages and CLI
+marathon.js             CLI (node, zero deps)   serve.js  local server + write API + change log
+manifest.json sw.js icons/   installable app shell
+core/                   store · config · theme · sync · activity · nav · palette · inspo-quick · templates
+data/                   per workspace: <board>.json, social, scripts, writing · plus inspiration, boards, workspaces, activity, settings, log.jsonl
+runway/ social/ studio/ inspo/   the apps (classic scripts, file:// safe)
+prompts/ docs/ .claude/skills/   agent bootstrap, Telegram design, Claude Code skill
 ```
 
-Keep apps `file://`-compatible: classic `<script src>`, no modules, no
-`fetch` of local files. Sanity check: `for f in core/*.js runway/*.js social/*.js studio/*.js *.js; do node --check "$f"; done`
+Keep apps `file://`-compatible: classic `<script src>`, no modules, no `fetch`
+of local files. Sanity: `for f in core/*.js runway/*.js social/*.js studio/*.js inspo/*.js *.js; do node --check "$f"; done`
+and `node social/test-social-save.js`.
 
-MIT licensed.
+MIT licensed. Contributions welcome — the agent contract in `AGENTS.md` is
+also the contributor guide.

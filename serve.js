@@ -36,11 +36,44 @@ function safeDataFile(name) {
   if (!/^[a-z0-9_-]+\.json$/i.test(name)) return null;
   return path.join(DATA, name);
 }
+var LOG = path.join(DATA, 'log.jsonl');
+var LOG_MAX = 400, SNAP_MAX = 2 * 1024 * 1024;
+// Append one change record (with the previous content as a snapshot) so any
+// write — page, CLI or agent — can be reverted. Same format as marathon.js.
+function logChange(file, prevText, source, note) {
+  var rec = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ts: new Date().toISOString(), file: file, source: source || 'ui', note: note || '',
+    prev: prevText && prevText.length <= SNAP_MAX ? prevText : null, prevBytes: prevText ? prevText.length : 0 };
+  var lines = [];
+  try { lines = fs.readFileSync(LOG, 'utf8').split('\n').filter(Boolean); } catch (e) { /* new */ }
+  lines.push(JSON.stringify(rec));
+  if (lines.length > LOG_MAX) lines = lines.slice(lines.length - LOG_MAX);
+  fs.writeFileSync(LOG, lines.join('\n') + '\n');
+  return rec;
+}
+function readLog() { try { return fs.readFileSync(LOG, 'utf8').split('\n').filter(Boolean).map(function (l) { try { return JSON.parse(l); } catch (e) { return null; } }).filter(Boolean); } catch (e) { return []; } }
 
 var server = http.createServer(function (req, res) {
   var url = decodeURIComponent(req.url.split('?')[0]);
 
-  if (url === '/api/ping') return json(res, 200, { marathon: true, version: 1, data: 'data/' });
+  if (url === '/api/ping') return json(res, 200, { marathon: true, version: 1, data: 'data/', log: true });
+
+  if (url === '/api/log') {
+    var n = parseInt((req.url.split('?')[1] || '').replace(/.*n=(\d+).*/, '$1'), 10) || 40;
+    return json(res, 200, readLog().slice(-n).reverse().map(function (r) { return { id: r.id, ts: r.ts, file: r.file, source: r.source, note: r.note, canRevert: r.prev != null }; }));
+  }
+  var rv = url.match(/^\/api\/revert\/([a-z0-9]+)$/);
+  if (rv && req.method === 'POST') {
+    var rec = readLog().filter(function (r) { return r.id === rv[1]; })[0];
+    if (!rec || rec.prev == null) return json(res, 404, { error: 'nothing to revert' });
+    var target = safeDataFile(rec.file); if (!target) return json(res, 400, { error: 'bad file' });
+    var cur = ''; try { cur = fs.readFileSync(target, 'utf8'); } catch (e) { /* none */ }
+    logChange(rec.file, cur, 'revert', 'revert of ' + rec.id);
+    // bump updatedAt so open pages and the CLI pick the restored content up
+    var restored = rec.prev;
+    try { var o = JSON.parse(rec.prev); o.updatedAt = new Date().toISOString(); restored = JSON.stringify(o, null, 2) + '\n'; } catch (e) { /* keep raw */ }
+    fs.writeFileSync(target, restored);
+    return json(res, 200, { ok: true, file: rec.file });
+  }
 
   var m = url.match(/^\/api\/data\/([^/]+)$/);
   if (m) {
@@ -59,6 +92,8 @@ var server = http.createServer(function (req, res) {
         var body = Buffer.concat(chunks).toString('utf8');
         try { JSON.parse(body); } catch (e) { return json(res, 400, { error: 'invalid json' }); }
         fs.mkdir(DATA, { recursive: true }, function () {
+          var prev = ''; try { prev = fs.readFileSync(file, 'utf8'); } catch (e) { /* new file */ }
+          if (prev !== body && !/^(activity|log)\.json$/.test(m[1])) logChange(m[1], prev, req.headers['x-marathon-source'] || 'ui', req.headers['x-marathon-note'] || '');
           fs.writeFile(file, body.replace(/\n?$/, '\n'), 'utf8', function (err) {
             if (err) return json(res, 500, { error: err.code });
             json(res, 200, { ok: true });

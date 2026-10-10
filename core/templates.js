@@ -123,6 +123,14 @@
     ] };
   }
   function settings() { return { theme: { mode: 'auto', palette: 'warm' } }; }
+  function inspiration(now) {
+    var ts = (now || new Date()).getTime();
+    return { items: [
+      { id: 'i1', kind: 'link', title: 'Show HN: how a solo founder launched in 14 days', url: 'https://news.ycombinator.com/', text: 'Steal the structure: problem → ugly demo → what changed → ask.', tags: ['launch', 'post'], ws: '', status: 'new', source: 'ui', usedAs: [], createdAt: ts - 7200000, updatedAt: ts - 7200000 },
+      { id: 'i2', kind: 'note', title: 'Hook idea: "I deleted my task app"', text: 'Open on the empty screen. One line: the tasks are in a file now, and the AI reads it.', tags: ['video', 'hook'], ws: '', status: 'new', source: 'ui', usedAs: [], createdAt: ts - 3600000, updatedAt: ts - 3600000 },
+      { id: 'i3', kind: 'note', title: 'Quote for the landing page', text: '"The best tool is the one that disappears." — keep it short, no attribution needed.', tags: ['copy'], ws: '', status: 'new', source: 'agent', usedAs: [], createdAt: ts - 600000, updatedAt: ts - 600000 }
+    ] };
+  }
 
-  return { runway: runway, social: social, scripts: scripts, writing: writing, settings: settings, SCRIPT: SCRIPT, NOTE: NOTE };
+  return { runway: runway, social: social, scripts: scripts, writing: writing, settings: settings, inspiration: inspiration, SCRIPT: SCRIPT, NOTE: NOTE };
 });

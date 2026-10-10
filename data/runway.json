@@ -1,6 +1,437 @@
 {
-  "version": 1,
-  "updatedAt": "2026-10-10T07:03:41.202Z",
   "projects": [],
-  "tasks": []
+  "tasks": [
+    {
+      "id": "t1",
+      "title": "Write the one-line pitch",
+      "proj": "launch",
+      "col": "doing",
+      "pri": "high",
+      "tags": [
+        "content",
+        "research"
+      ],
+      "desc": "One sentence a stranger understands in five seconds. Everything else points back to it.",
+      "notes": "",
+      "collapsed": true,
+      "checklist": [
+        {
+          "text": "Collect 5 ways people describe the problem",
+          "done": true
+        },
+        {
+          "text": "Draft 3 versions",
+          "done": false
+        },
+        {
+          "text": "Test on two friends",
+          "done": false
+        },
+        {
+          "text": "Pick one, paste into README and landing page",
+          "done": false
+        }
+      ]
+    },
+    {
+      "id": "t2",
+      "title": "Landing page with a waitlist form",
+      "proj": "launch",
+      "col": "todo",
+      "pri": "high",
+      "tags": [
+        "coding",
+        "setup"
+      ],
+      "desc": "Static page, one form, one screenshot. Ship ugly, then iterate.",
+      "notes": "",
+      "collapsed": true,
+      "checklist": [
+        {
+          "text": "Hero + subcopy in the locked tone",
+          "done": false
+        },
+        {
+          "text": "Form wired to a mailing list",
+          "done": false
+        },
+        {
+          "text": "Deploy on a free static host",
+          "done": false
+        },
+        {
+          "text": "Add analytics + UTM links",
+          "done": false
+        }
+      ]
+    },
+    {
+      "id": "t3",
+      "title": "Record a 60-second demo",
+      "proj": "content",
+      "col": "todo",
+      "pri": "high",
+      "tags": [
+        "video",
+        "demo"
+      ],
+      "desc": "Hook in the first two seconds. Captions burned in. Under 90s.",
+      "notes": "",
+      "collapsed": true,
+      "checklist": [
+        {
+          "text": "Script it in the Script viewer",
+          "done": false
+        },
+        {
+          "text": "Record screen + face",
+          "done": false
+        },
+        {
+          "text": "Edit + captions",
+          "done": false
+        },
+        {
+          "text": "Export 16:9 and 9:16",
+          "done": false
+        }
+      ]
+    },
+    {
+      "id": "t4",
+      "title": "Set up the sending domain",
+      "proj": "general",
+      "col": "todo",
+      "pri": "medium",
+      "tags": [
+        "setup",
+        "outreach"
+      ],
+      "desc": "Keep your personal inbox clean; warm the new one slowly.",
+      "notes": "",
+      "collapsed": true,
+      "checklist": [
+        {
+          "text": "Buy the domain",
+          "done": false
+        },
+        {
+          "text": "SPF / DKIM / DMARC",
+          "done": false
+        },
+        {
+          "text": "Start warmup drips",
+          "done": false
+        }
+      ]
+    },
+    {
+      "id": "t5",
+      "title": "Draft the launch post",
+      "proj": "launch",
+      "col": "todo",
+      "pri": "high",
+      "tags": [
+        "content",
+        "launch"
+      ],
+      "desc": "First-person, honest, technical. No hype words.",
+      "notes": "",
+      "collapsed": true,
+      "checklist": [
+        {
+          "text": "Outline: problem → what I built → what is next",
+          "done": false
+        },
+        {
+          "text": "Write draft in the Writing viewer",
+          "done": false
+        },
+        {
+          "text": "Tighten with your agent",
+          "done": false
+        },
+        {
+          "text": "Schedule it on the Social board",
+          "done": false
+        }
+      ]
+    },
+    {
+      "id": "t6",
+      "title": "Collect 20 friendly early users",
+      "proj": "general",
+      "col": "todo",
+      "pri": "medium",
+      "tags": [
+        "outreach"
+      ],
+      "desc": "People who said \"tell me when it is ready\". Ask them one specific thing.",
+      "notes": "",
+      "collapsed": true,
+      "checklist": [
+        {
+          "text": "List names from DMs and email",
+          "done": false
+        },
+        {
+          "text": "Personal note to each",
+          "done": false
+        },
+        {
+          "text": "Launch-day ping list ready",
+          "done": false
+        }
+      ]
+    },
+    {
+      "id": "t7",
+      "title": "Daily content cadence",
+      "proj": "content",
+      "col": "doing",
+      "pri": "medium",
+      "tags": [
+        "content",
+        "daily"
+      ],
+      "desc": "One build-in-public post a day, one video every other day.",
+      "notes": "",
+      "collapsed": true,
+      "checklist": [
+        {
+          "text": "Pick a posting time",
+          "done": false
+        },
+        {
+          "text": "Prep 5 post ideas in the Writing viewer",
+          "done": false
+        },
+        {
+          "text": "Reply to 10 accounts a day",
+          "done": false
+        }
+      ]
+    },
+    {
+      "id": "t8",
+      "title": "Pick the recording stack",
+      "proj": "general",
+      "col": "done",
+      "pri": "medium",
+      "tags": [
+        "research",
+        "video"
+      ],
+      "desc": "Decided: screen recorder + an editing script + ffmpeg.",
+      "notes": "",
+      "collapsed": true,
+      "checklist": [
+        {
+          "text": "Compare 3 recorders",
+          "done": true
+        },
+        {
+          "text": "Test a 30s throwaway",
+          "done": true
+        }
+      ]
+    },
+    {
+      "id": "t9",
+      "title": "Set up analytics",
+      "proj": "general",
+      "col": "done",
+      "pri": "low",
+      "tags": [
+        "setup"
+      ],
+      "desc": "",
+      "notes": "",
+      "collapsed": true,
+      "checklist": [
+        {
+          "text": "Add page analytics",
+          "done": true
+        },
+        {
+          "text": "Event for form submit",
+          "done": true
+        }
+      ]
+    },
+    {
+      "id": "t10",
+      "title": "Launch day checklist",
+      "proj": "launch",
+      "col": "todo",
+      "pri": "high",
+      "tags": [
+        "launch"
+      ],
+      "desc": "Everything that must be true at 9:00 on launch morning.",
+      "notes": "",
+      "collapsed": true,
+      "checklist": [
+        {
+          "text": "Landing page live + form tested",
+          "done": false
+        },
+        {
+          "text": "Demo video uploaded",
+          "done": false
+        },
+        {
+          "text": "Launch post scheduled",
+          "done": false
+        },
+        {
+          "text": "Friendlies pinged",
+          "done": false
+        },
+        {
+          "text": "Stay in the comments all day",
+          "done": false
+        }
+      ]
+    },
+    {
+      "id": "t11",
+      "title": "Write a \"how I built this\" thread",
+      "proj": "content",
+      "col": "todo",
+      "pri": "low",
+      "tags": [
+        "content"
+      ],
+      "desc": "Five tweets, one screenshot each.",
+      "notes": "",
+      "collapsed": true,
+      "checklist": [
+        {
+          "text": "Outline the 5 beats",
+          "done": false
+        },
+        {
+          "text": "Screenshots",
+          "done": false
+        },
+        {
+          "text": "Draft + schedule",
+          "done": false
+        }
+      ]
+    },
+    {
+      "id": "t12",
+      "title": "Pitch two newsletters",
+      "proj": "launch",
+      "col": "later",
+      "pri": "medium",
+      "tags": [
+        "outreach",
+        "content"
+      ],
+      "desc": "One feature beats a week of posting. Offer an exclusive angle.",
+      "notes": "",
+      "collapsed": true,
+      "checklist": [
+        {
+          "text": "Shortlist 5 newsletters",
+          "done": false
+        },
+        {
+          "text": "Draft a per-newsletter pitch",
+          "done": false
+        }
+      ]
+    },
+    {
+      "id": "t13",
+      "title": "Explore a paid tier",
+      "proj": "general",
+      "col": "later",
+      "pri": "low",
+      "tags": [
+        "research"
+      ],
+      "desc": "Only after 100 signups.",
+      "notes": "",
+      "collapsed": true,
+      "checklist": []
+    },
+    {
+      "id": "t14",
+      "title": "Translate the landing page",
+      "proj": "general",
+      "col": "later",
+      "pri": "low",
+      "tags": [
+        "coding"
+      ],
+      "desc": "",
+      "notes": "",
+      "collapsed": true,
+      "checklist": []
+    },
+    {
+      "id": "t15",
+      "title": "Video idea — \"the ugly first version\"",
+      "proj": "content",
+      "col": "bucket",
+      "pri": "medium",
+      "tags": [
+        "video",
+        "content"
+      ],
+      "desc": "Show the first prototype next to today. Honest and funny.",
+      "notes": "",
+      "collapsed": true,
+      "checklist": [
+        {
+          "text": "Dig up the old screenshots",
+          "done": false
+        },
+        {
+          "text": "Script",
+          "done": false
+        },
+        {
+          "text": "Record",
+          "done": false
+        }
+      ]
+    },
+    {
+      "id": "t16",
+      "title": "Video idea — 3 things I would skip next time",
+      "proj": "content",
+      "col": "bucket",
+      "pri": "low",
+      "tags": [
+        "video",
+        "content"
+      ],
+      "desc": "",
+      "notes": "",
+      "collapsed": true,
+      "checklist": []
+    },
+    {
+      "id": "t17",
+      "title": "Demo idea — agent updates the board from the terminal",
+      "proj": "content",
+      "col": "bucket",
+      "pri": "medium",
+      "tags": [
+        "demo",
+        "video"
+      ],
+      "desc": "Terminal on the left, board on the right. No clicking.",
+      "notes": "",
+      "collapsed": true,
+      "checklist": []
+    }
+  ],
+  "version": 1,
+  "updatedAt": "2026-10-10T07:23:00.875Z"
 }

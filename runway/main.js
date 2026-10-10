@@ -299,6 +299,7 @@
   };
 
   function flash(msg) {
+    if (global.Sync) Sync.note(Config.boardFile(Model.BOARD), msg);
     var n = document.getElementById('storeNote');
     var prev = n.dataset.base || n.textContent;
     n.dataset.base = prev;

@@ -24,6 +24,9 @@ Read `AGENTS.md` for the contract and `data/SCHEMA.md` for fields.
 
 ## Then act with the CLI (never hand-edit for single changes)
 
+Always add `--as agent --note "short reason"` to writes. The user sees it on
+Home → Recent changes and can revert.
+
 ```bash
 node marathon.js add "Title" --proj <project> --pri high|medium|low --tags a,b --steps "step|step"
 node marathon.js start|done|later|bucket|todo <id or title fragment>
@@ -33,6 +36,8 @@ node marathon.js social add "Title" --at 2026-10-20T09:00|+3d 17:30 --type launc
 node marathon.js social next|week|show <post> ; social posted <post> --url … ; social prep <post> "item"
 node marathon.js scripts add "Title" --file x.md ; notes add "Title" --file x.md ; notes show <n>
 node marathon.js share todo ; import list.md ; theme set dusk
+node marathon.js inspo list --ws <id> ; inspo use <item> --as task|post|script|note ; inspo ai --into tasks
+node marathon.js log ; revert <id>
 node marathon.js boards add "Title" --from blank|sample|<id> ; boards rename <id> "Title"
 ```
 

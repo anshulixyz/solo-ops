@@ -14,6 +14,8 @@ document is the whole contract; read it once and you can operate the system.
 | `data/social.json` (`<ws>-social.json`) | scheduled posts with copy, prep, posted stats | `social …` |
 | `data/scripts.json` (`<ws>-scripts.json`) | video scripts (Markdown text) | `scripts …` |
 | `data/writing.json` (`<ws>-writing.json`) | drafts / notes with `~~cut~~ ++add++ [[note]]` markup | `notes …` |
+| `data/inspiration.json` | the inbox: links, ideas, images the user wants to keep, tagged with a workspace | `inspo …` |
+| `data/log.jsonl` | every change with who/when/what + previous content; revertable | `log`, `revert <id>` |
 | `data/activity.json` | per-day change counts, last-active stamps (written automatically) | `activity` |
 | `data/settings.json` | theme | `theme …` |
 | `marathon.config.js` | apps on/off, boards, projects, tags, post types, labels, idle hours, default theme | `config` |
@@ -23,7 +25,9 @@ Schema with every field: `data/SCHEMA.md`. Every data file carries
 
 ## How to change things
 
-1. **Prefer the CLI** — it validates and stamps `updatedAt`:
+1. **Prefer the CLI** — it validates, stamps `updatedAt`, and logs the change.
+   Always pass `--as agent --note "<why>"` so the user can see and revert
+   what you did (`node marathon.js log`):
    ```bash
    node marathon.js workspaces               # which projects exist; add --ws <id> to any command (default: first)
    node marathon.js week --json              # read the whole picture (every board of the workspace)
@@ -35,6 +39,9 @@ Schema with every field: `data/SCHEMA.md`. Every data file carries
    node marathon.js social posted <post> --url … ; social prep <post> "item"
    node marathon.js scripts add "Title" --file script.md ; notes add "Title" --file draft.md
    node marathon.js import list.md           # bulk: "- [ ] item" lines → tasks
+   node marathon.js inspo list ; inspo add "https://… #tag" --ws <id> ; inspo use <item> --as task|post|script|note
+   node marathon.js inspo ai --into tasks    # the inbox as a brainstorm prompt
+   node marathon.js log ; revert <id>        # see / undo any change (yours included)
    node marathon.js help                     # everything else
    ```
 2. **Editing JSON directly is fine** for bulk changes. Keep ids stable, keep
@@ -59,8 +66,12 @@ Schema with every field: `data/SCHEMA.md`. Every data file carries
 - Scripts follow `# Title / ## Hook / ## Script (numbered beats) / ## Inserts /
   ## Prep`. Drafts use `~~remove~~`, `++add++`, `[[instruction for you]]` —
   when a note asks you to edit, answer by editing the text, not by explaining.
-- Never delete or reset without the user asking. Backups download before
-  destructive UI actions; the CLI has no undo.
+- **Inspiration flow:** the user drops links/ideas/images into the inbox (often
+  by pasting into you first). When asked to "turn inspiration into…", read
+  `inspo list --ws <id>`, propose concrete items, then create them with
+  `inspo use` (keeps the link back) or `add` / `social add` / `scripts add`.
+- Never delete or reset without the user asking. Every write is logged and
+  `revert <id>` undoes it, but say what you changed anyway.
 
 ## Working on the code
 

@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" href="data:,">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#CC6B4A">
 <title>Home — Marathon</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,6 +17,25 @@
 <link rel="stylesheet" href="core/theme.css">
 <link rel="stylesheet" href="core/ui.css">
 <style>
+  .sec-h .sec-sub{font-family:var(--body); letter-spacing:0; text-transform:none; font-size:12px; color:var(--faint); margin-left:0;}
+  .sec-h.small{margin-top:14px;}
+  .focus-wrap{margin-top:22px; padding:4px 16px 16px; border:1px dashed var(--line); border-radius:var(--r);}
+  .focus-h{margin-top:12px;} .focus-h b{color:var(--accent); font-family:var(--serif); font-size:15px; letter-spacing:0; text-transform:none;}
+  .two-col{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:12px;}
+  .log-list{list-style:none; margin:0; padding:0;}
+  .log-list li{display:flex; gap:8px; align-items:baseline; padding:6px 0; border-top:1px solid var(--line-2); font-size:12.5px;}
+  .log-list li:first-child{border-top:0;}
+  .log-list .src{font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; padding:2px 6px; border-radius:6px; background:var(--panel-2); color:var(--muted); border:1px solid var(--line); min-width:44px; text-align:center;}
+  .log-list .src.agent{color:var(--accent); border-color:var(--accent);}
+  .log-list .what{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .log-list .what small{color:var(--faint); font-family:var(--mono); font-size:10px;}
+  .log-list .rv{font-size:11px; padding:2px 8px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--muted); cursor:pointer;}
+  .log-list .rv:hover{border-color:var(--accent); color:var(--accent);}
+  .inspo-mini{list-style:none; margin:0; padding:0;}
+  .inspo-mini li{padding:6px 0; border-top:1px solid var(--line-2); font-size:13px; display:flex; gap:8px; align-items:baseline;}
+  .inspo-mini li:first-child{border-top:0;}
+  .inspo-mini li a{color:inherit; text-decoration:none; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .inspo-mini li .k{font-family:var(--mono); font-size:10px; color:var(--faint); letter-spacing:.06em; text-transform:uppercase;}
   .ws-apps{display:flex; flex-wrap:wrap; gap:6px 14px; font-size:13px; padding-top:6px;}
   .ws-apps label{display:inline-flex; align-items:center; gap:6px; cursor:pointer;}
   .hub-controls{display:flex; justify-content:flex-end; gap:8px; align-items:center; flex-wrap:wrap; margin:-6px 0 10px;}
@@ -129,20 +151,33 @@
     </div>
   </div>
 
-  <div class="sec-h">Activity</div>
+  <div class="sec-h">Activity · all projects</div>
   <div class="act" id="activity"></div>
 
-  <div class="sec-h">Projects <a href="#" onclick="toggleWsPanel('new');return false;">+ New workspace</a></div>
+  <div class="sec-h">Projects <span class="sec-sub" id="projectsSum"></span> <a href="#" onclick="toggleWsPanel('new');return false;">+ New workspace</a></div>
   <div class="hub-grid" id="projects"></div>
 
-  <div class="sec-h" data-app="boards"><span id="wsSecTitle">Boards</span> <a href="runway/marathon-board.html#new">+ New board</a></div>
-  <div class="hub-grid" id="boards" data-app="boards"></div>
-
-  <div class="sec-h" id="appsHead">Apps</div>
-  <div class="hub-grid" id="cards"></div>
-
-  <div class="sec-h">In play</div>
+  <div class="sec-h">In play · all projects</div>
   <div class="today" id="today"></div>
+
+  <div class="focus-wrap" id="focusWrap">
+    <div class="sec-h focus-h"><span>Open project · <b id="wsSecTitle"></b></span><span class="sec-sub">what the nav shows</span></div>
+    <div class="sec-h small" data-app="boards">Boards <a href="runway/marathon-board.html#new">+ New board</a></div>
+    <div class="hub-grid" id="boards" data-app="boards"></div>
+    <div class="sec-h small" id="appsHead">Apps</div>
+    <div class="hub-grid" id="cards"></div>
+  </div>
+
+  <div class="two-col">
+    <div>
+      <div class="sec-h">Inspiration <a href="inspo/inspiration.html">open inbox</a></div>
+      <div class="hub-card" id="inspoCard"></div>
+    </div>
+    <div>
+      <div class="sec-h">Recent changes <span class="sec-sub" id="logHint"></span></div>
+      <div class="hub-card" id="logCard"></div>
+    </div>
+  </div>
 
   <div class="agents">
     <h2>Run it from the terminal or your agent</h2>
@@ -167,6 +202,8 @@
 <script src="core/sync.js"></script>
 <script src="core/activity.js"></script>
 <script src="core/palette.js"></script>
+<script src="inspo/inspo-model.js"></script>
+<script src="core/inspo-quick.js"></script>
 <script src="core/nav.js"></script>
 <script>
 (function () {
@@ -250,8 +287,8 @@
   /* ---- projects overview: stats for every workspace ---- */
   var wsStats = {};
   function wsLocal(w) {
-    var o = { tasks: [], posts: null, scripts: null, notes: null };
-    Config.boards(w.id).forEach(function (b) { (Store.getJSON(Config.boardKey(b.id, w.id), null) || []).forEach(function (t) { o.tasks.push(t); }); });
+    var o = { tasks: [], tasksByBoard: {}, posts: null, scripts: null, notes: null };
+    Config.boards(w.id).forEach(function (b) { var bt = Store.getJSON(Config.boardKey(b.id, w.id), null) || []; o.tasksByBoard[b.id] = bt; bt.forEach(function (t) { o.tasks.push(t); }); });
     if (w.apps.social) o.posts = Store.getJSON(Config.key('social', w.id), null);
     if (w.apps.scripts) { var sc = Store.getJSON(Config.key('scripts', w.id), null); o.scripts = sc && sc.scripts ? sc.scripts : null; }
     if (w.apps.writing) { var wr = Store.getJSON(Config.key('writing', w.id), null); o.notes = wr && wr.notes ? wr.notes : null; }
@@ -265,7 +302,7 @@
       .concat([w.apps.social ? Sync.peek(Config.file('social', w.id)) : null, w.apps.scripts ? Sync.peek(Config.file('scripts', w.id)) : null, w.apps.writing ? Sync.peek(Config.file('writing', w.id)) : null]);
     return Promise.all(reads).then(function (r) {
       var tasks = []; var any = false;
-      boards.forEach(function (b, i) { if (r[i] && r[i].tasks) { any = true; r[i].tasks.forEach(function (t) { tasks.push(t); }); } });
+      boards.forEach(function (b, i) { if (r[i] && r[i].tasks) { any = true; o.tasksByBoard[b.id] = r[i].tasks; r[i].tasks.forEach(function (t) { tasks.push(t); }); } });
       if (any) o.tasks = tasks;
       var n = boards.length;
       if (r[n] && r[n].posts) o.posts = r[n].posts;
@@ -277,7 +314,38 @@
   function loadProjects() {
     return Promise.all(Config.workspaces().map(function (w) { return wsFiles(w).then(function (o) { wsStats[w.id] = o; }); })).then(renderProjects);
   }
+  // every task / post across every workspace, tagged with where it lives
+  function renderInPlay() {
+    var pri = { high: 0, medium: 1, low: 2 }; var tasks = [], posts = [];
+    Config.workspaces().forEach(function (w) {
+      var o = wsStats[w.id] || wsLocal(w);
+      Config.boards(w.id).forEach(function (b) {
+        var bt = (wsStats[w.id] ? null : Store.getJSON(Config.boardKey(b.id, w.id), null)) || [];
+        (o.tasksByBoard && o.tasksByBoard[b.id] ? o.tasksByBoard[b.id] : bt).forEach(function (t) { tasks.push(Object.assign({ _ws: w.id, _board: b.id }, t)); });
+      });
+      (o.posts || []).forEach(function (p) { posts.push(Object.assign({ _ws: w.id }, p)); });
+    });
+    var focus = tasks.filter(function (t) { return t.col === 'doing' || (t.col === 'todo' && t.pri === 'high'); })
+      .sort(function (a, b) { return (a.col === 'doing' ? 0 : 1) - (b.col === 'doing' ? 0 : 1) || pri[a.pri] - pri[b.pri]; }).slice(0, 10);
+    var weekEnd = new Date(Date.now() + 7 * 86400000);
+    var week = posts.filter(function (p) { return p.status !== 'posted' && new Date(p.datetime) <= weekEnd; }).sort(function (a, b) { return a.datetime.localeCompare(b.datetime); }).slice(0, 8);
+    var many = Config.workspaces().length > 1;
+    var html = '<div class="hub-card"><div class="sec-h" style="margin:0 0 8px">Tasks in play</div>' + (focus.length ? '<ul>' + focus.map(function (t) {
+      var n = (t.checklist || []).length, d = (t.checklist || []).filter(function (c) { return c.done; }).length;
+      return '<li><span class="id">' + esc(t.id) + '</span><a href="runway/marathon-board.html?ws=' + esc(t._ws) + '&board=' + esc(t._board) + '">' + esc(t.title) + '</a><span class="meta">' + (many ? esc(wsTitleOf(t._ws)) + ' · ' : '') + esc(t.col) + ' · ' + esc(t.pri) + (n ? ' · ' + d + '/' + n : '') + '</span></li>';
+    }).join('') + '</ul>' : '<div class="empty">Nothing in Doing and no high-priority To Do anywhere. ⌘K → add on a board.</div>') + '</div>';
+    html += '<div class="hub-card"><div class="sec-h" style="margin:0 0 8px">Posts · next 7 days</div>' + (week.length ? '<ul>' + week.map(function (p) {
+      var n = (p.prep || []).length, d = (p.prep || []).filter(function (c) { return c.done; }).length;
+      return '<li><span class="id">' + esc(p.id) + '</span><a href="social/social-board.html?ws=' + esc(p._ws) + '&id=' + esc(p.id) + '">' + esc(p.title) + '</a><span class="meta">' + (many ? esc(wsTitleOf(p._ws)) + ' · ' : '') + esc(fmt(p.datetime)) + (n ? ' · ' + d + '/' + n + ' prep' : '') + '</span></li>';
+    }).join('') + '</ul>' : '<div class="empty">No unposted posts in the next week.</div>') + '</div>';
+    document.getElementById('today').innerHTML = html;
+  }
+  function wsTitleOf(id) { var w = Config.workspace(id); return w ? w.title : id; }
   function renderProjects() {
+    var all = Config.workspaces(); var tot = { tasks: 0, doing: 0, posts: 0, scripts: 0, notes: 0 };
+    all.forEach(function (w) { var o = wsStats[w.id] || wsLocal(w); var c = counts(o.tasks); tot.tasks += c.board; tot.doing += c.doing; tot.posts += (o.posts || []).filter(function (p) { return p.status !== 'posted'; }).length; tot.scripts += (o.scripts || []).length; tot.notes += (o.notes || []).length; });
+    document.getElementById('projectsSum').textContent = all.length + ' project' + (all.length === 1 ? '' : 's') + ' · ' + tot.doing + ' doing · ' + tot.posts + ' posts queued · ' + tot.scripts + ' scripts · ' + tot.notes + ' notes';
+    renderInPlay();
     var la = Activity.summary().lastByApp || {};
     document.getElementById('projects').innerHTML = Config.workspaces().map(function (w) {
       var o = wsStats[w.id] || wsLocal(w); var c = counts(o.tasks);
@@ -300,6 +368,28 @@
     }).join('');
   }
   var PRIMARY_ID = Config.PRIMARY;
+  function renderInspo() {
+    if (!InspoModel._inited) { InspoModel.init(); InspoModel._inited = true; }
+    var items = InspoModel.list({ status: 'new' }).slice(0, 5); var all = InspoModel.getState().length;
+    document.getElementById('inspoCard').innerHTML = (items.length ? '<ul class="inspo-mini">' + items.map(function (x) {
+      return '<li><span class="k">' + esc(x.kind) + '</span><a href="inspo/inspiration.html">' + esc(x.title || x.url) + '</a>' + (x.ws ? '<span class="k">' + esc(wsTitleOf(x.ws)) + '</span>' : '') + '</li>';
+    }).join('') + '</ul>' : '<div class="empty" style="color:var(--faint);font-size:13px">Nothing new. Press ⌘⇧I anywhere, or the + in the nav.</div>') +
+      '<div class="stat" style="margin-top:10px"><span><b>' + all + '</b> saved</span><span><b>' + InspoModel.list({ status: 'new' }).length + '</b> unused</span><button class="btn small" style="margin-left:auto" onclick="InspoQuick.open()">+ Add</button></div>';
+  }
+  function renderLog() {
+    var card = document.getElementById('logCard'); var hint = document.getElementById('logHint');
+    Sync.log(10).then(function (recs) {
+      if (recs === null) { hint.textContent = 'live when served by node serve.js'; card.innerHTML = '<div class="empty" style="color:var(--faint);font-size:13px">Run <code>node serve.js</code> to see every change here and revert any of them. The CLI always has it: <code>node marathon.js log</code>.</div>'; return; }
+      hint.textContent = 'who changed what · revert any step';
+      card.innerHTML = recs.length ? '<ul class="log-list">' + recs.map(function (r) {
+        return '<li><span class="src ' + esc(r.source) + '">' + esc(r.source) + '</span><span class="what" title="' + esc(r.note) + '">' + esc(r.note || r.file) + ' <small>' + esc(r.file) + ' · ' + esc(Activity.ago(r.ts)) + '</small></span>' + (r.canRevert ? '<button class="rv" onclick="revertLog(\'' + esc(r.id) + '\')">Revert</button>' : '') + '</li>';
+      }).join('') + '</ul>' : '<div class="empty" style="color:var(--faint);font-size:13px">No changes logged yet.</div>';
+    });
+  }
+  window.revertLog = function (id) {
+    if (!confirm('Revert this change? The file goes back to how it was just before it (this revert is logged too).')) return;
+    Sync.revert(id).then(function (ok) { if (ok) { loadFiles().then(render).then(loadProjects); renderLog(); } else alert('Could not revert.'); });
+  };
 
   function render() {
     var boards = Config.boards(); var allTasks = [];
@@ -330,28 +420,14 @@
     document.getElementById('cards').innerHTML = cards.join('');
     document.getElementById('appsHead').style.display = cards.length ? '' : 'none';
 
-    var pri = { high: 0, medium: 1, low: 2 };
-    var focus = allTasks.filter(function (t) { return t.col === 'doing' || (t.col === 'todo' && t.pri === 'high'); })
-      .sort(function (a, b) { return (a.col === 'doing' ? 0 : 1) - (b.col === 'doing' ? 0 : 1) || pri[a.pri] - pri[b.pri]; }).slice(0, 8);
-    var weekEnd = new Date(Date.now() + 7 * 86400000);
-    var week = unposted.filter(function (p) { return new Date(p.datetime) <= weekEnd; }).slice(0, 6);
-    var html = '';
-    if (Config.appEnabled('boards')) html += '<div class="hub-card"><div class="sec-h" style="margin:0 0 8px">Tasks in play</div>' + (focus.length ? '<ul>' + focus.map(function (t) {
-      var n = (t.checklist || []).length, d = (t.checklist || []).filter(function (c) { return c.done; }).length;
-      return '<li><span class="id">' + esc(t.id) + '</span><a href="runway/marathon-board.html' + q + (t._board ? '&board=' + esc(t._board) : '') + '">' + esc(t.title) + '</a><span class="meta">' + (t._board ? esc(t._board) + ' · ' : '') + esc(t.col) + ' · ' + esc(t.pri) + (n ? ' · ' + d + '/' + n : '') + '</span></li>';
-    }).join('') + '</ul>' : '<div class="empty">Nothing in Doing and no high-priority To Do. Add one with ⌘K → add.</div>') + '</div>';
-    if (Config.appEnabled('social')) html += '<div class="hub-card"><div class="sec-h" style="margin:0 0 8px">Posts · next 7 days</div>' + (week.length ? '<ul>' + week.map(function (p) {
-      var n = (p.prep || []).length, d = (p.prep || []).filter(function (c) { return c.done; }).length;
-      return '<li><span class="id">' + esc(p.id) + '</span><a href="social/social-board.html' + q + '&id=' + esc(p.id) + '">' + esc(p.title) + '</a><span class="meta">' + esc(fmt(p.datetime)) + (n ? ' · ' + d + '/' + n + ' prep' : '') + '</span></li>';
-    }).join('') + '</ul>' : '<div class="empty">No unposted posts in the next week.</div>') + '</div>';
-    document.getElementById('today').innerHTML = html;
+    renderInPlay();
 
     var dismissed = false; try { dismissed = !!localStorage.getItem('marathon.hub.sampleOk'); } catch (e) {}
     document.getElementById('firstRun').style.display = (isSample() && !dismissed) ? '' : 'none';
     var lb = document.getElementById('linkBtn'); if (lb) lb.style.display = (Sync.fsSupported && Sync.getMode() === 'manual') ? '' : 'none';
     document.getElementById('wsTitle').textContent = W.title;
-    document.getElementById('wsSecTitle').textContent = 'Boards · ' + W.title;
-    renderProjects();
+    document.getElementById('wsSecTitle').textContent = W.title;
+    renderProjects(); renderInspo(); renderLog();
     document.title = W.title === Config.get('name') ? W.title : W.title + ' — ' + Config.get('name');
     document.getElementById('wsDeleteBtn').style.display = Config.workspaces().length > 1 ? '' : 'none';
     if (!Config.boards(W.id).length) { document.getElementById('boards').style.display = 'none'; document.querySelector('[data-app="boards"].sec-h').style.display = 'none'; }
@@ -445,9 +521,13 @@
 
   loadLocal(); render();
   var tries = 0;
-  (function waitReady() { if (Sync.ready()) { loadFiles().then(render).then(loadProjects); return; } if (tries++ < 40) setTimeout(waitReady, 100); })();
+  (function waitReady() { if (Sync.ready()) { loadFiles().then(render).then(loadProjects).then(renderLog); return; } if (tries++ < 40) setTimeout(waitReady, 100); })();
+  Sync.register({ file: 'inspiration.json', key: InspoModel.KEY, label: 'inspiration', app: 'inspiration', isFresh: InspoModel.isFresh,
+    read: function () { if (!InspoModel._inited) { InspoModel.init(); InspoModel._inited = true; } return { items: InspoModel.getState() }; },
+    apply: function (body) { if (Array.isArray(body.items)) { InspoModel.replaceAll(body.items, { silent: true }); renderInspo(); } } });
   if (location.hash === '#new-ws') { toggleWsPanel('new'); history.replaceState(null, '', location.pathname + location.search); }
 })();
 </script>
+<div class="toast" id="toast"></div>
 </body>
 </html>
