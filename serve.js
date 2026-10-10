@@ -98,6 +98,14 @@ var server = http.createServer(function (req, res) {
     return;
   }
 
+  // backup status for the Guide (data/ as its own git repo)
+  if (url === '/api/backup') {
+    var cpx = require('child_process'); var repo = fs.existsSync(path.join(DATA, '.git'));
+    if (!repo) return json(res, 200, { repo: false });
+    function g(args) { try { return cpx.execFileSync('git', ['-C', DATA].concat(args), { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 4000 }).trim(); } catch (e) { return ''; } }
+    var dirty = g(['status', '--porcelain']);
+    return json(res, 200, { repo: true, remote: g(['remote', 'get-url', 'origin']), lastAt: g(['log', '-1', '--format=%cI']), dirty: dirty ? dirty.split('\n').length : 0 });
+  }
   if (url === '/api/log') {
     var n = parseInt((req.url.split('?')[1] || '').replace(/.*n=(\d+).*/, '$1'), 10) || 40;
     return json(res, 200, readLog().slice(-n).reverse().map(function (r) { return { id: r.id, ts: r.ts, file: r.file, source: r.source, note: r.note, canRevert: r.prev != null }; }));

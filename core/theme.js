@@ -15,6 +15,13 @@
     { id: 'mono', label: 'Mono', sw: ['#F2F2F2', '#222222'] }
   ];
   var MODES = ['auto', 'light', 'dark'];
+  // body/heading families — the same ones people already read all day
+  var FONTS = [
+    { id: 'inter', label: 'Inter', sub: 'Linear, Notion', css: "'Inter',sans-serif" },
+    { id: 'system', label: 'System', sub: 'Trello, macOS', css: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" },
+    { id: 'lato', label: 'Lato', sub: 'Slack', css: "'Lato',sans-serif" },
+    { id: 'editorial', label: 'Editorial', sub: 'Lora headings', css: "'Lora',Georgia,serif" }
+  ];
   var cfgDefault = (global.Config && Config.get('theme')) || (global.MARATHON_CONFIG && MARATHON_CONFIG.theme) || {};
   var cur = normalize(Store.getJSON(KEY, null) || cfgDefault);
   var mq = global.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null;
@@ -23,7 +30,8 @@
     t = t || {};
     return {
       mode: MODES.indexOf(t.mode) >= 0 ? t.mode : 'auto',
-      palette: PALETTES.some(function (p) { return p.id === t.palette; }) ? t.palette : 'warm'
+      palette: PALETTES.some(function (p) { return p.id === t.palette; }) ? t.palette : 'warm',
+      font: FONTS.some(function (f) { return f.id === t.font; }) ? t.font : 'inter'
     };
   }
   function resolved() {
@@ -35,12 +43,13 @@
     var r = resolved();
     el.setAttribute('data-theme', r);
     el.setAttribute('data-palette', cur.palette);
+    el.setAttribute('data-font', cur.font);
     el.style.colorScheme = r;
     var dots = document.querySelectorAll('.palette-btn i');
     for (var i = 0; i < dots.length; i++) dots[i].style.background = 'var(--accent)';
   }
   function set(partial, opts) {
-    cur = normalize({ mode: partial.mode || cur.mode, palette: partial.palette || cur.palette });
+    cur = normalize({ mode: partial.mode || cur.mode, palette: partial.palette || cur.palette, font: partial.font || cur.font });
     Store.setJSON(KEY, cur, opts);
     apply();
     if (pop) renderPop();
@@ -59,12 +68,15 @@
     }).join('') + '</div><h4>Palette</h4><div class="mt-swatches">' + PALETTES.map(function (p) {
       return '<button type="button" class="mt-sw ' + (cur.palette === p.id ? 'on' : '') + '" data-palette="' + p.id + '" title="' + esc(p.label) + '">' +
         '<i style="background:linear-gradient(135deg,' + p.sw[0] + ' 55%,' + p.sw[1] + ' 55%)"></i><span>' + esc(p.label) + '</span></button>';
-    }).join('') + '</div><div class="mt-hint">Also from the terminal: <code>node solo.js theme set dusk</code></div>';
+    }).join('') + '</div><h4>Font</h4><div class="mt-fonts">' + FONTS.map(function (f) {
+      return '<button type="button" data-font="' + f.id + '" class="' + (cur.font === f.id ? 'on' : '') + '" style="font-family:' + f.css + '">' + esc(f.label) + '<span>' + esc(f.sub) + '</span></button>';
+    }).join('') + '</div><div class="mt-hint">Also from the terminal: <code>node solo.js theme set dusk</code> · <code>theme font system</code></div>';
     var btns = pop.querySelectorAll('button');
     for (var i = 0; i < btns.length; i++) {
       btns[i].onclick = function () {
         if (this.dataset.mode) set({ mode: this.dataset.mode });
         if (this.dataset.palette) set({ palette: this.dataset.palette });
+        if (this.dataset.font) set({ font: this.dataset.font });
       };
     }
   }
@@ -112,8 +124,8 @@
 
   global.toggleTheme = toggleMode;
   global.Theme = {
-    KEY: KEY, PALETTES: PALETTES, MODES: MODES,
-    get: function () { return { mode: cur.mode, palette: cur.palette }; },
+    KEY: KEY, PALETTES: PALETTES, MODES: MODES, FONTS: FONTS,
+    get: function () { return { mode: cur.mode, palette: cur.palette, font: cur.font }; },
     resolved: resolved, set: set, toggleMode: toggleMode, apply: apply,
     openPicker: openPicker, closePicker: closePicker, mount: mount
   };

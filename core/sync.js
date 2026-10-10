@@ -369,7 +369,7 @@
     // Save an image as a real file in data/attachments/ so agents can open it.
     // Returns the relative path, or '' when nothing can be written here.
     saveAttachment: function (name, dataUrl) {
-      if (!dataUrl || !/^data:image\//.test(dataUrl)) return Promise.resolve('');
+      if (!dataUrl || !/^data:[^;]+;base64,/.test(dataUrl)) return Promise.resolve('');
       name = String(name).replace(/[^A-Za-z0-9._-]/g, '-');
       var rel = 'data/attachments/' + name;
       if (mode === 'server') return fetch('/api/attach/' + name, { method: 'PUT', body: dataUrl }).then(function (r) { return r.ok ? rel : ''; }).catch(function () { return ''; });
@@ -380,6 +380,14 @@
       return Promise.resolve('');
     },
     attachmentsAvailable: function () { return mode === 'server' || mode === 'folder'; },
+    // read an attachment back as a data URL ('' when it is not on disk here)
+    readAttachment: function (name) {
+      name = String(name).replace(/[^A-Za-z0-9._-]/g, '-');
+      function toData(blob) { return new Promise(function (res) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = function () { res(''); }; r.readAsDataURL(blob); }); }
+      if (mode === 'server') return fetch('/api/attach/' + name, { cache: 'no-store' }).then(function (r) { return r.ok ? r.blob().then(toData) : ''; }).catch(function () { return ''; });
+      if (mode === 'folder' && dataDir) return dataDir.getDirectoryHandle('attachments').then(function (d) { return d.getFileHandle(name); }).then(function (fh) { return fh.getFile(); }).then(toData).catch(function () { return ''; });
+      return Promise.resolve('');
+    },
     // write any data file (used by Import all); server or folder modes only
     writeFile: function (file, obj) { if (mode === 'server') return serverWrite(file, obj); if (mode === 'folder') return folderWrite(file, obj); return Promise.reject(new Error('read-only here')); },
     lastWrite: function () { return lastWriteAt; },

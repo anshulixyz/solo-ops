@@ -381,8 +381,14 @@ function insertImage() {
       if (!note) return;
       if (!note.images) note.images = {};
       const n = nextImageNum(note);
-      note.images[String(n)] = reader.result;
-      if (window.Sync) { const ext = (reader.result.match(/^data:image\/(png|jpeg|jpg|gif|webp)/) || [0, 'png'])[1].replace('jpeg', 'jpg'); Sync.saveAttachment(`note-${note.id}-${n}.${ext}`, reader.result).then((rel) => { if (rel) { note.files = note.files || {}; note.files[String(n)] = rel; persistLibrary({ silent: true }); } }); }
+      const original = reader.result;
+      note.images[String(n)] = original;
+      const finish = () => {
+        if (!window.Attach) return;
+        Attach.thumb(original).then((t) => { if (t && t !== original) { note.images[String(n)] = t; try { persistLibrary(); } catch {} } return Attach.put(`note-${note.id}-${n}.${Attach.ext(original, file.name)}`, original); })
+          .then((r) => { if (r && r.file) { note.files = note.files || {}; note.files[String(n)] = r.file; try { persistLibrary(); } catch {} } });
+      };
+      finish();
       insertAtCursor(`\n[Image uploaded ${n}]\n`);
       try {
         persistLibrary();

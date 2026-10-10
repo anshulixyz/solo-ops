@@ -1,6 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Solo Ops: one person who steers (left), the agents climbing beside them (right) -->
   <rect width="64" height="64" rx="14" fill="#CC6B4A"/>
-  <rect x="13" y="15" width="10" height="34" rx="3" fill="#FFF8F3"/>
-  <rect x="27" y="15" width="10" height="24" rx="3" fill="#FFF8F3" opacity=".85"/>
-  <rect x="41" y="15" width="10" height="14" rx="3" fill="#FFF8F3" opacity=".7"/>
+  <circle cx="21" cy="18.5" r="5.5" fill="#FFF8F3"/>
+  <rect x="16" y="27" width="10" height="23" rx="4" fill="#FFF8F3"/>
+  <rect x="32" y="41" width="8" height="9" rx="2.5" fill="#FFF8F3" opacity=".5"/>
+  <rect x="41" y="32" width="8" height="18" rx="2.5" fill="#FFF8F3" opacity=".7"/>
+  <rect x="50" y="23" width="8" height="27" rx="2.5" fill="#FFF8F3" opacity=".9"/>
 </svg>

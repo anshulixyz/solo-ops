@@ -14,8 +14,11 @@ Every file has the same envelope:
 `updatedAt` is how sync decides who is newer. **Bump it to now (ISO 8601, UTC)
 whenever you change a file.** The CLI does this for you.
 
-Images are never stored here. Post images and note images stay in the browser
-(and in Save-file bundles) so these files remain small and readable.
+Full-size images are never stored here. Items keep a small thumbnail
+(`image`) and a reference (`file`) to the original under `data/attachments/`;
+until the server ran or the folder was linked the original waits in the
+browser (`stored: "browser"`). Post images follow the same idea with their
+own browser store.
 
 ## File names and workspaces
 
@@ -134,7 +137,8 @@ leave it empty.
 ## inspiration.json — the inbox (global, items tagged with a workspace)
 
 ```json
-{ "items": [{ "id": "i1", "kind": "link|image|note", "title": "…", "url": "https://…", "text": "…", "image": "data:…" ,
+{ "items": [{ "id": "i1", "kind": "link|image|note|file", "title": "…", "url": "https://… or file:///…", "text": "…",
+    "image": "data:… (small thumbnail only)", "file": "data/attachments/inspo-i1.png", "name": "shot.png", "size": 184221, "type": "image/png", "stored": "disk|browser|",
   "tags": ["launch"], "ws": "main", "status": "new|used|archived", "source": "ui|cli|agent|telegram",
   "usedAs": [{ "app": "task|post|script|note", "id": "t…", "at": 0 }], "createdAt": 0, "updatedAt": 0 }] }
 ```

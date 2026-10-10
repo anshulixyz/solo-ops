@@ -37,6 +37,17 @@ Last activity 2 h ago · streak 6 days
 <td><img src="docs/screenshots/home-dark.png" alt="Dark mode, dusk palette"></td>
 </tr></table>
 
+## Why it exists
+
+Static files are enough now. A folder of JSON and HTML is a complete tool:
+no account, no server bill, nothing to sync, nothing that disappears when a
+company pivots. And most of us already have several agents working for us;
+managing them is the hard part, and paying for another service to do the
+managing feels redundant. So the boards, the schedule and the inbox are the
+shared memory you and your agents read and write. **They run the loop, you
+steer.** The longer version, and what is coming next, is in
+[`about.html`](about.html) (also linked from Home and the Guide).
+
 ## Why it is different
 
 | | Solo Ops |
@@ -129,11 +140,49 @@ any command.
 - **Telegram** (planned, design in `docs/telegram.md`): `/add`, `/done`,
   `/next` and "just send me the link" into the inbox from your phone.
 
+## Keeping it safe
+
+- **Every write is logged** with its previous content; `node solo.js revert <id>`
+  or Home → Recent changes undoes it. Replies pasted into the Guide never
+  delete anything (`rm` is ignored).
+- **`node solo.js backup`** keeps `data/` as its own git repo and pushes to
+  the remote you give it. It checks GitHub remotes first and **refuses public
+  repositories**. Guide → Setup → *Protect your work* shows when the last
+  backup ran and carries the prompts that set it up with your agent.
+- **`node solo.js doctor`** validates every data file (JSON, `updatedAt`,
+  ids, columns), finds attachments that are referenced but missing or on
+  disk but unused, flags originals that only exist in a browser, and warns
+  when the last backup is older than a week.
+- **Attachments:** an image you drop keeps a small thumbnail inside the item;
+  the original is written to `data/attachments/` when the server runs or
+  the folder is linked, and waits in the browser (IndexedDB, not the 5 MB
+  localStorage) until then. Other files are copied up to
+  `attachments.copyMaxMB` (25 by default); bigger ones are saved by name and
+  size and you paste a path or a `file://` link instead. From the terminal:
+  `node solo.js inspo add --file ./deck.pdf`.
+
+## What is coming
+
+Designed, not shipped, in roughly this order. Details in [`about.html`](about.html).
+
+- **Collaborators through agents, no shared app:** an editor or writer
+  installs Solo Ops, points their agent at the same private data repo, and
+  the agents hand work back and forth through the files.
+- **Pull from the apps you already use** via whatever your Claude or ChatGPT
+  is connected to; Solo Ops only needs the result.
+- **Telegram** for `/add`, `/done`, `/next` and links from your phone.
+- **Phone install, still local:** the pages served from your laptop on your
+  own wifi, a QR code on Home, installed as an app.
+- **Briefing packs:** `node solo.js brief --for editor`.
+
 ## Make it yours
 
 `solo.config.js` holds the name, workspaces (or just the apps and boards
 of the default one), projects with colors, tags, post types, prep kinds,
-milestones and focus cards, idle-reminder hours and default theme. Workspaces
+milestones and focus cards, idle-reminder hours, attachment size caps and
+the default theme. The Theme button offers light/dark, five palettes and
+four font presets (Inter, System as in Trello, Lato as in Slack, Editorial);
+`?theme=dark&palette=dusk&font=system` works on any page. Workspaces
 and boards can also be created from Home or the CLI; sample content ships in
 `data/` and only those five files are tracked by git — everything else you
 create stays private.

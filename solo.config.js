@@ -83,11 +83,16 @@
        Home shows a streak + heatmap and turns amber after this many idle
        hours; `node solo.js today` prints the same reminder. */
     activity: { reminderAfterHours: 24 },
+    /* ---- attachments: images keep a small thumbnail inside the item; the
+       original is written to data/attachments/ (or kept in the browser until
+       the folder is connected). Other files are copied up to copyMaxMB; bigger
+       ones are recorded by name and size and you paste a path or link. ---- */
+    attachments: { thumbMaxPx: 640, thumbMaxKB: 200, copyMaxMB: 25 },
 
     /* ---- theme defaults (the Theme button overrides these per browser) --
        mode: 'auto' | 'light' | 'dark'
        palette: 'warm' | 'paper' | 'forest' | 'dusk' | 'mono' */
-    theme: { mode: 'auto', palette: 'warm' },
+    theme: { mode: 'auto', palette: 'warm', font: 'inter' },   // font: inter | system | lato | editorial
 
     /* ---- sync --------------------------------------------------------
        Data files live in data/. `node serve.js` writes them directly;

@@ -25,7 +25,9 @@
     var targets = targetsFor(x.ws);
     return '<div class="inspo-card ' + (x.status === 'used' ? 'used' : '') + (selected.has(x.id) ? ' selected' : '') + '" data-id="' + esc(x.id) + '">' +
       '<input type="checkbox" class="pick" ' + (selected.has(x.id) ? 'checked' : '') + ' onchange="togglePick(\'' + esc(x.id) + '\')" title="Select for brainstorm">' +
-      (x.kind === 'image' && x.image ? '<img src="' + x.image + '" alt="" onclick="SocialImageLightbox(\'' + esc(x.id) + '\')">' : '') +
+      (x.kind === 'image' && x.image ? '<img src="' + x.image + '" alt="" title="Open the original" onclick="SocialImageLightbox(\'' + esc(x.id) + '\')">' : '') +
+      (x.kind === 'file' || (x.kind === 'image' && !x.image) ? '<div class="inspo-file"><span class="inspo-file-ic">' + esc((x.name || '').split('.').pop().slice(0, 4).toUpperCase() || 'FILE') + '</span><span>' + esc(x.name || 'file') + (x.size ? ' · ' + esc(Attach.fmtSize(x.size)) : '') + '</span>' + (x.file || x.stored ? '<button type="button" class="mv" onclick="openOriginal(\'' + esc(x.id) + '\')">Open</button>' : '') + '</div>' : '') +
+      (x.file ? '<div class="inspo-where">' + esc(x.file) + '</div>' : (x.stored === 'browser' ? '<div class="inspo-where">original in this browser only — run node serve.js or link the folder to export it</div>' : '')) +
       '<div class="body"><h3>' + (x.url ? '<a href="' + esc(x.url) + '" target="_blank" rel="noopener">' + esc(x.title || x.url) + ' ↗</a>' : esc(x.title || 'Untitled')) + '</h3>' +
       (x.url ? '<div class="url">' + esc(x.url) + '</div>' : '') + (x.text ? '<div class="txt">' + esc(x.text) + '</div>' : '') +
       '<div class="meta">' + tags + (x.ws ? '<span class="ws">' + esc(wsTitle(x.ws)) + '</span>' : '') + '<span class="when">' + esc(x.source) + ' · ' + esc(ago(x.createdAt)) + (x.status !== 'new' ? ' · ' + esc(x.status) : '') + '</span></div></div>' +
@@ -57,7 +59,8 @@
     var text = prompt('Notes', x.text); if (text === null) return;
     InspoModel.update(id, { title: title.trim(), tags: tags.split(',').map(function (t) { return t.trim(); }).filter(Boolean), text: text }); render();
   };
-  global.SocialImageLightbox = function (id) { var x = InspoModel.byId(id); if (x && x.image) { var w = window.open(); if (w) w.document.write('<img src="' + x.image + '" style="max-width:100%">'); } };
+  global.openOriginal = function (id) { var x = InspoModel.byId(id); if (!x) return; var u = global.Attach ? Attach.url(InspoModel.attachName(x)) : ''; if (u) { window.open(u, '_blank'); return; } InspoModel.original(id).then(function (d) { if (!d) { flash('The original is not available here.'); return; } var a = document.createElement('a'); a.href = d; a.download = x.name || InspoModel.attachName(x); document.body.appendChild(a); a.click(); a.remove(); }); };
+  global.SocialImageLightbox = function (id) { var x = InspoModel.byId(id); if (x && (x.image || x.file || x.stored)) InspoModel.original(id).then(function (d) { d = d || x.image; if (!d) return; var w = window.open(); if (w) { w.document.write('<title>' + esc(x.title || 'Image') + '</title><body style="margin:0;background:#111;display:grid;place-items:center;min-height:100vh"><img src="' + d + '" style="max-width:100%;max-height:100vh"></body>'); w.document.close(); } }); };
 
   // Quick add on this page
   global.quickAdd = function () {
@@ -76,7 +79,7 @@
     z.addEventListener('drop', function (e) {
       var files = Array.prototype.slice.call(e.dataTransfer.files || []); var text = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
       var ws = document.getElementById('quickWs').value;
-      files.filter(function (f) { return /^image\//.test(f.type); }).forEach(function (f) { var r = new FileReader(); r.onload = function () { InspoModel.add({ kind: 'image', image: r.result, title: f.name.replace(/\.[^.]+$/, ''), ws: ws, source: 'ui' }); render(); }; r.readAsDataURL(f); });
+      files.filter(function (f) { return /^image\//.test(f.type); }).forEach(function (f) { var r = new FileReader(); r.onload = function () { InspoModel.add({ kind: 'image', image: r.result, original: r.result, name: f.name, size: f.size, type: f.type, title: f.name.replace(/\.[^.]+$/, ''), ws: ws, source: 'ui' }); render(); }; r.readAsDataURL(f); });
       if (!files.length && text) { InspoModel.add(InspoModel.parseQuick(text, { ws: ws, source: 'ui' })); render(); }
       if (files.length || text) flash('Dropped into inspiration.');
     });

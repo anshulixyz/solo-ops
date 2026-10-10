@@ -147,6 +147,21 @@
   };
   var CATS = [['daily', 'Daily', 'standup · now · wrap up'], ['weekly', 'Weekly', 'review · retro'], ['projects', 'Projects', 'plan · tasks · clean'], ['content', 'Content', 'posts · scripts · drafts'], ['fix', 'Safety', 'undo · backups']];
   var TAB_KEY = 'marathon.guide.tab';
+  /* ---- backup status (server mode only; elsewhere the CLI knows) ---- */
+  var backup = { state: 'unknown', at: 0 };   // {repo, remote, lastAt, dirty}
+  function backupStatus() {
+    if (!global.Sync || Sync.getMode() !== 'server') { backup.state = 'n/a'; return Promise.resolve(backup); }
+    if (Date.now() - backup.at < 300000) return Promise.resolve(backup);
+    return fetch('/api/backup', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { backup = Object.assign({ state: j ? 'ok' : 'unknown', at: Date.now() }, j || {}); return backup; }).catch(function () { backup.state = 'unknown'; backup.at = Date.now(); return backup; });
+  }
+  function backupLine() {
+    if (backup.state === 'n/a') return '<span>Backup status: run <code>node solo.js backup --status</code> in the terminal.</span>';
+    if (backup.state !== 'ok') return '<span>Checking backup…</span>';
+    if (!backup.repo) return '<span><b>No backup yet.</b> Your data lives only on this computer.</span>';
+    var days = backup.lastAt ? Math.floor((Date.now() - Date.parse(backup.lastAt)) / 86400000) : null;
+    return '<span><b>Backup ' + (days === null ? 'set up' : days === 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago') + '</b>' + (backup.remote ? ' → ' + esc(backup.remote.replace(/^.*github\.com[:\/]/, '').replace(/\.git$/, '')) : ' (local repo only, no remote)') + (backup.dirty ? ' · ' + backup.dirty + ' file' + (backup.dirty === 1 ? '' : 's') + ' changed since' : '') + '</span>';
+  }
+  function backupDays() { return backup.state === 'ok' && backup.repo && backup.lastAt ? Math.floor((Date.now() - Date.parse(backup.lastAt)) / 86400000) : null; }
   function tab() { return Store.get(TAB_KEY) || 'prompts'; }
 
   /* ---- render: tabs → Moves · Prompts · Apply · Setup ------------------ */
@@ -172,9 +187,13 @@
         (m === 'files' ? '<ol class="guide-steps"><li>Open this folder in your agent.</li><li>Say: <b>"Read AGENTS.md, then run node solo.js week"</b>.</li><li>Keep <code>node serve.js</code> running; pages update as the agent works. Images you attach are saved to <code>data/attachments/</code> so it can open them.</li></ol>'
          : m === 'chat' ? '<ol class="guide-steps"><li>Copy a prompt from the Prompts tab — it includes a snapshot.</li><li>When the agent replies with a code block, copy it.</li><li>Apply tab → paste → Preview → Apply. If an item has an image the agent needs, upload it in the chat when asked.</li></ol>' : '') +
         (pstore().hidden.length ? '<p><button type="button" class="guide-snap pe-restore">Show ' + pstore().hidden.length + ' hidden built-in prompt' + (pstore().hidden.length === 1 ? '' : 's') + '</button></p>' : '') +
+        '<h4>Protect your work</h4><div class="guide-status ' + (backup.state === 'ok' && backup.repo && (backupDays() === null || backupDays() < 7) ? 'ok' : backup.state === 'ok' && !backup.repo ? 'warn' : '') + '" id="guideBackup"><span class="dot"></span>' + backupLine() + '</div>' +
+        '<p>Every change is logged and revertable (Home → Recent changes, <code>node solo.js revert</code>). Nothing deletes from a prompt: the app ignores <code>rm</code> in replies. Your tasks are never in the public Solo Ops repo. The rest is a private copy of <code>data/</code> somewhere else; these prompts set it up with your agent:</p>' +
+        all.filter(function (x) { return x.c === 'fix'; }).map(row).join('') +
+        '<p class="guide-foot-note">Terminal: <code>node solo.js doctor</code> checks every file, attachment and the backup age · <code>backup</code> refuses a public GitHub repo on purpose.</p>' +
         '<h4>Your data</h4>' + dataSection() +
-        '<h4>Attachments</h4><p>Images you add to inspiration, notes or posts are kept in the app and, when <code>node serve.js</code> is running or the folder is linked, also written to <code>data/attachments/</code>. Agents with file access open them; chat agents are told to ask you for them.' + (global.Sync && !Sync.attachmentsAvailable() ? ' <b>Right now attachments stay in the browser only.</b>' : '') + '</p>' +
-        '<h4>Read more</h4><p><a href="' + r + 'README.md" target="_blank">README</a> · <a href="' + r + 'AGENTS.md" target="_blank">AGENTS.md</a> · <a href="' + r + 'prompts/agent-bootstrap.md" target="_blank">bootstrap prompt</a> · <a href="' + r + 'data/SCHEMA.md" target="_blank">data schema</a></p>' : '') +
+        '<h4>Attachments</h4><p>An image you drop keeps a small thumbnail inside the item; the original is written to <code>data/attachments/</code> when <code>node serve.js</code> is running or the folder is linked, and waits in this browser until then. Other files are copied the same way up to ' + (global.Attach ? Attach.cfg().copyMaxMB : 25) + ' MB (<code>attachments.copyMaxMB</code> in solo.config.js); bigger ones are saved by name and you paste a path or link. Agents with file access open them; chat agents are told to ask you.' + (global.Sync && !Sync.attachmentsAvailable() ? ' <b>Right now originals stay in this browser only.</b>' : '') + '</p>' +
+        '<h4>Read more</h4><p><a href="' + r + 'about.html">About Solo Ops: why, how, what is next</a> · <a href="' + r + 'README.md" target="_blank">README</a> · <a href="' + r + 'AGENTS.md" target="_blank">AGENTS.md</a> · <a href="' + r + 'prompts/agent-bootstrap.md" target="_blank">bootstrap prompt</a> · <a href="' + r + 'data/SCHEMA.md" target="_blank">data schema</a></p>' : '') +
       '</div>';
     panel.querySelector('.guide-close').onclick = close;
     Array.prototype.forEach.call(panel.querySelectorAll('.guide-tab'), function (b) { b.onclick = function () { Store.set(TAB_KEY, b.dataset.tab, { silent: true }); render(); }; });
@@ -276,6 +295,10 @@
     if (insNew) out.push({ s: insNew + ' new inspiration item' + (insNew === 1 ? '' : 's') + ' since your last assessment.', p: by('Assess new inspiration') });
     else if (ins >= 3) out.push({ s: ins + ' inspiration items waiting to become work.', p: by('Turn inspiration into work') });
     if (todo.length > 25) out.push({ s: todo.length + ' items in To Do. Park what is not this month.', p: by('Clean up the board') });
+    if (backup.state === 'ok' && !anyFresh && tasks.length > 3) {
+      if (!backup.repo) out.push({ s: 'No backup yet: your data lives only on this computer.', p: by('Set up a private backup on GitHub') });
+      else if (backupDays() !== null && backupDays() >= 7) out.push({ s: 'Last backup was ' + backupDays() + ' days ago.', p: by('Back up now') });
+    }
     return out.slice(0, 4);
   }
   function renderMoves(all) {
@@ -388,7 +411,7 @@
       if (global.Sync) Sync.note('inspiration.json', 'agent reply applied');
     }
   }
-  function open() { if (!panel) { panel = document.createElement('aside'); panel.className = 'guide'; document.body.appendChild(panel); } render(); panel.classList.add('open'); document.body.classList.add('guide-open'); }
+  function open() { if (!panel) { panel = document.createElement('aside'); panel.className = 'guide'; document.body.appendChild(panel); } render(); panel.classList.add('open'); document.body.classList.add('guide-open'); var before = backup.at; backupStatus().then(function () { if (backup.at !== before && panel.classList.contains('open')) render(); }); }
   function close() { if (panel) { panel.classList.remove('open'); document.body.classList.remove('guide-open'); } }
   function toggle() { if (panel && panel.classList.contains('open')) close(); else open(); }
   function mountHandle() {

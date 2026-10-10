@@ -82,8 +82,11 @@ Schema with every field: `data/SCHEMA.md`. Every data file carries
 
 `node solo.js backup [--remote <private url>] [--status]` keeps `data/` as
 its own git repo (initialised on first run, `log.jsonl` excluded) and pushes
-when a remote is set. Use it before risky bulk edits, and offer to set up a
-daily run. Never point it at a public repo.
+when a remote is set. It checks GitHub remotes and refuses public ones
+(`--allow-public` exists; never use it for the user). Use it before risky
+bulk edits, and offer to set up a daily run. `node solo.js doctor` validates
+every file, attachment and the backup age; run it when something looks off
+and before a bulk edit.
 
 ## Working on the code
 
@@ -117,13 +120,17 @@ state. Point out loose ends and the single next step; do not re-list it.
 
 ## Attachments
 
-Images added to inspiration items, notes and posts are stored in the app and,
-when the user runs `node serve.js` or has linked the folder, also written as
-files under `data/attachments/` (`inspo-<id>.png`, `note-<id>-<n>.png`,
-`post-<id>-<name>`). Items reference them (`file` on inspiration items and
-post assets, `files` on notes). Open them when they matter. Links are plain
-URLs. If an item says an image is "in the app" only, ask the user to export
-it (run the server) or upload it to you.
+An image or file the user drops keeps a small thumbnail (`image`) inside
+the item; the original is a real file under `data/attachments/`
+(`inspo-<id>.<ext>`, `note-<id>-<n>.<ext>`, `post-<id>-<name>`) once the
+server ran or the folder was linked, referenced as `file` (inspiration
+items, post assets) or `files` (notes). `stored: "browser"` means the
+original is still only in the user's browser: ask them to open the app with
+`node serve.js` running, or to upload it to you. Files above
+`attachments.copyMaxMB` are never copied: the item has `name` and `size`
+and usually a `file://` link in `url`. You can attach from the terminal:
+`node solo.js inspo add "Title" --file ./path` (copies it, or links it when
+too big). Open attachments when they matter; links are plain URLs.
 
 ## If you are a chat agent without file access
 

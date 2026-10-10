@@ -459,6 +459,16 @@ function parseQuick(text, extra) {
   else { it.kind = 'note'; it.url = ''; var lines = text.split('\n'); it.title = lines[0].slice(0, 80); it.text = lines.slice(1).join('\n').trim(); }
   return it;
 }
+// copy a local file into data/attachments/ (named <base>.<ext>) when it is under
+// attachments.copyMaxMB; otherwise return just its facts so the item can link to it
+function attachFile(p, base) {
+  var abs = path.resolve(p); var st; try { st = fs.statSync(abs); } catch (e) { fail('No such file: ' + p); }
+  var ext = (path.extname(abs).slice(1) || 'bin').toLowerCase().replace('jpeg', 'jpg'); var image = /^(png|jpg|gif|webp|svg)$/.test(ext);
+  var cap = ((cfg.attachments && cfg.attachments.copyMaxMB) || 25) * 1048576; var sizeText = st.size < 1048576 ? Math.round(st.size / 1024) + ' KB' : (st.size / 1048576).toFixed(1) + ' MB';
+  var r = { abs: abs, name: path.basename(abs), size: st.size, type: image ? 'image/' + (ext === 'jpg' ? 'jpeg' : ext) : '', image: image, sizeText: sizeText, file: '' };
+  if (st.size > cap) return r;
+  var dir = path.join(DATA, 'attachments'); fs.mkdirSync(dir, { recursive: true }); var name = base + '.' + ext; fs.copyFileSync(abs, path.join(dir, name)); r.file = 'data/attachments/' + name; return r;
+}
 function inspoLine(x) { return '- [' + x.id + '] ' + (x.title || x.url || 'untitled') + (x.url ? ' · ' + x.url : '') + (x.file ? ' · ' + x.file : (x.image ? ' · (image in browser)' : '')) + (x.tags.length ? ' · #' + x.tags.join(' #') : '') + (x.ws ? ' · ' + x.ws : '') + ' · ' + x.status + ' · ' + x.source; }
 function cmdInspo() {
   var sub = (pos.shift() || 'list').toLowerCase(); var d = inspo();
@@ -468,8 +478,9 @@ function cmdInspo() {
   }
   if (sub === 'show') { var x = find(d.items, pos.join(' '), 'inspiration item'); return out(['# ' + (x.title || x.url), '', x.url ? x.url + '\n' : '', x.text || '', x.file ? '\nattachment: ' + x.file : (x.image ? '\n(image stored in the browser only — open the app with node serve.js to export it)' : ''), '', 'tags: ' + x.tags.join(', ') + ' · workspace: ' + (x.ws || '—') + ' · ' + x.status + ' · ' + x.source].filter(function (l) { return l !== undefined; }), x); }
   if (sub === 'add') {
-    var text = pos.join(' ').trim() || flags.text; if (!text) fail('Usage: inspo add "https://… or an idea #tag" [--ws <id>] [--tags a,b] [--title "…"]');
+    var text = pos.join(' ').trim() || flags.text; if (!text && !flags.file) fail('Usage: inspo add "https://… or an idea #tag" [--ws <id>] [--tags a,b] [--title "…"] [--file <path>]'); text = text || String(flags.file).split('/').pop();
     var it = parseQuick(text, { ws: flags.ws ? WS_ID : '' }); if (flags.title) it.title = flags.title; if (flags.tags) it.tags = it.tags.concat(split(flags.tags).map(function (t) { return t.toLowerCase(); }));
+    if (flags.file) { var att = attachFile(String(flags.file), 'inspo-' + it.id); it.kind = att.image ? 'image' : 'file'; it.name = att.name; it.size = att.size; it.type = att.type; if (att.file) { it.file = att.file; it.stored = 'disk'; } else { it.url = 'file://' + att.abs; it.text = (it.text ? it.text + '\n' : '') + 'Too large to copy (' + att.sizeText + '); kept as a local link.'; } if (!it.title) it.title = att.name.replace(/\.[^.]+$/, ''); if (it.tags.indexOf(it.kind) < 0) it.tags.push(it.kind); }
     d.items.unshift(it); write('inspiration', d); return out('✓ Saved [' + it.id + '] ' + (it.title || it.url) + (it.ws ? ' → ' + it.ws : '') + (it.tags.length ? ' #' + it.tags.join(' #') : ''), it);
   }
   if (sub === 'tag') { var xt = find(d.items, pos.filter(function (p) { return !/^[+-]/.test(p); }).join(' '), 'inspiration item'); pos.filter(function (p) { return /^[+-]/.test(p); }).forEach(function (o) { var t = o.slice(1).toLowerCase(); if (o[0] === '+' && xt.tags.indexOf(t) < 0) xt.tags.push(t); if (o[0] === '-') xt.tags = xt.tags.filter(function (y) { return y !== t; }); }); xt.updatedAt = Date.now(); write('inspiration', d); return out('✓ [' + xt.id + '] #' + xt.tags.join(' #'), xt); }
@@ -612,14 +623,68 @@ function cmdBackup() {
     git(['init', '-q']); fs.writeFileSync(path.join(DATA, '.gitignore'), 'log.jsonl\n*.backup-*.json\n');
     try { cp.execFileSync('git', ['-C', DATA, 'config', 'user.name'], { stdio: 'ignore' }); } catch (e) { git(['config', 'user.name', 'Solo Ops']); git(['config', 'user.email', 'solo-ops@localhost']); }
   }
-  if (flags.remote) { if (git(['remote', 'get-url', 'origin'], { soft: true })) git(['remote', 'set-url', 'origin', String(flags.remote)]); else git(['remote', 'add', 'origin', String(flags.remote)]); }
-  git(['add', '-A']);
-  var changed = git(['status', '--porcelain'], { soft: true });
-  var msg = 'backup ' + new Date().toISOString().slice(0, 16).replace('T', ' ');
-  if (changed) git(['commit', '-q', '-m', msg]); 
-  var remoteUrl = git(['remote', 'get-url', 'origin'], { soft: true }); var pushed = '';
-  if (remoteUrl) { var branch = git(['rev-parse', '--abbrev-ref', 'HEAD'], { soft: true }) || 'main'; var r = git(['push', '-u', 'origin', branch], { soft: true }); pushed = r === null ? 'push FAILED — check the remote URL and your access (is the repo private and yours?)' : 'pushed to ' + remoteUrl; }
-  out('✓ ' + (changed ? 'Committed ' + changed.split('\n').length + ' file(s): ' + msg : 'Nothing new to commit') + (remoteUrl ? '\n  ' + pushed : '\n  No remote yet — add one with: node solo.js backup --remote <private repo url>') + '\n  Backups never include log.jsonl. Status: node solo.js backup --status', { committed: !!changed, remote: remoteUrl, pushed: pushed });
+  var wanted = flags.remote ? String(flags.remote) : (git(['remote', 'get-url', 'origin'], { soft: true }) || '');
+  // never push someone's tasks to a public repo: GitHub remotes are checked first
+  githubVisibility(wanted, function (vis) {
+    if (vis === 'public' && !flags['allow-public']) fail('Refusing: ' + wanted + ' is a PUBLIC repository. Your data would be visible to everyone. Make it private (gh repo edit --visibility private) or use another remote. (--allow-public overrides, on purpose only.)');
+    if (flags.remote) { if (git(['remote', 'get-url', 'origin'], { soft: true })) git(['remote', 'set-url', 'origin', String(flags.remote)]); else git(['remote', 'add', 'origin', String(flags.remote)]); }
+    git(['add', '-A']);
+    var changed = git(['status', '--porcelain'], { soft: true });
+    var msg = 'backup ' + new Date().toISOString().slice(0, 16).replace('T', ' ');
+    if (changed) git(['commit', '-q', '-m', msg]);
+    var remoteUrl = git(['remote', 'get-url', 'origin'], { soft: true }); var pushed = '';
+    if (remoteUrl) { var branch = git(['rev-parse', '--abbrev-ref', 'HEAD'], { soft: true }) || 'main'; var r = git(['push', '-u', 'origin', branch], { soft: true }); pushed = r === null ? 'push FAILED — check the remote URL and your access (is the repo private and yours?)' : 'pushed to ' + remoteUrl + (vis === 'private' ? ' (private ✓)' : vis === 'unknown' ? ' (could not confirm it is private — check on GitHub)' : ''); }
+    out('✓ ' + (changed ? 'Committed ' + changed.split('\n').length + ' file(s): ' + msg : 'Nothing new to commit') + (remoteUrl ? '\n  ' + pushed : '\n  No remote yet — add one with: node solo.js backup --remote <private repo url>') + '\n  Backups never include log.jsonl. Status: node solo.js backup --status', { committed: !!changed, remote: remoteUrl, pushed: pushed, visibility: vis });
+  });
+}
+// 'public' | 'private' | 'unknown' | '' (not GitHub). Unauthenticated: a private repo answers 404, so 404 = private-or-missing.
+function githubVisibility(remote, cb) {
+  var m = String(remote || '').match(/github\.com[:\/]([^\/\s]+)\/([^\/\s]+?)(?:\.git)?\/?$/); if (!m) return cb('');
+  try { var o = require('child_process').execFileSync('gh', ['repo', 'view', m[1] + '/' + m[2], '--json', 'isPrivate'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 6000 }); return cb(JSON.parse(o).isPrivate ? 'private' : 'public'); } catch (e) { /* no gh or no access: ask the public API */ }
+  var req = require('https').get({ host: 'api.github.com', path: '/repos/' + m[1] + '/' + m[2], headers: { 'User-Agent': 'solo-ops', Accept: 'application/vnd.github+json' }, timeout: 5000 }, function (res) {
+    var b = ''; res.on('data', function (c) { b += c; }); res.on('end', function () { if (res.statusCode === 200) { try { cb(JSON.parse(b).private ? 'private' : 'public'); } catch (e) { cb('unknown'); } } else if (res.statusCode === 404) cb('private'); else cb('unknown'); });
+  });
+  req.on('timeout', function () { req.destroy(); cb('unknown'); }); req.on('error', function () { cb('unknown'); });
+}
+
+/* ---- doctor: is the data folder healthy? ---------------------------------- */
+function cmdDoctor() {
+  var issues = [], notes = [], files = []; var refs = {}; var browserOnly = 0;
+  try { files = fs.readdirSync(DATA).filter(function (f) { return /\.json$/.test(f) && !/\.backup-/.test(f); }); } catch (e) { fail('No data/ folder yet. Run: node solo.js template all'); }
+  var shapes = { social: 'posts', scripts: 'scripts', writing: 'notes', inspiration: 'items', boards: 'boards', workspaces: 'workspaces', activity: 'days', settings: 'theme', prompts: null };
+  files.forEach(function (f) {
+    var txt, obj; try { txt = fs.readFileSync(path.join(DATA, f), 'utf8'); obj = JSON.parse(txt); } catch (e) { issues.push(f + ': not valid JSON (' + e.message.split('\n')[0] + ')'); return; }
+    if (!obj || typeof obj !== 'object') { issues.push(f + ': not an object'); return; }
+    if (!obj.updatedAt) issues.push(f + ': no updatedAt (sync cannot tell which side is newer)'); else if (isNaN(Date.parse(obj.updatedAt))) issues.push(f + ': updatedAt is not an ISO date');
+    var base = f.replace(/\.json$/, ''); var kind = Object.keys(shapes).filter(function (k) { return base === k || base.slice(-k.length - 1) === '-' + k; })[0];
+    var arrKey = kind ? shapes[kind] : 'tasks';
+    if (kind === 'settings') { if (!obj.theme) issues.push(f + ': no theme'); }
+    else if (kind === 'activity') { if (!obj.days || typeof obj.days !== 'object') issues.push(f + ': no days map'); }
+    else if (arrKey) {
+      var arr = obj[arrKey]; if (!Array.isArray(arr)) { issues.push(f + ': expected an array "' + arrKey + '"'); return; }
+      var seen = {}; arr.forEach(function (x, i) { if (!x || typeof x !== 'object') { issues.push(f + ': ' + arrKey + '[' + i + '] is not an object'); return; } if (x.id == null) issues.push(f + ': ' + arrKey + '[' + i + '] has no id'); else if (seen[x.id]) issues.push(f + ': duplicate id ' + x.id); seen[x.id] = 1;
+        ['file', 'files', 'assets'].forEach(function (k) { var v = x[k]; if (!v) return; (typeof v === 'string' ? [v] : Array.isArray(v) ? v.map(function (a) { return a && a.file; }) : Object.keys(v).map(function (q) { return v[q]; })).forEach(function (r) { if (typeof r === 'string' && /^data\/attachments\//.test(r)) refs[r.replace(/^data\/attachments\//, '')] = f; }); });
+        if (x.stored === 'browser') browserOnly++; });
+      if (arrKey === 'tasks') { var cols = ['todo', 'doing', 'done', 'later', 'bucket']; arr.forEach(function (t) { if (cols.indexOf(t.col) < 0) issues.push(f + ': task ' + t.id + ' has unknown column "' + t.col + '"'); }); }
+      notes.push(f + ': ' + arr.length + ' ' + arrKey + ' · ' + Math.round(txt.length / 1024) + ' KB' + (txt.length > 2 * 1024 * 1024 ? '  ⚠ over 2 MB: change-log snapshots are skipped for this file' : ''));
+    }
+  });
+  var bad = 0, logN = 0; try { fs.readFileSync(LOG, 'utf8').split('\n').filter(Boolean).forEach(function (l) { logN++; try { JSON.parse(l); } catch (e) { bad++; } }); } catch (e) { /* no log */ }
+  if (bad) issues.push('log.jsonl: ' + bad + ' unreadable line(s)'); else if (logN) notes.push('log.jsonl: ' + logN + ' entries');
+  var adir = path.join(DATA, 'attachments'); var onDisk = []; try { onDisk = fs.readdirSync(adir).filter(function (f) { return f[0] !== '.'; }); } catch (e) { /* none */ }
+  var orphans = onDisk.filter(function (f) { return !refs[f]; }); var missing = Object.keys(refs).filter(function (f) { return onDisk.indexOf(f) < 0; });
+  if (missing.length) issues.push('attachments: ' + missing.length + ' referenced file(s) missing from data/attachments/: ' + missing.slice(0, 5).join(', ') + (missing.length > 5 ? '…' : ''));
+  if (orphans.length) notes.push('attachments: ' + orphans.length + ' file(s) nothing references (safe to delete): ' + orphans.slice(0, 5).join(', ') + (orphans.length > 5 ? '…' : ''));
+  if (browserOnly) issues.push(browserOnly + ' attachment original(s) exist only in a browser (stored: browser). Open the app with node serve.js running so they are written to data/attachments/.');
+  var total = 0; onDisk.forEach(function (f) { try { total += fs.statSync(path.join(adir, f)).size; } catch (e) { /* skip */ } }); if (onDisk.length) notes.push('attachments: ' + onDisk.length + ' file(s), ' + (total / 1048576).toFixed(1) + ' MB on disk');
+  var repo = fs.existsSync(path.join(DATA, '.git')); var lastBackup = null;
+  if (repo) { try { lastBackup = require('child_process').execFileSync('git', ['-C', DATA, 'log', '-1', '--format=%cI'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch (e) { /* none */ } }
+  var realData = files.some(function (f) { return !/^(settings|activity|boards|workspaces|prompts)\.json$/.test(f); });
+  if (!repo && realData) issues.push('no backup: data/ is not a git repo. Run: node solo.js backup --remote <private repo url>');
+  else if (repo && lastBackup && Date.now() - Date.parse(lastBackup) > 7 * 86400000) issues.push('last backup was ' + Math.round((Date.now() - Date.parse(lastBackup)) / 86400000) + ' days ago. Run: node solo.js backup');
+  else if (repo) notes.push('backup: last ' + (lastBackup || 'never'));
+  out(['# doctor — ' + (issues.length ? issues.length + ' issue' + (issues.length === 1 ? '' : 's') : 'all good'), ''].concat(issues.map(function (i) { return '⚠ ' + i; })).concat(issues.length ? [''] : []).concat(notes.map(function (n) { return '· ' + n; })), { ok: !issues.length, issues: issues, notes: notes, orphans: orphans, missing: missing, browserOnly: browserOnly, repo: repo, lastBackup: lastBackup });
+  if (issues.length && !JSON_OUT) process.exitCode = 2;
 }
 
 /* ---- template / theme / config / serve ----------------------------------- */
@@ -639,12 +704,13 @@ function cmdTemplate() {
 }
 function cmdTheme() {
   var sub = (pos.shift() || 'show').toLowerCase(); var s = read('settings') || { theme: (cfg.theme || { mode: 'auto', palette: 'warm' }) };
-  var palettes = ['warm', 'paper', 'forest', 'dusk', 'mono'], modes = ['auto', 'light', 'dark'];
-  if (sub === 'show') return out('theme: mode ' + s.theme.mode + ' · palette ' + s.theme.palette + '\npalettes: ' + palettes.join(', ') + '\nmodes: ' + modes.join(', '), s.theme);
+  var palettes = ['warm', 'paper', 'forest', 'dusk', 'mono'], modes = ['auto', 'light', 'dark'], fonts = ['inter', 'system', 'lato', 'editorial'];
+  if (sub === 'show') return out('theme: mode ' + s.theme.mode + ' · palette ' + s.theme.palette + ' · font ' + (s.theme.font || 'inter') + '\npalettes: ' + palettes.join(', ') + '\nmodes: ' + modes.join(', ') + '\nfonts: ' + fonts.join(', '), s.theme);
   if (sub === 'list') return out(palettes.map(function (p) { return '- ' + p + (p === s.theme.palette ? ' (current)' : ''); }), palettes);
   if (sub === 'set') { var p = (pos[0] || '').toLowerCase(); if (palettes.indexOf(p) < 0) fail('Unknown palette. Pick one of: ' + palettes.join(', ')); s.theme.palette = p; write('settings', s); return out('✓ palette → ' + p + ' (open pages switch within a few seconds)', s.theme); }
   if (sub === 'mode') { var m = (pos[0] || '').toLowerCase(); if (modes.indexOf(m) < 0) fail('Mode must be auto, light or dark'); s.theme.mode = m; write('settings', s); return out('✓ mode → ' + m, s.theme); }
-  fail('Usage: theme [show|list|set <palette>|mode <auto|light|dark>]');
+  if (sub === 'font') { var f = (pos[0] || '').toLowerCase(); if (fonts.indexOf(f) < 0) fail('Font must be one of: ' + fonts.join(', ')); s.theme.font = f; write('settings', s); return out('✓ font → ' + f, s.theme); }
+  fail('Usage: theme [show|list|set <palette>|mode <auto|light|dark>|font <inter|system|lato|editorial>]');
 }
 function cmdConfig() {
   var projects = (cfg.projects || []).map(function (p) { return typeof p === 'string' ? p : p.name; });
@@ -666,11 +732,11 @@ function cmdHelp() {
     '  add "Title" [--proj X] [--pri high] [--tags a,b] [--col later] [--desc "…"] [--steps "a|b"]', '  start|done|later|bucket|todo <task>', '  move <task> <column>        pri <task> <high|medium|low>', '  tag <task> +a -b            step <task> "text"   check|uncheck <task> <n>', '  note <task> ["text"]        edit <task> --title … --proj … --pri …', '  rm <task>', '',
     'Share', '  share [todo|board|all]      markdown checklist (paste anywhere)', '  import <list.md> [--col]    "- [ ] item" lines become tasks, indented lines become steps', '',
     'Posts (data/social.json)', '  social list|next|week|show <post>', '  social add "Title" [--at 2026-10-20T09:00 | +3d 17:30] [--type launch] [--project X] [--copy "…"] [--prep "a|b"]', '  social posted|ready|draft <post> [--url …]   social move <post> <when>', '  social prep <post> "item"   social check <post> <n>   social copy <post> ["text"]   social rm <post>', '',
-    'Inspiration (data/inspiration.json — links, ideas, images; tag with a workspace)', '  inspo list [--ws] [--tag x] [--status new|used|archived]   inspo show <item>', '  inspo add "https://… or an idea #tag" [--ws <id>] [--tags a,b]   inspo tag <item> +a -b   inspo ws <item> <workspace>', '  inspo use <item> --as task|post|script|note [--ws] [--board]   inspo ai [--into tasks] (prompt to paste into an AI)   inspo archive|rm <item>', '',
+    'Inspiration (data/inspiration.json — links, ideas, images; tag with a workspace)', '  inspo list [--ws] [--tag x] [--status new|used|archived]   inspo show <item>', '  inspo add [--file <path>] "https://… or an idea #tag" [--ws <id>] [--tags a,b]   inspo tag <item> +a -b   inspo ws <item> <workspace>', '  inspo use <item> --as task|post|script|note [--ws] [--board]   inspo ai [--into tasks] (prompt to paste into an AI)   inspo archive|rm <item>', '',
     'Prompts (data/prompts.json — your own Guide prompts)', '  prompts list|show <p>|add "Title" --text "…"|--file p.md [--cat daily] [--desc "…"]|edit <p> …|rm <p>|restore', '',
     'Studio (data/scripts.json, data/writing.json)', '  scripts list|show <s>|add "Title" [--file x.md]|rm <s>', '  notes list|show <n>|add "Title" [--file x.md]|rm <n>', '',
-    'Safety', '  backup [--remote <private repo url>] [--status]   commit (and push) data/ as its own private git repo', '',
-    'Setup', '  template [all|board|social|scripts|writing|settings] [--board id] [--force]', '  theme [show|list|set <warm|paper|forest|dusk|mono>|mode <auto|light|dark>]', '  config                     show solo.config.js summary', '  serve [--port 4321]        start the local server (pages write data/ directly)', '',
+    'Safety', '  backup [--remote <private repo url>] [--status]   commit (and push) data/ as its own private git repo (refuses public GitHub repos)', '  doctor                     check every data file, attachments and backup age', '',
+    'Setup', '  template [all|board|social|scripts|writing|settings] [--board id] [--force]', '  theme [show|list|set <palette>|mode <auto|light|dark>|font <inter|system|lato|editorial>]', '  config                     show solo.config.js summary', '  serve [--port 4321]        start the local server (pages write data/ directly)', '',
     'Add --json to any command for machine-readable output. Ids: tasks t…, posts p…, scripts s…, notes n….',
     'Agents: add --as agent (and --note "why") so the change log attributes the edit to you.'], null);
 }
@@ -686,7 +752,7 @@ var commands = {
   social: cmdSocial, post: cmdSocial, posts: cmdSocial,
   scripts: cmdScripts, script: cmdScripts, notes: cmdNotes,
   inspo: cmdInspo, inspiration: cmdInspo, prompts: cmdPrompts, prompt: cmdPrompts, boards: cmdBoards, board: cmdBoards, activity: cmdActivity, log: cmdLog, history: cmdLog, revert: cmdRevert, undo: cmdRevert, workspaces: cmdWorkspaces, workspace: cmdWorkspaces, ws: cmdWorkspaces,
-  backup: cmdBackup, template: cmdTemplate, theme: cmdTheme, config: cmdConfig, serve: cmdServe
+  backup: cmdBackup, doctor: cmdDoctor, check: cmdDoctor, template: cmdTemplate, theme: cmdTheme, config: cmdConfig, serve: cmdServe
 };
 var fn = commands[cmd];
 if (!fn) fail('Unknown command "' + cmd + '". Run: node solo.js help');

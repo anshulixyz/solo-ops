@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#CC6B4A">
+<title>About — Solo Ops</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Lato:wght@400;700&display=swap" rel="stylesheet">
+<script src="solo.config.js"></script>
+<script src="core/theme-boot.js"></script>
+<link rel="stylesheet" href="runway/styles.css">
+<link rel="stylesheet" href="core/theme.css">
+<link rel="stylesheet" href="core/ui.css">
+<style>
+  .about{max-width:760px; margin:0 auto;}
+  .about .hero{display:flex; align-items:center; gap:18px; margin:26px 0 10px;}
+  .about .hero img{width:64px; height:64px; border-radius:16px; box-shadow:var(--shadow);}
+  .about h1{font-family:var(--serif); font-size:34px; margin:0; letter-spacing:-.01em;}
+  .about .lede{font-size:17px; line-height:1.55; color:var(--ink); margin:6px 0 22px; font-family:var(--serif);}
+  .about h2{font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); font-weight:500; margin:34px 0 10px; padding-top:18px; border-top:1px solid var(--line);}
+  .about p{font-size:14.5px; line-height:1.65; color:var(--ink); margin:0 0 12px;}
+  .about p.muted{color:var(--muted);}
+  .about ul{margin:0 0 12px; padding-left:0; list-style:none;}
+  .about li{font-size:14.5px; line-height:1.6; padding:9px 0; border-bottom:1px dashed var(--line-2); display:flex; gap:12px;}
+  .about li:last-child{border-bottom:0;}
+  .about li b{display:block; font-weight:600;}
+  .about li .ic{flex:none; width:28px; height:28px; border-radius:8px; background:var(--accent-soft); color:var(--accent-strong); display:grid; place-items:center; font-family:var(--mono); font-size:11px; margin-top:2px;}
+  .about li.soon .ic{background:var(--panel-2); color:var(--muted);}
+  .about code{font-family:var(--mono); font-size:12px; background:var(--panel-2); padding:1px 5px; border-radius:5px;}
+  .about .pill{display:inline-block; font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); border:1px solid var(--line); border-radius:999px; padding:2px 8px; margin-left:8px; vertical-align:middle;}
+  .about .foot{margin:36px 0 50px; font-size:13px; color:var(--muted);}
+  .about .foot a{color:var(--accent-strong);}
+  .about .steer{background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:16px 18px; margin:14px 0 6px; box-shadow:var(--shadow);}
+  .about .steer p{margin:0;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav data-nav data-root="./"></nav>
+  <div class="about">
+    <div class="hero">
+      <img src="icons/icon.svg" alt="">
+      <div>
+        <h1><span data-cfg="name">Solo Ops</span></h1>
+        <div class="eyebrow">local · file-based · agent-native · MIT</div>
+      </div>
+    </div>
+    <p class="lede">A planning board for one person and their agents. Everything is a plain file on your computer. The agents do most of the work. You steer.</p>
+
+    <h2>Why this exists</h2>
+    <p>Static files are enough now. A folder of JSON and HTML, opened by double-click, is a complete tool: no account, no server to pay for, nothing to sync, nothing that disappears when a company pivots. Solo Ops is built on that bet.</p>
+    <p>Most of us already have several agents working for us: one writes, one codes, one researches. Managing them is the hard part, and paying for yet another SaaS to do that managing feels redundant. The boards, the schedule, the inbox are the shared memory your agents and you both read and write. They run the loop; you decide what the loop is for.</p>
+    <div class="steer"><p><b>You become the one who steers.</b> Standups, weekly reviews, turning a saved link into three tasks and a post, cleaning the board, writing the script: a prompt away, logged, revertable. Your attention goes to the decisions, not the upkeep.</p></div>
+
+    <h2>How it works today</h2>
+    <ul>
+      <li><span class="ic">01</span><div><b>Plain files, plain pages</b>Tasks, posts, scripts, notes and inspiration are <code>data/*.json</code>. The pages are static HTML. Open <code>index.html</code>, or run <code>node serve.js</code> and install it as an app.</div></li>
+      <li><span class="ic">02</span><div><b>One contract for every agent</b><code>AGENTS.md</code> tells Claude Code, Cursor, Codex or any file-capable agent where things are and how to change them. Chat agents (Claude.ai, ChatGPT) get a snapshot in the prompt and answer with commands the app applies itself.</div></li>
+      <li><span class="ic">03</span><div><b>Every change is logged</b>Yours, the CLI's and the agents', with who, when and what, and the previous content. One click reverts. Nothing is deleted from a prompt.</div></li>
+      <li><span class="ic">04</span><div><b>Workspaces are projects</b>Each one picks its own apps and boards. Home shows all of them at once. Inspiration is one inbox across all of them.</div></li>
+      <li><span class="ic">05</span><div><b>Backups you own</b><code>node solo.js backup</code> keeps <code>data/</code> as its own private git repo and refuses to push to a public one. <code>doctor</code> checks every file and attachment.</div></li>
+    </ul>
+
+    <h2>What is coming <span class="pill">upcoming</span></h2>
+    <ul>
+      <li class="soon"><span class="ic">→</span><div><b>Collaborators, through agents, no shared app</b>Tomorrow you work with an editor; next month a writer joins for two weeks. Ask your agent to brief them. They install Solo Ops on their laptop, point their own agent at the same private data repo, and the two agents talk through the files: tasks assigned, drafts handed back, questions left as notes. No common UI, no seats, no invites.</div></li>
+      <li class="soon"><span class="ic">→</span><div><b>Pull from the apps you already use</b>Whatever your Claude or ChatGPT is connected to (mail, calendar, docs, analytics, your CRM) can land here as tasks, posts or inspiration. The integration lives in your agent; Solo Ops only needs the result.</div></li>
+      <li class="soon"><span class="ic">→</span><div><b>Telegram</b><code>/add</code>, <code>/done</code>, <code>/next</code>, and "just send me the link" into the inbox from your phone. Design in <code>docs/telegram.md</code>.</div></li>
+      <li class="soon"><span class="ic">→</span><div><b>On your phone, still local</b>The same pages served from your laptop on your own wifi, a QR code on Home, installed as an app on the phone. No cloud in between.</div></li>
+      <li class="soon"><span class="ic">→</span><div><b>Briefing packs</b><code>node solo.js brief --for editor</code>: a filtered snapshot plus the contract plus the right prompts, ready to hand to a person or their agent.</div></li>
+    </ul>
+    <p class="muted">Upcoming means designed and intended, not shipped. The order follows what people ask for.</p>
+
+    <h2>Principles</h2>
+    <ul>
+      <li><span class="ic">·</span><div><b>Files over services.</b> If it cannot be opened from a folder, it does not belong here.</div></li>
+      <li><span class="ic">·</span><div><b>Agents do, humans steer.</b> Every feature is reachable as a prompt before it is reachable as a button.</div></li>
+      <li><span class="ic">·</span><div><b>Nothing silent, nothing final.</b> Logged, attributed, revertable. Deletion needs a human.</div></li>
+      <li><span class="ic">·</span><div><b>Private by default.</b> Your data never enters the public repo; backups refuse public remotes.</div></li>
+    </ul>
+
+    <p class="foot">Open source, MIT. <a href="https://github.com/anshulixyz/solo-ops" target="_blank" rel="noopener">github.com/anshulixyz/solo-ops</a> · <a href="README.md" target="_blank">README</a> · <a href="AGENTS.md" target="_blank">AGENTS.md</a> · <a href="index.html">Back to Home</a></p>
+  </div>
+</div>
+<script src="core/store.js"></script>
+<script src="core/config.js"></script>
+<script src="core/templates.js"></script>
+<script src="core/theme.js"></script>
+<script src="core/sync.js"></script>
+<script src="core/activity.js"></script>
+<script src="core/recent.js"></script>
+<script src="core/palette.js"></script>
+<script src="core/attach.js"></script>
+<script src="inspo/inspo-model.js"></script>
+<script src="core/inspo-quick.js"></script>
+<script src="core/apply.js"></script>
+<script src="core/context.js"></script>
+<script src="core/guide.js"></script>
+<script src="core/nav.js"></script>
+<script>Config.applyDOM(document); if (window.Palette) Palette.init({ root: './' });</script>
+</body>
+</html>

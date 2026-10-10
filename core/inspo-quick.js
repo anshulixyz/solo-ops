@@ -20,10 +20,10 @@
     var wss = Config.workspaces(); var cur = Config.activeWs();
     bar.innerHTML = '<div class="capture-row">' +
       '<svg class="capture-ic" viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg>' +
-      '<textarea class="capture-in" rows="1" placeholder="Save anything to Inspiration — a link, an idea, a quote · paste or drop an image · Enter saves, Shift+Enter for a new line"></textarea>' +
+      '<textarea class="capture-in" rows="1" placeholder="Save anything to Inspiration — a link, an idea, a quote · paste or drop an image or file · Enter saves, Shift+Enter for a new line"></textarea>' +
       '<img class="capture-thumb" style="display:none" alt="">' +
       '<select class="capture-ws" title="Which project this belongs to">' + wss.map(function (w) { return '<option value="' + esc(w.id) + '"' + (w.id === cur ? ' selected' : '') + '>' + esc(w.title) + '</option>'; }).join('') + '<option value="">no project</option></select>' +
-      '<button type="button" class="capture-img" title="Attach an image">Image</button>' +
+      '<button type="button" class="capture-img" title="Attach an image or a file">File</button>' +
       '<button type="button" class="capture-save">Save</button></div>' +
       '<div class="capture-drop">Drop it here — link, text, image or file — it goes straight into Inspiration</div>';
     slot.insertAdjacentElement('afterend', bar);
@@ -32,20 +32,31 @@
     ta.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(); } if (e.key === 'Escape') { ta.blur(); } });
     ta.addEventListener('paste', function (e) { var f = imageFrom(e.clipboardData); if (f) { e.preventDefault(); saveImageFile(f, ta.value.trim()); ta.value = ''; grow(); } });
     bar.querySelector('.capture-save').onclick = save;
-    bar.querySelector('.capture-img').onclick = function () { var i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; i.multiple = true; i.onchange = function () { Array.prototype.forEach.call(i.files, function (f) { saveImageFile(f, ta.value.trim()); }); ta.value = ''; grow(); }; i.click(); };
+    bar.querySelector('.capture-img').onclick = function () { var i = document.createElement('input'); i.type = 'file'; i.multiple = true; i.onchange = function () { Array.prototype.forEach.call(i.files, function (f) { saveImageFile(f, ta.value.trim()); }); ta.value = ''; grow(); }; i.click(); };
     bindDrag(); bindPaste();
   }
   function grow() { ta.style.height = 'auto'; ta.style.height = Math.min(160, ta.scrollHeight) + 'px'; }
   function imageFrom(dt) { return Array.prototype.filter.call((dt && dt.files) || [], function (x) { return /^image\//.test(x.type); })[0] || null; }
   function readImage(file) { var r = new FileReader(); r.onload = function () { pendingImage = r.result; thumb.src = pendingImage; thumb.style.display = ''; ta.focus(); }; r.readAsDataURL(file); }
   // images are saved the moment they arrive; details are optional and can be added later
-  function saveImageFile(file, note) { var r = new FileReader(); r.onload = function () { var it = note ? InspoModel.parseQuick(note, {}) : { tags: [], title: '' }; it.kind = 'image'; it.image = r.result; if (!it.title) it.title = file.name ? file.name.replace(/\.[^.]+$/, '') : ''; add(it); }; r.readAsDataURL(file); }
+  function saveImageFile(file, note) { saveFile(file, note); }
+  // any file: images get a thumbnail + the original on disk; other files are
+  // copied up to the size cap; bigger ones are recorded by name and size only
+  function saveFile(file, note) {
+    var isImg = /^image\//.test(file.type); var big = global.Attach && Attach.tooBig(file);
+    var base = note ? InspoModel.parseQuick(note, {}) : { tags: [], title: '' };
+    base.name = file.name || ''; base.size = file.size || 0; base.type = file.type || '';
+    if (big) { base.kind = isImg ? 'image' : 'file'; base.text = (base.text ? base.text + '\n' : '') + 'Too large to copy (' + Attach.fmtSize(file.size) + ', cap ' + Attach.cfg().copyMaxMB + ' MB). Paste the file\'s path or a link into this item.'; if (!base.title) base.title = file.name.replace(/\.[^.]+$/, ''); add(base); return; }
+    var r = new FileReader();
+    r.onload = function () { base.kind = isImg ? 'image' : 'file'; base.original = r.result; if (isImg) base.image = r.result; if (!base.title) base.title = file.name ? file.name.replace(/\.[^.]+$/, '') : ''; add(base); };
+    r.readAsDataURL(file);
+  }
 
   function add(item) {
     item.ws = item.ws === undefined ? wsSel.value : item.ws; item.source = 'ui';
     var it = model().add(item); lastId = it.id;
     if (global.Sync) Sync.note('inspiration.json', 'captured: ' + (it.title || it.url || it.kind));
-    toast('Saved to Inspiration' + (it.ws ? ' · ' + wsTitle(it.ws) : ''), true);
+    toast('Saved to Inspiration' + (it.ws ? ' · ' + wsTitle(it.ws) : '') + ((it.kind === 'image' || it.kind === 'file') && !(global.Sync && Sync.attachmentsAvailable()) ? ' · original kept in this browser until the folder is connected' : ''), true);
     return it;
   }
   function save() {
@@ -58,8 +69,9 @@
   function saveDropped(dt) {
     var files = Array.prototype.slice.call(dt.files || []); var n = 0;
     files.forEach(function (f) {
-      if (/^image\//.test(f.type)) { saveImageFile(f, ''); n++; }
-      else if (/^text\//.test(f.type) || /\.(md|txt)$/i.test(f.name)) { var r2 = new FileReader(); r2.onload = function () { add(InspoModel.parseQuick(String(r2.result).slice(0, 5000), { title: f.name })); }; r2.readAsText(f); n++; }
+      if (/^image\//.test(f.type)) { saveFile(f, ''); n++; }
+      else if ((/^text\//.test(f.type) || /\.(md|txt)$/i.test(f.name)) && f.size < 200000) { var r2 = new FileReader(); r2.onload = function () { add(InspoModel.parseQuick(String(r2.result).slice(0, 5000), { title: f.name })); }; r2.readAsText(f); n++; }
+      else { saveFile(f, ''); n++; }
     });
     if (n) return;
     var uri = dt.getData('text/uri-list'); var text = dt.getData('text/plain'); var html = dt.getData('text/html');

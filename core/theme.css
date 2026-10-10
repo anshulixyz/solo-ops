@@ -71,6 +71,15 @@
   border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow-lift); padding:10px;
   font-family:var(--body,'Inter',sans-serif); font-size:13px;
 }
+/* ---- font presets (Theme → Font). `inter` is the stylesheet default. ---- */
+:root[data-font="system"]{--display:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; --body:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+:root[data-font="lato"]{--display:'Lato','Helvetica Neue',Helvetica,Arial,sans-serif; --body:'Lato','Helvetica Neue',Helvetica,Arial,sans-serif;}
+:root[data-font="editorial"]{--display:'Lora',Georgia,serif; --body:'Inter',sans-serif;}
+.mt-fonts{display:flex; gap:6px;}
+.mt-fonts button{flex:1; border:1px solid var(--line); background:var(--panel-2); color:var(--ink); border-radius:8px; padding:6px 4px; cursor:pointer; font-size:12px; line-height:1.2;}
+.mt-fonts button.on{border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft);}
+.mt-fonts button span{display:block; font-size:10px; color:var(--muted); margin-top:3px; font-family:var(--body,'Inter',sans-serif);}
+
 .mt-pop h4{margin:0 0 6px; font-family:var(--mono,monospace); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); font-weight:500;}
 .mt-seg{display:flex; gap:4px; margin-bottom:10px;}
 .mt-seg button{flex:1; border:1px solid var(--line); background:var(--panel-2); color:var(--ink); border-radius:8px; padding:6px 8px; font:inherit; font-size:12px; cursor:pointer;}
@@ -343,3 +352,6 @@ body.guide-open{overflow:hidden;}
 .guide-status{display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--line); border-radius:9px; background:var(--panel-2); font-size:12.5px; margin:6px 0 10px;}
 .guide-status .dot{width:8px; height:8px; border-radius:50%; background:var(--amber);}
 .guide-status.ok .dot{background:var(--green);}
+
+.guide-status.warn .dot{background:var(--amber);}
+.guide-status.warn{border-color:var(--amber-line);}
