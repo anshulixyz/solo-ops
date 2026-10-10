@@ -2,7 +2,7 @@
    Storage: `marathon.scripts` → { activeId, scripts:[{id,title,text,createdAt,updatedAt}] }
    Mirrors to data/scripts.json via core/sync.js. Theme lives in core/theme.js. */
 
-const KEY = 'marathon.scripts';
+const KEY = Config.key('scripts');
 const LEGACY_TEXT_KEY = 'marathon.scriptViewer';
 const SCALE_KEY = 'marathon.scripts.scale';
 
@@ -580,7 +580,7 @@ function flash(msg) {
 /* ---- Sync + palette ---- */
 function registerSync() {
   Sync.register({
-    file: 'scripts.json', key: KEY, label: 'scripts', isFresh: () => fresh || Store.isFresh(KEY),
+    file: Config.file('scripts'), key: KEY, label: 'scripts', isFresh: () => fresh || Store.isFresh(KEY),
     read: () => ({ activeId: library.activeId, scripts: library.scripts }),
     apply: (body) => {
       const incoming = normalizeLib(body);
@@ -590,7 +590,7 @@ function registerSync() {
       if (activeBefore && library.scripts.some((s) => s.id === activeBefore.id)) library.activeId = activeBefore.id;
       const s = getActive();
       if (s && $('#scriptInput').value !== s.text) $('#scriptInput').value = s.text;
-      renderList(); updatePreview({ skipSave: true }); flash('Scripts updated from data/scripts.json');
+      renderList(); updatePreview({ skipSave: true }); flash('Scripts updated from data/' + Config.file('scripts'));
     }
   });
 }
@@ -611,7 +611,7 @@ function registerPalette() {
     { label: 'View: 9:16 phone', hint: 'view', run: () => setView('phone') },
     { label: 'Copy script for AI', hint: 'export', keywords: 'clipboard', run: copyScript },
     { label: 'Print', hint: 'export', run: () => window.print() },
-    { label: 'Go to writing viewer', hint: 'nav', run: () => { location.href = 'writing-viewer.html'; } }
+    { label: 'Go to writing viewer', hint: 'nav', run: () => { location.href = 'writing-viewer.html?ws=' + encodeURIComponent(Config.activeWs()); } }
   ]);
 }
 

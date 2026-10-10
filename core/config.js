@@ -9,13 +9,16 @@
 (function (global) {
   'use strict';
 
-  var RESERVED = ['social', 'scripts', 'writing', 'settings', 'activity', 'boards'];
+  var RESERVED = ['social', 'scripts', 'writing', 'settings', 'activity', 'boards', 'workspaces', 'calendar', 'home'];
   var BOARDS_KEY = 'marathon.boards';
+  var WS_KEY = 'marathon.workspaces';       // runtime-created workspaces (data/workspaces.json)
+  var WS_ACTIVE = 'marathon.workspace';     // last used workspace id (this browser)
   var DEFAULTS = {
     name: 'Marathon', eyebrow: 'Solo founder ops',
     apps: { boards: true, social: true, scripts: true, writing: true },
     projects: [{ name: 'general', hue: 45 }],
     boards: [{ id: 'runway', title: 'Launch Runway', sprintLabel: 'Sprint progress', milestones: [], focus: [] }],
+    workspaces: [],
     board: { tags: [], tagHues: {} },
     social: { title: 'Social Schedule', network: 'X / Twitter', arcLabel: 'Posting arc', milestones: [], focus: [],
       postTypes: ['announcement', 'launch', 'update', 'thread', 'teaser'],
@@ -43,12 +46,17 @@
     raw.board = raw.board || { tags: raw.runway.tags, tagHues: raw.runway.tagHues };
   }
   var cfg = merge(DEFAULTS, raw);
+  // workspaces: config list, or one built from the top-level apps/boards
+  if (!Array.isArray(raw.workspaces) || !raw.workspaces.length) {
+    cfg.workspaces = [{ id: 'main', title: cfg.name, apps: cfg.apps, boards: cfg.boards }];
+  }
   cfg.projects = (cfg.projects || []).map(function (p) {
     return typeof p === 'string' ? { name: p, hue: hashHue(p) } : { name: p.name, hue: p.hue != null ? p.hue : hashHue(p.name) };
   });
   if (!cfg.projects.length) cfg.projects = [{ name: 'general', hue: 45 }];
-  cfg.boards = (cfg.boards || []).map(normBoard).filter(Boolean);
-  if (!cfg.boards.length) cfg.boards = [normBoard(DEFAULTS.boards[0])];
+  cfg.workspaces = cfg.workspaces.map(normWs).filter(Boolean);
+  if (!cfg.workspaces.length) cfg.workspaces = [normWs({ id: 'main', title: cfg.name })];
+  var PRIMARY = cfg.workspaces[0].id;      // its files keep the short names (runway.json, social.json …)
 
   function hashHue(s) {
     var h = 0, i; s = String(s || '');
@@ -62,55 +70,122 @@
     if (!id || RESERVED.indexOf(id) >= 0) return null;
     return { id: id, title: b.title || id, sprintLabel: b.sprintLabel || 'Progress', milestones: b.milestones || [], focus: b.focus || [], createdAt: b.createdAt || 0 };
   }
+  function normWs(w) {
+    if (!w) return null;
+    var id = slug(w.id || w.title); if (!id || RESERVED.indexOf(id) >= 0) return null;
+    var apps = merge({ social: true, scripts: true, writing: true }, w.apps || {});
+    var boards = (Array.isArray(w.boards) ? w.boards : []).map(normBoard).filter(Boolean);
+    if (w.boards === undefined && apps.boards !== false && !boards.length) boards = [normBoard({ id: 'runway', title: 'Launch Runway', sprintLabel: 'Sprint progress' })];
+    return { id: id, title: w.title || id, apps: { social: apps.social !== false, scripts: apps.scripts !== false, writing: apps.writing !== false }, boards: boards, createdAt: w.createdAt || 0 };
+  }
   function path(obj, p) { return String(p).split('.').reduce(function (o, k) { return o == null ? undefined : o[k]; }, obj); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
-  /* ---- boards: config + runtime-created ------------------------------ */
-  function runtimeBoards() {
-    var d = global.Store ? Store.getJSON(BOARDS_KEY, null) : null;
-    return d && Array.isArray(d.boards) ? d.boards.map(normBoard).filter(Boolean) : [];
+  /* ---- workspaces: config + runtime-created ---------------------------- */
+  function runtimeWs() {
+    var d = global.Store ? Store.getJSON(WS_KEY, null) : null;
+    return d && Array.isArray(d.workspaces) ? d.workspaces.map(normWs).filter(Boolean) : [];
   }
-  function boards() {
+  function workspaces() {
     var seen = {}, out = [];
-    cfg.boards.concat(runtimeBoards()).forEach(function (b) { if (!seen[b.id]) { seen[b.id] = 1; out.push(b); } });
+    cfg.workspaces.concat(runtimeWs()).forEach(function (w) { if (!seen[w.id]) { seen[w.id] = 1; out.push(w); } });
     return out;
   }
-  function board(id) {
-    var all = boards();
-    return all.filter(function (b) { return b.id === id; })[0] || null;
+  function workspace(id) { return workspaces().filter(function (w) { return w.id === id; })[0] || null; }
+  var wsFromUrl = typeof location !== 'undefined' ? slug(new URLSearchParams(location.search).get('ws') || '') : '';
+  function activeWs() {
+    if (wsFromUrl && RESERVED.indexOf(wsFromUrl) < 0) return wsFromUrl;
+    var saved = global.Store ? Store.get(WS_ACTIVE) : null;
+    return (saved && workspace(saved)) ? saved : PRIMARY;
   }
-  function addBoard(b) {
+  function setActiveWs(id) { if (global.Store) Store.set(WS_ACTIVE, id, { silent: true }); }
+  function ws() { return workspace(activeWs()) || { id: activeWs(), title: activeWs(), apps: { social: true, scripts: true, writing: true }, boards: [] }; }
+  function addWorkspace(w) {
+    var nw = normWs(w); if (!nw) return null;
+    if (workspace(nw.id)) return workspace(nw.id);
+    nw.createdAt = Date.now();
+    var cur = runtimeWs(); cur.push(nw); Store.setJSON(WS_KEY, { workspaces: cur });
+    return nw;
+  }
+  function updateWorkspace(id, patch) {
+    var cur = runtimeWs(); var hit = false;
+    cur = cur.map(function (w) { if (w.id === id) { hit = true; return normWs(Object.assign({}, w, patch, { id: id })); } return w; });
+    if (!hit) { var cw = workspace(id); if (!cw) return null; cur.push(normWs(Object.assign({}, cw, patch, { id: id }))); }
+    Store.setJSON(WS_KEY, { workspaces: cur }); return workspace(id);
+  }
+  function removeWorkspace(id) { Store.setJSON(WS_KEY, { workspaces: runtimeWs().filter(function (w) { return w.id !== id; }) }); }
+
+  /* ---- file + key naming: primary workspace keeps short names ---------- */
+  function prefix(wsId) { wsId = wsId || activeWs(); return wsId === PRIMARY ? '' : wsId + '-'; }
+  function file(app, wsId) { return prefix(wsId) + app + '.json'; }
+  function key(app, wsId) {
+    wsId = wsId || activeWs();
+    if (wsId === PRIMARY) return { social: 'marathon.social.v3', scripts: 'marathon.scripts', writing: 'marathon.writing' }[app] || ('marathon.' + app);
+    return 'marathon.' + wsId + '.' + app;
+  }
+  function boardFile(id, wsId) { return prefix(wsId) + id + '.json'; }
+  function boardKey(id, wsId) { wsId = wsId || activeWs(); return 'marathon.board.' + (wsId === PRIMARY ? '' : wsId + '.') + id; }
+
+  /* ---- boards of a workspace: config + runtime-created ------------------ */
+  function runtimeBoards(wsId) {
+    wsId = wsId || activeWs();
+    var d = global.Store ? Store.getJSON(BOARDS_KEY, null) : null;
+    return (d && Array.isArray(d.boards) ? d.boards : []).filter(function (b) { return (b.ws || PRIMARY) === wsId; }).map(normBoard).filter(Boolean);
+  }
+  function allRuntimeBoards() { var d = global.Store ? Store.getJSON(BOARDS_KEY, null) : null; return d && Array.isArray(d.boards) ? d.boards : []; }
+  function boards(wsId) {
+    wsId = wsId || activeWs();
+    var w = workspace(wsId); var seen = {}, out = [];
+    (w ? w.boards : []).concat(runtimeBoards(wsId)).forEach(function (b) { if (!seen[b.id]) { seen[b.id] = 1; out.push(b); } });
+    return out;
+  }
+  function board(id, wsId) { return boards(wsId).filter(function (b) { return b.id === id; })[0] || null; }
+  function addBoard(b, wsId) {
+    wsId = wsId || activeWs();
     var nb = normBoard(b); if (!nb) return null;
-    if (board(nb.id)) return board(nb.id);
-    nb.createdAt = Date.now();
-    var cur = runtimeBoards(); cur.push(nb);
+    if (board(nb.id, wsId)) return board(nb.id, wsId);
+    nb.createdAt = Date.now(); nb.ws = wsId;
+    var cur = allRuntimeBoards(); cur.push(nb);
     Store.setJSON(BOARDS_KEY, { boards: cur });
     return nb;
   }
-  function updateBoard(id, patch) {
-    var cur = runtimeBoards(); var found = false;
-    cur = cur.map(function (b) { if (b.id === id) { found = true; return normBoard(Object.assign({}, b, patch, { id: id })); } return b; });
-    if (!found) { var cb = board(id); if (!cb) return null; cur.push(normBoard(Object.assign({}, cb, patch, { id: id }))); }
+  function updateBoard(id, patch, wsId) {
+    wsId = wsId || activeWs();
+    var cur = allRuntimeBoards(); var found = false;
+    cur = cur.map(function (b) { if (slug(b.id || b.title) === id && (b.ws || PRIMARY) === wsId) { found = true; return Object.assign(normBoard(Object.assign({}, b, patch, { id: id })), { ws: wsId }); } return b; });
+    if (!found) { var cb = board(id, wsId); if (!cb) return null; cur.push(Object.assign(normBoard(Object.assign({}, cb, patch, { id: id })), { ws: wsId })); }
     Store.setJSON(BOARDS_KEY, { boards: cur });
-    return board(id);
+    return board(id, wsId);
   }
-  function removeBoard(id) {
-    Store.setJSON(BOARDS_KEY, { boards: runtimeBoards().filter(function (b) { return b.id !== id; }) });
+  function removeBoard(id, wsId) {
+    wsId = wsId || activeWs();
+    Store.setJSON(BOARDS_KEY, { boards: allRuntimeBoards().filter(function (b) { return !(slug(b.id || b.title) === id && (b.ws || PRIMARY) === wsId); }) });
   }
-  function boardFile(id) { return id + '.json'; }
-  function boardKey(id) { return 'marathon.board.' + id; }
 
   // mirror runtime-created boards to data/boards.json once Sync exists
   function registerBoardsSync() {
     if (!global.Sync) return;
     Sync.register({
       file: 'boards.json', key: BOARDS_KEY, label: 'boards', activity: false, merge: true,
-      read: function () { return { boards: runtimeBoards() }; },
+      read: function () { return { boards: allRuntimeBoards() }; },
       apply: function (body) {
         if (!Array.isArray(body.boards)) return;
         var seen = {}, out = [];
-        body.boards.concat(runtimeBoards()).forEach(function (b) { var nb = normBoard(b); if (nb && !seen[nb.id]) { seen[nb.id] = 1; out.push(nb); } });
+        body.boards.concat(allRuntimeBoards()).forEach(function (b) {
+          var nb = normBoard(b); if (!nb) return; var k = (b.ws || PRIMARY) + '/' + nb.id;
+          if (!seen[k]) { seen[k] = 1; out.push(Object.assign(nb, { ws: b.ws || PRIMARY })); }
+        });
         Store.setJSON(BOARDS_KEY, { boards: out }, { silent: true });
+      }
+    });
+    Sync.register({
+      file: 'workspaces.json', key: WS_KEY, label: 'workspaces', activity: false, merge: true,
+      read: function () { return { workspaces: runtimeWs() }; },
+      apply: function (body) {
+        if (!Array.isArray(body.workspaces)) return;
+        var seen = {}, out = [];
+        body.workspaces.concat(runtimeWs()).forEach(function (w) { var nw = normWs(w); if (nw && !seen[nw.id]) { seen[nw.id] = 1; out.push(nw); } });
+        Store.setJSON(WS_KEY, { workspaces: out }, { silent: true });
       }
     });
   }
@@ -119,8 +194,12 @@
   global.Config = {
     get: function (p) { return p ? path(cfg, p) : cfg; },
     all: cfg,
-    BOARDS_KEY: BOARDS_KEY, RESERVED: RESERVED, slug: slug,
-    appEnabled: function (name) { return cfg.apps[name] !== false; },
+    BOARDS_KEY: BOARDS_KEY, WS_KEY: WS_KEY, RESERVED: RESERVED, PRIMARY: PRIMARY, slug: slug,
+    workspaces: workspaces, workspace: workspace, ws: ws, activeWs: activeWs, setActiveWs: setActiveWs,
+    addWorkspace: addWorkspace, updateWorkspace: updateWorkspace, removeWorkspace: removeWorkspace,
+    file: file, key: key,
+    // 'boards' is on when the active workspace has at least one board
+    appEnabled: function (name, wsId) { var w = wsId ? workspace(wsId) : ws(); if (!w) return false; return name === 'boards' ? boards(w.id).length > 0 : w.apps[name] !== false; },
     projectNames: function () { return cfg.projects.map(function (p) { return p.name; }); },
     projectHue: function (name) {
       for (var i = 0; i < cfg.projects.length; i++) if (cfg.projects[i].name === name) return cfg.projects[i].hue;
@@ -148,7 +227,7 @@
       var focus = document.querySelectorAll('[data-cfg-focus]');
       for (var k = 0; k < focus.length; k++) {
         var el = focus[k];
-        if (!el.dataset.staticHtml) el.dataset.staticHtml = el.innerHTML;   // static cards (cross-links) stay
+        if (!('staticHtml' in el.dataset)) el.dataset.staticHtml = el.innerHTML;   // static cards (cross-links) stay
         var cards = get(el.getAttribute('data-cfg-focus')) || [];
         el.innerHTML = cards.map(function (c, idx) {
           return '<div class="pri' + (idx % 2 ? ' two' : '') + '"><span class="k">' + esc(c.k || '') + '</span>' +
@@ -157,7 +236,7 @@
         el.style.display = el.children.length ? '' : 'none';
       }
       var apps = document.querySelectorAll('[data-app]');
-      for (var m = 0; m < apps.length; m++) if (cfg.apps[apps[m].getAttribute('data-app')] === false) apps[m].style.display = 'none';
+      for (var m = 0; m < apps.length; m++) if (!global.Config.appEnabled(apps[m].getAttribute('data-app'))) apps[m].style.display = 'none';
     }
   };
 })(typeof window !== 'undefined' ? window : this);

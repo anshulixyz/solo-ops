@@ -13,7 +13,16 @@
     name: 'Marathon',                 // shown on Home and in page titles
     eyebrow: 'Solo founder ops',      // small label above every page title
 
-    /* ---- which apps you use (false hides it from Home, nav and CLI) -- */
+    /* ---- workspaces --------------------------------------------------
+       One workspace = one project: its own boards, posting schedule,
+       scripts and notes, each in its own data/ file. The nav on every page
+       shows only what the active workspace includes. Leave this empty to
+       get a single workspace built from `apps` and `boards` below, or list
+       several here. More can be created from Home or the CLI
+       (`workspaces add`). The first workspace keeps the short file names. */
+    workspaces: [],
+
+    /* ---- which apps the default workspace uses ----------------------- */
     apps: { boards: true, social: true, scripts: true, writing: true },
 
     /* ---- projects (shared by boards and the social schedule) ---------
@@ -24,10 +33,10 @@
       { name: 'content', hue: 190 }
     ],
 
-    /* ---- boards ------------------------------------------------------
+    /* ---- boards of the default workspace ------------------------------
        Each board is its own kanban (To Do / Doing / Done + Later + Bucket)
        with its own data file: data/<id>.json. Add as many as you like here,
-       or create them from the board page ("New board") / CLI (boards add).
+       or create them from the board page ("+ Board") / CLI (boards add).
        milestones: labels under the progress bar. focus: cards under the
        header ([] hides them). */
     boards: [

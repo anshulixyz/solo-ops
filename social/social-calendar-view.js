@@ -224,7 +224,7 @@
     var thumbHtml = thumb
       ? '<div class="cal-thumb" data-asset-id="' + esc(thumb.id) + '" data-asset-post="' + esc(p.id) + '" data-asset-name="' + esc(thumb.name || '') + '"></div>'
       : '';
-    return '<a class="cal-post' + (posted ? ' is-posted' : '') + '" href="social-board.html?id=' + esc(p.id) + '">'
+    return '<a class="cal-post' + (posted ? ' is-posted' : '') + '" href="social-board.html?ws=' + encodeURIComponent(Config.activeWs()) + '&id=' + esc(p.id) + '">'
       + '<div class="cal-post-bar" ' + projStyle(p.project) + '>' + esc(p.project) + '</div>'
       + '<div class="cal-post-time">' + esc(fmtTime(p.datetime)) + '</div>'
       + '<div class="cal-post-title">' + esc(p.title) + '</div>'

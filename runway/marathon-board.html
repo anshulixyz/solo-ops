@@ -16,6 +16,7 @@
 </head>
 <body>
 <div class="wrap">
+  <nav data-nav data-root="../"></nav>
   <header>
     <div class="eyebrow"><span data-cfg="name"></span> · <span data-cfg="eyebrow"></span></div>
     <div class="title-row">
@@ -57,8 +58,6 @@
     <div class="right-controls">
       <div class="filters" id="filters"></div>
       <button class="btn ghost" id="collapseAllBtn" onclick="toggleCollapseAll()" title="Collapse or expand all cards">Collapse all</button>
-      <a class="btn ghost" href="../social/social-board.html" title="Posting schedule" data-app="social">Social</a>
-      <a class="btn ghost home-link" href="../index.html" title="Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-6H9v6H5a2 2 0 0 1-2-2z"/></svg>Home</a>
       <button class="btn primary" onclick="toggleAdd()" title="Add a task (n)">+ Add task</button>
       <button class="btn" onclick="exportMarkdown()" title="Export visible non-Done tasks as Markdown">Export MD</button>
       <button class="btn" onclick="exportState()" title="Download your current board as a file">Save file</button>
@@ -151,6 +150,7 @@
 <script src="../core/sync.js"></script>
 <script src="../core/activity.js"></script>
 <script src="../core/palette.js"></script>
+<script src="../core/nav.js"></script>
 <script src="model.js"></script>
 <script src="view.js"></script>
 <script src="main.js"></script>

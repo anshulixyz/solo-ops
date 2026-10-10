@@ -11,7 +11,7 @@
 (function (global) {
   'use strict';
 
-  var KEY = 'marathon.social.v3';
+  var KEY = Config.key('social');
   var EXPORT_VER = 2;
   var POST_TYPES = (Config.get('social.postTypes') || ['announcement', 'launch', 'update', 'thread', 'teaser']).slice();
   var FORMATS = ['text', 'video', 'text+video'];
@@ -19,7 +19,7 @@
   var PREP_KINDS = (Config.get('social.prepKinds') || ['content', 'video', 'dev', 'design', 'outreach', 'other']).slice();
 
   // one-time migration from the pre-open-source key
-  Store.migrate('anshuli.social.v2', KEY);
+  if (KEY === 'marathon.social.v3') Store.migrate('anshuli.social.v2', KEY);
   var STATUSES = ['draft', 'ready', 'scheduled', 'posted'];
   var VIDEO_STATUSES = ['none', 'idea', 'scripted', 'recorded', 'edited', 'ready'];
   var LINK_KINDS = ['video', 'post', 'reference', 'other'];

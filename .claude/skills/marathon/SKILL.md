@@ -12,7 +12,8 @@ automatically when `node serve.js` is running or the folder is linked.
 ## First, get the picture
 
 ```bash
-node marathon.js week --json      # every board; or `today`; --days 14 for a longer window
+node marathon.js workspaces       # projects; pass --ws <id> to every command (default: first)
+node marathon.js week --json      # every board of the workspace; or `today`; --days 14 for a longer window
 node marathon.js boards           # ids to pass as --board <id> (default: first board)
 ```
 
@@ -35,7 +36,8 @@ node marathon.js share todo ; import list.md ; theme set dusk
 node marathon.js boards add "Title" --from blank|sample|<id> ; boards rename <id> "Title"
 ```
 
-Every task command accepts `--board <id>`.
+Every task command accepts `--board <id>`; every command accepts `--ws <id>`.
+`workspaces add "Title" --apps scripts,writing --boards "A,B" --sample` creates a project.
 
 Ids: tasks `t…`, posts `p…`, scripts `s…`, notes `n…`. Title fragments work
 when unambiguous; the CLI tells you when they are not.

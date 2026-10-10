@@ -17,6 +17,21 @@ whenever you change a file.** The CLI does this for you.
 Images are never stored here. Post images and note images stay in the browser
 (and in Save-file bundles) so these files remain small and readable.
 
+## File names and workspaces
+
+A workspace is one project. The **first workspace** (from `marathon.config.js`,
+id `main` unless you list your own) uses the short names below. Every other
+workspace prefixes its id: `side-project-social.json`,
+`ops-admin.json` (board `admin` in workspace `ops`).
+
+## workspaces.json — workspaces created at runtime
+
+```json
+{ "workspaces": [{ "id": "side-project", "title": "Side project", "apps": { "social": false, "scripts": true, "writing": true }, "boards": [], "createdAt": 0 }] }
+```
+
+Workspaces listed in `marathon.config.js` are implicit. Merged on sync.
+
 ## `<board>.json` — one board's tasks
 
 One file per board, named by the board id (`runway.json` for the sample
@@ -48,7 +63,7 @@ convention). Only `todo/doing/done` count toward sprint progress.
 ## boards.json — boards created at runtime
 
 ```json
-{ "boards": [{ "id": "business-as-usual", "title": "Business as usual", "sprintLabel": "Progress", "milestones": [], "focus": [], "createdAt": 0 }] }
+{ "boards": [{ "id": "business-as-usual", "ws": "main", "title": "Business as usual", "sprintLabel": "Progress", "milestones": [], "focus": [], "createdAt": 0 }] }
 ```
 
 Boards listed in `marathon.config.js` are implicit and need no entry here. A

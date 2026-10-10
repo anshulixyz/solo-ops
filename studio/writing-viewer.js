@@ -3,7 +3,7 @@
    Mirrors to data/writing.json via core/sync.js. Theme lives in core/theme.js. */
 
 const STORAGE_KEY = 'marathon.writingViewer';          // legacy single draft (migrate only)
-const LIBRARY_KEY = 'marathon.writing';
+const LIBRARY_KEY = Config.key('writing');
 const LEGACY_LIBRARY_KEY = 'marathon.writingViewer.library';
 const SNAPSHOT_KEY = 'marathon.writingViewer.snapshot'; // legacy migrate only
 const SCALE_KEY = 'marathon.writing.scale';
@@ -497,7 +497,7 @@ function normalizeLibrary(data) {
 }
 
 function loadLibrary() {
-  Store.migrate(LEGACY_LIBRARY_KEY, LIBRARY_KEY);
+  if (LIBRARY_KEY === 'marathon.writing') Store.migrate(LEGACY_LIBRARY_KEY, LIBRARY_KEY);
   try {
     const data = Store.getJSON(LIBRARY_KEY, null);
     if (data?.notes?.length) return normalizeLibrary(data);
@@ -732,7 +732,7 @@ function onEdit() {
 /* ---- Sync + palette ---- */
 function registerSync() {
   Sync.register({
-    file: 'writing.json', key: LIBRARY_KEY, label: 'notes', isFresh: () => fresh || Store.isFresh(LIBRARY_KEY),
+    file: Config.file('writing'), key: LIBRARY_KEY, label: 'notes', isFresh: () => fresh || Store.isFresh(LIBRARY_KEY),
     read: () => ({ activeId: library.activeId, notes: library.notes }),
     apply: (body) => {
       const incoming = normalizeLibrary(body);
@@ -743,7 +743,7 @@ function registerSync() {
       const n = getActiveNote();
       const ta = $('#writingInput');
       if (n && ta.value !== n.text) { ta.value = n.text; resetEditorHistory(n.text); }
-      renderNotesList(); refresh({ skipFlush: true }); showToast('Notes updated from data/writing.json');
+      renderNotesList(); refresh({ skipFlush: true }); showToast('Notes updated from data/' + Config.file('writing'));
     }
   });
 }
@@ -765,7 +765,7 @@ function registerPalette() {
     { label: 'View: changes', hint: 'view', run: () => setView('changes') },
     { label: 'Undo', hint: 'edit', run: undo }, { label: 'Redo', hint: 'edit', run: redo },
     { label: 'Print', hint: 'export', run: () => window.print() },
-    { label: 'Go to script viewer', hint: 'nav', run: () => { location.href = 'script-viewer.html'; } }
+    { label: 'Go to script viewer', hint: 'nav', run: () => { location.href = 'script-viewer.html?ws=' + encodeURIComponent(Config.activeWs()); } }
   ]);
 }
 

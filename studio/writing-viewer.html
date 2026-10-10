@@ -15,6 +15,7 @@
 </head>
 <body>
 <div class="app writing-app">
+  <nav data-nav data-root="../" class="studio-nav"></nav>
   <header class="topbar">
     <div class="brand">
       <span class="eyebrow"><span data-cfg="name"></span> · Studio</span>
@@ -44,8 +45,6 @@
       <button class="btn primary" id="copyAiBtn" title="Full draft with ~~cuts~~, ++adds++, [[notes]] — or select text first">Copy for AI</button>
       <button class="btn ghost" id="copyAiPreviewBtn" title="Preview before copying">Preview</button>
       <button class="btn" id="copyCleanBtn" title="Final text only, no markup">Copy clean</button>
-      <a class="btn ghost" href="script-viewer.html" data-app="scripts">Scripts</a>
-      <a class="btn ghost home-link" href="../index.html" title="Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-6H9v6H5a2 2 0 0 1-2-2z"/></svg>Home</a>
       <button class="btn ghost" onclick="window.print()">Print</button>
       <span data-sync-pill></span>
       <button class="theme-btn" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">
@@ -129,6 +128,7 @@ Image button → [Image uploaded 1] in text (preview shows the pic)
 <script src="../core/sync.js"></script>
 <script src="../core/activity.js"></script>
 <script src="../core/palette.js"></script>
+<script src="../core/nav.js"></script>
 <script src="writing-viewer.js"></script>
 </body>
 </html>

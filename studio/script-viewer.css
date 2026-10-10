@@ -216,7 +216,7 @@ body {
 .workspace.prompter-only .editor-pane { display: none; }
 .workspace.prompter-only { grid-template-columns: 1fr; }
 
-.home-link svg { width: 14px; height: 14px; margin-right: 5px; vertical-align: -2px; }
+.studio-nav { margin: 0 !important; padding: 8px 18px !important; background: var(--panel); }
 
 /* toast (shared by both studio apps) */
 .toast {

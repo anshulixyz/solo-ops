@@ -27,7 +27,7 @@
   var KNOWN_TAGS = (Config.get('board.tags') || []).slice();
 
   // one-time migrations: open-source v1 keys, then the pre-open-source keys
-  if (BOARD === 'runway') {
+  if (BOARD === 'runway' && Config.activeWs() === Config.PRIMARY) {
     Store.migrate('marathon.runway.v3', KEY) || Store.migrate('anshuli.runway.v2', KEY);
     Store.migrate('marathon.runway.projects', PROJ_KEY) || Store.migrate('anshuli.runway.projects.v1', PROJ_KEY);
   }

@@ -8,8 +8,12 @@ nothing has moved. No install, no account, no server required — and everything
 is **native to agents**: your tasks live in JSON files that Claude, ChatGPT,
 Claude Code or a cron job can read and update without you clicking anything.
 
-Use what you need: switch any app off in `marathon.config.js` and it
-disappears from Home, navigation and the CLI.
+**Workspaces.** One workspace = one project. Each picks the apps it uses
+(boards, schedule, scripts, writing) and gets its own data files, blank or
+with sample content. A launch workspace might use everything; a side project
+only scripts and writing. The top nav on every page shows exactly what the
+active workspace includes. Create them from Home (**+ Workspace**), the CLI
+(`workspaces add`), or list them in `marathon.config.js`.
 
 ```
 node marathon.js week          # terminal on the left…
@@ -35,13 +39,13 @@ themselves are plain HTML + CSS + classic JavaScript.
 
 ## What is inside
 
-| App | Open | Data |
+| App | Open | Data (first workspace; others prefix `<ws>-`) |
 |-----|------|------|
-| Home — activity streak, idle reminder, every board's progress, what is in play | `index.html` | reads all of the below |
-| Boards — kanban (To Do / Doing / Done + Later + Bucket List), one file per board | `runway/marathon-board.html?board=<id>` | `data/<id>.json` (`runway.json` by default) |
-| Social Schedule — posting arc, prep, calendar, streak | `social/social-board.html` | `data/social.json` |
-| Script Viewer — hooks, beats, inserts, teleprompter | `studio/script-viewer.html` | `data/scripts.json` |
-| Writing Viewer — `~~cuts~~` `++adds++` `[[notes for AI]]` | `studio/writing-viewer.html` | `data/writing.json` |
+| Home — activity streak, idle reminder, every board's progress, what is in play | `index.html?ws=<id>` | reads all of the below |
+| Boards — kanban (To Do / Doing / Done + Later + Bucket List), one file per board | `runway/marathon-board.html?ws=<id>&board=<id>` | `data/<board>.json` |
+| Social Schedule — posting arc, prep, calendar, streak | `social/social-board.html?ws=<id>` | `data/social.json` |
+| Script Viewer — hooks, beats, inserts, teleprompter | `studio/script-viewer.html?ws=<id>` | `data/scripts.json` |
+| Writing Viewer — `~~cuts~~` `++adds++` `[[notes for AI]]` | `studio/writing-viewer.html?ws=<id>` | `data/writing.json` |
 
 **Boards are instances.** The first one is called "Launch Runway" in the
 sample config — rename it to "To do", "Kanban", whatever you call it. Create
@@ -66,6 +70,8 @@ node marathon.js today                         # doing + high priority + posts d
 node marathon.js week                          # the next 7 days: every board, posts, studio
 node marathon.js boards add "Business as usual" --from sample   # or blank, or --from runway (copy)
 node marathon.js week --board business-as-usual
+node marathon.js workspaces add "Side project" --apps scripts,writing --sample
+node marathon.js week --ws side-project
 node marathon.js add "Write the launch post" --proj launch --pri high --tags content --steps "Outline|Draft"
 node marathon.js start "launch post"           # by id or title fragment
 node marathon.js done t5
@@ -97,9 +103,10 @@ Marathon is designed so an AI agent can manage it end to end:
 
 ## Make it yours
 
-Everything configurable is in **`marathon.config.js`**: name, which apps you
-use, boards (titles, milestones, focus cards), projects (with colors), tags,
-post types, prep kinds, idle-reminder hours, default theme.
+Everything configurable is in **`marathon.config.js`**: name, workspaces (or
+just which apps and boards the default one uses), board titles, milestones
+and focus cards, projects (with colors), tags, post types, prep kinds,
+idle-reminder hours, default theme.
 Sample content ships in `data/`; replace it from the hub (**Start blank**),
 with `node marathon.js template --force`, or just start adding.
 
@@ -120,8 +127,8 @@ index.html            hub
 marathon.config.js    your settings (plain JS, read by pages and CLI)
 marathon.js           CLI (node, zero deps)
 serve.js              local server + write API (node, zero deps)
-core/                 shared: store, config, theme, sync, activity, palette, templates
-data/                 your data (JSON: one file per board + social, scripts, writing, boards, activity, settings) + SCHEMA.md
+core/                 shared: store, config, theme, sync, activity, nav, palette, templates
+data/                 your data: per workspace one file per board + social, scripts, writing; plus boards, workspaces, activity, settings; SCHEMA.md
 runway/ social/ studio/   the apps (classic scripts, file:// safe)
 prompts/              bootstrap prompt for chat agents
 .claude/skills/       Claude Code skill wrapping the CLI

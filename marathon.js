@@ -20,9 +20,7 @@ var ROOT = __dirname;
 var DATA = path.join(ROOT, 'data');
 var cfg = safeRequire(path.join(ROOT, 'marathon.config.js')) || {};
 var T = safeRequire(path.join(ROOT, 'core', 'templates.js'));
-var RESERVED = ['social', 'scripts', 'writing', 'settings', 'activity', 'boards'];
-var APPS = Object.assign({ boards: true, social: true, scripts: true, writing: true }, cfg.apps || {});
-function appOn(a) { return APPS[a] !== false; }
+var RESERVED = ['social', 'scripts', 'writing', 'settings', 'activity', 'boards', 'workspaces', 'calendar', 'home'];
 var COLS = ['todo', 'doing', 'done', 'later', 'bucket'];
 var COL_LABEL = { todo: 'To Do', doing: 'Doing', done: 'Done', later: 'Later', bucket: 'Bucket List' };
 var PRI = { high: 0, medium: 1, low: 2 };
@@ -53,7 +51,7 @@ function write(name, body, opts) {
   body.version = 1; body.updatedAt = new Date().toISOString();
   fs.mkdirSync(DATA, { recursive: true });
   fs.writeFileSync(fileOf(name), JSON.stringify(body, null, 2) + '\n');
-  if (!(opts && opts.noActivity) && name !== 'activity' && name !== 'boards' && name !== 'settings') logActivity(name);
+  if (!(opts && opts.noActivity) && ['activity', 'boards', 'workspaces', 'settings'].indexOf(name) < 0) logActivity(name);
   return body;
 }
 function logActivity(app) {
@@ -84,27 +82,58 @@ function activityLine() {
 }
 function slug(x) { return String(x || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32); }
 function normBoard(b) { var id = slug(b.id || b.title); if (!id || RESERVED.indexOf(id) >= 0) return null; return { id: id, title: b.title || id, sprintLabel: b.sprintLabel || 'Progress', milestones: b.milestones || [], focus: b.focus || [], createdAt: b.createdAt || 0 }; }
+/* ---- workspaces: config + data/workspaces.json; primary keeps short file names ---- */
+function normWs(w) {
+  if (!w) return null; var id = slug(w.id || w.title); if (!id || RESERVED.indexOf(id) >= 0) return null;
+  var apps = Object.assign({ social: true, scripts: true, writing: true }, w.apps || {});
+  var boards = (Array.isArray(w.boards) ? w.boards : []).map(normBoard).filter(Boolean);
+  if (w.boards === undefined && apps.boards !== false && !boards.length) boards = [normBoard({ id: 'runway', title: 'Launch Runway', sprintLabel: 'Sprint progress' })];
+  return { id: id, title: w.title || id, apps: { social: apps.social !== false, scripts: apps.scripts !== false, writing: apps.writing !== false }, boards: boards };
+}
+function configWs() {
+  var list = Array.isArray(cfg.workspaces) && cfg.workspaces.length ? cfg.workspaces
+    : [{ id: 'main', title: cfg.name || 'Marathon', apps: cfg.apps, boards: cfg.boards || (cfg.runway ? [{ id: 'runway', title: cfg.runway.title }] : undefined) }];
+  var out = list.map(normWs).filter(Boolean); return out.length ? out : [normWs({ id: 'main', title: 'Marathon' })];
+}
+function allWorkspaces() {
+  var seen = {}, out = []; var rt = read('workspaces');
+  configWs().concat(rt && Array.isArray(rt.workspaces) ? rt.workspaces : []).map(normWs).filter(Boolean).forEach(function (w) { if (!seen[w.id]) { seen[w.id] = 1; out.push(w); } });
+  return out;
+}
+var WORKSPACES = allWorkspaces();
+var PRIMARY = WORKSPACES[0].id;
+var WS_ID = (function () {
+  if (!flags.ws) return PRIMARY;
+  var want = String(flags.ws).toLowerCase();
+  var hit = WORKSPACES.filter(function (w) { return w.id === slug(want) || w.title.toLowerCase().indexOf(want) >= 0; });
+  if (hit.length !== 1) fail('Unknown workspace "' + flags.ws + '". Workspaces: ' + WORKSPACES.map(function (w) { return w.id + ' (' + w.title + ')'; }).join(', '));
+  return hit[0].id;
+})();
+var WS = WORKSPACES.filter(function (w) { return w.id === WS_ID; })[0];
+function prefix(wsId) { return (wsId || WS_ID) === PRIMARY ? '' : (wsId || WS_ID) + '-'; }
+function fileName(app, wsId) { return prefix(wsId) + app; }   // data/<prefix><app>.json
+function appOn(a) { return a === 'boards' ? BOARDS.length > 0 : WS.apps[a] !== false; }
 function allBoards() {
-  var seen = {}, out = []; var rt = read('boards'); var list = (cfg.boards || []).concat(rt && Array.isArray(rt.boards) ? rt.boards : []);
-  if (cfg.runway && !cfg.boards) list.unshift({ id: 'runway', title: cfg.runway.title });
+  var seen = {}, out = []; var rt = read('boards');
+  var list = WS.boards.concat((rt && Array.isArray(rt.boards) ? rt.boards : []).filter(function (b) { return (b.ws || PRIMARY) === WS_ID; }));
   list.map(normBoard).filter(Boolean).forEach(function (b) { if (!seen[b.id]) { seen[b.id] = 1; out.push(b); } });
-  if (!out.length) out.push({ id: 'runway', title: 'Launch Runway', sprintLabel: 'Progress', milestones: [], focus: [] });
   return out;
 }
 var BOARDS = allBoards();
 var BOARD_ID = (function () {
   var want = flags.board ? slug(flags.board) : null;
-  if (!want) return BOARDS[0].id;
+  if (!want) return BOARDS[0] ? BOARDS[0].id : 'runway';
   var hit = BOARDS.filter(function (b) { return b.id === want || b.title.toLowerCase().indexOf(String(flags.board).toLowerCase()) >= 0; });
   if (hit.length !== 1) fail('Unknown board "' + flags.board + '". Boards: ' + BOARDS.map(function (b) { return b.id + ' (' + b.title + ')'; }).join(', '));
   return hit[0].id;
 })();
 function boardMeta(id) { return BOARDS.filter(function (b) { return b.id === (id || BOARD_ID); })[0]; }
-function board(id) { var d = read(id || BOARD_ID); return d && Array.isArray(d.tasks) ? d : { projects: [], tasks: [] }; }
-function saveBoard(b, id) { return write(id || BOARD_ID, b); }
-function schedule() { var d = read('social'); return d && Array.isArray(d.posts) ? d : { posts: [] }; }
-function scripts() { var d = read('scripts'); return d && Array.isArray(d.scripts) ? d : { activeId: '', scripts: [] }; }
-function notes() { var d = read('writing'); return d && Array.isArray(d.notes) ? d : { activeId: '', notes: [] }; }
+function boardFile(id) { return prefix() + (id || BOARD_ID); }
+function board(id) { var d = read(boardFile(id)); return d && Array.isArray(d.tasks) ? d : { projects: [], tasks: [] }; }
+function saveBoard(b, id) { return write(boardFile(id), b); }
+function schedule() { var d = read(fileName('social')); return d && Array.isArray(d.posts) ? d : { posts: [] }; }
+function scripts() { var d = read(fileName('scripts')); return d && Array.isArray(d.scripts) ? d : { activeId: '', scripts: [] }; }
+function notes() { var d = read(fileName('writing')); return d && Array.isArray(d.notes) ? d : { activeId: '', notes: [] }; }
 
 function out(md, obj) {
   if (JSON_OUT) process.stdout.write(JSON.stringify(obj === undefined ? { text: md } : obj, null, 2) + '\n');
@@ -160,7 +189,7 @@ function titleOf(text) { var m = (text || '').match(/^#\s+(.+)/m); return m ? m[
 
 /* ---- task commands ------------------------------------------------------- */
 function cmdList() {
-  var b = board(); if (!read(BOARD_ID)) fail(hint(BOARD_ID));
+  var b = board(); if (!read(boardFile())) fail(hint(boardFile()));
   var which = (pos[0] || 'board').toLowerCase();
   var cols = which === 'all' ? COLS : which === 'board' ? ['todo', 'doing', 'done'] : COLS.indexOf(which) >= 0 ? [which] : null;
   if (!cols) fail('Unknown list "' + which + '". Use board, all, todo, doing, done, later or bucket.');
@@ -356,7 +385,7 @@ function cmdImport() {
 /* ---- social -------------------------------------------------------------- */
 function cmdSocial() {
   var sub = (pos.shift() || 'list').toLowerCase(); var s = schedule();
-  if (!read('social') && ['list', 'next', 'week', 'show'].indexOf(sub) >= 0) fail(hint('social'));
+  if (!read(fileName('social')) && ['list', 'next', 'week', 'show'].indexOf(sub) >= 0) fail(hint(fileName('social')));
   var sorted = s.posts.slice().sort(function (a, b) { return a.datetime.localeCompare(b.datetime); });
   var un = sorted.filter(function (p) { return p.status !== 'posted'; });
   if (sub === 'list') return out(['## Posts (' + sorted.length + ')'].concat(sorted.map(postLine)), sorted);
@@ -370,18 +399,18 @@ function cmdSocial() {
       project: flags.project || flags.proj || ((cfg.projects || [])[0] || {}).name || 'general', copy: flags.copy || '', video: { title: '', status: 'none', notes: '', link: '' }, links: [], assets: [],
       prep: String(flags.prep || '').split('|').map(function (x) { return x.trim(); }).filter(Boolean).map(function (x) { return { text: x, done: false, kind: 'content' }; }),
       notes: flags.notes || '', status: 'draft', posted: { url: '', postedAt: '', stats: {}, notes: '', screenshotId: '' } };
-    s.posts.push(np); write('social', s); return out('✓ Scheduled [' + np.id + '] ' + np.title + ' · ' + fmtDT(np.datetime), np);
+    s.posts.push(np); write(fileName('social'), s); return out('✓ Scheduled [' + np.id + '] ' + np.title + ' · ' + fmtDT(np.datetime), np);
   }
   if (sub === 'posted' || sub === 'ready' || sub === 'draft') {
     var pp = find(s.posts, pos.join(' '), 'post'); pp.status = sub;
     if (sub === 'posted') { pp.posted = pp.posted || {}; pp.posted.postedAt = pp.posted.postedAt || localDT(new Date()); if (flags.url) pp.posted.url = flags.url; }
-    write('social', s); return out('✓ [' + pp.id + '] ' + pp.title + ' → ' + sub, pp);
+    write(fileName('social'), s); return out('✓ [' + pp.id + '] ' + pp.title + ' → ' + sub, pp);
   }
-  if (sub === 'move') { var pm = find(s.posts, pos.slice(0, -1).join(' '), 'post'); pm.datetime = parseWhen(pos[pos.length - 1]); write('social', s); return out('✓ [' + pm.id + '] ' + pm.title + ' → ' + fmtDT(pm.datetime), pm); }
-  if (sub === 'prep') { var text = flags.text || pos.slice(1).join(' '); var pq = find(s.posts, flags.text ? pos.join(' ') : pos[0], 'post'); if (!text) fail('Usage: social prep <post> "prep item"'); pq.prep = pq.prep || []; pq.prep.push({ text: text, done: false, kind: flags.kind || 'content' }); write('social', s); return out('✓ [' + pq.id + '] prep ' + pq.prep.length + ': ' + text, pq); }
-  if (sub === 'check') { var n = parseInt(pos[pos.length - 1], 10); var pc = find(s.posts, pos.slice(0, -1).join(' '), 'post'); if (!pc.prep || !pc.prep[n - 1]) fail('No prep item ' + n); pc.prep[n - 1].done = !pc.prep[n - 1].done; write('social', s); return out('✓ [' + pc.id + '] ' + (pc.prep[n - 1].done ? '☑' : '☐') + ' ' + pc.prep[n - 1].text, pc); }
-  if (sub === 'copy') { var text2 = flags.text || pos.slice(1).join(' '); var pcp = find(s.posts, flags.text ? pos.join(' ') : pos[0], 'post'); if (!text2) return out(pcp.copy || '_empty_', { id: pcp.id, copy: pcp.copy }); pcp.copy = text2; write('social', s); return out('✓ [' + pcp.id + '] copy updated (' + text2.length + ' chars)', pcp); }
-  if (sub === 'rm') { var pr = find(s.posts, pos.join(' '), 'post'); s.posts = s.posts.filter(function (x) { return x.id !== pr.id; }); write('social', s); return out('✓ Deleted [' + pr.id + '] ' + pr.title, pr); }
+  if (sub === 'move') { var pm = find(s.posts, pos.slice(0, -1).join(' '), 'post'); pm.datetime = parseWhen(pos[pos.length - 1]); write(fileName('social'), s); return out('✓ [' + pm.id + '] ' + pm.title + ' → ' + fmtDT(pm.datetime), pm); }
+  if (sub === 'prep') { var text = flags.text || pos.slice(1).join(' '); var pq = find(s.posts, flags.text ? pos.join(' ') : pos[0], 'post'); if (!text) fail('Usage: social prep <post> "prep item"'); pq.prep = pq.prep || []; pq.prep.push({ text: text, done: false, kind: flags.kind || 'content' }); write(fileName('social'), s); return out('✓ [' + pq.id + '] prep ' + pq.prep.length + ': ' + text, pq); }
+  if (sub === 'check') { var n = parseInt(pos[pos.length - 1], 10); var pc = find(s.posts, pos.slice(0, -1).join(' '), 'post'); if (!pc.prep || !pc.prep[n - 1]) fail('No prep item ' + n); pc.prep[n - 1].done = !pc.prep[n - 1].done; write(fileName('social'), s); return out('✓ [' + pc.id + '] ' + (pc.prep[n - 1].done ? '☑' : '☐') + ' ' + pc.prep[n - 1].text, pc); }
+  if (sub === 'copy') { var text2 = flags.text || pos.slice(1).join(' '); var pcp = find(s.posts, flags.text ? pos.join(' ') : pos[0], 'post'); if (!text2) return out(pcp.copy || '_empty_', { id: pcp.id, copy: pcp.copy }); pcp.copy = text2; write(fileName('social'), s); return out('✓ [' + pcp.id + '] copy updated (' + text2.length + ' chars)', pcp); }
+  if (sub === 'rm') { var pr = find(s.posts, pos.join(' '), 'post'); s.posts = s.posts.filter(function (x) { return x.id !== pr.id; }); write(fileName('social'), s); return out('✓ Deleted [' + pr.id + '] ' + pr.title, pr); }
   fail('Unknown social command "' + sub + '". Try: list, next, week, show, add, posted, ready, move, prep, check, copy, rm');
 }
 
@@ -389,16 +418,16 @@ function cmdSocial() {
 function libCmd(name, key, label, mk) {
   return function () {
     var sub = (pos.shift() || 'list').toLowerCase(); var d = name === 'scripts' ? scripts() : notes(); var list = d[key];
-    if (!read(name) && sub !== 'add') fail(hint(name));
+    if (!read(fileName(name)) && sub !== 'add') fail(hint(fileName(name)));
     var items = list.map(function (x) { return { id: x.id, title: x.title || titleOf(x.text), updatedAt: x.updatedAt, text: x.text }; });
     if (sub === 'list') return out(['## ' + label + 's (' + items.length + ')'].concat(items.sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); }).map(function (x) { return '- [' + x.id + '] ' + x.title + ' · ' + stamp(x.updatedAt); })), items.map(function (x) { return { id: x.id, title: x.title, updatedAt: x.updatedAt }; }));
     if (sub === 'show') { var it = find(items, pos.join(' '), label); return out(it.text, it); }
     if (sub === 'add') {
       var title = pos.join(' ').trim() || flags.title; var text = flags.file ? fs.readFileSync(path.resolve(flags.file), 'utf8') : (flags.text || (title ? '# ' + title + '\n\n' : ''));
       if (!text.trim()) fail('Usage: ' + name + ' add "Title"   or   ' + name + ' add --file draft.md');
-      var item = mk(text); list.unshift(item); d.activeId = item.id; write(name, d); return out('✓ Added [' + item.id + '] ' + (item.title || titleOf(item.text)), item);
+      var item = mk(text); list.unshift(item); d.activeId = item.id; write(fileName(name), d); return out('✓ Added [' + item.id + '] ' + (item.title || titleOf(item.text)), item);
     }
-    if (sub === 'rm') { var r = find(items, pos.join(' '), label); d[key] = list.filter(function (x) { return x.id !== r.id; }); if (d.activeId === r.id) d.activeId = d[key][0] ? d[key][0].id : ''; write(name, d); return out('✓ Deleted [' + r.id + '] ' + r.title, r); }
+    if (sub === 'rm') { var r = find(items, pos.join(' '), label); d[key] = list.filter(function (x) { return x.id !== r.id; }); if (d.activeId === r.id) d.activeId = d[key][0] ? d[key][0].id : ''; write(fileName(name), d); return out('✓ Deleted [' + r.id + '] ' + r.title, r); }
     fail('Unknown ' + name + ' command "' + sub + '". Try: list, show, add, rm');
   };
 }
@@ -411,36 +440,60 @@ function cmdBoards() {
   var rt = read('boards') || { boards: [] }; rt.boards = Array.isArray(rt.boards) ? rt.boards : [];
   if (sub === 'list') return out(['## Boards (' + BOARDS.length + ')'].concat(BOARDS.map(function (b) {
     var bt = board(b.id).tasks; var dn = bt.filter(function (t) { return t.col === 'done'; }).length; var tot = bt.filter(function (t) { return ['todo', 'doing', 'done'].indexOf(t.col) >= 0; }).length;
-    return '- [' + b.id + '] ' + b.title + ' · ' + dn + '/' + tot + ' done · ' + bt.length + ' tasks' + (b.id === BOARD_ID ? ' (default)' : '') + (fs.existsSync(fileOf(b.id)) ? '' : ' · no data file yet');
+    return '- [' + b.id + '] ' + b.title + ' · ' + dn + '/' + tot + ' done · ' + bt.length + ' tasks' + (b.id === BOARD_ID ? ' (default)' : '') + (fs.existsSync(fileOf(prefix() + b.id)) ? '' : ' · no data file yet');
   })), BOARDS);
   if (sub === 'add') {
     var title = pos.join(' ').trim() || flags.title; if (!title) fail('Usage: boards add "Title" [--from blank|sample|<board id>]');
     var id = slug(title); if (!id || RESERVED.indexOf(id) >= 0) fail('Pick a different name.');
     if (BOARDS.some(function (b) { return b.id === id; })) fail('Board "' + id + '" already exists.');
-    if (fs.existsSync(fileOf(id)) && !flags.force) fail('data/' + id + '.json already exists. Re-run with --force to replace it, or pick another name.');
+    if (fs.existsSync(fileOf(prefix() + id)) && !flags.force) fail('data/' + prefix() + id + '.json already exists. Re-run with --force to replace it, or pick another name.');
     var from = (flags.from || 'blank').toLowerCase(); var tasks = [];
     if (from === 'sample') { if (!T) fail('core/templates.js missing'); tasks = T.runway().tasks; }
     else if (from !== 'blank') { var src = BOARDS.filter(function (b) { return b.id === slug(from); })[0]; if (!src) fail('No board "' + from + '" to copy.'); tasks = board(src.id).tasks.map(function (t) { return Object.assign({}, t, { id: newId('t') }); }); }
-    rt.boards.push({ id: id, title: title, sprintLabel: 'Progress', milestones: [], focus: [], createdAt: Date.now() });
-    write('boards', rt); write(id, { projects: [], tasks: tasks });
-    return out('✓ Board [' + id + '] ' + title + ' created with ' + tasks.length + ' task' + (tasks.length === 1 ? '' : 's') + ' → data/' + id + '.json\n  use it: node marathon.js week --board ' + id + '   ·   open: runway/marathon-board.html?board=' + id, { id: id, title: title, tasks: tasks.length });
+    rt.boards.push({ id: id, title: title, sprintLabel: 'Progress', milestones: [], focus: [], createdAt: Date.now(), ws: WS_ID });
+    write('boards', rt); write(prefix() + id, { projects: [], tasks: tasks });
+    return out('✓ Board [' + id + '] ' + title + ' created with ' + tasks.length + ' task' + (tasks.length === 1 ? '' : 's') + ' → data/' + prefix() + id + '.json\n  use it: node marathon.js week --board ' + id + (WS_ID === PRIMARY ? '' : ' --ws ' + WS_ID) + '   ·   open: runway/marathon-board.html?ws=' + WS_ID + '&board=' + id, { id: id, title: title, tasks: tasks.length });
   }
   if (sub === 'rename') {
     var bid = slug(pos.shift()); var nt = pos.join(' ').trim(); if (!bid || !nt) fail('Usage: boards rename <id> "New title"');
     var meta = BOARDS.filter(function (b) { return b.id === bid; })[0]; if (!meta) fail('No board "' + bid + '".');
-    var hit = false; rt.boards = rt.boards.map(function (b) { if (slug(b.id || b.title) === bid) { hit = true; b.title = nt; } return b; });
-    if (!hit) rt.boards.push(Object.assign({}, meta, { title: nt }));
+    var hit = false; rt.boards = rt.boards.map(function (b) { if (slug(b.id || b.title) === bid && (b.ws || PRIMARY) === WS_ID) { hit = true; b.title = nt; } return b; });
+    if (!hit) rt.boards.push(Object.assign({}, meta, { title: nt, ws: WS_ID }));
     write('boards', rt); return out('✓ [' + bid + '] → ' + nt + (cfg.boards && cfg.boards.some(function (b) { return slug(b.id || b.title) === bid; }) ? '  (overrides the title in marathon.config.js)' : ''), { id: bid, title: nt });
   }
   if (sub === 'rm') {
     var rid = slug(pos.shift()); if (!rid) fail('Usage: boards rm <id>');
     if (BOARDS.length < 2) fail('Keep at least one board.');
     if (!flags.force) fail('This deletes data/' + rid + '.json. Re-run with --force.');
-    rt.boards = rt.boards.filter(function (b) { return slug(b.id || b.title) !== rid; }); write('boards', rt);
-    try { fs.unlinkSync(fileOf(rid)); } catch (e) { /* none */ }
+    rt.boards = rt.boards.filter(function (b) { return !(slug(b.id || b.title) === rid && (b.ws || PRIMARY) === WS_ID); }); write('boards', rt);
+    try { fs.unlinkSync(fileOf(prefix() + rid)); } catch (e) { /* none */ }
     return out('✓ Board [' + rid + '] removed' + (cfg.boards && cfg.boards.some(function (b) { return slug(b.id || b.title) === rid; }) ? ' (it is still listed in marathon.config.js — remove it there too)' : ''), { id: rid });
   }
   fail('Unknown boards command "' + sub + '". Try: list, add, rename, rm');
+}
+function cmdWorkspaces() {
+  var sub = (pos.shift() || 'list').toLowerCase(); var rt = read('workspaces') || { workspaces: [] }; rt.workspaces = Array.isArray(rt.workspaces) ? rt.workspaces : [];
+  if (sub === 'list') return out(['## Workspaces (' + WORKSPACES.length + ')'].concat(WORKSPACES.map(function (w) {
+    var apps = ['boards'].filter(function () { return w.boards.length; }).concat(['social', 'scripts', 'writing'].filter(function (a) { return w.apps[a]; }));
+    return '- [' + w.id + '] ' + w.title + ' · ' + apps.join(', ') + (w.boards.length ? ' · boards: ' + w.boards.map(function (b) { return b.id; }).join(', ') : '') + (w.id === WS_ID ? ' (default)' : '') + (w.id === PRIMARY ? ' · files: short names' : ' · files: ' + w.id + '-*.json');
+  })), WORKSPACES);
+  if (sub === 'add') {
+    var title = pos.join(' ').trim() || flags.title; if (!title) fail('Usage: workspaces add "Title" [--apps social,scripts,writing] [--boards "Launch,Ops"] [--sample]');
+    var id = slug(title); if (!id || RESERVED.indexOf(id) >= 0 || WORKSPACES.some(function (w) { return w.id === id; })) fail('Pick a different name.');
+    var apps = flags.apps === undefined ? ['boards', 'social', 'scripts', 'writing'] : split(flags.apps);
+    var boards = (flags.boards === undefined ? (apps.indexOf('boards') >= 0 ? ['Board'] : []) : split(flags.boards)).map(function (t) { return { id: slug(t), title: t, sprintLabel: 'Progress', milestones: [], focus: [] }; });
+    var w = { id: id, title: title, apps: { social: apps.indexOf('social') >= 0, scripts: apps.indexOf('scripts') >= 0, writing: apps.indexOf('writing') >= 0 }, boards: boards, createdAt: Date.now() };
+    rt.workspaces.push(w); write('workspaces', rt);
+    var sample = !!flags.sample; var now = new Date(); var pre = id + '-';
+    boards.forEach(function (b, i) { write(pre + b.id, { projects: [], tasks: sample && i === 0 && T ? T.runway().tasks : [] }, { noActivity: true }); });
+    if (w.apps.social) write(pre + 'social', { posts: sample && T ? T.social(now).posts : [] }, { noActivity: true });
+    if (w.apps.scripts) write(pre + 'scripts', sample && T ? T.scripts(now) : { activeId: '', scripts: [] }, { noActivity: true });
+    if (w.apps.writing) write(pre + 'writing', sample && T ? T.writing(now) : { activeId: '', notes: [] }, { noActivity: true });
+    return out('✓ Workspace [' + id + '] ' + title + ' created (' + apps.join(', ') + (sample ? ', sample content' : ', blank') + ')\n  use it: node marathon.js week --ws ' + id + '   ·   open: index.html?ws=' + id, w);
+  }
+  if (sub === 'rename') { var wid = slug(pos.shift()); var nt = pos.join(' ').trim(); if (!wid || !nt) fail('Usage: workspaces rename <id> "Title"'); var meta = WORKSPACES.filter(function (w) { return w.id === wid; })[0]; if (!meta) fail('No workspace "' + wid + '".'); var hit = false; rt.workspaces = rt.workspaces.map(function (w) { if (slug(w.id || w.title) === wid) { hit = true; w.title = nt; } return w; }); if (!hit) rt.workspaces.push(Object.assign({}, meta, { title: nt })); write('workspaces', rt); return out('✓ [' + wid + '] → ' + nt, { id: wid, title: nt }); }
+  if (sub === 'rm') { var rid = slug(pos.shift()); if (!rid) fail('Usage: workspaces rm <id>'); if (WORKSPACES.length < 2) fail('Keep at least one workspace.'); rt.workspaces = rt.workspaces.filter(function (w) { return slug(w.id || w.title) !== rid; }); write('workspaces', rt); return out('✓ Workspace [' + rid + '] removed (its data/' + rid + '-*.json files are kept)', { id: rid }); }
+  fail('Unknown workspaces command "' + sub + '". Try: list, add, rename, rm');
 }
 function cmdActivity() {
   var s = activitySummary(); var a = read('activity') || { days: {} };
@@ -456,7 +509,8 @@ function cmdTemplate() {
   var targets = which === 'all' ? all : [which]; if (targets.some(function (t) { return all.indexOf(t) < 0; })) fail('Usage: template [board|social|scripts|writing|settings|all] [--board id] [--force]');
   var done = [];
   targets.forEach(function (t) {
-    var name = t === 'board' ? BOARD_ID : t;
+    var name = t === 'board' ? boardFile() : fileName(t === 'settings' ? 'settings' : t);
+    if (t === 'settings') name = 'settings';
     if (fs.existsSync(fileOf(name)) && !flags.force) { done.push('- data/' + name + '.json exists — skipped (use --force to overwrite)'); return; }
     var body = t === 'board' ? T.runway() : t === 'social' ? T.social(new Date()) : t === 'scripts' ? T.scripts(new Date()) : t === 'writing' ? T.writing(new Date()) : T.settings();
     write(name, body, { noActivity: true }); done.push('- wrote data/' + name + '.json (sample content)');
@@ -474,16 +528,18 @@ function cmdTheme() {
 }
 function cmdConfig() {
   var projects = (cfg.projects || []).map(function (p) { return typeof p === 'string' ? p : p.name; });
-  out(['# ' + (cfg.name || 'Marathon') + ' config', '', '- apps: ' + Object.keys(APPS).map(function (k) { return k + (APPS[k] === false ? ' (off)' : ''); }).join(', '),
+  out(['# ' + (cfg.name || 'Marathon') + ' config', '', '- workspaces: ' + WORKSPACES.map(function (w) { return w.id + ' (' + w.title + ')'; }).join(', ') + '  — default for CLI: ' + WS_ID,
+    '- apps in ' + WS_ID + ': ' + ['boards', 'social', 'scripts', 'writing'].filter(appOn).join(', '),
     '- boards: ' + BOARDS.map(function (b) { return b.id + ' (' + b.title + ')'; }).join(', ') + '  — default for CLI: ' + BOARD_ID,
     '- projects: ' + projects.join(', '), '- task tags: ' + ((cfg.board && cfg.board.tags) || (cfg.runway && cfg.runway.tags) || []).join(', '),
     '- post types: ' + ((cfg.social && cfg.social.postTypes) || []).join(', '), '- idle reminder after: ' + ((cfg.activity && cfg.activity.reminderAfterHours) || 24) + ' h', '- theme default: ' + JSON.stringify(cfg.theme || {}), '- data dir: ' + DATA,
-    '- files: ' + BOARDS.map(function (b) { return b.id; }).concat(['social', 'scripts', 'writing', 'settings', 'activity']).map(function (f) { return f + '.json' + (fs.existsSync(fileOf(f)) ? ' ✓' : ' (missing)'); }).join(' · '), '', 'Edit marathon.config.js to change any of this.'], cfg);
+    '- files: ' + BOARDS.map(function (b) { return prefix() + b.id; }).concat(['social', 'scripts', 'writing'].map(function (a) { return fileName(a); })).concat(['settings', 'activity']).map(function (f) { return f + '.json' + (fs.existsSync(fileOf(f)) ? ' ✓' : ' (missing)'); }).join(' · '), '', 'Edit marathon.config.js to change any of this.'], cfg);
 }
 function cmdServe() { require('child_process').spawn(process.execPath, [path.join(ROOT, 'serve.js')].concat(flags.port ? ['--port', String(flags.port)] : []), { stdio: 'inherit' }); }
 function cmdHelp() {
   out(['# marathon.js — tasks, posts, scripts and notes from the terminal', '',
     'Overviews', '  today                      what is in play now + idle reminder', '  week [--days 7]            tasks by priority + posts + studio for the window', '  review                     same as week', '  activity                   streak + last 14 days', '',
+    'Workspaces (one project = its own boards, schedule, scripts, notes; add --ws <id> to any command)', '  workspaces list', '  workspaces add "Title" [--apps social,scripts,writing] [--boards "A,B"] [--sample]   workspaces rename <id> "Title"   workspaces rm <id>', '',
     'Boards (data/<id>.json — every task command takes --board <id>; default: first board)', '  boards list', '  boards add "Title" [--from blank|sample|<id>]   boards rename <id> "Title"   boards rm <id> --force', '',
     'Tasks', '  list [board|all|todo|doing|done|later|bucket] [--proj X] [--tag Y]', '  show <task>                 full task (id or title fragment)',
     '  add "Title" [--proj X] [--pri high] [--tags a,b] [--col later] [--desc "…"] [--steps "a|b"]', '  start|done|later|bucket|todo <task>', '  move <task> <column>        pri <task> <high|medium|low>', '  tag <task> +a -b            step <task> "text"   check|uncheck <task> <n>', '  note <task> ["text"]        edit <task> --title … --proj … --pri …', '  rm <task>', '',
@@ -504,7 +560,7 @@ var commands = {
   share: cmdShare, import: cmdImport,
   social: cmdSocial, post: cmdSocial, posts: cmdSocial,
   scripts: cmdScripts, script: cmdScripts, notes: cmdNotes,
-  boards: cmdBoards, board: cmdBoards, activity: cmdActivity,
+  boards: cmdBoards, board: cmdBoards, activity: cmdActivity, workspaces: cmdWorkspaces, workspace: cmdWorkspaces, ws: cmdWorkspaces,
   template: cmdTemplate, theme: cmdTheme, config: cmdConfig, serve: cmdServe
 };
 var fn = commands[cmd];

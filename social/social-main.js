@@ -337,7 +337,7 @@
           in Save file bundles) ---------------------------------------- */
   function registerSync() {
     Sync.register({
-      file: 'social.json', key: SocialModel.KEY, label: 'schedule', isFresh: SocialModel.isFresh,
+      file: Config.file('social'), key: SocialModel.KEY, label: 'schedule', isFresh: SocialModel.isFresh,
       read: function () { return { posts: SocialModel.getState() }; },
       apply: function (body) {
         if (!Array.isArray(body.posts)) return;
@@ -347,8 +347,8 @@
       }
     });
     Sync.on(function (evt, d) {
-      if (evt === 'applied' && d.file === 'social.json') flash('Schedule updated from data/social.json.');
-      if (evt === 'linked') flash('Folder linked — the schedule now writes data/social.json directly.');
+      if (evt === 'applied' && d.file === Config.file('social')) flash('Schedule updated from data/' + d.file + '.');
+      if (evt === 'linked') flash('Folder linked — the schedule now writes data/' + Config.file('social') + ' directly.');
     });
   }
 
@@ -399,7 +399,7 @@
       { label: 'Next unposted', hint: 'view', keywords: 'upcoming', run: function () {
         var n = SocialModel.getSorted().find(function (p) { return p.status !== 'posted'; }); if (n) selectPost(n.id); else flash('Everything is posted.');
       } },
-      { label: 'Open calendar', hint: 'nav', run: function () { location.href = 'social-calendar.html'; } },
+      { label: 'Open calendar', hint: 'nav', run: function () { location.href = 'social-calendar.html?ws=' + encodeURIComponent(Config.activeWs()); } },
       { label: 'Save schedule to file', hint: 'export', keywords: 'download json backup', run: global.exportState },
       { label: 'Load schedule from file', hint: 'import', keywords: 'upload', run: function () { document.getElementById('importFile').click(); } },
       { label: 'Load sample schedule', hint: 'template', keywords: 'reset example', run: global.loadTemplate },

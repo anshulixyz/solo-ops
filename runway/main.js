@@ -344,7 +344,7 @@
       all.map(function (b) { return '<option value="copy:' + escAttr(b.id) + '">Copy of ' + escAttr(b.title) + '</option>'; }).join('');
     Config.applyDOM({ board: Model.board() });
   }
-  global.switchBoard = function (id) { location.href = location.pathname + '?board=' + encodeURIComponent(id); };
+  global.switchBoard = function (id) { location.href = location.pathname + '?ws=' + encodeURIComponent(Config.activeWs()) + '&board=' + encodeURIComponent(id); };
   global.toggleBoardPanel = function () {
     var p = document.getElementById('boardPanel'); p.classList.toggle('open');
     if (p.classList.contains('open')) document.getElementById('newBoardTitle').focus();
@@ -376,7 +376,7 @@
     Config.removeBoard(Model.BOARD);
     Store.setJSON(Model.KEY, []);
     var next = Config.boards()[0];
-    switchBoard(next.id);
+    if (next) switchBoard(next.id); else location.href = '../index.html?ws=' + encodeURIComponent(Config.activeWs());
   };
 
   /* ---- sync: data/<board>.json --------------------------------------- */
@@ -465,7 +465,7 @@
       { label: 'New board', hint: 'boards', keywords: 'create copy', run: function () { var p = document.getElementById('boardPanel'); if (!p.classList.contains('open')) toggleBoardPanel(); } },
       { label: 'Rename this board', hint: 'boards', run: global.renameBoard },
       { label: 'Delete this board', hint: 'boards', run: global.deleteBoard },
-      { label: 'Go to social schedule', hint: 'nav', run: function () { location.href = '../social/social-board.html'; } }
+      { label: 'Go to social schedule', hint: 'nav', run: function () { location.href = '../social/social-board.html?ws=' + encodeURIComponent(Config.activeWs()); } }
     ]);
     document.addEventListener('keydown', function (e) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
