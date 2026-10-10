@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Script Viewer — Reels & Shorts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>(function(){try{var t=localStorage.getItem('marathon.scriptViewer.theme')||((window.matchMedia&&matchMedia('(prefers-color-scheme:dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',t);document.documentElement.style.colorScheme=t;}catch(e){document.documentElement.setAttribute('data-theme','light');}})();</script>
+<link rel="stylesheet" href="script-viewer.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="eyebrow">Video studio</span>
+      <h1>Script Viewer<span class="dot">.</span></h1>
+    </div>
+    <div class="toolbar">
+      <div class="view-tabs">
+        <button class="view-tab active" data-view="script">Script</button>
+        <button class="view-tab" data-view="reader">Reader</button>
+        <button class="view-tab" data-view="phone">9:16</button>
+      </div>
+      <div class="size-control">
+        <span>Aa</span>
+        <input type="range" id="fontScale" min="0.7" max="1.6" step="0.05" value="1" title="Font size">
+      </div>
+      <button class="btn primary" id="teleprompterBtn">Teleprompter</button>
+      <button class="btn ghost" id="loadExample" title="Load example script">Example</button>
+      <button class="btn ghost" onclick="window.print()" title="Print script">Print</button>
+      <a class="btn ghost" href="writing-viewer.html">Writing</a>
+      <a class="btn ghost" href="../runway/marathon-board.html">Board</a>
+      <button class="theme-btn" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">
+        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M22 12h-2.5M4.5 12H2M19 5l-1.8 1.8M6.8 17.2 5 19M19 19l-1.8-1.8M6.8 6.8 5 5"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="workspace" id="workspace">
+    <aside class="editor-pane">
+      <div class="editor-head">
+        <span>Your script</span>
+        <button class="btn ghost" id="clearScript" style="padding:4px 8px;font-size:11px">Clear</button>
+      </div>
+      <textarea id="scriptInput" placeholder="Paste or type your script here…
+
+Supports:
+## Hook — opening line
+## Script — numbered beats (1. 2. 3.)
+## Inserts — what shows on screen
+Plain text — each paragraph becomes a beat
+CHARACTER: dialogue lines
+(stage directions in parentheses)" spellcheck="true"></textarea>
+    </aside>
+    <main class="preview-pane" id="previewPane">
+      <div id="preview"></div>
+    </main>
+  </div>
+</div>
+
+<!-- Teleprompter overlay -->
+<div class="teleprompter" id="teleprompter">
+  <div class="prompter-focus-line"></div>
+  <div class="prompter-bar">
+    <span style="font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;opacity:.6">Teleprompter</span>
+    <div class="controls">
+      <label>Speed <input type="range" id="prompterSpeed" min="10" max="120" value="40"></label>
+      <button class="btn" id="prompterPlayBtn">Play</button>
+      <button class="btn" id="closePrompter">Exit</button>
+    </div>
+  </div>
+  <div class="prompter-scroll" id="prompterScroll"></div>
+</div>
+
+<script src="script-viewer.js"></script>
+</body>
+</html>

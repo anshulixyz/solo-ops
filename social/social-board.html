@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>X Schedule — Anshuli</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>(function(){try{var t=localStorage.getItem('anshuli.runway.theme')||((window.matchMedia&&matchMedia('(prefers-color-scheme:dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',t);document.documentElement.style.colorScheme=t;}catch(e){document.documentElement.setAttribute('data-theme','light');}})();</script>
+<link rel="stylesheet" href="../runway/styles.css">
+<link rel="stylesheet" href="social-styles.css">
+<link rel="stylesheet" href="social-graph.css">
+<link rel="stylesheet" href="social-calendar.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Nokk Labs · X / Twitter posting schedule</div>
+    <h1>Social Schedule<span class="dot">.</span></h1>
+
+    <div class="runway">
+      <div class="runway-top">
+        <span class="runway-label">OpenThings arc</span>
+        <div class="summary-bar" id="summaryBar"></div>
+      </div>
+      <div class="ticks"><span>Announcement</span><span>openagents</span><span>openproof</span><span>openhiring</span><span>openDM</span></div>
+    </div>
+
+    <div class="priorities">
+      <div class="pri">
+        <span class="k">→</span>
+        <span><span class="t">Leaving software — agents & robots</span><br><span class="s">Anchor post sets the narrative · openproof, openagents, openhiring, openDM follow</span></span>
+      </div>
+      <div class="pri two">
+        <span class="k">↗</span>
+        <span><span class="t"><a class="nav-link" href="../runway/marathon-board.html">Launch Runway board</a></span><br><span class="s">Kanban for build & launch tasks alongside this schedule</span></span>
+      </div>
+    </div>
+  </header>
+
+  <div class="controls">
+    <div class="tabs">
+      <button class="tab active">Schedule</button>
+      <a class="tab" href="social-calendar.html#streak" style="text-decoration:none;color:inherit;">Calendar</a>
+    </div>
+    <div class="right-controls">
+      <button class="btn primary" onclick="toggleAdd()">+ Add post</button>
+      <button class="btn" onclick="exportState()" title="Download schedule as JSON">Save file</button>
+      <button class="btn" onclick="document.getElementById('importFile').click()" title="Load a saved schedule">Load file</button>
+      <input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="importState(this)">
+      <button class="btn ghost" onclick="resetBoard()" title="Restore the default 3-post schedule">Reset</button>
+      <button class="theme-btn" onclick="toggleTheme()" title="Toggle light / dark" aria-label="Toggle theme">
+        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M22 12h-2.5M4.5 12H2M19 5l-1.8 1.8M6.8 17.2 5 19M19 19l-1.8-1.8M6.8 6.8 5 5"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="addpanel" id="addpanel">
+    <div class="addrow">
+      <div class="field grow"><label>Title</label><input id="newTitle" placeholder="Post headline…" onkeydown="if(event.key==='Enter')addPost()"></div>
+      <div class="field"><label>Date & time</label><input type="datetime-local" id="newDatetime"></div>
+      <div class="field" style="align-self:flex-end"><button class="btn primary" onclick="addPost()">Add</button></div>
+    </div>
+  </div>
+
+  <div class="social-layout">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Sequence</h2>
+        <div class="panel-head-actions">
+          <span class="hint">click to open</span>
+          <a class="graph-link" href="social-calendar.html#streak" title="Calendar & streak heatmap">
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM2 2a1 1 0 0 0-1 1v1h14V3a1 1 0 0 0-1-1H2zm13 3H1v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V5z"/></svg>
+          </a>
+        </div>
+      </div>
+      <div id="timeline"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Post detail</h2>
+        <span class="hint">copy · video · prep</span>
+      </div>
+      <div id="detail"></div>
+    </div>
+  </div>
+
+  <div class="panel posted-panel">
+    <div class="panel-head">
+      <h2>Posted log</h2>
+      <span class="hint">engagement & screenshots</span>
+    </div>
+    <div id="postedLog" class="posted-log"></div>
+  </div>
+
+  <p class="note" id="storeNote">Loading…</p>
+</div>
+
+<div id="flash"></div>
+
+<!-- persistent file inputs (must live outside re-rendered detail panel) -->
+<input type="file" id="filePostImage" accept="image/*" multiple tabindex="-1" aria-hidden="true" class="file-hidden">
+<input type="file" id="fileReference" accept="image/*" multiple tabindex="-1" aria-hidden="true" class="file-hidden">
+<input type="file" id="fileScreenshot" accept="image/*" tabindex="-1" aria-hidden="true" class="file-hidden">
+
+<div id="imgLightbox" class="lightbox" onclick="closeLightbox()">
+  <button type="button" class="lightbox-close" onclick="closeLightbox()" aria-label="Close">×</button>
+  <img id="lightboxImg" alt="" onclick="event.stopPropagation()">
+  <div id="lightboxCap" class="lightbox-cap"></div>
+</div>
+
+<script src="../store.js"></script>
+<script src="social-assets-store.js"></script>
+<script src="social-image-store.js"></script>
+<script src="social-model.js"></script>
+<script src="social-image.js"></script>
+<script src="social-view.js"></script>
+<script src="social-main.js"></script>
+</body>
+</html>

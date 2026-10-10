@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Writing Viewer — Drafts & AI handoff</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>(function(){try{var t=localStorage.getItem('marathon.writingViewer.theme')||((window.matchMedia&&matchMedia('(prefers-color-scheme:dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',t);document.documentElement.style.colorScheme=t;}catch(e){document.documentElement.setAttribute('data-theme','light');}})();</script>
+<link rel="stylesheet" href="writing-viewer.css">
+</head>
+<body>
+<div class="app writing-app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="eyebrow">Studio</span>
+      <h1>Writing Viewer<span class="dot">.</span></h1>
+    </div>
+    <div class="toolbar">
+      <div class="view-tabs">
+        <button class="view-tab active" data-view="draft">Draft</button>
+        <button class="view-tab" data-view="read">Read</button>
+        <button class="view-tab" data-view="changes">Changes</button>
+      </div>
+      <div class="word-stats" aria-live="polite">
+        <span><b id="statClean">0</b> clean words</span>
+        <span class="sep">·</span>
+        <span><b id="statDraft">0</b> with edits</span>
+        <span class="sep">·</span>
+        <span><b id="statChars">0</b> chars</span>
+        <span class="sep">·</span>
+        <span><b id="statStrikes">0</b> cuts</span>
+        <span class="sep">·</span>
+        <span><b id="statNotes">0</b> notes</span>
+      </div>
+      <div class="size-control">
+        <span>Aa</span>
+        <input type="range" id="fontScale" min="0.75" max="1.5" step="0.05" value="1" title="Preview font size">
+      </div>
+      <button class="btn primary" id="copyAiBtn" title="Full draft with ~~cuts~~, ++adds++, [[notes]] — or select text first">Copy for AI</button>
+      <button class="btn ghost" id="copyAiPreviewBtn" title="Preview before copying">Preview</button>
+      <button class="btn" id="copyCleanBtn" title="Final text only, no markup">Copy clean</button>
+      <a class="btn ghost" href="script-viewer.html">Scripts</a>
+      <button class="btn ghost" onclick="window.print()">Print</button>
+      <button class="theme-btn" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">
+        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M22 12h-2.5M4.5 12H2M19 5l-1.8 1.8M6.8 17.2 5 19M19 19l-1.8-1.8M6.8 6.8 5 5"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="workspace writing-workspace">
+    <aside class="notes-sidebar" aria-label="Your notes">
+      <div class="notes-head">
+        <span class="notes-head-label">Notes</span>
+        <button type="button" class="btn primary notes-new-btn" id="newNoteBtn" title="New note">+</button>
+      </div>
+      <div class="notes-list" id="notesList"></div>
+      <div class="notes-foot">
+        <button type="button" class="btn ghost" id="dupNoteBtn">Duplicate</button>
+        <button type="button" class="btn ghost" id="delNoteBtn">Delete</button>
+      </div>
+    </aside>
+    <aside class="editor-pane">
+      <div class="format-bar">
+        <button type="button" class="fmt-btn" id="undoBtn" title="Undo">Undo</button>
+        <button type="button" class="fmt-btn" id="redoBtn" title="Redo">Redo</button>
+        <span class="fmt-divider"></span>
+        <button type="button" class="fmt-btn" id="strikeBtn" title="Mark as removed">~~ Cut</button>
+        <button type="button" class="fmt-btn" id="insertBtn" title="Mark as new text">++ Add</button>
+        <button type="button" class="fmt-btn" id="noteBtn" title="Note for AI">[[ Note ]]</button>
+        <button type="button" class="fmt-btn" id="imageBtn" title="Insert image">Image</button>
+        <span class="undo-hint">⌘Z undo · each note saves on its own</span>
+      </div>
+      <div class="editor-head">
+        <span>Write here</span>
+        <div style="display:flex;gap:6px">
+          <button class="btn ghost" id="loadExample" style="padding:4px 8px;font-size:11px">Example</button>
+          <button class="btn ghost" id="clearBtn" style="padding:4px 8px;font-size:11px">Clear</button>
+        </div>
+      </div>
+      <textarea id="writingInput" placeholder="Write anything — posts, quotes, drafts…
+
+Markdown-ish:
+# Title
+## Section
+> Pull quote
+
+Track changes (for you + AI):
+~~text to remove~~
+++new or replacement text++
+[[note: what you want AI to do]]
+
+Image button → [Image uploaded 1] in text (preview shows the pic)
+---" spellcheck="true"></textarea>
+    </aside>
+    <main class="preview-pane" id="previewPane">
+      <div id="preview"></div>
+    </main>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="copy-modal" id="copyModal">
+  <div class="copy-panel">
+    <div class="copy-panel-head">
+      <h2 id="copyModalTitle">Copy for AI</h2>
+      <button class="btn ghost" id="copyModalClose">Close</button>
+    </div>
+    <p class="copy-modal-hint">Exact source text — includes <code>~~cuts~~</code>, <code>++adds++</code>, and <code>[[notes]]</code>. Add your own prompt in chat.</p>
+    <textarea id="copyPreview" readonly></textarea>
+    <div class="copy-panel-foot">
+      <button class="btn primary" id="copyModalCopy">Copy to clipboard</button>
+    </div>
+  </div>
+</div>
+
+<script src="writing-viewer.js"></script>
+</body>
+</html>

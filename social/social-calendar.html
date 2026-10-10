@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calendar — Anshuli</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>(function(){try{var t=localStorage.getItem('anshuli.runway.theme')||((window.matchMedia&&matchMedia('(prefers-color-scheme:dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',t);document.documentElement.style.colorScheme=t;}catch(e){document.documentElement.setAttribute('data-theme','light');}})();</script>
+<link rel="stylesheet" href="../runway/styles.css">
+<link rel="stylesheet" href="social-styles.css">
+<link rel="stylesheet" href="social-calendar.css">
+</head>
+<body class="cal-page">
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Nokk Labs · X posting calendar</div>
+    <h1>Calendar<span class="dot">.</span></h1>
+    <div class="priorities">
+      <div class="pri">
+        <span class="k">▦</span>
+        <span><span class="t">Streak heatmap + month grid</span><br><span class="s">GitHub-style squares · hover for date & post count · darker green = more posted that day</span></span>
+      </div>
+      <div class="pri two">
+        <span class="k">←</span>
+        <span><span class="t"><a class="nav-link" href="social-board.html">Back to schedule</a></span><br><span class="s">Month view posts are clickable · heatmap is view-only</span></span>
+      </div>
+    </div>
+  </header>
+
+  <div class="controls">
+    <div class="tabs">
+      <a class="tab" href="social-board.html" style="text-decoration:none;color:inherit;">Schedule</a>
+      <button class="tab active">Calendar</button>
+    </div>
+    <div class="right-controls">
+      <button class="theme-btn" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">
+        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M22 12h-2.5M4.5 12H2"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div id="calendarRoot"></div>
+
+  <p class="note">Heatmap shows last 52 weeks · mark posts as posted on the schedule board to fill green squares</p>
+</div>
+
+<div id="imgLightbox" class="lightbox" onclick="closeLightbox()">
+  <button type="button" class="lightbox-close" onclick="closeLightbox()" aria-label="Close">×</button>
+  <img id="lightboxImg" alt="" onclick="event.stopPropagation()">
+  <div id="lightboxCap" class="lightbox-cap"></div>
+</div>
+
+<script src="../store.js"></script>
+<script src="social-image-store.js"></script>
+<script src="social-assets-store.js"></script>
+<script src="social-model.js"></script>
+<script src="social-image.js"></script>
+<script src="social-calendar-view.js"></script>
+<script src="social-calendar-main.js"></script>
+</body>
+</html>

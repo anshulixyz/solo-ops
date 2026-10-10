@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marathon Marketing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#F4F1EA; --ink:#2B2A26; --muted:#6E6A60; --accent:#CC6B4A; --line:#E6E1D5; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Inter, sans-serif; background: var(--bg); color: var(--ink); padding: 40px 24px 80px; }
+  h1 { font-family: Lora, serif; font-weight: 600; font-size: 28px; margin: 0 0 8px; }
+  .sub { color: var(--muted); font-size: 14px; margin-bottom: 32px; max-width: 520px; line-height: 1.5; }
+  .grid { display: grid; gap: 12px; max-width: 640px; }
+  a.card {
+    display: block; padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px;
+    background: #FBFAF6; text-decoration: none; color: inherit; transition: .15s;
+  }
+  a.card:hover { border-color: var(--accent); }
+  a.card strong { display: block; font-size: 15px; margin-bottom: 4px; }
+  a.card span { font-size: 13px; color: var(--muted); line-height: 1.45; }
+  .folder { font-size: 11px; color: var(--muted); font-family: ui-monospace, monospace; margin-top: 6px; }
+  footer { margin-top: 40px; font-size: 12px; color: var(--muted); }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+  <h1>Marathon Marketing</h1>
+  <p class="sub">Local browser tools for launch ops, social scheduling, and video writing. No build step — open any entry point with <code>file://</code> or a static server.</p>
+  <div class="grid">
+    <a class="card" href="runway/marathon-board.html">
+      <strong>Launch Runway</strong>
+      <span>Kanban for build & launch tasks — Board, Later, Bucket List.</span>
+      <div class="folder">runway/</div>
+    </a>
+    <a class="card" href="social/social-board.html">
+      <strong>X / Social schedule</strong>
+      <span>Posting timeline, graph, and calendar with streak heatmap.</span>
+      <div class="folder">social/</div>
+    </a>
+    <a class="card" href="studio/writing-viewer.html">
+      <strong>Writing viewer</strong>
+      <span>Drafts with cuts, notes, and copy-for-AI; multiple notes.</span>
+      <div class="folder">studio/</div>
+    </a>
+    <a class="card" href="studio/script-viewer.html">
+      <strong>Script viewer</strong>
+      <span>Reels/shorts scripts — hooks, beats, teleprompter.</span>
+      <div class="folder">studio/</div>
+    </a>
+  </div>
+  <footer>Agents: read <a href="AGENTS.md">AGENTS.md</a> for layout and conventions.</footer>
+</body>
+</html>

@@ -1,0 +1,114 @@
+/* =========================================================================
+   social-graph.css — GitHub contribution / commit-graph style timeline
+   ========================================================================= */
+
+.graph-page .wrap{max-width:720px;}
+
+.graph-link{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:32px; height:32px; border-radius:8px;
+  border:1px solid var(--line); background:var(--panel);
+  color:var(--muted); text-decoration:none; transition:.15s;
+  flex:none;
+}
+.graph-link:hover{border-color:var(--accent); color:var(--accent); background:var(--accent-soft);}
+.graph-link svg{width:16px; height:16px;}
+
+.panel-head-actions{display:flex; align-items:center; gap:8px;}
+
+/* ---- Contribution legend ---- */
+.gh-graph{padding:8px 0 24px;}
+.gh-legend{
+  display:flex; align-items:center; gap:4px; justify-content:flex-end;
+  margin-bottom:20px; flex-wrap:wrap;
+}
+.gh-leg-label{
+  font-family:var(--mono); font-size:10px; color:var(--faint);
+  margin:0 4px;
+}
+
+/* ---- Cells (GitHub green squares) ---- */
+.gh-cell{
+  display:inline-block; width:12px; height:12px; border-radius:2px;
+  flex:none;
+}
+.gh-l0{background:#ebedf0;}
+.gh-l1{background:#9be9a8;}
+.gh-l2{background:#40c463;}
+.gh-l3{background:#30a14e;}
+.gh-l4{background:#216e39;}
+[data-theme="dark"] .gh-l0{background:#21262d;}
+[data-theme="dark"] .gh-l1{background:#0e4429;}
+[data-theme="dark"] .gh-l2{background:#006d32;}
+[data-theme="dark"] .gh-l3{background:#26a641;}
+[data-theme="dark"] .gh-l4{background:#39d353;}
+
+/* ---- Vertical commit spine ---- */
+.gh-spine{position:relative; padding-left:4px;}
+
+.gh-gap{
+  display:flex; align-items:center; gap:10px;
+  padding:2px 0 2px 28px; margin:2px 0;
+}
+.gh-gap-line{
+  flex:1; height:0; border-top:1px dotted var(--line);
+  max-width:48px;
+}
+.gh-gap-text{
+  font-family:var(--mono); font-size:10px; color:var(--faint);
+  white-space:nowrap;
+}
+
+.gh-row{
+  display:flex; gap:14px; align-items:stretch;
+  text-decoration:none; color:inherit;
+  padding:10px 12px; margin:0 -12px; border-radius:10px;
+  transition:background .15s;
+}
+.gh-row:hover{background:var(--panel-2);}
+.gh-row-hi{background:var(--accent-soft);}
+.gh-row-hi:hover{background:var(--accent-soft);}
+
+.gh-track{
+  display:flex; flex-direction:column; align-items:center;
+  width:24px; flex:none; position:relative;
+}
+.gh-connector{
+  flex:1; width:0; border-left:2px dotted var(--line);
+  min-height:8px;
+}
+.gh-row:first-child .gh-connector-top{visibility:hidden; min-height:0;}
+.gh-row:last-child .gh-connector-bot{visibility:hidden; min-height:0;}
+.gh-track .gh-cell{
+  width:14px; height:14px; border-radius:3px;
+  box-shadow:0 0 0 2px var(--panel);
+  position:relative; z-index:1;
+}
+.gh-row-pending .gh-track .gh-cell{opacity:.85;}
+
+.gh-body{flex:1; min-width:0; padding-bottom:4px;}
+.gh-row-head{
+  display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+  margin-bottom:4px;
+}
+.gh-row-head time{
+  font-family:var(--mono); font-size:11px; color:var(--muted);
+}
+.gh-title{
+  font-weight:600; font-size:14px; line-height:1.35;
+  margin-bottom:4px; color:var(--ink);
+}
+.gh-desc{
+  font-family:var(--mono); font-size:11px; color:var(--faint);
+  line-height:1.4;
+}
+.gh-stat{color:var(--green);}
+.gh-pending-label{color:var(--faint); font-style:italic;}
+
+.gh-row-posted .gh-title{color:var(--ink);}
+.gh-row-pending .gh-title{color:var(--muted);}
+
+@media (max-width:520px){
+  .gh-row{padding:10px 4px; margin:0 -4px;}
+  .gh-gap{padding-left:20px;}
+}

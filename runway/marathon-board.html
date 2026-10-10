@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Launch Runway — Anshuli</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- set theme before paint to avoid a flash -->
+<script>(function(){try{var t=localStorage.getItem('anshuli.runway.theme')||((window.matchMedia&&matchMedia('(prefers-color-scheme:dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',t);document.documentElement.style.colorScheme=t;}catch(e){document.documentElement.setAttribute('data-theme','light');}})();</script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Nokk Labs · solo founder ops</div>
+    <h1>Launch Runway<span class="dot">.</span></h1>
+
+    <div class="runway">
+      <div class="runway-top">
+        <span class="runway-label">Sprint progress</span>
+        <span class="runway-count"><b id="doneN">0</b> of <span id="totalN">0</span> board tasks done · <span id="pctN">0</span>%</span>
+      </div>
+      <div class="bar"><div class="bar-fill" id="barFill"></div></div>
+      <div class="ticks"><span>Setup</span><span>nmai prep</span><span>Launch</span><span>openDM prep</span><span>Reveal</span></div>
+    </div>
+
+    <div class="priorities">
+      <div class="pri">
+        <span class="k">P1</span>
+        <span><span class="t">nextmillionai — HN + Product Hunt</span><br><span class="s">A2A hiring demo anchors it · launching next week</span></span>
+      </div>
+      <div class="pri two">
+        <span class="k">P1</span>
+        <span><span class="t">openDM — surprise reveal</span><br><span class="s">"50 DMs" hero + 4-5 launch cuts + beta page · ~1 week after</span></span>
+      </div>
+    </div>
+  </header>
+
+  <div class="controls">
+    <div class="tabs">
+      <button class="tab active" data-view="board" onclick="setView('board')">Board <span class="n" id="boardN">0</span></button>
+      <button class="tab" data-view="later" onclick="setView('later')">Later <span class="n" id="laterN">0</span></button>
+      <button class="tab" data-view="bucket" onclick="setView('bucket')">Bucket List <span class="n" id="bucketN">0</span></button>
+    </div>
+    <div class="right-controls">
+      <div class="filters" id="filters"></div>
+      <button class="btn ghost" id="collapseAllBtn" onclick="toggleCollapseAll()" title="Collapse or expand all cards">Collapse all</button>
+      <a class="btn ghost" href="../social/social-board.html" title="X posting schedule">X Schedule</a>
+      <button class="btn primary" onclick="toggleAdd()">+ Add task</button>
+      <button class="btn" onclick="exportMarkdown()" title="Export visible non-Done tasks as Markdown">Export MD</button>
+      <button class="btn" onclick="exportState()" title="Download your current board as a file">Save file</button>
+      <button class="btn" onclick="document.getElementById('importFile').click()" title="Load a board from a saved file">Load file</button>
+      <input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="importState(this)">
+      <button class="btn ghost" onclick="resetBoard()" title="Restore the original list">Reset</button>
+      <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Toggle light / dark" aria-label="Toggle theme">
+        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M22 12h-2.5M4.5 12H2M19 5l-1.8 1.8M6.8 17.2 5 19M19 19l-1.8-1.8M6.8 6.8 5 5"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="filterbar">
+    <span class="fb-label">Tags</span>
+    <div class="tagfilters" id="tagFilters"></div>
+  </div>
+
+  <div class="addpanel" id="addpanel">
+    <div class="addrow">
+      <div class="field grow"><label>Task</label><input id="newTitle" placeholder="What needs doing?" onkeydown="if(event.key==='Enter')addTask()"></div>
+      <div class="field"><label>Project</label>
+        <select id="newProj"></select>
+      </div>
+      <div class="field"><label>New project</label>
+        <input id="newProjCustom" class="tag-custom" placeholder="+ project, then Enter"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();addNewProject(this);}">
+      </div>
+      <div class="field grow"><label>Tags</label>
+        <div class="tagpick" id="newTagPick"></div>
+        <input id="newTagCustom" class="tag-custom" placeholder="+ custom tag, then Enter"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomNewTag(this);}">
+      </div>
+      <div class="field"><label>Priority</label>
+        <select id="newPri"><option value="high">High</option><option value="medium" selected>Medium</option><option value="low">Low</option></select>
+      </div>
+      <div class="field"><label>Column</label>
+        <select id="newCol"><option value="todo">To Do</option><option value="doing">Doing</option><option value="done">Done</option><option value="later">Later</option><option value="bucket">Bucket List</option></select>
+      </div>
+      <button class="btn primary" onclick="addTask()">Add</button>
+    </div>
+  </div>
+
+  <datalist id="tagOptions">
+    <option value="coding"></option><option value="video"></option><option value="demo"></option>
+    <option value="outreach"></option><option value="launch"></option><option value="research"></option>
+    <option value="content"></option><option value="setup"></option>
+    <option value="f1"></option><option value="f2"></option><option value="f3"></option><option value="f4"></option><option value="daily"></option>
+  </datalist>
+
+  <div id="boardView">
+    <div class="board">
+      <div class="col todo" data-col="todo">
+        <div class="col-head"><span class="col-title"><span class="swatch"></span>To Do</span><span class="col-count" id="c-todo">0</span></div>
+        <div class="dropzone" data-col="todo"></div>
+      </div>
+      <div class="col doing" data-col="doing">
+        <div class="col-head"><span class="col-title"><span class="swatch"></span>Doing</span><span class="col-count" id="c-doing">0</span></div>
+        <div class="dropzone" data-col="doing"></div>
+      </div>
+      <div class="col done" data-col="done">
+        <div class="col-head"><span class="col-title"><span class="swatch"></span>Done</span><span class="col-count" id="c-done">0</span></div>
+        <div class="dropzone" data-col="done"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="laterView" style="display:none;">
+    <div class="parking-board">
+      <div class="col" data-col="later" style="grid-column:1/-1;">
+        <div class="col-head"><span class="col-title"><span class="swatch" style="background:var(--accent);"></span>Later — parked ideas & long-term</span><span class="col-count" id="c-later">0</span></div>
+        <div class="dropzone parking-zone" data-col="later"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="bucketView" style="display:none;">
+    <div class="parking-board">
+      <div class="col" data-col="bucket" style="grid-column:1/-1;">
+        <div class="col-head"><span class="col-title"><span class="swatch" style="background:var(--teal);"></span>Bucket List — video & demo ideas</span><span class="col-count" id="c-bucket">0</span></div>
+        <div class="dropzone parking-zone" data-col="bucket"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note" id="storeNote">Loading…</div>
+</div>
+
+<!-- classic scripts (load order matters), so the file still opens by double-click -->
+<script src="store.js"></script>
+<script src="model.js"></script>
+<script src="view.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
