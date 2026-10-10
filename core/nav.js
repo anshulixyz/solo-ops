@@ -79,7 +79,10 @@
     b.style.display = installEvt ? '' : 'none';
     b.onclick = function () { if (!installEvt) return; installEvt.prompt(); installEvt.userChoice.then(function () { installEvt = null; bindInstall(); }); };
   }
+  // the web-app manifest only makes sense over http(s); linking it from file:// just logs CORS errors
+  function addManifest(root) { if (location.protocol.indexOf('http') !== 0 || document.querySelector('link[rel=manifest]')) return; var l = document.createElement('link'); l.rel = 'manifest'; l.href = root + 'manifest.json'; document.head.appendChild(l); }
   function registerSW(root) {
+    addManifest(root);
     if (!('serviceWorker' in navigator) || location.protocol.indexOf('http') !== 0) return;
     var hadController = !!navigator.serviceWorker.controller; var firstInstallAt = 0;
     navigator.serviceWorker.register(root + 'sw.js', { scope: root, updateViaCache: 'none' }).then(function (reg) {

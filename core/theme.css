@@ -331,7 +331,10 @@ body.guide-open{overflow:hidden;}
 .guide-foot-recent:hover{border-color:var(--accent); color:var(--accent);}
 
 /* guide: context menu */
-.guide-ctx{position:relative; flex:1; display:flex;}
+.guide-ctx{position:relative; flex:1; display:flex; min-width:0;}
+.guide-undo{flex:0 0 auto;}
+.guide-foot-undo svg{width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; margin-right:4px;}
+.guide-foot .guide-foot-ctx{white-space:nowrap; padding:0 10px;}
 .guide-foot-ctx{flex:1; border:1px solid var(--line); background:var(--panel-2); color:var(--ink);}
 .guide-foot-ctx:hover{border-color:var(--accent); color:var(--accent);}
 .guide-foot-ctx .chev{font-size:10px; opacity:.7; margin-left:2px;}
@@ -355,3 +358,4 @@ body.guide-open{overflow:hidden;}
 
 .guide-status.warn .dot{background:var(--amber);}
 .guide-status.warn{border-color:var(--amber-line);}
+.guide-undo .guide-ctx-menu{right:auto; left:0;}

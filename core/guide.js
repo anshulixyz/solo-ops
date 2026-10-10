@@ -134,6 +134,7 @@
     return list;
   }
   var I = {
+    undo: '<svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>',
     daily: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
     weekly: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>',
     projects: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 3v18M15 3v18"/></svg>',
@@ -168,7 +169,7 @@
   function render() {
     var pg = page(); var w = Config.ws(); var m = mode(); var r = root();
     var all = prompts(); var here = all.filter(function (x) { return x.pages.indexOf(pg) >= 0; });
-    var t = tab(); if (!m && !Store.get(SEEN_KEY)) t = 'setup';
+    var t = tab(); if (!m && !Store.get(SEEN_KEY) && !Store.get(TAB_KEY)) t = 'setup';
     var TABS = [['moves', 'Moves', I.moves], ['prompts', 'Prompts', I.prompts], ['apply', 'Apply', I.apply], ['setup', 'Setup', I.setup]];
     panel.innerHTML = '<div class="guide-head"><b>Guide</b><span class="guide-sub">' + esc(w.title) + ' · ' + (m === 'files' ? 'agent runs commands' : m === 'chat' ? 'chat agent' : 'agent not set') + '</span><button type="button" class="guide-close" aria-label="Close">×</button></div>' +
       '<div class="guide-tabs">' + TABS.map(function (x) { return '<button type="button" class="guide-tab' + (x[0] === t ? ' on' : '') + '" data-tab="' + x[0] + '" title="' + x[1] + '">' + x[2] + '<span>' + x[1] + '</span></button>'; }).join('') + '</div>' +
@@ -196,7 +197,7 @@
         '<h4>Read more</h4><p><a href="' + r + 'about.html">About Solo Ops: why, how, what is next</a> · <a href="' + r + 'README.md" target="_blank">README</a> · <a href="' + r + 'AGENTS.md" target="_blank">AGENTS.md</a> · <a href="' + r + 'prompts/agent-bootstrap.md" target="_blank">bootstrap prompt</a> · <a href="' + r + 'data/SCHEMA.md" target="_blank">data schema</a></p>' : '') +
       '</div>';
     panel.querySelector('.guide-close').onclick = close;
-    Array.prototype.forEach.call(panel.querySelectorAll('.guide-tab'), function (b) { b.onclick = function () { Store.set(TAB_KEY, b.dataset.tab, { silent: true }); render(); }; });
+    Array.prototype.forEach.call(panel.querySelectorAll('.guide-tab'), function (b) { b.onclick = function () { Store.set(TAB_KEY, b.dataset.tab, { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); render(); }; });
     Array.prototype.forEach.call(panel.querySelectorAll('input[name=gmode]'), function (i) { i.onchange = function () { Store.set(MODE_KEY, i.value, { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); Store.set(TAB_KEY, 'prompts', { silent: true }); render(); }; });
     Array.prototype.forEach.call(panel.querySelectorAll('.guide-prompt'), function (cardEl) { bindCard(cardEl, all[+cardEl.dataset.i]); });
     Array.prototype.forEach.call(panel.querySelectorAll('.gp-edit'), function (b) { b.onclick = function (e) { e.stopPropagation(); editPrompt(all[+b.dataset.i], b.closest('.guide-prompt')); }; });
@@ -206,10 +207,12 @@
     if (t === 'apply') { panel.querySelector('.guide-preview').onclick = previewReply; panel.querySelector('.guide-snap').onclick = function () { copyText(snapshot(), this, 'Snapshot copied'); }; panel.querySelector('.guide-reply').addEventListener('input', function () { panel.querySelector('.guide-plan').innerHTML = ''; }); }
     var foot = document.createElement('div'); foot.className = 'guide-foot';
     foot.innerHTML = '<button type="button" class="guide-foot-apply">' + I.apply + 'Apply a reply</button>' +
-      '<div class="guide-ctx"><button type="button" class="guide-foot-ctx" title="Copy context for your agent: recent changes, the last task, this item, the whole project…">' + I.link + 'Copy context <span class="chev">▾</span></button><div class="guide-ctx-menu"></div></div>';
+      '<div class="guide-ctx guide-undo"><button type="button" class="guide-foot-ctx guide-foot-undo" title="Undo: revert any recent change, yours or the agent\'s">' + I.undo + 'Undo <span class="chev">▾</span></button><div class="guide-ctx-menu"></div></div>' +
+      '<div class="guide-ctx"><button type="button" class="guide-foot-ctx" title="Copy context for your agent: recent changes, the last task, this item, the whole project…">' + I.link + 'Context <span class="chev">▾</span></button><div class="guide-ctx-menu"></div></div>';
     panel.appendChild(foot);
-    foot.querySelector('.guide-foot-apply').onclick = function () { Store.set(TAB_KEY, 'apply', { silent: true }); render(); panel.querySelector('.guide-reply').focus(); };
-    var ctxBtn = foot.querySelector('.guide-foot-ctx'); var ctxMenu = foot.querySelector('.guide-ctx-menu');
+    foot.querySelector('.guide-foot-apply').onclick = function () { Store.set(TAB_KEY, 'apply', { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); render(); var ta = panel.querySelector('.guide-reply'); if (ta) ta.focus(); };
+    bindUndo(foot.querySelector('.guide-foot-undo'), foot.querySelector('.guide-undo .guide-ctx-menu'), all);
+    var ctxBtn = foot.querySelector('.guide-ctx:not(.guide-undo) .guide-foot-ctx'); var ctxMenu = foot.querySelector('.guide-ctx:not(.guide-undo) .guide-ctx-menu');
     ctxBtn.onclick = function (e) {
       e.stopPropagation();
       if (ctxMenu.classList.contains('open')) { ctxMenu.classList.remove('open'); return; }
@@ -355,6 +358,28 @@
   }
   function restoreHidden() { var ps = pstore(); ps.hidden = []; psave(ps); render(); }
 
+  /* ---- Undo: the last changes (server mode: revert in place; elsewhere: the prompt) ---- */
+  function bindUndo(btn, menu, all) {
+    function closeOn() { setTimeout(function () { document.addEventListener('mousedown', function h(ev) { if (!menu.contains(ev.target) && ev.target !== btn && !btn.contains(ev.target)) { menu.classList.remove('open'); document.removeEventListener('mousedown', h); } }); }, 0); }
+    btn.onclick = function (e) {
+      e.stopPropagation();
+      if (menu.classList.contains('open')) { menu.classList.remove('open'); return; }
+      var undoPrompt = all.filter(function (x) { return x.t === 'Undo what the agent just did'; })[0];
+      function promptRow() { return '<button type="button" data-undo-prompt="1"><b>Copy the undo prompt</b><span>Your agent lists its last changes and reverts the ones you point at (node solo.js log / revert).</span></button>'; }
+      menu.innerHTML = '<div class="guide-ctx-foot" style="border:0;margin:0">Loading recent changes…</div>'; menu.classList.add('open'); closeOn();
+      (global.Sync ? Sync.log(8) : Promise.resolve(null)).then(function (recs) {
+        var ago = function (ts) { return global.Activity && Activity.ago ? Activity.ago(ts) : new Date(ts).toLocaleString(); };
+        if (recs === null) {
+          menu.innerHTML = '<div class="guide-ctx-foot" style="border:0;margin:0 0 4px">Reverting in place needs <code>node serve.js</code>. Until then, ask your agent:</div>' + promptRow() + '<div class="guide-ctx-foot">Every change is in <code>data/log.jsonl</code>; <code>node solo.js log</code> shows it.</div>';
+        } else {
+          var rows = recs.filter(function (r) { return r.canRevert; });
+          menu.innerHTML = (rows.length ? rows.map(function (r) { return '<button type="button" data-rv="' + esc(r.id) + '"><b>' + esc(r.note || r.file) + '</b><span>' + esc(r.file) + ' · ' + esc(ago(r.ts)) + '</span><code>' + esc(r.source) + '</code></button>'; }).join('') : '<div class="guide-ctx-foot" style="border:0">Nothing to revert yet.</div>') + promptRow() + '<div class="guide-ctx-foot">Reverting restores the file to how it was before that change (the revert is logged too).</div>';
+          Array.prototype.forEach.call(menu.querySelectorAll('[data-rv]'), function (b) { b.onclick = function () { var rec = recs.filter(function (r) { return r.id === b.dataset.rv; })[0]; if (!confirm('Revert "' + (rec.note || rec.file) + '" (' + rec.source + ')? The file goes back to how it was before that change.')) return; menu.classList.remove('open'); Sync.revert(rec.id).then(function (ok) { var t = btn.querySelector('span') ? btn : btn; var old = btn.innerHTML; btn.innerHTML = ok ? '✓ Reverted' : '✗ Could not revert'; setTimeout(function () { btn.innerHTML = old; }, 2200); if (ok && global.Recent && Recent.refresh) Recent.refresh(); }); }; });
+        }
+        var pr = menu.querySelector('[data-undo-prompt]'); if (pr) pr.onclick = function () { menu.classList.remove('open'); if (undoPrompt) finish(undoPrompt.p, btn, undoPrompt); };
+      });
+    };
+  }
   function bindCard(card, x) {
     var form = card.querySelector('.gp-form'); var main = card.querySelector('.gp-main');
     main.onclick = function () {
