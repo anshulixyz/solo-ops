@@ -5,8 +5,9 @@
      snapshot of your data into every prompt and asks for commands back.
    • Paste the reply → Apply (core/apply.js) updates boards, posts, scripts,
      notes and inspiration right here. No terminal needed.
-   • Three tabs by intent: Do (search + prompts, this page first, groups
-     collapsed), Reply (paste → preview → apply), Settings. Blanks become a
+   • Tabs by intent: Quick (five-second actions across all projects, no
+     agent), Ask (search + prompts, this page first, groups collapsed),
+     Reply (paste → preview → apply), Settings. Blanks become a
      small form before copying; a visible switch says how the agent works.
    Opens from the left-edge handle, the nav button, or the ? key.
    ========================================================================= */
@@ -144,6 +145,11 @@
     prompts: '<svg viewBox="0 0 24 24"><path d="M4 4h16v11H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg>',
     apply: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12l7 7 7-7"/></svg>',
     setup: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+    bolt: '<svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
+    play: '<svg viewBox="0 0 24 24"><path d="M7 4v16l13-8z"/></svg>',
+    check: '<svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>',
+    plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+    list: '<svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
     search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
     link: '<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>'
   };
@@ -165,8 +171,8 @@
   }
   function backupDays() { return backup.state === 'ok' && backup.repo && backup.lastAt ? Math.floor((Date.now() - Date.parse(backup.lastAt)) / 86400000) : null; }
   // tabs are named by intent: Do (what to ask) · Reply (bring the answer back) · Settings
-  var TAB_MAP = { moves: 'do', prompts: 'do', apply: 'reply', setup: 'settings' };
-  function tab() { var t = Store.get(TAB_KEY) || 'do'; return TAB_MAP[t] || t; }
+  var TAB_MAP = { moves: 'ask', prompts: 'ask', do: 'ask', apply: 'reply', setup: 'settings' };
+  function tab() { var t = Store.get(TAB_KEY) || 'quick'; return TAB_MAP[t] || t; }
   var CAT_KEY = 'marathon.guide.cats';        // { daily: true, … } which groups are open
   var LAST_KEY = 'marathon.guide.lastCopy';   // { t, at, ws } the last prompt copied (Reply shows it)
   var query = '';
@@ -179,7 +185,7 @@
     var pg = page(); var w = Config.ws(); var m = mode(); var r = root();
     var all = prompts(); var here = all.filter(function (x) { return x.pages.indexOf(pg) >= 0; });
     var t = tab(); if (!m && !Store.get(SEEN_KEY) && !Store.get(TAB_KEY)) t = 'settings';
-    var TABS = [['do', 'Do', I.prompts], ['reply', 'Reply', I.apply], ['settings', 'Settings', I.setup]];
+    var TABS = [['quick', 'Quick', I.bolt], ['ask', 'Ask', I.prompts], ['reply', 'Reply', I.apply], ['settings', 'Settings', I.setup]];
     var lc = Store.getJSON(LAST_KEY, null); if (lc && lc.ws !== w.id) lc = null;
     panel.innerHTML = '<div class="guide-head"><b>Guide</b><span class="guide-sub">' + esc(w.title) + '</span><button type="button" class="guide-close" aria-label="Close">×</button></div>' +
       '<div class="guide-tabs">' + TABS.map(function (x) { return '<button type="button" class="guide-tab' + (x[0] === t ? ' on' : '') + '" data-tab="' + x[0] + '" title="' + x[1] + '">' + x[2] + '<span>' + x[1] + '</span></button>'; }).join('') + '</div>' +
@@ -188,10 +194,12 @@
         '<button type="button" data-mode="chat" class="' + (m === 'chat' ? 'on' : '') + '" title="ChatGPT, Claude.ai, Gemini. Prompts carry a snapshot of your data; you paste the reply back here.">Chat only</button>' +
         (m ? '' : '<em>pick one</em>') + '</div>' +
       '<div class="guide-body">' +
-      (t === 'do' ? '<div class="guide-search-wrap">' + I.search + '<input type="search" class="guide-search" placeholder="Search prompts" value="' + esc(query) + '" aria-label="Search prompts"></div><div id="guideList"></div>' : '') +
-      (t === 'reply' ? '<div class="guide-status ' + (lc ? 'ok' : '') + '"><span class="dot"></span><span>' + (lc ? '<b>' + esc(lc.t) + '</b> copied ' + esc(ago(lc.at)) + '. Paste what your agent answered below.' : 'Copy a prompt from <b>Do</b>, send it to your agent, then paste the answer here.') + '</span></div>' +
+      (t === 'quick' ? quickSection() : '') +
+      (t === 'ask' ? '<div class="guide-search-wrap">' + I.search + '<input type="search" class="guide-search" placeholder="Search prompts" value="' + esc(query) + '" aria-label="Search prompts"></div><div id="guideList"></div>' : '') +
+      (t === 'reply' ? '<div class="guide-status ' + (lc ? 'ok' : '') + '"><span class="dot"></span><span>' + (lc ? '<b>' + esc(lc.t) + '</b> copied ' + esc(ago(lc.at)) + '. Paste what your agent answered below.' : 'Copy a prompt from <b>Ask</b>, send it to your agent, then paste the answer here.') + '</span></div>' +
         (m === 'files' ? '<p class="guide-note">Your agent writes the files itself, so you rarely need this. Use it when it answers in the chat instead.</p>' : '') +
         '<textarea class="guide-reply" rows="8" placeholder="Paste your agent\'s reply here."></textarea>' +
+        '<div class="guide-row"><button type="button" class="gp-copy guide-preview">Preview changes</button><button type="button" class="guide-snap guide-snapbtn" title="Copy a text snapshot of this workspace for any chat">Copy project</button></div>' +
         '<div class="guide-plan"></div><div class="guide-result"></div>' +
         '<details class="guide-sec small"><summary>How this works</summary><p>Your agent answers with a list of changes (or a plain checklist). Paste it here and press <b>Preview</b>: you see every change before anything happens, untick what you do not want, then <b>Apply</b>. The changes land in this workspace. Nothing runs on your computer, nothing is deleted, and every change shows in Home → Recent changes where it can be reverted.</p></details>' +
         (m === 'files' && global.Sync && Sync.getMode() === 'server' ? '<h4>Recent agent changes</h4><div class="guide-agentlog">Loading…</div>' : '') : '') +
@@ -199,7 +207,7 @@
         '<label class="guide-mode' + (m === 'files' ? ' on' : '') + '"><input type="radio" name="gmode" value="files"' + (m === 'files' ? ' checked' : '') + '><b>It can run commands</b><span>Claude Code, Cursor, Codex, Claude Desktop with this folder. It reads your files, opens attachments, runs <code>node solo.js</code> itself.</span></label>' +
         '<label class="guide-mode' + (m === 'chat' ? ' on' : '') + '"><input type="radio" name="gmode" value="chat"' + (m === 'chat' ? ' checked' : '') + '><b>It is a chat</b><span>ChatGPT, Claude.ai, Gemini. Prompts carry a snapshot of your data; you paste the reply into Reply. No terminal needed.</span></label></div>' +
         (m === 'files' ? '<ol class="guide-steps"><li>Open this folder in your agent.</li><li>Say: <b>"Read AGENTS.md, then run node solo.js week"</b>.</li><li>Keep <code>node serve.js</code> running; pages update as the agent works. Images you attach are saved to <code>data/attachments/</code> so it can open them.</li></ol>'
-         : m === 'chat' ? '<ol class="guide-steps"><li>Copy a prompt from <b>Do</b> — it includes a snapshot of this workspace.</li><li>When the agent replies with a code block, copy it.</li><li><b>Reply</b> → paste → Preview → Apply. If an item has an image the agent needs, upload it in the chat when asked.</li></ol>' : '') +
+         : m === 'chat' ? '<ol class="guide-steps"><li>Copy a prompt from <b>Ask</b> — it includes a snapshot of this workspace.</li><li>When the agent replies with a code block, copy it.</li><li><b>Reply</b> → paste → Preview → Apply. If an item has an image the agent needs, upload it in the chat when asked.</li></ol>' : '') +
         '<h4>Protect your work</h4><div class="guide-status ' + (backup.state === 'ok' && backup.repo && (backupDays() === null || backupDays() < 7) ? 'ok' : backup.state === 'ok' && !backup.repo ? 'warn' : '') + '" id="guideBackup"><span class="dot"></span>' + backupLine() + '</div>' +
         '<p>Every change is logged and can be reverted from Home → Recent changes. A pasted reply never deletes anything. Your tasks never enter the public Solo Ops repo. What is left is keeping a private copy of your data somewhere else; these prompts set it up with your agent:</p>' +
         all.filter(function (x) { return x.c === 'fix'; }).map(function (x) { return row(all, x, pg); }).join('') +
@@ -210,10 +218,11 @@
     panel.querySelector('.guide-close').onclick = close;
     Array.prototype.forEach.call(panel.querySelectorAll('.guide-tab'), function (b) { b.onclick = function () { Store.set(TAB_KEY, b.dataset.tab, { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); render(); }; });
     Array.prototype.forEach.call(panel.querySelectorAll('.guide-agent [data-mode]'), function (b) { b.onclick = function () { Store.set(MODE_KEY, b.dataset.mode, { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); render(); }; });
-    Array.prototype.forEach.call(panel.querySelectorAll('input[name=gmode]'), function (i) { i.onchange = function () { Store.set(MODE_KEY, i.value, { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); Store.set(TAB_KEY, 'do', { silent: true }); render(); }; });
+    Array.prototype.forEach.call(panel.querySelectorAll('input[name=gmode]'), function (i) { i.onchange = function () { Store.set(MODE_KEY, i.value, { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); Store.set(TAB_KEY, 'ask', { silent: true }); render(); }; });
     var pr = panel.querySelector('.pe-restore'); if (pr) pr.onclick = restoreHidden;
     var ex = panel.querySelector('.gd-export'); if (ex) ex.onclick = exportAll; var im = panel.querySelector('.gd-import'); if (im) im.onclick = importAll;
-    if (t === 'do') {
+    if (t === 'quick') bindQuick();
+    if (t === 'ask') {
       renderList(all, here, pg);
       var si = panel.querySelector('.guide-search'); si.oninput = function () { query = si.value.trim(); renderList(all, here, pg); }; si.onkeydown = function (e) { if (e.key === 'Escape') { si.value = ''; query = ''; renderList(all, here, pg); } };
       if (query) { si.focus(); si.setSelectionRange(si.value.length, si.value.length); }
@@ -221,22 +230,88 @@
     if (t === 'settings') bindList(all);
     if (t === 'reply') {
       panel.querySelector('.guide-reply').addEventListener('input', function () { panel.querySelector('.guide-plan').innerHTML = ''; });
+      panel.querySelector('.guide-preview').onclick = previewReply; var sb = panel.querySelector('.guide-snapbtn'); sb.onclick = function () { copyText(snapshot(), sb, 'Copied'); };
       var al = panel.querySelector('.guide-agentlog');
       if (al) Sync.log(12).then(function (recs) { var rows = (recs || []).filter(function (x) { return x.source === 'agent'; }).slice(0, 6); al.innerHTML = rows.length ? '<ul class="guide-log">' + rows.map(function (x) { return '<li><b>' + esc(x.note || x.file) + '</b><span>' + esc(x.file) + ' · ' + esc(ago(x.ts)) + '</span></li>'; }).join('') + '</ul><p class="guide-note">Revert any of them from Home → Recent changes.</p>' : '<p class="guide-note">No agent changes yet. Open the folder in your agent and ask for a standup.</p>'; });
     }
-    // footer: one primary action that follows the tab
+    // footer: the two quick actions on every tab — apply a reply (preview first) and copy context
     var foot = document.createElement('div'); foot.className = 'guide-foot';
-    if (t === 'do') foot.innerHTML = '<button type="button" class="guide-foot-apply">' + I.apply + 'Paste a reply</button>';
-    else if (t === 'reply') foot.innerHTML = '<button type="button" class="guide-foot-apply guide-foot-preview">' + I.apply + 'Preview changes</button><button type="button" class="guide-foot-snap" title="Copy a text snapshot of this workspace for any chat">Copy project</button>';
-    else foot.innerHTML = '<button type="button" class="guide-foot-snap guide-foot-back">← Back to Do</button>';
+    foot.innerHTML = '<button type="button" class="guide-foot-apply">' + I.apply + (t === 'reply' ? 'Preview changes' : 'Apply a reply') + '</button>' +
+      '<div class="guide-ctx"><button type="button" class="guide-foot-ctx" title="Copy context for your agent: recent changes, the last task, this item, the whole project…">' + I.link + 'Copy context <span class="chev">▾</span></button><div class="guide-ctx-menu"></div></div>';
     panel.appendChild(foot);
-    var fa = foot.querySelector('.guide-foot-apply'); var fp = foot.querySelector('.guide-foot-preview'); var fs = foot.querySelector('.guide-foot-snap'); var fb = foot.querySelector('.guide-foot-back');
-    if (fa && !fp) fa.onclick = function () { Store.set(TAB_KEY, 'reply', { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); render(); var ta = panel.querySelector('.guide-reply'); if (ta) ta.focus(); };
-    if (fp) fp.onclick = previewReply;
-    if (fs && !fb) fs.onclick = function () { copyText(snapshot(), fs, 'Copied'); };
-    if (fb) fb.onclick = function () { Store.set(TAB_KEY, 'do', { silent: true }); render(); };
+    foot.querySelector('.guide-foot-apply').onclick = function () { if (t === 'reply') { previewReply(); return; } Store.set(TAB_KEY, 'reply', { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); render(); var ta = panel.querySelector('.guide-reply'); if (ta) ta.focus(); };
+    var ctxBtn = foot.querySelector('.guide-foot-ctx'); var ctxMenu = foot.querySelector('.guide-ctx-menu');
+    ctxBtn.onclick = function (e) {
+      e.stopPropagation();
+      if (ctxMenu.classList.contains('open')) { ctxMenu.classList.remove('open'); return; }
+      ctxMenu.innerHTML = (global.Context ? Context.menu() : []).map(function (it) { return '<button type="button" data-ctx="' + it.id + '"><b>' + esc(it.label) + '</b><span>' + esc(it.hint) + '</span><code>{{' + it.id + '}}</code></button>'; }).join('') + '<div class="guide-ctx-foot">Use any of these as a token inside your own prompts.</div>';
+      Array.prototype.forEach.call(ctxMenu.querySelectorAll('[data-ctx]'), function (b) { b.onclick = function () { var txt = Context.get(b.dataset.ctx); ctxMenu.classList.remove('open'); copyText(txt, ctxBtn, 'Copied ' + Context.info(b.dataset.ctx).label.toLowerCase()); }; });
+      ctxMenu.classList.add('open');
+      setTimeout(function () { document.addEventListener('mousedown', function h(ev) { if (!ctxMenu.contains(ev.target) && ev.target !== ctxBtn && !ctxBtn.contains(ev.target)) { ctxMenu.classList.remove('open'); document.removeEventListener('mousedown', h); } }); }, 0);
+    };
   }
-  // the Do tab's list: search results, or nudges + this page + groups + context + about
+
+  /* ---- Quick: the five-second actions, no agent needed ------------------ */
+  function priBadge(p) { return '<span class="qk-pri ' + esc(p) + '" title="Click to change priority">' + esc(p === 'medium' ? 'med' : p) + '</span>'; }
+  function quickRow(x, i) {
+    var t = x.task; return '<li class="qk-row' + (t.col === 'doing' ? ' doing' : '') + '" data-i="' + i + '">' +
+      (t.col === 'doing' ? '<button type="button" class="qk-btn qk-done" title="Mark done">' + I.check + '</button>' : '<button type="button" class="qk-btn qk-start" title="Start: move to Doing">' + I.play + '</button>') +
+      '<span class="qk-main"><b>' + esc(t.title) + '</b><span>' + esc(x.wsTitle) + (Config.boards(x.ws).length > 1 ? ' · ' + esc(x.boardTitle) : '') + (t.col === 'doing' ? ' · doing' : '') + '</span></span>' + priBadge(t.pri) + '</li>';
+  }
+  function quickSection() {
+    var w = Config.ws(); var boards = Config.boards(w.id); var top = global.Quick ? Quick.top(10) : []; var pg = page();
+    return (quickNote && Date.now() < quickNote.until ? '<div class="qk-note show">' + esc(quickNote.msg) + '</div>' : '') +
+      '<h4>' + I.play + ' What are you doing?</h4>' +
+      '<div class="qk-box"><input type="text" class="qk-now" placeholder="Type it, any project — “recording stack”, “pricing page”…" autocomplete="off"><div class="qk-matches"></div></div>' +
+      '<h4>' + I.plus + ' Add tasks <span class="guide-hint">to ' + esc(w.title) + '</span></h4>' +
+      '<div class="qk-box"><textarea class="qk-add" rows="2" placeholder="One per line. Enter adds, Shift+Enter for another line.\n@project #tag !high >later also work"></textarea>' +
+      '<div class="qk-opts"><select class="qk-pri-sel" title="Priority for lines without !high / !low"><option value="high">high</option><option value="medium" selected>medium</option><option value="low">low</option></select>' +
+      (boards.length > 1 ? '<select class="qk-board" title="Which board">' + boards.map(function (b) { return '<option value="' + esc(b.id) + '">' + esc(b.title) + '</option>'; }).join('') + '</select>' : '') +
+      '<button type="button" class="gp-copy qk-add-btn">Add</button></div></div>' +
+      '<h4>' + I.list + ' Top tasks <span class="guide-hint">all projects</span><button type="button" class="qk-copy" title="Copy this list for your agent">copy</button></h4>' +
+      (top.length ? '<ul class="qk-top">' + top.map(quickRow).join('') + '</ul>' : '<p class="guide-note">Nothing in Doing or To Do yet. Add tasks above.</p>') +
+      '<p class="guide-foot-note">Doing first, then To Do by priority. ▶ starts a task, ✓ finishes it, the badge changes priority. Every change is logged like any other.' + (pg !== 'board' ? ' Boards update when you open them.' : '') + '</p>';
+  }
+  var quickNoteT = null; var quickNote = null;   // { msg, until }: survives the re-renders that follow a change
+  function bindQuick() {
+    var body = panel.querySelector('.guide-body'); var top = Quick.top(10);
+    // re-render, then show a one-line confirmation on the fresh panel
+    function redraw(msg) { if (msg) { quickNote = { msg: msg, until: Date.now() + 2400 }; clearTimeout(quickNoteT); quickNoteT = setTimeout(function () { var n = panel.querySelector('.qk-note'); if (n) n.classList.remove('show'); }, 2400); } render(); }
+    // what are you doing? → matches across projects → Doing
+    var now = body.querySelector('.qk-now'); var mt = body.querySelector('.qk-matches'); var found = [];
+    function showMatches() {
+      var q = now.value.trim(); if (!q) { mt.innerHTML = ''; found = []; return; }
+      found = Quick.find(q, 3);
+      var strong = found[0] && found[0].ratio >= 0.5;
+      mt.innerHTML = found.map(function (x, i) { return '<button type="button" class="qk-match' + (i === 0 && strong ? ' first' : '') + '" data-i="' + i + '">' + I.play + '<span><b>' + esc(x.task.title) + '</b><em>' + esc(x.wsTitle) + ' · ' + esc(x.task.col) + ' · ' + esc(x.task.pri) + '</em></span></button>'; }).join('') +
+        '<button type="button" class="qk-match new' + (strong ? '' : ' first') + '" data-new="1">' + I.plus + '<span><b>Start a new task: “' + esc(q.slice(0, 60)) + '”</b><em>in ' + esc(Config.ws().title) + ', straight into Doing</em></span></button>';
+      Array.prototype.forEach.call(mt.querySelectorAll('.qk-match'), function (b) { b.onclick = function () { choose(b.dataset.new ? null : found[+b.dataset.i]); }; });
+    }
+    function choose(x) {
+      var q = now.value.trim();
+      var msg = '';
+      if (x) { Quick.setCol(x, 'doing'); msg = 'Now doing: ' + x.task.title; }
+      else if (q) { var m = Quick.startNew(q); if (m) msg = 'Started: ' + m.task.title; }
+      now.value = ''; redraw(msg);
+    }
+    now.oninput = showMatches;
+    now.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); choose(found[0] && found[0].ratio >= 0.5 ? found[0] : null); } if (e.key === 'Escape') { now.value = ''; showMatches(); } };
+    setTimeout(function () { now.focus(); }, 50);
+    // add tasks
+    var ta = body.querySelector('.qk-add'); var addBtn = body.querySelector('.qk-add-btn');
+    function count() { var n = ta.value.split('\n').filter(function (l) { return Quick.parseLine(l).title; }).length; addBtn.textContent = n > 1 ? 'Add ' + n + ' tasks' : 'Add'; }
+    function doAdd() { var bsel = body.querySelector('.qk-board'); var made = Quick.addLines(ta.value, { pri: body.querySelector('.qk-pri-sel').value, board: bsel ? bsel.value : undefined }); if (!made.length) { ta.focus(); return; } ta.value = ''; redraw('Added ' + made.length + ' task' + (made.length === 1 ? '' : 's') + ' to ' + made[0].boardTitle); }
+    ta.oninput = count; ta.onkeydown = function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doAdd(); } }; addBtn.onclick = doAdd;
+    // top tasks
+    Array.prototype.forEach.call(body.querySelectorAll('.qk-row'), function (li) {
+      var x = top[+li.dataset.i]; if (!x) return;
+      var st = li.querySelector('.qk-start'); if (st) st.onclick = function () { Quick.setCol(x, 'doing'); redraw('Now doing: ' + x.task.title); };
+      var dn = li.querySelector('.qk-done'); if (dn) dn.onclick = function () { Quick.setCol(x, 'done'); redraw('Done: ' + x.task.title); };
+      li.querySelector('.qk-pri').onclick = function () { var next = { high: 'medium', medium: 'low', low: 'high' }[x.task.pri] || 'high'; Quick.setPri(x, next); redraw(); };
+    });
+    var cp = body.querySelector('.qk-copy'); if (cp) cp.onclick = function () { copyText('TOP TASKS (all projects)\n' + Quick.asList(top), cp, 'copied'); };
+  }
+  // the Ask tab's list: search results, or nudges + this page + groups + about
   function renderList(all, here, pg) {
     var el = panel.querySelector('#guideList'); var m = mode();
     if (query) {
@@ -249,14 +324,10 @@
     el.innerHTML = '<div class="guide-moves compact" id="guideMoves"></div>' +
       (top.length ? '<div class="guide-cat"><span class="cat-ic">' + I.link + '</span><b>For this page</b></div>' + top.map(function (x) { return row(all, x, pg); }).join('') : '') +
       CATS.map(function (c) { var g = all.filter(function (x) { return x.c === c[0] && top.indexOf(x) < 0; }); if (!g.length) return ''; return '<details class="guide-sec" data-cat="' + c[0] + '"' + (open[c[0]] ? ' open' : '') + '><summary><span class="cat-ic">' + I[c[0]] + '</span><b>' + esc(c[1]) + '</b><span class="cat-sub">' + esc(c[2]) + '</span><span class="guide-hint">' + g.length + '</span><button type="button" class="cat-add" data-cat="' + c[0] + '" title="Add my own prompt here">+</button></summary>' + g.map(function (x) { return row(all, x, pg); }).join('') + '<div class="gp-new" data-cat="' + c[0] + '"></div></details>'; }).join('') +
-      '<details class="guide-sec" data-cat="context"' + (open.context ? ' open' : '') + '><summary><span class="cat-ic">' + I.link + '</span><b>Copy context</b><span class="cat-sub">paste into any chat</span></summary>' +
-        (global.Context ? Context.menu().map(function (it) { return '<button type="button" class="guide-ctx-row" data-ctx="' + it.id + '"><b>' + esc(it.label) + '</b><span>' + esc(it.hint) + '</span></button>'; }).join('') : '') +
-        '<p class="guide-note">Inside your own prompts the same things are tokens: <code>{{recent}}</code> <code>{{this}}</code> <code>{{project}}</code>…</p></details>' +
       '<details class="guide-sec" data-cat="about"' + (open.about ? ' open' : '') + '><summary><span class="cat-ic">' + I.moves + '</span><b>This page</b><span class="cat-sub">what it does · shortcuts</span></summary>' + (ABOUT[pg] || []).map(function (x) { return '<p>' + esc(x) + '</p>'; }).join('') + '<p>⌘K commands · ⌘⇧I capture · ? this guide · n add · 1/2/3 board views</p></details>' +
       '<p class="guide-foot-note">Click a prompt to copy it' + (m === 'chat' ? '; it carries a snapshot of this workspace' : m === 'files' ? '; it tells the agent what to read and change' : '') + '. ✎ edits a prompt, + adds your own.</p>';
     bindList(all);
     Array.prototype.forEach.call(el.querySelectorAll('details.guide-sec[data-cat]'), function (d) { d.addEventListener('toggle', function () { var o = openCats(); o[d.dataset.cat] = d.open; Store.setJSON(CAT_KEY, o, { silent: true }); }); });
-    Array.prototype.forEach.call(el.querySelectorAll('.guide-ctx-row'), function (b) { b.onclick = function () { copyText(Context.get(b.dataset.ctx), b, 'Copied'); }; });
     renderMoves(all);
   }
   function bindList(all) {
@@ -362,7 +433,7 @@
         if (mv.open === 'connect') { var sw = panel.querySelector('.guide-agent'); if (sw) { sw.classList.add('flash'); setTimeout(function () { sw.classList.remove('flash'); }, 1200); } return; }
         if (!mv.p) return;
         var idx = all.indexOf(mv.p); var card = panel.querySelector('.guide-prompt[data-i="' + idx + '"]');
-        if (!card) { Store.set(TAB_KEY, 'do', { silent: true }); query = ''; render(); card = panel.querySelector('.guide-prompt[data-i="' + idx + '"]'); if (!card) return; }
+        if (!card) { Store.set(TAB_KEY, 'ask', { silent: true }); query = ''; render(); card = panel.querySelector('.guide-prompt[data-i="' + idx + '"]'); if (!card) return; }
         var det = card.closest('details'); if (det && !det.open) det.open = true;
         card.scrollIntoView({ behavior: 'smooth', block: 'center' }); card.classList.add('flash'); setTimeout(function () { card.classList.remove('flash'); }, 900);
         if (mv.fill) { card.querySelector('.gp-main').click(); setTimeout(function () { Object.keys(mv.fill).forEach(function (k) { var inp = Array.prototype.filter.call(card.querySelectorAll('.gp-field'), function (f) { return f.querySelector('span').textContent === k; })[0]; if (inp) inp.querySelector('input,textarea').value = mv.fill[k]; }); }, 30); }
@@ -478,7 +549,7 @@
     if (e.key === 'Escape') close();
   });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountHandle); else mountHandle();
-  // ?guide=do|reply|settings (old names still work) opens the panel on load (used for screenshots and deep links)
-  (function () { var g = new URLSearchParams(location.search).get('guide'); if (!g) return; if (['moves', 'prompts', 'apply', 'setup', 'do', 'reply', 'settings'].indexOf(g) >= 0) Store.set(TAB_KEY, TAB_MAP[g] || g, { silent: true }); if (!Store.get(MODE_KEY)) Store.set(MODE_KEY, 'chat', { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); setTimeout(open, 400); })();
+  // ?guide=quick|ask|reply|settings (old names still work) opens the panel on load (used for screenshots and deep links)
+  (function () { var g = new URLSearchParams(location.search).get('guide'); if (!g) return; if (['moves', 'prompts', 'apply', 'setup', 'do', 'quick', 'ask', 'reply', 'settings'].indexOf(g) >= 0) Store.set(TAB_KEY, TAB_MAP[g] || g, { silent: true }); if (!Store.get(MODE_KEY)) Store.set(MODE_KEY, 'chat', { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); setTimeout(open, 400); })();
   global.Guide = { open: open, close: close, toggle: toggle, snapshot: snapshot, mode: mode };
 })(window);

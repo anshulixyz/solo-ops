@@ -395,3 +395,42 @@ body.guide-open{overflow:hidden;}
 .guide-foot-back{flex:1;}
 .guide-foot .guide-foot-snap.copied{background:var(--green); border-color:var(--green); color:#fff;}
 .guide-body > .guide-status{margin-top:10px;}
+
+/* ---- Guide: Quick tab ---- */
+.guide-body h4 svg{width:12px; height:12px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; vertical-align:-2px; margin-right:4px;}
+.guide-body h4 .qk-copy{margin-left:auto; height:20px; padding:0 8px; border:1px solid var(--line); border-radius:6px; background:var(--panel); color:var(--muted); font-family:var(--mono,monospace); font-size:10px; letter-spacing:.08em; text-transform:uppercase; cursor:pointer;}
+.guide-body h4 .qk-copy:hover,.guide-body h4 .qk-copy.copied{border-color:var(--accent); color:var(--accent);}
+.guide-body h4{display:flex; align-items:center;}
+.qk-box{border:1px solid var(--line); border-radius:10px; background:var(--panel-2); padding:8px;}
+.qk-now,.qk-add{width:100%; box-sizing:border-box; border:1px solid var(--line); border-radius:8px; background:var(--panel); color:var(--ink); font:inherit; font-size:13px; padding:8px 10px;}
+.qk-now{height:36px;} .qk-add{resize:vertical; min-height:52px; line-height:1.4;}
+.qk-now:focus,.qk-add:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);}
+.qk-matches:empty{display:none;}
+.qk-matches{margin-top:6px; display:flex; flex-direction:column; gap:2px;}
+.qk-match{display:flex; align-items:center; gap:9px; width:100%; text-align:left; padding:7px 9px; border:1px solid transparent; border-radius:8px; background:transparent; color:var(--ink); font:inherit; cursor:pointer;}
+.qk-match:hover{background:var(--panel); border-color:var(--line);}
+.qk-match.first{background:var(--panel); border-color:var(--accent);}
+.qk-match svg{width:14px; height:14px; flex:none; fill:none; stroke:var(--accent); stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
+.qk-match span{display:flex; flex-direction:column; min-width:0;}
+.qk-match b{font-weight:500; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.qk-match em{font-style:normal; font-size:11px; color:var(--faint);}
+.qk-match.new svg{stroke:var(--muted);}
+.qk-opts{display:flex; gap:6px; margin-top:6px; align-items:center;}
+.qk-opts select{height:30px; border:1px solid var(--line); border-radius:8px; background:var(--panel); color:var(--ink); font:inherit; font-size:12px; padding:0 8px;}
+.qk-opts .gp-copy{margin:0; flex:1; height:30px;}
+.qk-top{list-style:none; margin:0; padding:0;}
+.qk-row{display:flex; align-items:center; gap:9px; padding:6px 4px; border-top:1px solid var(--line-2);}
+.qk-row:first-child{border-top:0;}
+.qk-row.doing{background:var(--amber-soft); border-radius:8px; border-top:0; margin:2px 0; padding-left:6px;}
+.qk-btn{flex:none; width:26px; height:26px; border:1px solid var(--line); border-radius:8px; background:var(--panel); color:var(--muted); cursor:pointer; display:inline-flex; align-items:center; justify-content:center;}
+.qk-btn svg{width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
+.qk-btn:hover{border-color:var(--accent); color:var(--accent);}
+.qk-done:hover{border-color:var(--green); color:var(--green);}
+.qk-main{flex:1; min-width:0; display:flex; flex-direction:column;}
+.qk-main b{font-weight:500; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.qk-main span{font-size:11px; color:var(--faint);}
+.qk-pri{flex:none; font-family:var(--mono,monospace); font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; padding:2px 7px; border-radius:999px; cursor:pointer; border:1px solid var(--line); color:var(--muted); background:var(--panel);}
+.qk-pri.high{color:var(--p1); border-color:var(--p1-soft); background:var(--p1-soft);}
+.qk-pri.low{color:var(--faint);}
+.qk-note{position:sticky; top:0; z-index:2; margin:0 0 6px; padding:7px 10px; border-radius:8px; background:var(--ink); color:var(--canvas); font-size:12.5px; opacity:0; max-height:0; overflow:hidden; transition:.2s;}
+.qk-note.show{opacity:1; max-height:60px;}

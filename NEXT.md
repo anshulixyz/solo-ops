@@ -93,6 +93,11 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Done
 
+- 2026-10-10 · Guide Quick tab: what are you doing (free text → the matching
+  task moves to Doing, any project), add tasks one per line, top tasks across
+  all projects with start / done / priority. Footer quick actions restored.
+  Board columns can no longer push past the page.
+
 - 2026-10-10 · `777d996` Guide redesigned by intent (was M2): Do · Reply · Settings,
   search, visible agent switch, groups collapsed, Reply status line, Settings
   with details folded away.

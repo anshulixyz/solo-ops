@@ -9,7 +9,7 @@ var VERSION = '__VERSION__';
 if (VERSION.indexOf('__') === 0) VERSION = 'solo-ops-static-1';
 var SHELL = ['./', './index.html', './manifest.json', './solo.config.js', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png',
   './core/store.js', './core/config.js', './core/templates.js', './core/theme.js', './core/theme-boot.js', './core/theme.css', './core/ui.css',
-  './core/sync.js', './core/activity.js', './core/palette.js', './core/nav.js', './core/inspo-quick.js', './core/attach.js', './about.html',
+  './core/sync.js', './core/activity.js', './core/palette.js', './core/nav.js', './core/inspo-quick.js', './core/attach.js', './core/quick.js', './about.html',
   './runway/marathon-board.html', './runway/styles.css', './runway/model.js', './runway/view.js', './runway/main.js',
   './social/social-board.html', './social/social-calendar.html', './social/social-styles.css', './social/social-graph.css', './social/social-calendar.css',
   './social/social-assets-store.js', './social/social-image-store.js', './social/social-model.js', './social/social-image.js', './social/social-view.js', './social/social-main.js', './social/social-calendar-view.js', './social/social-calendar-main.js',
