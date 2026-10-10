@@ -72,7 +72,7 @@ write `data/*.json` directly; elsewhere use **File → Save / Load**.
 **As an app (recommended).**
 
 ```bash
-git clone https://github.com/<you>/solo-ops && cd solo-ops
+git clone https://github.com/anshulixyz/solo-ops && cd solo-ops
 node serve.js          # http://localhost:4321
 ```
 
