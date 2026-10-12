@@ -3,12 +3,8 @@ node_modules/
 *.log
 # backups the pages download before destructive actions
 *.backup-*.json
-# Only the sample data files ship with the repo. Everything else you create
-# in data/ (extra boards, workspaces, activity, registries) stays private.
+# Nothing in data/ is tracked: it is the user's own content. Sample content
+# comes from core/templates.js (pages seed it on first open; `node solo.js
+# template all` writes the files). Only the schema ships.
 data/*
 !data/SCHEMA.md
-!data/runway.json
-!data/social.json
-!data/scripts.json
-!data/writing.json
-!data/settings.json

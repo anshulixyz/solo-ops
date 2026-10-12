@@ -12,7 +12,8 @@ that way.
   (handlers, sync registration, palette commands).
 - Run `npm test` (syntax check of every script + the social round-trip test)
   and click through the page you changed with `node serve.js` running.
-- Sample data lives in `data/` (five tracked files). Never commit real
+- Sample data comes from `core/templates.js` (`node solo.js template all`);
+  nothing in `data/` is tracked. Never commit real
   `data/` content, `data/attachments/`, `data/log.jsonl` or `data/prompts.json`.
 - Keep the Guide's built-in prompts short and specific; they are the first
   thing non-technical users see.

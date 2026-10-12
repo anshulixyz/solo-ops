@@ -64,6 +64,10 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Minor / issues
 
+- **Fresh folder, server running, no data files yet**: every page logs one
+  404 per missing data file in the console. Harmless; `serve.js` could answer
+  204 for a missing data file instead.
+
 - **Home**: peeks every workspace file and logs a 404 for apps whose file
   does not exist yet (e.g. `launch-writing.json`). Harmless; skip the peek
   when the app has never been opened.
@@ -92,6 +96,10 @@ QR rendered without a dependency, capture strip and boards usable at
   retake with `docs/screenshots` script when M2 lands.
 
 ## Done
+
+- 2026-10-12 · Nothing in `data/` is tracked any more (only SCHEMA.md); sample
+  content comes from templates. Fixed: the Script and Writing viewers applied
+  a newer file in memory only, so a reload brought the old library back.
 
 - 2026-10-10 · Guide Quick tab: what are you doing (free text → the matching
   task moves to Doing, any project), add tasks one per line, top tasks across

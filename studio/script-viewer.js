@@ -587,6 +587,7 @@ function registerSync() {
       const activeBefore = getActive();
       library = incoming;
       if (activeBefore && library.scripts.some((s) => s.id === activeBefore.id)) library.activeId = activeBefore.id;
+      persistLibrary({ silent: true });   // the browser copy must follow the file, or a reload brings the old library back
       const s = getActive();
       $('#scriptInput').value = s ? s.text : '';
       renderList(); updatePreview({ skipSave: true }); flash('Scripts updated from data/' + Config.file('scripts'));

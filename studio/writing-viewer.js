@@ -746,6 +746,7 @@ function registerSync() {
       const before = getActiveNote();
       library = incoming;
       if (before && library.notes.some((n) => n.id === before.id)) library.activeId = before.id;
+      persistLibrary({ silent: true });   // the browser copy must follow the file, or a reload brings the old notes back
       const n = getActiveNote();
       const ta = $('#writingInput');
       if (!n) { ta.value = ''; resetEditorHistory(''); } else if (ta.value !== n.text) { ta.value = n.text; resetEditorHistory(n.text); }

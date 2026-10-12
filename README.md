@@ -188,8 +188,9 @@ the default theme. The Theme button offers light/dark, five palettes and
 four font presets (Inter, System as in Trello, Lato as in Slack, Editorial);
 `?theme=dark&palette=dusk&font=system` works on any page. Workspaces
 and boards can also be created from Home or the CLI; sample content ships in
-`data/` and only those five files are tracked by git — everything else you
-create stays private.
+`data/` when you run `node solo.js template all` (every page also seeds it in
+the browser on first open). Nothing in `data/` is tracked by git: your
+content can never end up in a commit.
 
 ## How sync works
 
