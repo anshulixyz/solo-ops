@@ -9,7 +9,64 @@ How to take an item: say which one in your PR or commit title
 in step with what you change, and run `node solo.js doctor` plus
 `node social/test-social-save.js` before you call it done.
 
+## Release 1 — what ships, what waits
+
+**Must, before the public launch**
+- **M8 · Calendar + dates** (below): one place where tasks, meetings and
+  posts with a date show up together, filterable by where they come from.
+- Backup repo name offered during setup (first item under Minor).
+
+**Should, first week after**
+- *Share today* as an image: a PNG card of today's plan from Home.
+- M1 undo / redo in the browser.
+
+**After**: M3, M5, M6, M7, the rest of M4. Freeze everything else and spend
+the remaining time on the first-run path.
+
 ## Major
+
+### M8 · Calendar + dates (release blocker; design agreed 2026-10-13)
+Today only posts carry a date, so meetings have nowhere to live and the
+board cannot answer "what is on today". Two parts, built together, shown
+for review after each.
+
+**1 · Dates on tasks.** Optional fields on a task: `at` (`YYYY-MM-DDTHH:MM`,
+local, same format as posts), `until` (end time, `HH:MM` or a full stamp,
+for meetings), `due` (`YYYY-MM-DD`). A meeting is a task with `at` and the
+tag `meeting`: it lands on a board, can carry a prep checklist and notes, is
+marked done after, and shows in Recent changes like everything else. No
+separate event type. CLI: `add --at … [--until …] [--due …]`, `at <task>
+<when|clear>`, `due <task> <date|clear>`; `today` gains a **Schedule** block
+(dated tasks + posts in time order, overdue first); `week` lists dated items
+by day; new `calendar [--days 14] [--all]` prints the agenda. `core/apply.js`
+accepts the same, so chat replies can schedule. Cards show the date; the
+board sorts dated items first inside a column.
+
+**2 · The Calendar app** (`calendar/`, like the studio apps: model · view ·
+main). Replaces `social/social-calendar.html`, which redirects. Nav item
+*Calendar* on every workspace. Views: **Month** (grid, items as chips),
+**Week** (7 columns with times, meetings as blocks), **Agenda** (today →
+next 14 days, time-ordered: the "what do I have to get done" view). Filters
+as chips, remembered: source (each board · meetings · posts), project
+(this workspace · all), state (open · done). Click opens the item in its
+app; drag between days reschedules (keeps the time). *+ on a day* adds a
+task with `at` on the default board, or a post. The posting heatmap moves
+here under the posts filter. Home gets a Calendar card: today's count and
+the next item.
+
+**3 · The agent fills it.** New Guide group *Bring in* (M4 starts here):
+*Fill my calendar* — in command mode the agent reads the calendar it is
+connected to (Google, Apple, Outlook through Claude or ChatGPT connectors)
+for the next 7 days and adds each meeting as a `meeting` task with `--at`
+and `--until`, skipping ones already there (same title + start); if it has
+no calendar connector it says how to connect one in Claude or ChatGPT and
+waits. In chat mode the user pastes their week and gets the command block.
+*Plan today around my meetings* — meetings fixed, top 3 tasks placed in
+the gaps, the rest parked. Standup and What-now read the schedule. Both
+ship as slash commands.
+
+Not built: an OAuth calendar integration inside Solo Ops. The agent is the
+integration (files over services).
 
 ### M1 · Undo / redo that works everywhere (agreed design)
 Today a change can only be reverted when `node serve.js` runs, because the
