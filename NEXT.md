@@ -154,6 +154,12 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Minor / issues
 
+- **Launch kit docs (hygiene review 2026-10-13):** `docs/launch/SHOTLIST.md`
+  names `shoot.sh` / `seed.sh` (the files are `.js`), says shots land in
+  `docs/screenshots/` (they go to `docs/screenshots/launch/`, git-ignored;
+  `shoot.js --out` should default there) and documents `video/` without
+  saying it is local only. Left to the session editing those files.
+
 - **Home, after launch (owner review 2026-10-13):** a layout pass — one header
   row (title · scope · actions), projects as compact rows past two, This week
   in two columns (Tasks in play with actions | Schedule + posts), a quieter
@@ -247,6 +253,20 @@ QR rendered without a dependency, capture strip and boards usable at
   retake with `docs/screenshots` script when M2 lands.
 
 ## Done
+
+- 2026-10-13 · Fresh-install pass before the announcement (a clone followed
+  the README step by step, plus a repo hygiene review). `node serve.js` on a
+  taken port says so and suggests `--port` instead of a stack trace;
+  `--help` works. Untouched sample data no longer lands in `data/` the first
+  time a served page opens (it stays in the browser until the user changes
+  something or runs `template all`), so `doctor` keeps saying "fresh install"
+  and the inbox shows nothing the user did not save. `log` and `revert` show
+  local time. `doctor` exits 0 when the only issue is a missing backup.
+  README terminal examples run as written (`--ws launch` was a project id,
+  `start "launch post"` was ambiguous), the first write of a file is noted as
+  having no snapshot, `prompts export --for codex` says it writes to
+  `~/.codex/prompts`. `npm test` runs every test file; CONTRIBUTING names the
+  guard; SECURITY lists `data/exports/`; LICENSE says Solo Ops.
 
 - 2026-10-13 · Privacy: the committed `/use-inspo` slash command carried the
   owner's edited prompt text (export applied `data/prompts.json` overrides to

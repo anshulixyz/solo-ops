@@ -2,7 +2,7 @@
 
 The story, the thread, the three posts, then the proof and the answers.
 Everything claimed is shipped unless it sits under *Coming*. Screenshots are
-in `docs/screenshots/launch/`.
+in `docs/screenshots/launch/ (local, git-ignored)`.
 
 ## The problem, in one breath
 

@@ -10,8 +10,12 @@ that way.
   CLI and AI agents all rely on (file names, Store keys, sync rules).
 - Each app keeps `model` (data + mutations) / `view` (render only) / `main`
   (handlers, sync registration, palette commands).
-- Run `npm test` (syntax check of every script + the social round-trip test)
-  and click through the page you changed with `node serve.js` running.
+- Run `npm test` (syntax check of every script, the prompt catalogue, the
+  reply applier, the date rules and the social round-trip) and click through
+  the page you changed with `node serve.js` running.
+- Run `node solo.js guard --install` once; the hook blocks any commit that
+  stages `data/`, exports or personal prompts (`node solo.js guard` runs it
+  by hand).
 - Sample data comes from `core/templates.js` (`node solo.js template all`);
   nothing in `data/` is tracked. Never commit real
   `data/` content, `data/attachments/`, `data/log.jsonl` or `data/prompts.json`.

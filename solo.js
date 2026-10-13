@@ -156,6 +156,7 @@ function out(md, obj) {
   if (JSON_OUT) process.stdout.write(JSON.stringify(obj === undefined ? { text: md } : obj, null, 2) + '\n');
   else process.stdout.write((Array.isArray(md) ? md.join('\n') : md) + '\n');
 }
+function localStamp(iso) { var d = new Date(iso); if (isNaN(d)) return String(iso).replace('T', ' ').slice(0, 16); function p(n) { return n < 10 ? '0' + n : '' + n; } return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); }   // log stamps are UTC on disk, shown in local time
 function fail(msg) { if (JSON_OUT) out('', { error: msg }); else process.stderr.write('✗ ' + msg + '\n'); process.exit(1); }
 function hint(name) { return 'No data/' + name + '.json yet. Open the app once, or run: node solo.js template ' + (RESERVED.indexOf(name) < 0 ? 'board --board ' + name : name); }
 
@@ -718,7 +719,7 @@ function cmdWorkspaces() {
 function cmdLog() {
   var n = parseInt(flags.n || pos[0], 10) || 30; var recs = readLog().slice(-n).reverse();
   out(['# Recent changes (' + recs.length + ')', ''].concat(recs.length ? recs.map(function (r) {
-    return '- `' + r.id + '` ' + r.ts.replace('T', ' ').slice(0, 16) + ' · ' + r.source + ' · ' + r.file + (r.note ? ' · ' + r.note : '') + (r.prev == null ? ' · (no snapshot)' : '');
+    return '- `' + r.id + '` ' + localStamp(r.ts) + ' · ' + r.source + ' · ' + r.file + (r.note ? ' · ' + r.note : '') + (r.prev == null ? ' · (no snapshot)' : '');
   }) : ['_nothing logged yet — changes made through node serve.js, the CLI and agents land here_']), recs.map(function (r) { return { id: r.id, ts: r.ts, file: r.file, source: r.source, note: r.note, canRevert: r.prev != null }; }));
 }
 function cmdRevert() {
@@ -729,7 +730,7 @@ function cmdRevert() {
   logChange(rec.file, cur, 'revert of ' + id);
   var restored = rec.prev; try { var o = JSON.parse(rec.prev); o.updatedAt = new Date().toISOString(); restored = JSON.stringify(o, null, 2) + '\n'; } catch (e) { /* raw */ }
   fs.writeFileSync(target, restored);
-  out('✓ Reverted data/' + rec.file + ' to how it was before ' + rec.ts.replace('T', ' ').slice(0, 16) + ' (' + rec.source + (rec.note ? ': ' + rec.note : '') + ')', { file: rec.file });
+  out('✓ Reverted data/' + rec.file + ' to how it was before ' + localStamp(rec.ts) + ' (' + rec.source + (rec.note ? ': ' + rec.note : '') + ')', { file: rec.file });
 }
 function cmdActivity() {
   var s = activitySummary(); var a = read('activity') || { days: {} };
@@ -951,7 +952,7 @@ function cmdDoctor() {
   if (!files.length) notes.push('fresh install: data/ has no files yet. Next: ask your agent for /setup, or `node solo.js template all` for the sample sprint, or `node serve.js` and plan in the app');
   if (fs.existsSync(path.join(ROOT, '.git'))) { var hk = ''; try { hk = fs.readFileSync(path.join(ROOT, '.git', 'hooks', 'pre-commit'), 'utf8'); } catch (e) { /* none */ } if (!/solo\.js"? guard/.test(hk)) notes.push('commit guard not installed: `node solo.js guard --install` makes git refuse commits that contain data/ or personal prompts'); }
   out(['# doctor — ' + (issues.length ? issues.length + ' issue' + (issues.length === 1 ? '' : 's') : 'all good'), ''].concat(issues.map(function (i) { return '⚠ ' + i; })).concat(issues.length ? [''] : []).concat(notes.map(function (n) { return '· ' + n; })), { ok: !issues.length, issues: issues, notes: notes, orphans: orphans, missing: missing, browserOnly: browserOnly, repo: repo, lastBackup: lastBackup });
-  if (issues.length && !JSON_OUT) process.exitCode = 2;
+  if (issues.some(function (i) { return i.indexOf('no backup') !== 0; }) && !JSON_OUT) process.exitCode = 2;   // a missing backup is a reminder, not a broken install
 }
 
 /* ---- template / theme / config / serve ----------------------------------- */

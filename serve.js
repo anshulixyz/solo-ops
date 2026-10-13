@@ -17,6 +17,7 @@ var ROOT = __dirname;
 var DATA = path.join(ROOT, 'data');
 var cfg = {};
 try { cfg = require(path.join(ROOT, 'solo.config.js')); } catch (e) { /* defaults */ }
+if (process.argv.indexOf('--help') > -1 || process.argv.indexOf('-h') > -1) { console.log('node serve.js [--port 4321]   serves Solo Ops at http://localhost:<port> and writes data/*.json (binds to 127.0.0.1 only)'); process.exit(0); }
 var argPort = process.argv.indexOf('--port');
 var PORT = argPort > -1 ? parseInt(process.argv[argPort + 1], 10) : ((cfg.sync && cfg.sync.port) || 4321);
 
@@ -215,6 +216,10 @@ var server = http.createServer(function (req, res) {
   });
 });
 
+server.on('error', function (e) {
+  if (e.code === 'EADDRINUSE') { console.error('Port ' + PORT + ' is already in use (another Solo Ops or another app). Try: node serve.js --port ' + (PORT + 1)); process.exit(1); }
+  throw e;
+});
 server.listen(PORT, '127.0.0.1', function () {
   console.log('Solo Ops → http://localhost:' + PORT + '   (writes data/*.json · Ctrl-C to stop)');
 });

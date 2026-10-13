@@ -113,7 +113,7 @@ node serve.js          # http://localhost:4321
 Open it, click **Install** in the nav. Chrome and Edge put it in your
 Applications folder (under "Chrome Apps" on macOS) and it opens in its own
 window with a Dock icon; Safari 17+ uses File → Add to Dock. Zero
-dependencies; Node is only for the server and the CLI.
+dependencies; Node (18 or newer) is only for the server and the CLI.
 
 **Always fresh, works offline.** Code and pages are fetched network-first, so
 a running server always serves the latest files; the service worker keeps a
@@ -126,16 +126,16 @@ time, so each code change is a new version: open pages get a small
 
 ```bash
 node solo.js today                          # in play now + idle reminder
-node solo.js week --ws launch --days 14     # a project, a longer window
+node solo.js week --days 14                 # a longer window; --ws <id> picks a project
 node solo.js add "Write the launch post" --proj launch --pri high --tags content --steps "Outline|Draft"
-node solo.js start "launch post" ; done t5 ; move t11 later ; check t5 2
+node solo.js start "Write the launch post" ; done t5 ; move t11 later ; check t5 2
 node solo.js social add "Launch day" --at +3d 9:00 --type launch ; social next ; social posted p4 --url …
 node solo.js scripts add "Teaser" --file teaser.md ; notes list
-node solo.js inspo add "https://… worth stealing #launch" --ws launch
+node solo.js inspo add "https://… worth stealing #launch"
 node solo.js inspo use "worth stealing" --as task
 node solo.js boards add "Business as usual" --from sample
 node solo.js workspaces add "Side project" --apps scripts,writing --sample
-node solo.js share todo | pbcopy            # markdown checklist, anywhere
+node solo.js share todo                     # markdown checklist, paste anywhere (| pbcopy on a Mac, | clip on Windows)
 node solo.js import list.md                 # "- [ ] item" lines → tasks
 node solo.js log ; node solo.js revert <id>
 node solo.js help
@@ -150,7 +150,8 @@ any command.
   (and `CLAUDE.md`) is the contract: files, schema, CLI, conventions, read
   automatically. Type `/standup`, `/now`, `/week`, `/stuck`, `/cut-scope`,
   `/ship-post`… — every Guide prompt is a slash command (`.claude/commands`,
-  `.cursor/commands`; `node solo.js prompts export --for codex` for Codex).
+  `.cursor/commands`; `node solo.js prompts export --for codex` writes them to
+  `~/.codex/prompts`, where Codex looks).
   Or just ask: "what should I do this week?", "turn my inspiration into
   tasks", "draft the three posts for launch week". An agent that was *not*
   opened in the folder gets Guide → Settings → *Set up this folder*.
@@ -172,8 +173,8 @@ any command.
 
 ## Keeping it safe
 
-- **Every write is logged** with its previous content; `node solo.js revert <id>`
-  or Home → Recent changes undoes it. Replies pasted into the Guide never
+- **Every write is logged** with its previous content (a file's first write
+  has none); `node solo.js revert <id>` or Home → Recent changes undoes it. Replies pasted into the Guide never
   delete anything (`rm` is ignored).
 - **Your content never enters this repo.** `data/` is git-ignored except the
   schema, and `node solo.js guard` (installed as a pre-commit hook by

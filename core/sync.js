@@ -215,7 +215,9 @@
       var local = localStamp(spec.file);
       var hasFile = !!(parsed && parsed.updatedAt);
       if (!hasFile) {
-        if (pushIfNewer && writable) { if (!local) setMeta(spec.file, now()); return writeOne(spec); }
+        // untouched sample data stays in the browser: the first file is written when the user changes something (or runs `template all`)
+        var sample = (spec.isFresh && spec.isFresh()) || (spec.keys || [spec.key]).some(function (k) { return Store.isFresh(k); });
+        if (pushIfNewer && writable && !sample) { if (!local) setMeta(spec.file, now()); return writeOne(spec); }
         return;
       }
       if (!local) {

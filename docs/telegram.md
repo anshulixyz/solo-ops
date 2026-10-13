@@ -20,7 +20,7 @@ log, inspiration inbox) line up with it.
    in `data/log.jsonl` with `source: "telegram"` and can be reverted.
 5. **Agent in the loop (optional):** with Claude Code (or any agent) open on
    the laptop, `/ask plan my week` hands the message to the agent via a file
-   drop (`.solo-ops/inbox/*.md`) that the `marathon` skill watches; the agent
+   drop (`.solo-ops/inbox/*.md`) that the `solo-ops` skill watches; the agent
    replies with a proposal, you confirm with `/yes`, and only then does it run
    the commands. Confirmations are logged with `source: "agent"`.
 
