@@ -26,7 +26,7 @@ var fails = 0; function ok(cond, msg) { if (!cond) { fails++; console.error('✗
   // every page has at least two prompts on top
   ['home', 'board', 'social', 'scripts', 'writing', 'inspo'].forEach(function (pg) { var n = list.filter(function (x) { return x.pages.indexOf(pg) >= 0; }).length; ok(n >= 2, mode + ': page ' + pg + ' has only ' + n + ' prompts'); });
   // the titles the Guide's "next best moves" point at still exist
-  ['Plan a project from scratch', 'Daily standup', 'What should I do right now?', 'Clean up the board', 'Break this task into steps', 'Draft next week\'s posts', 'Brainstorm 10 post ideas', 'Assess new inspiration', 'Turn inspiration into work', 'Set up a private backup on GitHub', 'Back up now'].forEach(function (t) { ok(titles[t], mode + ': moves target missing: ' + t); });
+  ['Plan a project from scratch', 'Daily standup', 'What should I do right now?', 'Clean up the board', 'Break this task into steps', 'Draft next week\'s posts', 'Brainstorm 10 post ideas', 'Assess new inspiration', 'Turn inspiration into work', 'Set up a private backup', 'Back up now'].forEach(function (t) { ok(titles[t], mode + ': moves target missing: ' + t); });
 });
 
 // every verb the cheat sheet teaches is one core/apply.js accepts

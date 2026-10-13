@@ -118,9 +118,17 @@
     if (Date.now() - backup.at < 300000) return Promise.resolve(backup);
     return fetch('/api/backup', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { backup = Object.assign({ state: j ? 'ok' : 'unknown', at: Date.now() }, j || {}); return backup; }).catch(function () { backup.state = 'unknown'; backup.at = Date.now(); return backup; });
   }
+  var ACK_KEY = 'marathon.backup.ack';   // the user said "I keep a copy elsewhere" (pages that cannot see the server)
+  function backupOk() { return backup.state === 'ok' && ((backup.repo && backup.remote) || backup.folder); }
+  function backupDone() { return backupOk() || !!Store.get(ACK_KEY); }
+  function backupFresh() {   // backed up within a week (repo commit or folder copy)
+    if (!backupOk()) return false; var at = backup.repo && backup.remote ? backup.lastAt : backup.folderAt; if (!at) return !!(backup.repo && backup.remote);
+    return Date.now() - Date.parse(at) < 7 * 86400000;
+  }
   function backupLine() {
-    if (backup.state === 'n/a') return '<span>Backup status: run <code>node solo.js backup --status</code> in the terminal.</span>';
+    if (backup.state === 'n/a') return Store.get(ACK_KEY) ? '<span>You said your data is backed up elsewhere. <code>node solo.js backup --status</code> shows what the folder knows.</span>' : '<span><b>Not backed up as far as this page can tell.</b> Your data lives in this browser' + (global.Sync && Sync.getMode() === 'folder' ? ' and the linked folder' : '') + '.</span>';
     if (backup.state !== 'ok') return '<span>Checking backup…</span>';
+    if (!backup.repo && backup.folder) return '<span><b>Copied to ' + esc(backup.folder.replace(/^.*\//, '')) + '</b> ' + (backup.folderAt ? esc(ago(backup.folderAt)) : 'never') + ' · <code>' + esc(backup.folder) + '</code></span>';
     if (!backup.repo) return '<span><b>No backup yet.</b> Your data lives only on this computer.</span>';
     var days = backup.lastAt ? Math.floor((Date.now() - Date.parse(backup.lastAt)) / 86400000) : null;
     return '<span><b>Backup ' + (days === null ? 'set up' : days === 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago') + '</b>' + (backup.remote ? ' → ' + esc(backup.remote.replace(/^.*github\.com[:\/]/, '').replace(/\.git$/, '')) : ' (local repo only, no remote)') + (backup.dirty ? ' · ' + backup.dirty + ' file' + (backup.dirty === 1 ? '' : 's') + ' changed since' : '') + '</span>';
@@ -149,6 +157,7 @@
         '<button type="button" data-mode="files" class="' + (m === 'files' ? 'on' : '') + '" title="Claude Code, Cursor, Codex, Claude Desktop with this folder. It reads your files and runs commands itself.">Runs commands</button>' +
         '<button type="button" data-mode="chat" class="' + (m === 'chat' ? 'on' : '') + '" title="ChatGPT, Claude.ai, Gemini. Prompts carry a snapshot of your data; you paste the reply back here.">Chat only</button>' +
         (m ? '' : '<em>pick one</em>') + '</div>' +
+      (!backupDone() && backup.state !== 'unknown' && t !== 'settings' ? '<button type="button" class="guide-pending" title="Open Protect your work"><span class="dot"></span><span><b>Save your data somewhere private.</b> ' + (backup.state === 'ok' ? 'Right now it lives only on this computer.' : 'Nothing here says it is backed up yet.') + '</span><span class="go">Set up →</span></button>' : '') +
       '<div class="guide-body">' +
       (t === 'quick' ? quickSection() : '') +
       (t === 'ask' ? '<div class="guide-search-wrap">' + I.search + '<input type="search" class="guide-search" placeholder="Search prompts" value="' + esc(query) + '" aria-label="Search prompts"></div><div id="guideList"></div>' : '') +
@@ -165,9 +174,15 @@
         (m === 'files' ? '<ol class="guide-steps"><li>Open this folder in your agent.</li><li>Say: <b>"Read AGENTS.md, then run node solo.js week"</b> — or type a slash command: <code>/standup</code>, <code>/now</code>, <code>/week</code>… every prompt in Ask ships as one (<code>.claude/commands</code> for Claude Code, <code>.cursor/commands</code> for Cursor; <code>node solo.js prompts export --for codex</code> for Codex).</li><li>Keep <code>node serve.js</code> running; pages update as the agent works. Images you attach are saved to <code>data/attachments/</code> so it can open them.</li></ol>'
          : m === 'chat' ? '<ol class="guide-steps"><li>Copy a prompt from <b>Ask</b> — it carries a snapshot of this workspace and the reply format, so a brand-new chat works.</li><li>When the agent replies with a code block, copy it.</li><li><b>Reply</b> → paste → Preview → Apply. If an item has an image the agent needs, upload it in the chat when asked.</li></ol>' : '') +
         (m ? '<h4>Set up once</h4><p>' + (m === 'chat' ? 'Optional: paste this into a ChatGPT or Claude <b>Project</b> as its instructions, and the chat knows Solo Ops before you say anything.' : 'For an agent that was <b>not</b> opened in this folder (Claude Desktop, a terminal started elsewhere): this tells it where the folder is and what to read.') + '</p>' + all.filter(function (x) { return x.c === 'setup' && (m === 'chat' ? x.t === 'Set up this chat' : x.t === 'Set up this folder'); }).map(function (x) { return row(all, x, pg); }).join('') : '') +
-        '<h4>Protect your work</h4><div class="guide-status ' + (backup.state === 'ok' && backup.repo && (backupDays() === null || backupDays() < 7) ? 'ok' : backup.state === 'ok' && !backup.repo ? 'warn' : '') + '" id="guideBackup"><span class="dot"></span>' + backupLine() + '</div>' +
-        '<p>Every change is logged and can be reverted from Home → Recent changes. A pasted reply never deletes anything. Your tasks never enter the public Solo Ops repo. What is left is keeping a private copy of your data somewhere else; these prompts set it up with your agent:</p>' +
-        all.filter(function (x) { return x.c === 'fix'; }).map(function (x) { return row(all, x, pg); }).join('') +
+        '<h4>Protect your work</h4><div class="guide-status ' + (backup.state === 'ok' ? (backupFresh() ? 'ok' : 'warn') : Store.get(ACK_KEY) ? 'ok' : '') + '" id="guideBackup"><span class="dot"></span>' + backupLine() + '</div>' +
+        (backupDone() ? '' : '<p class="guide-why"><b>Why this matters.</b> This folder is the Solo Ops code, and the code is public, including any copy of it. Your tasks, posts and drafts are yours: they stay out of it on purpose, so they need a private home of their own. Pick one way, once:</p>' +
+          '<div class="guide-opt"><b>1 · Let your agent do it</b><span>' + (m === 'files' ? 'Type <code>/backup-setup</code> in Claude Code or Cursor, or copy the prompt below. It asks GitHub or folder, then does it.' : 'Open this folder in Claude Code, Cursor or Codex and type <code>/backup-setup</code>; a chat-only agent cannot do this part.') + '</span></div>' +
+          (m === 'files' ? all.filter(function (x) { return x.t === 'Set up a private backup'; }).map(function (x) { return row(all, x, pg); }).join('') : '') +
+          '<div class="guide-opt"><b>2 · Do it yourself, one command</b><span>In a terminal, in this folder. With the GitHub tool (<code>gh</code>) logged in it creates a private repo and pushes; without it, it prints what to do instead. Nothing is created without telling you.</span><div class="guide-cmd"><code>node solo.js backup setup</code><button type="button" class="guide-snap gd-copy" data-copy="node solo.js backup setup">Copy</button></div></div>' +
+          '<div class="guide-opt"><b>3 · No GitHub: a folder that syncs</b><span>iCloud Drive, Dropbox or Google Drive. A plain copy, no git.</span><div class="guide-cmd"><code>node solo.js backup --to "' + esc(navigator.platform.indexOf('Mac') >= 0 ? '~/Library/Mobile Documents/com~apple~CloudDocs/Solo Ops backup' : '~/Dropbox/Solo Ops backup') + '"</code><button type="button" class="guide-snap gd-copy" data-copy="' + esc('node solo.js backup --to "' + (navigator.platform.indexOf('Mac') >= 0 ? '~/Library/Mobile Documents/com~apple~CloudDocs/Solo Ops backup' : '~/Dropbox/Solo Ops backup') + '"') + '">Copy</button></div></div>' +
+          '<p class="guide-note">Then once: <code>node solo.js backup --daily</code> and it repeats every evening.' + (backup.state === 'n/a' ? ' Already keep a copy another way? <button type="button" class="guide-link gd-ack">Mark as done</button>' : '') + '</p>') +
+        (backupDone() ? '<p>Every change is logged and can be reverted from Home → Recent changes. A pasted reply never deletes anything. Your tasks never enter the public Solo Ops repo; the backup above is their private home. <code>node solo.js backup</code> runs it again, <code>--daily</code> schedules it.' + (Store.get(ACK_KEY) && !backupOk() ? ' <button type="button" class="guide-link gd-unack">Show the setup again</button>' : '') + '</p>' : '') +
+        all.filter(function (x) { return x.c === 'fix' && x.t !== 'Set up a private backup'; }).map(function (x) { return row(all, x, pg); }).join('') +
         (pstore().hidden.length ? '<p><button type="button" class="guide-snap pe-restore">Show ' + pstore().hidden.length + ' hidden built-in prompt' + (pstore().hidden.length === 1 ? '' : 's') + '</button></p>' : '') +
         '<h4>Your data</h4>' + dataSection() +
         '<h4>Read more</h4><p><a href="' + r + 'about.html">About Solo Ops: why, how, what is next</a> · <a href="' + r + 'README.md" target="_blank">README</a> · <a href="' + r + 'AGENTS.md" target="_blank">AGENTS.md</a> · <a href="' + r + 'prompts/agent-bootstrap.md" target="_blank">bootstrap prompt</a> · <a href="' + r + 'data/SCHEMA.md" target="_blank">data schema</a> · <a href="' + r + 'NEXT.md" target="_blank">what is next</a></p>' : '') +
@@ -177,6 +192,10 @@
     Array.prototype.forEach.call(panel.querySelectorAll('.guide-agent [data-mode]'), function (b) { b.onclick = function () { Store.set(MODE_KEY, b.dataset.mode, { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); render(); }; });
     Array.prototype.forEach.call(panel.querySelectorAll('input[name=gmode]'), function (i) { i.onchange = function () { Store.set(MODE_KEY, i.value, { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); Store.set(TAB_KEY, 'ask', { silent: true }); render(); }; });
     var pr = panel.querySelector('.pe-restore'); if (pr) pr.onclick = restoreHidden;
+    var pend = panel.querySelector('.guide-pending'); if (pend) pend.onclick = openProtect;
+    Array.prototype.forEach.call(panel.querySelectorAll('.gd-copy'), function (b) { b.onclick = function () { copyText(b.dataset.copy, b, 'Copied'); }; });
+    var ack = panel.querySelector('.gd-ack'); if (ack) ack.onclick = function () { Store.set(ACK_KEY, new Date().toISOString(), { silent: true }); render(); };
+    var unack = panel.querySelector('.gd-unack'); if (unack) unack.onclick = function () { Store.remove ? Store.remove(ACK_KEY) : Store.set(ACK_KEY, '', { silent: true }); render(); };
     var ex = panel.querySelector('.gd-export'); if (ex) ex.onclick = exportAll; var im = panel.querySelector('.gd-import'); if (im) im.onclick = importAll;
     if (t === 'quick') bindQuick();
     if (t === 'ask') {
@@ -207,6 +226,8 @@
       setTimeout(function () { document.addEventListener('mousedown', function h(ev) { if (!ctxMenu.contains(ev.target) && ev.target !== ctxBtn && !ctxBtn.contains(ev.target)) { ctxMenu.classList.remove('open'); document.removeEventListener('mousedown', h); } }); }, 0);
     };
   }
+
+  function openProtect() { Store.set(TAB_KEY, 'settings', { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); render(); var el = panel.querySelector('#guideBackup'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); el.classList.add('flash'); setTimeout(function () { el.classList.remove('flash'); }, 1200); } }
 
   /* ---- Quick: the five-second actions, no agent needed ------------------ */
   function priBadge(p) { return '<span class="qk-pri ' + esc(p) + '" title="Click to change priority">' + esc(p === 'medium' ? 'med' : p) + '</span>'; }
@@ -374,9 +395,9 @@
     if (insNew) out.push({ s: insNew + ' new inspiration item' + (insNew === 1 ? '' : 's') + ' since your last assessment.', p: by('Assess new inspiration') });
     else if (ins >= 3) out.push({ s: ins + ' inspiration items waiting to become work.', p: by('Turn inspiration into work') });
     if (todo.length > 25) out.push({ s: todo.length + ' items in To Do. Park what is not this month.', p: by('Clean up the board') });
-    if (backup.state === 'ok' && !anyFresh && tasks.length > 3) {
-      if (!backup.repo) out.push({ s: 'No backup yet: your data lives only on this computer.', p: by('Set up a private backup on GitHub') });
-      else if (backupDays() !== null && backupDays() >= 7) out.push({ s: 'Last backup was ' + backupDays() + ' days ago.', p: by('Back up now') });
+    if (!anyFresh && tasks.length > 3 && backup.state !== 'unknown') {
+      if (!backupDone()) out.unshift({ s: 'Your data lives only on this computer. Save it somewhere private.', open: 'backup' });
+      else if (backup.state === 'ok' && backup.repo && backupDays() !== null && backupDays() >= 7) out.push({ s: 'Last backup was ' + backupDays() + ' days ago.', p: by('Back up now') });
     }
     return out.slice(0, 4);
   }
@@ -385,11 +406,12 @@
     if (!el) return;
     if (!list.length) { el.innerHTML = '<div class="guide-move ok"><span class="dot"></span><span>Board looks healthy. Standup in the morning, wrap up at night.</span></div>'; return; }
     var compact = el.classList.contains('compact');
-    el.innerHTML = '<div class="guide-moves-h">Next</div>' + (compact ? list.slice(0, 2) : list).map(function (mv, i) { return '<button type="button" class="guide-move" data-i="' + i + '"><span class="dot"></span><span>' + esc(mv.s) + '</span><span class="go">' + (mv.p ? esc(mv.p.t) + ' →' : 'Choose →') + '</span></button>'; }).join('');
+    el.innerHTML = '<div class="guide-moves-h">Next</div>' + (compact ? list.slice(0, 2) : list).map(function (mv, i) { return '<button type="button" class="guide-move" data-i="' + i + '"><span class="dot"></span><span>' + esc(mv.s) + '</span><span class="go">' + (mv.p ? esc(mv.p.t) + ' →' : mv.open === 'backup' ? 'Set up →' : 'Choose →') + '</span></button>'; }).join('');
     Array.prototype.forEach.call(el.querySelectorAll('.guide-move'), function (b) {
       b.onclick = function () {
         var mv = list[+b.dataset.i];
         if (mv.open === 'connect') { var sw = panel.querySelector('.guide-agent'); if (sw) { sw.classList.add('flash'); setTimeout(function () { sw.classList.remove('flash'); }, 1200); } return; }
+        if (mv.open === 'backup') { openProtect(); return; }
         if (!mv.p) return;
         var idx = all.indexOf(mv.p); var card = panel.querySelector('.guide-prompt[data-i="' + idx + '"]');
         if (!card) { Store.set(TAB_KEY, 'ask', { silent: true }); query = ''; render(); card = panel.querySelector('.guide-prompt[data-i="' + idx + '"]'); if (!card) return; }

@@ -73,8 +73,10 @@ now in UTC ISO) or write a temporary `list.md` and `import` it.
 
 A fresh clone has an empty `data/`. `/setup` walks it: doctor, name the
 project in `solo.config.js`, sample (`template all`) or `/plan-project`,
-`node serve.js`, `week`, private backup, `guard --install`. AGENTS.md
-"First run" has the same list.
+`node serve.js`, `week`, then the backup, which is part of setup: ask
+GitHub or folder, run `node solo.js backup setup` (gh → private repo) or
+`backup --to "<syncing folder>"`, then `backup --daily`, then
+`guard --install`. AGENTS.md "First run" has the same list.
 
 ## Hard rule: nothing personal enters the code repo
 

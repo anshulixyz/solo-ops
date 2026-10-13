@@ -165,10 +165,20 @@ any command.
   template* or *Clear* are written to `data/exports/` when `node serve.js`
   runs or the folder is linked (so `backup` carries them too). Without
   either, the browser downloads them as before.
-- **`node solo.js backup`** keeps `data/` as its own git repo and pushes to
-  the remote you give it. It checks GitHub remotes first and **refuses public
-  repositories**. Guide → Settings → *Protect your work* shows when the last
-  backup ran and carries the prompts that set it up with your agent.
+- **Backup is part of setup.** `node solo.js backup setup` gives your data a
+  private home: with the GitHub CLI logged in it creates a **private** repo
+  `solo-ops-data` and pushes `data/` there; otherwise it tells you the two
+  other ways (a private repo you create and pass with `--remote`, or
+  `backup --to "<a folder that syncs>"` for iCloud Drive / Dropbox, no git).
+  `backup --daily` schedules it. It **refuses public repositories**. Until
+  it is done the Guide shows *Save your data somewhere private* on every
+  tab; Guide → Settings → *Protect your work* has the three ways and a copy
+  button for each.
+- **Why your data is not in this repo.** This folder is the Solo Ops code,
+  and the code is public, including any fork of it. Your tasks, posts and
+  drafts are yours, so they stay out of it on purpose. If you keep a
+  *private* fork and want one repo for both, `node solo.js guard
+  --allow-data` checks the remote is private and then steps aside.
 - **`node solo.js doctor`** validates every data file (JSON, `updatedAt`,
   ids, columns), finds attachments that are referenced but missing or on
   disk but unused, flags originals that only exist in a browser, and warns

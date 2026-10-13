@@ -21,7 +21,7 @@ var DATA = path.join(ROOT, 'data');
 var cfg = safeRequire(path.join(ROOT, 'solo.config.js')) || {};
 var T = safeRequire(path.join(ROOT, 'core', 'templates.js'));
 var P = safeRequire(path.join(ROOT, 'core', 'prompts.js'));   // the Guide's built-in prompts (shared with the pages)
-var RESERVED = ['social', 'scripts', 'writing', 'settings', 'activity', 'boards', 'workspaces', 'calendar', 'home', 'prompts', 'inspiration', 'log', 'attachments'];
+var RESERVED = ['social', 'scripts', 'writing', 'settings', 'activity', 'boards', 'workspaces', 'calendar', 'home', 'prompts', 'inspiration', 'log', 'attachments', 'backup', 'exports'];
 var COLS = ['todo', 'doing', 'done', 'later', 'bucket'];
 var COL_LABEL = { todo: 'To Do', doing: 'Doing', done: 'Done', later: 'Later', bucket: 'Bucket List' };
 var PRI = { high: 0, medium: 1, low: 2 };
@@ -67,7 +67,7 @@ function write(name, body, opts) {
   var text = JSON.stringify(body, null, 2) + '\n';
   if (name !== 'activity' && !(opts && opts.noLog)) { var prev = ''; try { prev = fs.readFileSync(fileOf(name), 'utf8'); } catch (e) { /* new */ } if (prev !== text) logChange(name + '.json', prev); }
   fs.writeFileSync(fileOf(name), text);
-  if (!(opts && opts.noActivity) && ['activity', 'boards', 'workspaces', 'settings', 'prompts'].indexOf(name) < 0) logActivity(name);
+  if (!(opts && opts.noActivity) && ['activity', 'boards', 'workspaces', 'settings', 'prompts', 'backup'].indexOf(name) < 0) logActivity(name);
   return body;
 }
 function logActivity(app) {
@@ -655,40 +655,120 @@ function cmdActivity() {
 }
 
 /* ---- backup: data/ as its own private git repo ---------------------------- */
+// data/backup.json: where the copy folder, its last run and the guard's --allow-data decision live. Its own file on purpose:
+// the pages mirror settings.json (theme) and would overwrite anything else kept there.
+function backupCfg() { var b = read('backup') || {}; return { to: b.to || '', lastAt: b.lastAt || '', guard: b.guard || null }; }
+function saveBackupCfg(b) { var o = { to: b.to || '', lastAt: b.lastAt || '' }; if (b.guard) o.guard = b.guard; write('backup', o, { noLog: true, noActivity: true }); }
+function whenLocal(iso) { if (!iso) return 'never'; var d = new Date(iso); if (isNaN(d)) return iso; var m = Math.round((Date.now() - d.getTime()) / 60000); var ago = m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' day' + (Math.round(m / 1440) === 1 ? '' : 's') + ' ago'; return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) + ' (' + ago + ')'; }
+function expandHome(p) { return path.resolve(String(p).replace(/^~(?=\/|$)/, require('os').homedir())); }
+// Plain copy of data/ into a folder that syncs (iCloud Drive, Dropbox, Google Drive): no git, no log, no safety copies.
+function copyToFolder(dest) {
+  fs.mkdirSync(dest, { recursive: true }); var n = 0;
+  fs.cpSync(DATA, dest, { recursive: true, dereference: true, filter: function (src) { var rel = path.relative(DATA, src); if (!rel) return true; if (/^(\.git|log\.jsonl|exports)(\/|$)/.test(rel) || /\.(file-)?backup-[\d-]+\.json$/.test(rel)) return false; try { if (fs.statSync(src).isFile()) n++; } catch (e) { /* skip */ } return true; } });
+  return n;
+}
+function exampleFolder() { var h = require('os').homedir(); return process.platform === 'darwin' ? path.join(h, 'Library', 'Mobile Documents', 'com~apple~CloudDocs', 'Solo Ops backup') : path.join(h, 'Dropbox', 'Solo Ops backup'); }
 function cmdBackup() {
-  var cp = require('child_process');
+  var cp = require('child_process'); var sub = (pos[0] || '').toLowerCase();
   function git(args, opts) { try { return cp.execFileSync('git', ['-C', DATA].concat(args), Object.assign({ encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }, opts || {})).trim(); } catch (e) { if (opts && opts.soft) return null; fail('git ' + args.join(' ') + ' failed: ' + ((e.stderr || e.message) + '').trim()); } }
   fs.mkdirSync(DATA, { recursive: true });
-  var isRepo = fs.existsSync(path.join(DATA, '.git'));
+  var isRepo = fs.existsSync(path.join(DATA, '.git')); var B = backupCfg(); var folder = B.to || '';
   if (flags.status) {
-    if (!isRepo) return out('data/ is not a git repo yet. Run: node solo.js backup --remote <private repo url>', { repo: false });
-    var remote = git(['remote', 'get-url', 'origin'], { soft: true }); var last = git(['log', '-1', '--format=%ci %s'], { soft: true }); var dirty = git(['status', '--porcelain'], { soft: true });
-    return out(['data/ is a git repo', '- remote: ' + (remote || 'none (local commits only)'), '- last backup: ' + (last || 'none'), '- changes since: ' + (dirty ? dirty.split('\n').length + ' file(s)' : 'none')], { repo: true, remote: remote, last: last, dirty: !!dirty });
+    var L = []; var o = { repo: isRepo, folder: folder || null, folderAt: B.lastAt || null };
+    if (isRepo) { var remote = git(['remote', 'get-url', 'origin'], { soft: true }); var last = git(['log', '-1', '--format=%ci %s'], { soft: true }); var dirty = git(['status', '--porcelain'], { soft: true }); L.push('data/ is a git repo', '- remote: ' + (remote || 'none (local commits only)'), '- last backup: ' + (last || 'none'), '- changes since: ' + (dirty ? dirty.split('\n').length + ' file(s)' : 'none')); Object.assign(o, { remote: remote, last: last, dirty: !!dirty }); }
+    if (folder) L.push('copy folder: ' + folder, '- last copy: ' + whenLocal(B.lastAt));
+    if (!isRepo && !folder) L.push('No backup yet: your data lives only on this computer. Run: node solo.js backup setup');
+    return out(L, o);
   }
-  if (!isRepo) {
-    git(['init', '-q']); fs.writeFileSync(path.join(DATA, '.gitignore'), 'log.jsonl\n*.backup-*.json\n');
-    try { cp.execFileSync('git', ['-C', DATA, 'config', 'user.name'], { stdio: 'ignore' }); } catch (e) { git(['config', 'user.name', 'Solo Ops']); git(['config', 'user.email', 'solo-ops@localhost']); }
+  if (flags.daily) return backupDaily();
+  if (sub === 'setup') { pos.shift(); return backupSetup(); }
+  if (flags.to !== undefined) {
+    if (flags.to === true || !String(flags.to).trim()) fail('--to needs a folder, e.g. --to "' + exampleFolder() + '"');
+    folder = expandHome(flags.to); var relTo = path.relative(ROOT, folder);
+    if (!relTo || relTo.indexOf('..') !== 0) fail('Pick a folder outside the Solo Ops folder (' + folder + ' is inside it). A folder that syncs, e.g. --to "' + exampleFolder() + '"');
+    B.to = folder;
   }
-  var wanted = flags.remote ? String(flags.remote) : (git(['remote', 'get-url', 'origin'], { soft: true }) || '');
-  // never push someone's tasks to a public repo: GitHub remotes are checked first
+  // nothing configured and nothing asked for: explain the ways instead of silently making a local-only repo
+  if (!isRepo && !folder && !flags.remote) return out(['No backup set up yet: your data lives only on this computer.', 'Pick one:', '  node solo.js backup setup                   # easiest: a private GitHub repo via gh, or it tells you the other ways', '  node solo.js backup --remote <private url>  # a private repo you already created', '  node solo.js backup --to <folder>           # a plain copy into a folder that syncs (iCloud Drive, Dropbox)', 'Then once: node solo.js backup --daily', 'Nothing was copied.'], { repo: false, folder: null, next: 'setup' });
+  var results = []; var res = { folder: folder || null };
+  if (folder) { B.lastAt = new Date().toISOString(); saveBackupCfg(B); var n = copyToFolder(folder); results.push('✓ Copied ' + n + ' file(s) to ' + folder); res.copied = n; }
+  var tail = ['  Status: node solo.js backup --status · every day: node solo.js backup --daily'];
+  if (!isRepo && !flags.remote) return out(results.concat(tail).join('\n'), res);
+  var wanted = flags.remote ? String(flags.remote) : (isRepo ? (git(['remote', 'get-url', 'origin'], { soft: true }) || '') : '');
+  // never push someone's tasks to a public repo: GitHub remotes are checked first, before anything is created
   githubVisibility(wanted, function (vis) {
     if (vis === 'public' && !flags['allow-public']) fail('Refusing: ' + wanted + ' is a PUBLIC repository. Your data would be visible to everyone. Make it private (gh repo edit --visibility private) or use another remote. (--allow-public overrides, on purpose only.)');
+    if (!isRepo) {
+      git(['init', '-q']); fs.writeFileSync(path.join(DATA, '.gitignore'), 'log.jsonl\n*.backup-*.json\nexports/\n');
+      try { cp.execFileSync('git', ['-C', DATA, 'config', 'user.name'], { stdio: 'ignore' }); } catch (e) { git(['config', 'user.name', 'Solo Ops']); git(['config', 'user.email', 'solo-ops@localhost']); }
+    }
     if (flags.remote) { if (git(['remote', 'get-url', 'origin'], { soft: true })) git(['remote', 'set-url', 'origin', String(flags.remote)]); else git(['remote', 'add', 'origin', String(flags.remote)]); }
     git(['add', '-A']);
     var changed = git(['status', '--porcelain'], { soft: true });
     var msg = 'backup ' + new Date().toISOString().slice(0, 16).replace('T', ' ');
     if (changed) git(['commit', '-q', '-m', msg]);
     var remoteUrl = git(['remote', 'get-url', 'origin'], { soft: true }); var pushed = '';
-    if (remoteUrl) { var branch = git(['rev-parse', '--abbrev-ref', 'HEAD'], { soft: true }) || 'main'; var r = git(['push', '-u', 'origin', branch], { soft: true }); pushed = r === null ? 'push FAILED — check the remote URL and your access (is the repo private and yours?)' : 'pushed to ' + remoteUrl + (vis === 'private' ? ' (private ✓)' : vis === 'unknown' ? ' (could not confirm it is private — check on GitHub)' : ''); }
-    out('✓ ' + (changed ? 'Committed ' + changed.split('\n').length + ' file(s): ' + msg : 'Nothing new to commit') + (remoteUrl ? '\n  ' + pushed : '\n  No remote yet — add one with: node solo.js backup --remote <private repo url>') + '\n  Backups never include log.jsonl. Status: node solo.js backup --status', { committed: !!changed, remote: remoteUrl, pushed: pushed, visibility: vis });
+    if (remoteUrl) { var branch = git(['rev-parse', '--abbrev-ref', 'HEAD'], { soft: true }) || 'main'; var r = git(['push', '-u', 'origin', branch], { soft: true }); pushed = r === null ? 'push FAILED — check the remote URL and your access (is the repo private and yours?)' : 'pushed to ' + remoteUrl + (vis === 'private' ? ' (private ✓)' : vis === '' ? '' : ' (visibility: ' + vis + ')'); }
+    results.push('✓ ' + (changed ? 'Committed ' + changed.split('\n').length + ' file(s): ' + msg : 'Nothing new to commit') + (remoteUrl ? '\n  ' + pushed : '\n  No remote yet — add one with: node solo.js backup --remote <private repo url>') + '\n  Backups never include log.jsonl.');
+    out(results.concat(tail).join('\n'), Object.assign(res, { committed: !!changed, remote: remoteUrl, visibility: vis, pushed: !!(remoteUrl && pushed.indexOf('FAILED') < 0) }));
   });
 }
+// backup setup: the one command an agent (or a person) runs on first day. GitHub CLI logged in → a PRIVATE repo
+// solo-ops-data is created (or reused) and data/ pushed there. Otherwise it prints the two other ways, both private.
+function backupSetup() {
+  var cp = require('child_process'); var B = backupCfg(); var isRepo = fs.existsSync(path.join(DATA, '.git')); var remote = '';
+  if (isRepo) { try { remote = cp.execFileSync('git', ['-C', DATA, 'remote', 'get-url', 'origin'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch (e) { remote = ''; } }
+  if ((isRepo && remote) || B.to) return out(['✓ Backup is already set up.', remote ? '- private repo: ' + remote : '', B.to ? '- copy folder: ' + B.to + ' (last ' + whenLocal(B.lastAt) + ')' : '', 'Run `node solo.js backup` any time; `node solo.js backup --daily` schedules it.'].filter(Boolean), { done: true, remote: remote || null, folder: B.to || null });
+  var gh = false; if (!flags['no-github']) { try { cp.execFileSync('gh', ['auth', 'status'], { stdio: 'ignore', timeout: 8000 }); gh = true; } catch (e) { gh = false; } }
+  if (gh) {
+    var name = String(flags.name || 'solo-ops-data'); var info = null;
+    function view() { try { return JSON.parse(cp.execFileSync('gh', ['repo', 'view', name, '--json', 'url,isPrivate,nameWithOwner'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 15000 })); } catch (e) { return null; } }
+    info = view();
+    if (info && !info.isPrivate) fail('A repo called ' + name + ' already exists in your GitHub account and it is PUBLIC. Make it private (gh repo edit ' + info.nameWithOwner + ' --visibility private) or pick another name: node solo.js backup setup --name <name>');
+    if (!info) { try { cp.execFileSync('gh', ['repo', 'create', name, '--private'], { stdio: 'ignore', timeout: 30000 }); } catch (e) { fail('Could not create a private repo with gh (' + ((e.stderr || e.message) + '').trim().split('\n')[0] + '). Create it at https://github.com/new (Private) and run: node solo.js backup --remote <its url>'); } info = view(); if (!info) fail('Created ' + name + ' but could not read it back; run: node solo.js backup --remote https://github.com/<you>/' + name + '.git'); }
+    if (!JSON_OUT) process.stdout.write('✓ Private GitHub repo ' + info.nameWithOwner + '\n');
+    flags.remote = info.url.replace(/\/?$/, '.git'); return cmdBackup();
+  }
+  return out(['No backup yet: your data lives only on this computer. Two ways, both private:', '',
+    '1) GitHub (recommended if you have an account)',
+    '   Create a PRIVATE repository at https://github.com/new — name it solo-ops-data, tick Private — then run:',
+    '   node solo.js backup --remote https://github.com/<your-username>/solo-ops-data.git   (the address GitHub shows on the new repo page)',
+    '   Have the GitHub app for the terminal (gh)? Run `gh auth login` once, then `node solo.js backup setup` creates the private repo for you.', '',
+    '2) No GitHub: a folder that syncs (iCloud Drive, Dropbox, Google Drive)',
+    '   node solo.js backup --to "' + exampleFolder() + '"', '',
+    'Either way, finish with:  node solo.js backup --daily'], { done: false, gh: false, options: ['remote', 'folder'], exampleFolder: exampleFolder() });
+}
+// backup --daily: run `node solo.js backup` every day at --hour (default 21). launchd on macOS, crontab elsewhere; Windows gets the command to paste.
+function backupDaily() {
+  var cp = require('child_process'); var node = process.execPath; var script = path.join(ROOT, 'solo.js'); var home = require('os').homedir(); var hour = flags.hour === undefined ? 21 : parseInt(flags.hour, 10); if (isNaN(hour) || hour < 0 || hour > 23) fail('--hour must be 0–23 (the hour of the day the backup runs; default 21)'); var hh = (hour < 10 ? '0' : '') + hour;
+  function x(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+  if (process.platform === 'darwin') {
+    var dir = path.join(home, 'Library', 'LaunchAgents'); var plist = path.join(dir, 'com.solo-ops.backup.plist');
+    function shq1(t) { return "'" + String(t).replace(/'/g, "'\\''") + "'"; }
+    var shell = 'PATH=' + shq1(path.dirname(node)) + ':/opt/homebrew/bin:/usr/local/bin:$PATH; exec node ' + shq1(script) + ' backup';
+    var xml = '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>\n  <key>Label</key><string>com.solo-ops.backup</string>\n  <key>ProgramArguments</key><array><string>/bin/sh</string><string>-c</string><string>' + x(shell) + '</string></array>\n  <key>WorkingDirectory</key><string>' + x(ROOT) + '</string>\n  <key>StartCalendarInterval</key><dict><key>Hour</key><integer>' + hour + '</integer><key>Minute</key><integer>0</integer></dict>\n  <key>StandardOutPath</key><string>/tmp/solo-ops-backup.log</string>\n  <key>StandardErrorPath</key><string>/tmp/solo-ops-backup.log</string>\n</dict></plist>\n';
+    if (flags['dry-run']) return out(['Would write ' + plist + ' and load it with launchctl:', '', xml], { plist: plist, xml: xml, dryRun: true });
+    fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(plist, xml);
+    try { cp.execFileSync('launchctl', ['unload', plist], { stdio: 'ignore' }); } catch (e) { /* not loaded yet */ }
+    try { cp.execFileSync('launchctl', ['load', plist], { stdio: 'ignore' }); } catch (e) { return out('Wrote ' + plist + ' but launchctl load failed; it loads at your next login. Log: /tmp/solo-ops-backup.log', { plist: plist, loaded: false }); }
+    return out('✓ Daily backup at ' + hh + ':00 (launchd: ' + plist + '). Log: /tmp/solo-ops-backup.log · remove: launchctl unload "' + plist + '" && rm "' + plist + '"', { plist: plist, loaded: true, hour: hour });
+  }
+  if (process.platform === 'win32') return out(['Windows: create the task with this one line (PowerShell or cmd):', '  schtasks /Create /SC DAILY /ST ' + hh + ':00 /TN "Solo Ops backup" /TR "\\"' + node + '\\" \\"' + script + '\\" backup"'], { manual: true, hour: hour });
+  function shq(t) { return "'" + String(t).replace(/'/g, "'\\''") + "'"; }
+  var line = '0 ' + hour + ' * * * cd ' + shq(ROOT) + ' && PATH=' + shq(path.dirname(node)) + ':/usr/local/bin:$PATH node solo.js backup >> /tmp/solo-ops-backup.log 2>&1 # solo-ops';
+  if (flags['dry-run']) return out(['Would add to your crontab:', '  ' + line], { line: line, dryRun: true });
+  var cur = ''; try { cur = cp.execFileSync('crontab', ['-l'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch (e) { cur = ''; }
+  if (cur.indexOf('# solo-ops') >= 0) return out('✓ Daily backup is already in your crontab (the line marked # solo-ops).', { line: line, existed: true });
+  try { cp.execFileSync('crontab', ['-'], { input: cur.replace(/\n?$/, cur ? '\n' : '') + line + '\n' }); } catch (e) { fail('Could not write your crontab (' + e.message.split('\n')[0] + '). Add this line yourself with crontab -e:\n  ' + line); }
+  return out('✓ Daily backup at ' + hh + ':00 (crontab, the line marked # solo-ops). Log: /tmp/solo-ops-backup.log', { line: line, hour: hour });
+}
 // 'public' | 'private' | 'unknown' | '' (not GitHub). Unauthenticated: a private repo answers 404, so 404 = private-or-missing.
-function githubVisibility(remote, cb) {
+// strict: for decisions that let data into a repo. An unauthenticated 404 (private-or-missing) then counts as 'unknown'.
+function githubVisibility(remote, cb, strict) {
   var m = String(remote || '').match(/github\.com[:\/]([^\/\s]+)\/([^\/\s]+?)(?:\.git)?\/?$/); if (!m) return cb('');
   try { var o = require('child_process').execFileSync('gh', ['repo', 'view', m[1] + '/' + m[2], '--json', 'isPrivate'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 6000 }); return cb(JSON.parse(o).isPrivate ? 'private' : 'public'); } catch (e) { /* no gh or no access: ask the public API */ }
   var req = require('https').get({ host: 'api.github.com', path: '/repos/' + m[1] + '/' + m[2], headers: { 'User-Agent': 'solo-ops', Accept: 'application/vnd.github+json' }, timeout: 5000 }, function (res) {
-    var b = ''; res.on('data', function (c) { b += c; }); res.on('end', function () { if (res.statusCode === 200) { try { cb(JSON.parse(b).private ? 'private' : 'public'); } catch (e) { cb('unknown'); } } else if (res.statusCode === 404) cb('private'); else cb('unknown'); });
+    var b = ''; res.on('data', function (c) { b += c; }); res.on('end', function () { if (res.statusCode === 200) { try { cb(JSON.parse(b).private ? 'private' : 'public'); } catch (e) { cb('unknown'); } } else if (res.statusCode === 404) cb(strict ? 'unknown' : 'private'); else cb('unknown'); });
   });
   req.on('timeout', function () { req.destroy(); cb('unknown'); }); req.on('error', function () { cb('unknown'); });
 }
@@ -707,22 +787,36 @@ function cmdGuard() {
     fs.writeFileSync(hook, (cur.trim() ? cur.replace(/\n?$/, '\n') : '#!/bin/sh\n') + '# Solo Ops: never commit the user\'s content (data/, exports, personal prompts). Only a human bypasses this (--no-verify).\nnode "$(git rev-parse --show-toplevel)/solo.js" guard || exit 1\n'); fs.chmodSync(hook, 493);
     return out('✓ pre-commit hook installed: every commit runs `node solo.js guard` (a human can bypass with --no-verify; agents never do)', { installed: true });
   }
+  function rootRemote() { try { return cp.execFileSync('git', ['-C', ROOT, 'remote', 'get-url', 'origin'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch (e) { return ''; } }
+  var B = backupCfg(); var G = B.guard || {};
+  // --allow-data: only for someone's own PRIVATE fork. Checks GitHub visibility; a public or unknown remote keeps the block.
+  if (flags['allow-data']) {
+    var rem = rootRemote(); if (!rem) fail('This repository has no remote yet, so there is nothing to check. Add a PRIVATE remote first, or keep your content in its own private place: node solo.js backup setup');
+    return githubVisibility(rem, function (vis) {
+      if (vis !== 'private') fail((vis === 'public' ? rem + ' is PUBLIC.' : 'Could not confirm that ' + rem + ' is private' + (vis === '' ? ' (not a GitHub remote)' : ' (log in with `gh auth login` so GitHub can be asked, and make sure the repo exists)') + '.') + ' Your content stays out of it. Make the repo private first, or use: node solo.js backup setup');
+      B.guard = { allowData: true, remote: rem, at: new Date().toISOString() }; saveBackupCfg(B);
+      out(['✓ ' + rem + ' is private. The guard now lets data/ through while this remote stays the origin.', 'Last step, by hand: in .gitignore replace the line `data/*` with `data/log.jsonl` (and `data/exports/` if you like), then `git add data` and commit.', 'Point origin at a public repo and the guard blocks again — but commits already made stay in history, so never retarget this repo at a public remote.'], { allowed: true, remote: rem });
+    }, true);
+  }
   var staged = [];
   try { staged = cp.execFileSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACMR'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').filter(Boolean); } catch (e) { fail('git is not available here.'); }
-  var bad = staged.filter(function (f) { return PRIVATE_PATHS.some(function (re) { return re.test(f); }); });
+  var allowed = !!(G.allowData && G.remote && G.remote === rootRemote());
+  var bad = allowed ? [] : staged.filter(function (f) { return PRIVATE_PATHS.some(function (re) { return re.test(f); }); });
   if (bad.length) {
-    out(['✗ guard: ' + bad.length + ' staged file' + (bad.length === 1 ? ' holds' : 's hold') + ' your own content and must not enter this repository:'].concat(bad.map(function (b) { return '  - ' + b; })).concat(['',
-      'Tasks, posts, scripts, notes, inspiration, attachments, exports and personal prompts belong in a PRIVATE data repo:', '  node solo.js backup --remote <private url>   (refuses public GitHub repos)', '',
-      'Unstage: git restore --staged ' + bad.join(' ')]), { ok: false, blocked: bad });
+    out(['✗ Not committing ' + bad.length + ' file' + (bad.length === 1 ? '' : 's') + ': ' + (bad.length === 1 ? 'it is' : 'they are') + ' your content, and this repository is the Solo Ops code.'].concat(bad.map(function (b) { return '  - ' + b; })).concat(['',
+      'Why: this repo is public, and so is any fork of it. Your tasks, posts and drafts should live where only you can read them.', '',
+      'Do this instead:   node solo.js backup setup         (a private GitHub repo, or a folder that syncs — it tells you)',
+      'Own private fork?  node solo.js guard --allow-data   (checks the remote is private, then lets data/ through)',
+      'Unstage:           git restore --staged ' + bad.join(' ') + '   (no commits yet? git rm --cached ' + bad.join(' ') + ')']), { ok: false, blocked: bad });
     process.exit(1);
   }
-  return out('✓ guard: nothing personal in the ' + staged.length + ' staged file' + (staged.length === 1 ? '' : 's'), { ok: true, staged: staged.length });
+  return out('✓ guard: nothing personal in the ' + staged.length + ' staged file' + (staged.length === 1 ? '' : 's') + (allowed ? ' (data/ allowed: ' + G.remote + ' is private)' : ''), { ok: true, staged: staged.length, allowed: allowed });
 }
 
 function cmdDoctor() {
   var issues = [], notes = [], files = []; var refs = {}; var browserOnly = 0;
   try { files = fs.readdirSync(DATA).filter(function (f) { return /\.json$/.test(f) && !/\.backup-/.test(f); }); } catch (e) { fail('No data/ folder yet. Run: node solo.js template all'); }
-  var shapes = { social: 'posts', scripts: 'scripts', writing: 'notes', inspiration: 'items', boards: 'boards', workspaces: 'workspaces', activity: 'days', settings: 'theme', prompts: null };
+  var shapes = { social: 'posts', scripts: 'scripts', writing: 'notes', inspiration: 'items', boards: 'boards', workspaces: 'workspaces', activity: 'days', settings: 'theme', prompts: null, backup: null };
   files.forEach(function (f) {
     var txt, obj; try { txt = fs.readFileSync(path.join(DATA, f), 'utf8'); obj = JSON.parse(txt); } catch (e) { issues.push(f + ': not valid JSON (' + e.message.split('\n')[0] + ')'); return; }
     if (!obj || typeof obj !== 'object') { issues.push(f + ': not an object'); return; }
@@ -750,10 +844,12 @@ function cmdDoctor() {
   var total = 0; onDisk.forEach(function (f) { try { total += fs.statSync(path.join(adir, f)).size; } catch (e) { /* skip */ } }); if (onDisk.length) notes.push('attachments: ' + onDisk.length + ' file(s), ' + (total / 1048576).toFixed(1) + ' MB on disk');
   var repo = fs.existsSync(path.join(DATA, '.git')); var lastBackup = null;
   if (repo) { try { lastBackup = require('child_process').execFileSync('git', ['-C', DATA, 'log', '-1', '--format=%cI'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch (e) { /* none */ } }
-  var realData = files.some(function (f) { return !/^(settings|activity|boards|workspaces|prompts)\.json$/.test(f); });
-  if (!repo && realData) issues.push('no backup: data/ is not a git repo. Run: node solo.js backup --remote <private repo url>');
-  else if (repo && lastBackup && Date.now() - Date.parse(lastBackup) > 7 * 86400000) issues.push('last backup was ' + Math.round((Date.now() - Date.parse(lastBackup)) / 86400000) + ' days ago. Run: node solo.js backup');
-  else if (repo) notes.push('backup: last ' + (lastBackup || 'never'));
+  var realData = files.some(function (f) { return !/^(settings|activity|boards|workspaces|prompts|backup)\.json$/.test(f); });
+  var BC = backupCfg(); var bfolder = BC.to || ''; var bAt = BC.lastAt || ''; var WEEK = 7 * 86400000;
+  if (!repo && !bfolder && realData) issues.push('no backup: your data lives only on this computer. Run: node solo.js backup setup');
+  else if (repo && lastBackup && Date.now() - Date.parse(lastBackup) > WEEK) issues.push('last backup was ' + Math.round((Date.now() - Date.parse(lastBackup)) / 86400000) + ' days ago. Run: node solo.js backup');
+  else if (!repo && bfolder && (!bAt || Date.now() - Date.parse(bAt) > WEEK)) issues.push('last copy to ' + bfolder + ' was ' + (bAt ? Math.round((Date.now() - Date.parse(bAt)) / 86400000) + ' days ago' : 'never') + '. Run: node solo.js backup');
+  else if (repo || bfolder) notes.push('backup: ' + [repo ? 'private repo, last ' + (lastBackup || 'never') : '', bfolder ? 'folder ' + bfolder + ', last ' + whenLocal(bAt) : ''].filter(Boolean).join(' · '));
   if (!files.length) notes.push('fresh install: data/ has no files yet. Next: ask your agent for /setup, or `node solo.js template all` for the sample sprint, or `node serve.js` and plan in the app');
   if (fs.existsSync(path.join(ROOT, '.git'))) { var hk = ''; try { hk = fs.readFileSync(path.join(ROOT, '.git', 'hooks', 'pre-commit'), 'utf8'); } catch (e) { /* none */ } if (!/solo\.js"? guard/.test(hk)) notes.push('commit guard not installed: `node solo.js guard --install` makes git refuse commits that contain data/ or personal prompts'); }
   out(['# doctor — ' + (issues.length ? issues.length + ' issue' + (issues.length === 1 ? '' : 's') : 'all good'), ''].concat(issues.map(function (i) { return '⚠ ' + i; })).concat(issues.length ? [''] : []).concat(notes.map(function (n) { return '· ' + n; })), { ok: !issues.length, issues: issues, notes: notes, orphans: orphans, missing: missing, browserOnly: browserOnly, repo: repo, lastBackup: lastBackup });
@@ -808,7 +904,7 @@ function cmdHelp() {
     'Inspiration (data/inspiration.json — links, ideas, images; tag with a workspace)', '  inspo list [--ws] [--tag x] [--status new|used|archived]   inspo show <item>', '  inspo add [--file <path>] "https://… or an idea #tag" [--ws <id>] [--tags a,b]   inspo tag <item> +a -b   inspo ws <item> <workspace>', '  inspo use <item> --as task|post|script|note [--ws] [--board]   inspo ai [--into tasks] (prompt to paste into an AI)   inspo archive|rm <item>', '',
     'Prompts (built-ins in core/prompts.js, yours in data/prompts.json)', '  prompts builtin [--mode chat|files]   prompts show <title or /slug>   prompts export [--for claude|cursor|codex|chat] [--out dir]', '  prompts list|add "Title" --text "…"|--file p.md [--cat daily] [--desc "…"]|edit <p> …|rm <p>|restore', '',
     'Studio (data/scripts.json, data/writing.json)', '  scripts list|show <s>|add "Title" [--file x.md]|rm <s>', '  notes list|show <n>|add "Title" [--file x.md]|rm <n>', '',
-    'Safety', '  backup [--remote <private repo url>] [--status]   commit (and push) data/ as its own private git repo (refuses public GitHub repos)', '  doctor                     check every data file, attachments and backup age', '  guard [--install]          fail when staged files hold your content (data/, exports, personal prompts); --install = run on every commit', '',
+    'Safety', '  backup setup [--name solo-ops-data] [--no-github]   first time: a PRIVATE GitHub repo via gh, or it tells you the two other ways', '  backup [--remote <private url>] [--to <folder>] [--status]   push data/ to its private repo and/or copy it to a syncing folder; refuses public repos', '  backup --daily [--hour 21] [--dry-run]   run it every evening (launchd / crontab / a schtasks line)', '  guard [--install] [--allow-data]   fail when staged files hold your content; --install = on every commit; --allow-data = your own PRIVATE fork only', '  doctor                     check every data file, attachments and backup age', '',
     'Setup', '  template [all|board|social|scripts|writing|settings] [--board id] [--force]', '  theme [show|list|set <palette>|mode <auto|light|dark>|font <inter|system|lato|editorial>]', '  config                     show solo.config.js summary', '  serve [--port 4321]        start the local server (pages write data/ directly)', '',
     'Add --json to any command for machine-readable output. Ids: tasks t…, posts p…, scripts s…, notes n….',
     'Agents: add --as agent (and --note "why") so the change log attributes the edit to you.'], null);

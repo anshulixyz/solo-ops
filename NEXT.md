@@ -100,6 +100,17 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Done
 
+- 2026-10-13 · Backup as part of setup, for non-technical users: `node solo.js
+  backup setup` (gh logged in → private repo `solo-ops-data` created and
+  pushed; otherwise the two human ways), `backup --to <folder>` (plain copy
+  into iCloud Drive / Dropbox, remembered in `data/backup.json`), `backup --daily`
+  (launchd / crontab / schtasks line). Guide: pending *Save your data
+  somewhere private* card on every tab until done, Protect your work shows
+  the why and three ways with copy buttons, *Mark as done* for pages that
+  cannot see the server. Guard message leads with the why; `guard
+  --allow-data` for a private fork (checks visibility). `/setup` and
+  `/backup-setup` prompts ask GitHub or folder before creating anything.
+
 - 2026-10-13 · Privacy hard line + first run: `node solo.js guard [--install]`
   refuses commits that stage `data/`, exports or personal prompts (pre-commit
   hook); AGENTS.md *Privacy boundary* and *First run* sections; `/setup`

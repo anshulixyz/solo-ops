@@ -101,10 +101,12 @@ var server = http.createServer(function (req, res) {
   // backup status for the Guide (data/ as its own git repo)
   if (url === '/api/backup') {
     var cpx = require('child_process'); var repo = fs.existsSync(path.join(DATA, '.git'));
-    if (!repo) return json(res, 200, { repo: false });
+    var bk = {}; try { bk = JSON.parse(fs.readFileSync(path.join(DATA, 'backup.json'), 'utf8')); } catch (e) { bk = {}; }
+    var fold = { folder: bk.to || '', folderAt: bk.lastAt || '' };
+    if (!repo) return json(res, 200, Object.assign({ repo: false }, fold));
     function g(args) { try { return cpx.execFileSync('git', ['-C', DATA].concat(args), { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 4000 }).trim(); } catch (e) { return ''; } }
     var dirty = g(['status', '--porcelain']);
-    return json(res, 200, { repo: true, remote: g(['remote', 'get-url', 'origin']), lastAt: g(['log', '-1', '--format=%cI']), dirty: dirty ? dirty.split('\n').length : 0 });
+    return json(res, 200, Object.assign({ repo: true, remote: g(['remote', 'get-url', 'origin']), lastAt: g(['log', '-1', '--format=%cI']), dirty: dirty ? dirty.split('\n').length : 0 }, fold));
   }
   if (url === '/api/log') {
     var n = parseInt((req.url.split('?')[1] || '').replace(/.*n=(\d+).*/, '$1'), 10) || 40;

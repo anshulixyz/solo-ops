@@ -197,6 +197,20 @@ fill. Merged on sync.
 { "theme": { "mode": "auto", "palette": "warm" } }
 ```
 
+## backup.json — where the copies go (CLI only)
+
+```json
+{ "to": "/Users/me/Library/Mobile Documents/com~apple~CloudDocs/Solo Ops backup", "lastAt": "2026-10-13T20:00:00.000Z",
+  "guard": { "allowData": true, "remote": "git@github.com:me/my-private-fork.git", "at": "…" } }
+```
+
+`to` is the syncing folder `node solo.js backup --to` copies into (empty when
+the backup is a git remote only); `lastAt` the last copy. `guard` exists only
+after `node solo.js guard --allow-data` confirmed a private remote; the guard
+lets `data/` through while `origin` equals `remote`. Its own file, not part of
+`settings.json`, because the pages mirror `settings.json` (theme) and would
+overwrite anything else kept there. The server reads it for `/api/backup`.
+
 `mode`: auto | light | dark. `palette`: warm | paper | forest | dusk | mono.
 
 ## Rules of thumb for agents
