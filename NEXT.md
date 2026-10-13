@@ -133,6 +133,16 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Minor / issues
 
+- **Home, after launch (owner review 2026-10-13):** a layout pass — one header
+  row (title · scope · actions), projects as compact rows past two, This week
+  in two columns (Tasks in play with actions | Schedule + posts), a quieter
+  source tag in Recent changes and "loaded from file" instead of "deleted" when
+  sample content yields to the file, the first-run banner only while every
+  project is sample, a project picker on the quick-add. The owner name lives in
+  `solo.config.js` for now; move it to `data/settings.json` so Home can edit it
+  in place. Naming: the nav says *Workspace*, Home says *Projects*; pick one.
+  The Calendar's Share today offers one scope; give it every project like Home.
+
 - **Guide, after the ask box (design reviewed 2026-10-13, tech + usability):**
   (1) *Ask AI* on items: a button in the task card **header** row (the footer
   only renders on expanded cards; new tasks are collapsed), on the selected
@@ -216,6 +226,26 @@ QR rendered without a dependency, capture strip and boards usable at
   retake with `docs/screenshots` script when M2 lands.
 
 ## Done
+
+- 2026-10-13 · Home: owner name, scope, Start/Done across projects, create →
+  Home. `owner` in `solo.config.js` makes the title "Anshuli’s workspaces"
+  (the brand moves to the eyebrow; `/setup` asks for the name). Creating a
+  project now lands on Home with a toast saying Board and Calendar switched to
+  it (the "my data is gone" report was the app switching projects, nothing on
+  disk changed); an empty board names the other projects and their open
+  counts. The Today strip gets scope chips (All · each project) that filter
+  Today, This week and Recent changes, remembered per browser. Tasks in play
+  rows get ▶ Start / ✓ Done for any project: `Quick.setCol` writes the browser
+  copy at once and, with a server or linked folder, re-applies the change on
+  the file itself (the file is the copy that counts for a board this page did
+  not pull). Share today offers every project plus All.
+
+- 2026-10-13 · Launch screenshots: `docs/launch/SHOTLIST.md` (the script), `seed.js`
+  (the Pocket Studio sample project), `personas.js` (Tomas · Noor · Lena, the
+  three hero workspaces), `capture.sh` (real CLI output for the terminal
+  frames), `mock/chat.html` + `mock/term.html` (reproductions with verbatim
+  content), `mock/frame.html` + `shoot.js` (headless Chrome, 1440×900 @2×).
+  55 images in `docs/screenshots/launch/`. README pass still to come.
 
 - 2026-10-13 · Guide: ask box + blanks fix (plan reviewed by a tech and a
   usability agent before building; scope cut to what both agreed). The field

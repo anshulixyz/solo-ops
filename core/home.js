@@ -5,8 +5,9 @@
    today), one card per project, This week, Inspiration + Recent changes,
    Activity folded away. Overview = one project in detail: its boards and
    apps, rename / apps / remove. Handlers are globals (markup uses on*).
-   Reads other projects' files with Sync.peek only (no registration, no
-   writes): the browser copy of another project is never touched here.
+   Reads other projects' files with Sync.peek (no registration). The only
+   writes to another project go through Quick.setCol (▶ / ✓ on Tasks in
+   play), which re-applies the change on the file itself.
    ========================================================================= */
 (function () {
   'use strict';
@@ -68,6 +69,15 @@
   function byPri(a, b) { return rank(a) - rank(b); }
   function wsTitleOf(id) { var w = Config.workspace(id); return w ? w.title : id; }
   function many() { return Config.workspaces().length > 1; }
+  // Home scope: 'all' or one project. Filters Today, This week and Recent changes; the project cards always show every project.
+  var SCOPE_KEY = 'marathon.hub.scope';
+  function scope() { if (!many()) return 'all'; var s = ''; try { s = localStorage.getItem(SCOPE_KEY) || ''; } catch (e) {} return s && Config.workspace(s) ? s : 'all'; }
+  function scopeTitle() { var s = scope(); return s === 'all' ? 'all projects' : wsTitleOf(s); }
+  window.setHomeScope = function (id) { try { localStorage.setItem(SCOPE_KEY, id); } catch (e) {} render(); loadProjects(); };
+  function scopeChips() {
+    if (!many()) return ''; var s = scope();
+    return '<div class="scope" role="tablist" aria-label="Which projects Home shows"><span class="scope-l">Show</span>' + [{ id: 'all', title: 'All' }].concat(Config.workspaces()).map(function (w) { return '<button type="button" class="' + (w.id === s ? 'on' : '') + '" onclick="setHomeScope(\'' + esc(w.id) + '\')" title="' + (w.id === 'all' ? 'Every project together' : 'Only ' + esc(w.title)) + '">' + esc(w.title) + '</button>'; }).join('') + '</div>';
+  }
   function boardLink(t) { return 'runway/marathon-board.html?ws=' + encodeURIComponent(t._ws) + '&board=' + encodeURIComponent(t._board) + (t.id ? '&id=' + encodeURIComponent(t.id) : ''); }
   function toast(msg) { var t = $('toast'); if (!t) return; t.textContent = msg; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(function () { t.classList.remove('show'); }, 2200); }
 
@@ -142,6 +152,7 @@
       });
       (o.posts || []).forEach(function (p) { posts.push(Object.assign({ _ws: w.id }, p)); });
     });
+    var s = scope(); if (s !== 'all' && !gather.everything) { tasks = tasks.filter(function (t) { return t._ws === s; }); posts = posts.filter(function (p) { return p._ws === s; }); }
     return { tasks: tasks, posts: posts };
   }
   function doneToday() {   // from the browser's own change events (the file log has no per-item view)
@@ -170,7 +181,7 @@
     var doing = open.filter(function (t) { return t.col === 'doing'; }).sort(byPri).slice(0, 3);
     var done = doneToday();
     function inWords(stamp) { var ms = new Date(stamp.replace('T', ' ').replace(' ', 'T')) - now; var m = Math.round(ms / 60000); if (m <= 0) return 'now'; if (m < 60) return 'in ' + m + ' min'; return 'in ' + Math.round(m / 60) + ' h'; }
-    var left = '<div class="date"><div class="wd">' + esc(now.toLocaleDateString(undefined, { weekday: 'long' })) + '</div><div class="dt">' + esc(now.toLocaleDateString(undefined, { day: 'numeric', month: 'long' })) + (many() ? ' · all projects' : '') + '</div>' +
+    var left = '<div class="date"><div class="wd">' + esc(now.toLocaleDateString(undefined, { weekday: 'long' })) + '</div><div class="dt">' + esc(now.toLocaleDateString(undefined, { day: 'numeric', month: 'long' })) + (many() ? ' · ' + esc(scopeTitle()) : '') + '</div>' + scopeChips() +
       '<div class="ctr">' + (overdue ? '<a class="warn" href="calendar/calendar.html' + q() + '" title="Deadlines passed or timed tasks not ticked">' + overdue + ' overdue</a>' : '') +
       (done ? '<span class="good">' + done + ' done today</span>' : '') +
       (dueWeek ? '<span>' + dueWeek + ' due this week</span>' : '') + (meetingsWeek ? '<span>' + meetingsWeek + ' meeting' + (meetingsWeek === 1 ? '' : 's') + ' this week</span>' : '') +
@@ -192,9 +203,20 @@
     inp.focus();
     return false;
   };
+  // ▶ / ✓ on Tasks in play: any project. Quick writes the browser copy and, with a server or linked folder, the file itself.
+  window.homeTask = function (ws, board, id, col) {
+    var w = Config.workspace(ws); if (!w || !window.Quick) return;
+    var o = wsStats[ws] || wsLocal(w); var t = (o.tasksByBoard && o.tasksByBoard[board] ? o.tasksByBoard[board] : []).filter(function (x) { return x.id === id; })[0]; if (!t) return;
+    var row = { ws: ws, board: board, key: Config.boardKey(board, ws), file: Config.boardFile(board, ws), task: t };
+    var ok = Quick.setCol(row, col, function (changed) { toast(changed ? (col === 'done' ? 'Done: ' : 'Now doing: ') + t.title + (many() ? ' · ' + wsTitleOf(ws) : '') : 'Could not change "' + t.title + '": it is no longer on that board.'); wsStats = {}; loadLocal(); render(); loadProjects(); });
+    if (!ok) { toast('Could not change that task here. Open its board.'); return; }
+    wsStats = {}; loadLocal(); render(); loadProjects();
+  };
   window.shareToday = function () {
     if (!window.ShareCard) return;
-    var g = gather(); var scopes = [{ id: W.id, title: W.title }]; if (many()) scopes.push({ id: 'all', title: 'All projects' });
+    gather.everything = true; var g = gather(); gather.everything = false;   // the card can show any project, whatever Home is filtered to
+    var scopes = [{ id: W.id, title: W.title }].concat(Config.workspaces().filter(function (w) { return w.id !== W.id; }).map(function (w) { return { id: w.id, title: w.title }; })); if (many()) scopes.push({ id: 'all', title: 'All projects' });
+    if (many()) Store.set('marathon.share.scope', scope(), { silent: true });   // the card opens on what Home is showing
     ShareCard.open({ scopes: scopes, streak: Activity.summary().streak,
       data: function (id) { return id === 'all' ? { scope: 'All projects', tasks: g.tasks } : { scope: wsTitleOf(id), tasks: g.tasks.filter(function (t) { return t._ws === id; }) }; },
       onPlan: function () { Guide.openPrompt('plan-today'); } });
@@ -212,8 +234,9 @@
     var html = '<div class="hub-card"><div class="sec-h" style="margin:0 0 8px">Tasks in play <a href="runway/marathon-board.html' + q() + '">Board →</a></div>' + (focus.length ? '<ul>' + focus.map(function (t) {
       var n = (t.checklist || []).length, d = (t.checklist || []).filter(function (c) { return c.done; }).length; var grp = '';
       if (m && t._ws !== lastWs) { lastWs = t._ws; grp = '<li class="grp">' + esc(wsTitleOf(t._ws)) + '</li>'; }
-      return grp + '<li><span class="pdot ' + (t.col === 'doing' ? 'doing' : t.pri === 'high' ? 'high' : '') + '" title="' + esc(t.col === 'doing' ? 'doing' : t.pri + ' priority') + '"></span><a href="' + boardLink(t) + '" title="' + esc(t.id) + '">' + esc(t.title) + '</a><span class="meta">' + (t.col === 'doing' ? 'doing' : 'high') + (n ? ' · ' + d + '/' + n : '') + '</span></li>';
-    }).join('') + '</ul>' : '<div class="empty">Nothing in Doing and no high-priority To Do anywhere. Add one above, or ⌘K → add.</div>') + '</div>';
+      var act = t.col === 'doing' ? '<button type="button" class="tq done" title="Mark done" onclick="homeTask(\'' + esc(t._ws) + '\',\'' + esc(t._board) + '\',\'' + esc(t.id) + '\',\'done\')">✓</button>' : '<button type="button" class="tq" title="Start: move to Doing" onclick="homeTask(\'' + esc(t._ws) + '\',\'' + esc(t._board) + '\',\'' + esc(t.id) + '\',\'doing\')">▶</button>';
+      return grp + '<li>' + act + '<span class="pdot ' + (t.col === 'doing' ? 'doing' : t.pri === 'high' ? 'high' : '') + '" title="' + esc(t.col === 'doing' ? 'doing' : t.pri + ' priority') + '"></span><a href="' + boardLink(t) + '" title="' + esc(t.id) + '">' + esc(t.title) + '</a><span class="meta">' + (t.col === 'doing' ? 'doing' : 'high') + (n ? ' · ' + d + '/' + n : '') + '</span></li>';
+    }).join('') + '</ul><div class="fine" style="margin-top:6px">▶ starts a task, ✓ finishes it' + (m ? ', any project' : '') + '. <a href="#" onclick="Store.set(\'marathon.guide.tab\',\'quick\',{silent:true});Guide.open();return false;">More tasks →</a></div>' : '<div class="empty">Nothing in Doing and no high-priority To Do' + (scope() === 'all' ? ' anywhere' : ' in ' + esc(scopeTitle())) + '. Add one above, or ⌘K → add.</div>') + '</div>';
     var Wn = window.When; var sched = []; var tkey = '', tmkey = '';
     if (Wn) {
       var now = new Date(); tkey = Wn.localD(now); var tm = new Date(now.getTime()); tm.setDate(tm.getDate() + 1); tmkey = Wn.localD(tm);
@@ -316,15 +339,16 @@
   function renderLog() {
     var card = $('logCard'); if (!card) return; var hint = $('logHint');
     var events = window.Recent ? Recent.load().slice().reverse().slice(0, 8) : [];
+    if (scope() !== 'all') events = events.filter(function (ev) { return !ev.ws || ev.ws === scope(); });
     var rows = events.map(function (ev) { return '<li><span class="src ' + (ev.source === 'you' ? 'ui' : 'agent') + '">' + (ev.source === 'you' ? 'you' : 'agent') + '</span><span class="what">' + human(ev.what) + ' <small>' + (many() && ev.ws ? esc(wsTitleOf(ev.ws)) + ' · ' : '') + esc(Activity.ago(ev.ts)) + '</small></span></li>'; });
     Sync.log(14).then(function (recs) {
       var server = recs ? recs.filter(function (r) { return !HIDDEN_FILES.test(r.file); }) : null;
-      if (!rows.length && server && server.length) rows = server.slice(0, 8).map(function (r) { return '<li><span class="src ' + esc(r.source) + '">' + esc(r.source === 'ui' ? 'you' : r.source) + '</span><span class="what">' + esc(r.note || r.file) + ' <small>' + esc(Activity.ago(r.ts)) + '</small></span></li>'; });
+      if (!rows.length && scope() === 'all' && server && server.length) rows = server.slice(0, 8).map(function (r) { return '<li><span class="src ' + esc(r.source) + '">' + esc(r.source === 'ui' ? 'you' : r.source) + '</span><span class="what">' + esc(r.note || r.file) + ' <small>' + esc(Activity.ago(r.ts)) + '</small></span></li>'; });
       if (hint) hint.textContent = server === null ? 'this browser · the file log needs node serve.js' : 'you and your agent';
       var restore = server && server.length ? '<details class="restore"><summary>Restore a file to an earlier moment</summary><p>Every file write is logged with its previous content. Restoring puts that whole file back as it was just before the change, so edits made to it after that moment are undone too.</p><ul class="log-list">' + server.slice(0, 8).map(function (r) {
         return '<li><span class="src ' + esc(r.source) + '">' + esc(r.source === 'ui' ? 'you' : r.source) + '</span><span class="what" title="' + esc(r.note) + '">' + esc(r.note || r.file) + ' <small>' + esc(r.file) + ' · ' + esc(Activity.ago(r.ts)) + '</small></span>' + (r.canRevert ? '<button class="rv" onclick="revertLog(\'' + esc(r.id) + '\')">Restore</button>' : '') + '</li>';
       }).join('') + '</ul></details>' : (server === null ? '<details class="restore"><summary>Restore a file to an earlier moment</summary><p>Run <code>node serve.js</code> and every file write is logged here with a Restore button. The CLI always has it: <code>node solo.js log</code> and <code>revert</code>.</p></details>' : '');
-      card.innerHTML = (rows.length ? '<ul class="log-list">' + rows.join('') + '</ul>' : '<div class="empty" style="color:var(--faint);font-size:13px">No changes yet. Tick, move or add something on any page and it shows up here.</div>') + restore;
+      card.innerHTML = (rows.length ? '<ul class="log-list">' + rows.join('') + '</ul>' : '<div class="empty" style="color:var(--faint);font-size:13px">No changes ' + (scope() === 'all' ? 'yet' : 'recorded for ' + esc(scopeTitle()) + ' in this browser yet') + '. Tick, move or add something on any page and it shows up here.</div>') + restore;
     });
   }
   window.revertLog = function (id) {
@@ -343,6 +367,9 @@
       var lb = $('linkBtn'); if (lb) lb.style.display = (Sync.fsSupported && Sync.getMode() === 'manual') ? '' : 'none';
     }
     var nt = $('wsSecTitle'); if (nt) nt.textContent = W.title;
+    var ht = $('homeTitle'); if (ht) { var owner = String(Config.get('owner') || '').trim(); ht.textContent = owner ? owner + (/s$/i.test(owner) ? '’' : '’s') + ' workspaces' : 'Your workspaces'; }
+    var hs = $('homeSub'); if (hs) hs.textContent = many() ? scopeTitle() : W.title;
+    var wh = $('weekHead'); if (wh) wh.textContent = 'This week · ' + (many() ? scopeTitle() : W.title);
     var unknown = $('wsUnknown'); if (unknown) { var asked = Config.slug(new URLSearchParams(location.search).get('ws') || ''); unknown.style.display = (!Config.workspace(W.id) || (asked && asked !== W.id)) ? '' : 'none'; }
     renderProjects(); renderInspo(); renderLog();
     document.title = (PAGE === 'overview' ? W.title + ' — ' : '') + (W.title === Config.get('name') || PAGE === 'overview' ? Config.get('name') : W.title + ' — ' + Config.get('name'));
@@ -395,7 +422,7 @@
     if (apps.scripts) seedApp('scripts', Config.key('scripts', w.id), sample);
     if (apps.writing) seedApp('writing', Config.key('writing', w.id), sample);
     Config.setActiveWs(w.id);
-    location.href = 'overview.html?ws=' + encodeURIComponent(w.id);
+    location.href = 'index.html?ws=' + encodeURIComponent(w.id) + '&made=1';   // Home keeps every project in view; the toast says what switched
   };
   window.renameWs = function () {
     var t = prompt('Rename this project', W.title); if (!t || !t.trim()) return;
@@ -448,5 +475,6 @@
       apply: function (body) { if (Array.isArray(body.tasks)) { Store.setJSON(key, body.tasks, { silent: true }); data.boards[b.id] = body.tasks; } if (Array.isArray(body.projects)) Store.setJSON(pk, body.projects, { silent: true }); wsStats = {}; render(); loadProjects(); } });
   });
   var act = $('actWrap'); if (act) { try { act.open = localStorage.getItem('marathon.hub.activityOpen') === '1'; } catch (e) {} act.addEventListener('toggle', function () { try { localStorage.setItem('marathon.hub.activityOpen', act.open ? '1' : '0'); } catch (e) {} }); }
+  if (/[?&]made=1/.test(location.search)) { setTimeout(function () { toast('Project "' + W.title + '" created. Board and Calendar now show it; switch projects with the Workspace menu (top left).'); }, 400); history.replaceState(null, '', location.pathname + location.search.replace(/[?&]made=1/, '').replace(/^&/, '?')); }
   if (location.hash === '#new-ws' || location.hash === '#edit-ws') { toggleWsPanel(location.hash === '#edit-ws' ? 'edit' : 'new'); history.replaceState(null, '', location.pathname + location.search); }
 })();

@@ -45,6 +45,14 @@ a.hub-card:hover{border-color:var(--accent); box-shadow:var(--shadow-lift);}
 .today-strip .ctr a, .today-strip .ctr span{font-family:var(--mono); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); background:var(--panel-2); border:1px solid var(--line); border-radius:6px; padding:3px 7px; text-decoration:none;}
 .today-strip .ctr a.warn{color:#fff; background:var(--accent); border-color:var(--accent);}
 .today-strip .ctr .good{color:var(--accent); border-color:var(--accent);}
+.today-strip .scope{display:flex; flex-wrap:wrap; align-items:center; gap:4px; margin-top:10px;}
+.today-strip .scope-l{font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); margin-right:3px;}
+.today-strip .scope button{font-family:var(--mono); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); background:transparent; border:1px solid var(--line); border-radius:999px; padding:3px 9px; cursor:pointer;}
+.today-strip .scope button:hover{border-color:var(--accent); color:var(--ink);}
+.today-strip .scope button.on{background:var(--accent); border-color:var(--accent); color:var(--on-accent,#fff);}
+.today li .tq{flex:none; width:22px; height:22px; border-radius:6px; border:1px solid var(--line); background:var(--panel-2); color:var(--muted); font-size:10px; cursor:pointer; margin-right:6px; line-height:1;}
+.today li .tq:hover{border-color:var(--accent); color:var(--accent);}
+.today li .tq.done{color:var(--accent);}
 .today-strip .plan .k{font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); margin:0 0 4px;}
 .today-strip .plan .k + .k{margin-top:12px;}
 .today-strip .plan .next{font-size:14px; line-height:1.45;} .today-strip .plan .next b{color:var(--accent); font-weight:600; font-family:var(--mono); font-size:12px; margin-right:6px;}

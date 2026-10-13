@@ -10,8 +10,9 @@
 })(this, function () {
   return {
     /* ---- identity --------------------------------------------------- */
-    name: 'Solo Ops',                 // shown on Home and in page titles
+    name: 'Solo Ops',                 // the product / first project name: page titles, the eyebrow on Home
     eyebrow: 'Solo founder ops',      // small label above every page title
+    owner: '',                        // your name: Home says "<owner>'s workspaces" (empty = "Your workspaces")
 
     /* ---- workspaces --------------------------------------------------
        One workspace = one project: its own boards, posting schedule,

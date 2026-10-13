@@ -172,6 +172,13 @@
   }
 
   /* ---- top-level render ---------------------------------------------- */
+  // An empty board in a workspace that is not the only one: say where the other tasks live (the app switched here after a project was
+  // created). A count shows only when this browser has seen that board.
+  function elsewhereHint() {
+    var w = Config.ws(); var others = Config.workspaces().filter(function (x) { return x.id !== w.id && Config.boards(x.id).length; });
+    if (!others.length) return 'All clear.';
+    return 'This board belongs to <b>' + esc(w.title) + '</b>.<br>Looking for your other tasks? ' + others.map(function (x) { var b = Config.boards(x.id)[0]; var n = 0, known = false; Config.boards(x.id).forEach(function (bb) { var bt = Store.getJSON(Config.boardKey(bb.id, x.id), null); if (bt) { known = true; bt.forEach(function (t) { if (t.col !== 'done') n++; }); } }); return '<a href="marathon-board.html?ws=' + encodeURIComponent(x.id) + '&board=' + encodeURIComponent(b.id) + '">' + esc(x.title) + (known ? ' (' + n + ' open)' : '') + '</a>'; }).join(' · ') + '<br>Or add the first task above.';
+  }
   function render(view, visible, selectedProjects, selectedTags, notesOpen, whenOpen) {
     var state = Model.getState();
 
@@ -183,7 +190,7 @@
           ? items.map(function (t) { return cardHTML(t, view, notesOpen.has(t.id), whenOpen); }).join('')
           : '<div class="empty">' + (col === 'done'
               ? 'Nothing finished yet.<br>Drag a card here when it ships.'
-              : col === 'doing' ? 'Pull a card in to start.' : 'All clear.') + '</div>';
+              : col === 'doing' ? 'Pull a card in to start.' : (state.length ? 'All clear.' : elsewhereHint())) + '</div>';
         document.getElementById('c-' + col).textContent = items.length;
       });
     } else {

@@ -21,7 +21,7 @@ document is the whole contract; read it once and you can operate the system.
 | `data/settings.json` | theme | `theme …` |
 | `data/backup.json` | the backup copy folder and its last run; the guard's `--allow-data` decision (CLI only) | `backup …` `guard …` |
 | `data/exports/` | what the pages export (whole-workspace backup, a board as JSON or Markdown, the social bundle) and the safety copy taken before a destructive action. Written when the server runs or the folder is linked; otherwise the browser downloads instead | — |
-| `solo.config.js` | apps on/off, boards, projects, tags, post types, labels, idle hours, default theme | `config` |
+| `solo.config.js` | `owner` (the user's name, Home greets them with it), apps on/off, boards, projects, tags, post types, labels, idle hours, default theme | `config` |
 
 Schema with every field: `data/SCHEMA.md`. Every data file carries
 `updatedAt` (ISO 8601 UTC); sync uses it to decide which side is newer.

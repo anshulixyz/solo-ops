@@ -32,15 +32,26 @@
     return scored.slice(0, n || 3).map(function (s) { s.x.score = s.s; s.x.ratio = s.ratio; return s.x; });
   }
   function refresh() { if (global.refreshBoard) refreshBoard(); if (global.refreshSchedule) refreshSchedule(); }
-  function write(row, mutate, note) {
-    var list = Store.getJSON(row.key, []) || []; var t = list.filter(function (x) { return x.id === row.task.id; })[0]; if (!t) return false;
-    mutate(t); t.updatedAt = Date.now(); Store.setJSON(row.key, list);
-    if (global.Sync) { Sync.touch(row.file); Sync.note(row.file, note); }
+  // Writes the browser copy at once (instant UI), then, with a server or linked folder, re-applies the
+  // change on the file itself: another project's board may not be in this browser at all, or may be
+  // older than what the CLI or an agent wrote. The file is the copy that counts; `done` runs after it.
+  function write(row, mutate, note, done) {
+    var stamp = Date.now(); var list = Store.getJSON(row.key, null); var t = list ? list.filter(function (x) { return x.id === row.task.id; })[0] : null;
+    if (t) { mutate(t); t.updatedAt = stamp; Store.setJSON(row.key, list); if (global.Sync) { Sync.touch(row.file); Sync.note(row.file, note); } }
+    var m = global.Sync ? Sync.getMode() : 'manual'; var onFile = m === 'server' || m === 'folder';
+    if (onFile) Sync.peek(row.file).then(function (parsed) {
+      if (!parsed || !Array.isArray(parsed.tasks)) return;
+      var ft = parsed.tasks.filter(function (x) { return x.id === row.task.id; })[0]; if (!ft) return false;
+      mutate(ft); ft.updatedAt = stamp; Store.setJSON(row.key, parsed.tasks, { silent: true });   // the server log records this write; Recent changes would otherwise blame the user for what the CLI changed meanwhile
+      Sync.touch(row.file); Sync.note(row.file, note);
+      return Sync.writeFile(row.file, Object.assign({ version: 1 }, parsed, { tasks: parsed.tasks, updatedAt: new Date().toISOString() })).then(function () { return true; }, function () { return true; });
+    }).then(function (changed) { refresh(); if (done) done(changed !== false && (changed || !!t)); });
+    if (!t && !onFile) return false;
     if (global.Activity && Activity.bump) { try { Activity.bump('board'); } catch (e) { /* optional */ } }
-    refresh(); return true;
+    refresh(); if (t && !onFile && done) done(true); return true;
   }
-  function setCol(row, col) { return write(row, function (t) { t.col = col; if (col === 'done') t.doneAt = Date.now(); }, (col === 'doing' ? 'started' : col === 'done' ? 'done' : col) + ': ' + row.task.title); }
-  function setPri(row, pri) { return write(row, function (t) { t.pri = pri; }, 'priority ' + pri + ': ' + row.task.title); }
+  function setCol(row, col, done) { return write(row, function (t) { t.col = col; if (col === 'done') t.doneAt = Date.now(); }, (col === 'doing' ? 'started' : col === 'done' ? 'done' : col) + ': ' + row.task.title, done); }
+  function setPri(row, pri, done) { return write(row, function (t) { t.pri = pri; }, 'priority ' + pri + ': ' + row.task.title, done); }
   // "- [ ] Fix the hero @launch #copy !high >later" → { title, proj, tags, pri, col }
   function parseLine(line) {
     var t = { tags: [] };

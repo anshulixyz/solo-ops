@@ -24,9 +24,9 @@
 <div class="wrap">
   <nav data-nav data-root="./"></nav>
   <header>
-    <div class="eyebrow"><span data-cfg="eyebrow"></span> · local, file-based, agent-native</div>
+    <div class="eyebrow"><span data-cfg="name">Solo Ops</span> · <span data-cfg="eyebrow"></span> · local, file-based, agent-native</div>
     <div class="title-row">
-      <h1><span data-cfg="name">Solo Ops</span><span class="dot">.</span> <small class="h1-sub">all projects</small></h1>
+      <h1><span id="homeTitle">Your workspaces</span><span class="dot">.</span> <small class="h1-sub" id="homeSub">all projects</small></h1>
       <div class="board-tools">
         <button class="btn primary small" onclick="toggleWsPanel('new')" title="Create a project: pick the apps and boards it includes">+ Project</button>
       </div>
@@ -79,7 +79,7 @@
   <div class="sec-h">Projects <span class="sec-sub" id="projectsSum"></span> <a href="#" onclick="toggleWsPanel('new');return false;">+ New project</a></div>
   <div class="hub-grid" id="projects"></div>
 
-  <div class="sec-h">This week · all projects</div>
+  <div class="sec-h" id="weekHead">This week · all projects</div>
   <div class="today" id="today"></div>
 
   <div class="two-col">
