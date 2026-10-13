@@ -67,6 +67,14 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Minor / issues
 
+- **Backup repo name is not offered.** `node solo.js backup setup` creates
+  `solo-ops-data` unless `--name <name>` is passed, but nothing asks. Offer
+  the name: the `/setup` and `/backup-setup` prompts should ask "private repo
+  name? (default solo-ops-data)" alongside GitHub-or-folder, the Guide's
+  Protect your work option 2 should show the `--name` flag with the copy
+  button, and `backup setup` itself should print the name it is about to
+  create and how to change it before creating.
+
 - **Fresh folder, server running, no data files yet**: every page logs one
   404 per missing data file in the console. Harmless; `serve.js` could answer
   204 for a missing data file instead.
