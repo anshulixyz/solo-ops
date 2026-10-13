@@ -271,7 +271,7 @@
     return { where: 'download', path: name, text: 'Downloaded ' + name };
   }
   function saveFile(name, text, mime) {
-    name = String(name || 'export.json').replace(/[^A-Za-z0-9._-]/g, '-'); text = String(text == null ? '' : text);
+    name = String(name || 'export.json').replace(/[^A-Za-z0-9._-]/g, '-'); var isBlob = typeof Blob !== 'undefined' && text instanceof Blob; if (!isBlob) text = String(text == null ? '' : text);   // a Blob (PNG) goes through as is
     var rel = 'data/exports/' + name; var ok = { where: 'disk', path: rel, text: 'Saved to ' + rel };
     if (mode === 'server') return fetch('/api/export/' + name, { method: 'PUT', headers: { 'Content-Type': mime || 'application/octet-stream' }, body: text }).then(function (r) { if (!r.ok) throw new Error('export failed'); return ok; }).catch(function () { return browserDownload(name, text, mime); });
     if (mode === 'folder' && dataDir) return dataDir.getDirectoryHandle('exports', { create: true }).then(function (d) { return d.getFileHandle(name, { create: true }); }).then(function (fh) { return fh.createWritable(); }).then(function (w) { return w.write(text).then(function () { return w.close(); }); }).then(function () { return ok; }).catch(function () { return browserDownload(name, text, mime); });

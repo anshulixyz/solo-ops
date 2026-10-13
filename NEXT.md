@@ -16,8 +16,18 @@ in step with what you change, and run `node solo.js doctor` plus
 - Backup repo name offered during setup (first item under Minor).
 
 **Should, first week after**
-- *Share today* as an image: a PNG card of today's plan from Home.
-- M1 undo / redo in the browser.
+- ~~*Share today* as an image~~ and ~~Home as a dashboard~~ — shipped 2026-10-13 (see Done).
+- **Last before launch:** README pass — copy for the new Home, Share today and the mono default, fresh screenshots (`docs/screenshots`).
+
+**After launch (moved out of release 1 on 2026-10-13)**
+- M1 undo / redo in the browser. Trimmed first version agreed: a ring of the
+  last 50 steps per browser kept at the one write path (`Store.set`, non-silent
+  writes only, so sync-applied file changes are never steps), labels from
+  Recent changes, one pasted reply = one step; undo writes the previous value
+  back through the same path so the file and the log follow; a toast with
+  Undo after each change, Undo / Redo in the Guide footer, ⌘Z when no field
+  is focused; if the file changed underneath since the step, say so and ask.
+  CLI undo and IndexedDB wait for the full M1.
 
 **After**: M3, M5, M6, M7, the rest of M4. Freeze everything else and spend
 the remaining time on the first-run path.
@@ -143,6 +153,16 @@ QR rendered without a dependency, capture strip and boards usable at
   button, and `backup setup` itself should print the name it is about to
   create and how to change it before creating.
 
+- **From the Home/Share reviews (2026-10-13), not done:** a week-ahead glance
+  (Mon–Sun with dots for meetings and posts) on Home; keyboard shortcuts `n`
+  new task, `/` focus the capture strip; a size toggle on the share card
+  (square only today); Recent changes on Home only knows edits made while a
+  page was open (the file log covers the rest, under *Restore a file*);
+  another origin's theme is applied on first contact (sync.js applies
+  settings.json like any file); Firefox below 127 cannot copy an image, the
+  dialog saves the file instead and says so. The sync pill still says
+  "Synced to data/"; "Saved to your folder" reads better for non-technical
+  users.
 - **Fresh folder, server running, no data files yet**: every page logs one
   404 per missing data file in the console. Harmless; `serve.js` could answer
   204 for a missing data file instead.
@@ -175,6 +195,45 @@ QR rendered without a dependency, capture strip and boards usable at
   retake with `docs/screenshots` script when M2 lands.
 
 ## Done
+
+- 2026-10-13 · Share today + Home as a dashboard (reviewed twice before
+  building). `core/share-card.js`: a 1080×1080 card of today (Doing · Schedule
+  · Next up, titles only, light palette, system fonts, streak only from 7 days)
+  built as SVG, drawn to canvas, **Copy image** (clipboard, Safari-safe),
+  **Copy as text**, **Save as file** into `data/exports/today-<date>.png`
+  (`Sync.saveFile` carries a Blob; `serve.js` accepts png). Same text from
+  `node solo.js share today [--all]`. Home rebuilt around a **Today strip**
+  (date, now / next with "in 2 h", Doing with project chips, overdue · done
+  today · due · meetings · posts this week, quick add with a date at the end
+  via `Quick.addLines`, Share today · Calendar · Plan today), one card per
+  project (Doing or Next, progress, chips) opening `overview.html` (boards,
+  apps, rename / apps / remove — the old "Open project" block), *This week*
+  grouped by project without ids, Recent changes in plain words from the
+  browser's events with the file log folded under *Restore a file*, activity
+  heatmap collapsed, terminal block reduced to a footer line, "project"
+  on every Home label. Home's script moved to `core/home.js` (+ `home.css`),
+  covered by the `node --check` loop. Fixed on the way: a typo in `?ws=`
+  no longer becomes a phantom workspace whose files pages would create;
+  theme writes carry a log note, do not bump activity, and a browser that
+  never chose a theme adopts the file instead of asking; `serve.js` does not
+  log a write that differs only by `updatedAt`; `Guide.openPrompt(slug)`;
+  Share today on the Calendar toolbar and in ⌘K; quick-add activity is
+  credited to the right board. After the post-build reviews: Home registers
+  the open project's boards (a quick add writes the file at once and an
+  agent's edit redraws the strip), the quick add form is static markup so a
+  background re-render never eats what is being typed, priority sorting
+  treats high as high (`rank()`), *Copy as text* is plain text for chats,
+  ended meetings drop off the card and read "ended" on Home, the Overview
+  looks at a project without switching the open one (`data-no-persist` on
+  its nav) and owns Rename / Apps / Remove in place, a deep link to a project
+  the browser has not seen reloads once `workspaces.json` arrives, boards and
+  workspaces files stay restorable. **Mono is the default palette** (owner's
+  call): `solo.config.js`, `theme-boot.js`, the picker order, the sample
+  settings and the CLI default say `mono`; the app icon, favicon, manifest
+  colours and every page's `theme-color` follow (#222222 on #F2F2F2). Warm,
+  paper, forest and dusk stay in the picker; a browser or `settings.json`
+  that already chose a palette keeps it. Project chips keep their own hues
+  (they come from `solo.config.js → projects`, not the theme).
 
 - 2026-10-13 · M8 Calendar + dates. Tasks carry `at` / `until` / `due` / `ext`
   (`core/when.js` parses `tomorrow 14:00`, `fri 10:00`, `+3d 17:30`, zoned

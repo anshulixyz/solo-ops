@@ -94,7 +94,7 @@
   function workspace(id) { return workspaces().filter(function (w) { return w.id === id; })[0] || null; }
   var wsFromUrl = typeof location !== 'undefined' ? slug(new URLSearchParams(location.search).get('ws') || '') : '';
   function activeWs() {
-    if (wsFromUrl && RESERVED.indexOf(wsFromUrl) < 0) return wsFromUrl;
+    if (wsFromUrl && RESERVED.indexOf(wsFromUrl) < 0 && (workspace(wsFromUrl) || !global.Store || Store.get(WS_KEY) == null)) return wsFromUrl;   // a typo in ?ws= must not become a workspace (pages would create its files)
     var saved = global.Store ? Store.get(WS_ACTIVE) : null;
     return (saved && workspace(saved)) ? saved : PRIMARY;
   }
@@ -186,6 +186,7 @@
         var seen = {}, out = [];
         body.workspaces.concat(runtimeWs()).forEach(function (w) { var nw = normWs(w); if (nw && !seen[nw.id]) { seen[nw.id] = 1; out.push(nw); } });
         Store.setJSON(WS_KEY, { workspaces: out }, { silent: true });
+        if (wsFromUrl && wsFromUrl !== activeWs() && workspace(wsFromUrl) && typeof location !== 'undefined') location.reload();   // the link named a project this browser had not seen yet
       }
     });
   }

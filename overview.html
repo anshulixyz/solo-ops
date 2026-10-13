@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="icons/icon.svg?v=mono" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png?v=mono">
+<meta name="theme-color" content="#222222">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Solo Ops">
+<title>Project — Solo Ops</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Lato:wght@400;700&display=swap" rel="stylesheet">
+<script src="solo.config.js"></script>
+<script src="core/theme-boot.js"></script>
+<link rel="stylesheet" href="runway/styles.css">
+<link rel="stylesheet" href="core/theme.css">
+<link rel="stylesheet" href="core/ui.css">
+<link rel="stylesheet" href="core/home.css">
+</head>
+<body data-home-page="overview">
+<div class="wrap">
+  <nav data-nav data-root="./" data-no-persist></nav>
+  <header>
+    <div class="eyebrow"><span data-cfg="name"></span> · one project in detail</div>
+    <div class="title-row">
+      <h1><span id="wsSecTitle">Project</span><span class="dot">.</span> <small class="h1-sub">project</small></h1>
+      <div class="hub-controls" style="margin-left:auto">
+        <span data-sync-pill></span>
+        <button class="theme-btn" onclick="toggleTheme()" title="Toggle light / dark" aria-label="Toggle theme">
+          <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M22 12h-2.5M4.5 12H2M19 5l-1.8 1.8M6.8 17.2 5 19M19 19l-1.8-1.8M6.8 6.8 5 5"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="ov-head"><p class="ov-sum" id="ovSum"></p>
+      <span class="board-tools" style="margin-left:auto">
+        <button class="guide-link" id="wsDeleteBtn" onclick="deleteWs()" style="display:none; color:var(--muted); font-size:12px; margin-right:8px">Remove this project…</button>
+        <a class="btn ghost small" href="index.html">← Home</a>
+        <button class="btn ghost small" onclick="renameWs()">Rename</button>
+        <button class="btn ghost small" onclick="toggleWsPanel('edit')" title="Change which apps this project includes">Apps</button>
+      </span></div>
+  </header>
+
+  <div class="addpanel" id="wsPanel">
+    <div class="addrow" style="align-items:flex-start">
+      <div class="field grow"><label id="wsPanelLabel">New project</label><input id="wsTitleInput" placeholder="Product launch, Business as usual, Side project…"></div>
+      <div class="field"><label>Apps included</label>
+        <div class="ws-apps">
+          <label><input type="checkbox" id="wsAppBoards" checked> Boards</label>
+          <label><input type="checkbox" id="wsAppSocial" checked> <span data-cfg="social.title"></span></label>
+          <label><input type="checkbox" id="wsAppScripts" checked> <span data-cfg="studio.scriptTitle"></span></label>
+          <label><input type="checkbox" id="wsAppWriting" checked> <span data-cfg="studio.writingTitle"></span></label>
+        </div>
+      </div>
+      <div class="field" id="wsBoardsField"><label>Boards (comma-separated)</label><input id="wsBoards" placeholder="Launch runway, Ops"></div>
+      <div class="field" id="wsFromField"><label>Start each app</label><select id="wsFrom"><option value="blank">Blank</option><option value="sample">With sample content</option></select></div>
+      <button class="btn primary" id="wsSubmit" onclick="submitWs()">Create</button>
+    </div>
+    <div class="note" style="margin:6px 0 0">A project (a <em>workspace</em> in the CLI and config) has its own boards, schedule, scripts and notes, each in its own <code>data/</code> file. The nav on every page shows only what the open project includes.</div>
+  </div>
+
+
+  <div class="notice" id="wsUnknown" style="display:none">The link named a project this browser does not know, so the open project is shown instead. <a href="index.html">Home</a></div>
+
+  <div class="sec-h" id="boardsHead">Boards <a id="newBoardLink" href="runway/marathon-board.html#new">+ New board</a></div>
+  <div class="hub-grid" id="boards"></div>
+  <div class="sec-h" id="appsHead">Apps</div>
+  <div class="hub-grid" id="cards"></div>
+
+  <p class="note" id="note">Loading…</p>
+</div>
+
+<script src="core/store.js"></script>
+<script src="core/config.js"></script>
+<script src="core/templates.js"></script>
+<script src="core/prompts.js"></script>
+<script src="core/when.js"></script>
+<script src="core/theme.js"></script>
+<script src="core/sync.js"></script>
+<script src="core/activity.js"></script>
+<script src="core/recent.js"></script>
+<script src="core/palette.js"></script>
+<script src="core/attach.js"></script>
+<script src="inspo/inspo-model.js"></script>
+<script src="core/inspo-quick.js"></script>
+<script src="core/apply.js"></script>
+<script src="core/context.js"></script>
+<script src="core/quick.js"></script>
+<script src="core/guide.js"></script>
+<script src="core/nav.js"></script>
+<script src="core/share-card.js"></script>
+<script src="core/home.js"></script>
+<div class="toast" id="toast"></div>
+</body>
+</html>

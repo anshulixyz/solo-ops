@@ -92,7 +92,7 @@
     /* ---- theme defaults (the Theme button overrides these per browser) --
        mode: 'auto' | 'light' | 'dark'
        palette: 'warm' | 'paper' | 'forest' | 'dusk' | 'mono' */
-    theme: { mode: 'auto', palette: 'warm', font: 'inter' },   // font: inter | system | lato | editorial
+    theme: { mode: 'auto', palette: 'mono', font: 'inter' },   // palette: mono | warm | paper | forest | dusk   // font: inter | system | lato | editorial
 
     /* ---- sync --------------------------------------------------------
        Data files live in data/. `node serve.js` writes them directly;

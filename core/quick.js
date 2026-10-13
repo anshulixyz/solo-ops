@@ -55,7 +55,7 @@
   }
   // lines → tasks in one board of the open workspace (default: its first board)
   function addLines(text, opts) {
-    opts = opts || {}; var w = Config.ws(); var boards = Config.boards(w.id); var b = boards.filter(function (x) { return x.id === opts.board; })[0] || boards[0]; if (!b) return [];
+    opts = opts || {}; var w = (opts.ws && Config.workspace(opts.ws)) || Config.ws(); var boards = Config.boards(w.id); var b = boards.filter(function (x) { return x.id === opts.board; })[0] || boards[0]; if (!b) return [];
     var key = Config.boardKey(b.id, w.id); var file = Config.boardFile(b.id, w.id); var list = Store.getJSON(key, []) || []; var made = [];
     var projects = (Config.get('projects') || []).map(function (p) { return typeof p === 'string' ? p : p.name; });
     String(text || '').split('\n').forEach(function (line) {
@@ -66,7 +66,7 @@
     if (!made.length) return made;
     Store.setJSON(key, list);
     if (global.Sync) { Sync.touch(file); Sync.note(file, 'added ' + made.length + ' task' + (made.length === 1 ? '' : 's') + ': ' + made.map(function (m) { return m.task.title; }).join(', ').slice(0, 100)); }
-    if (global.Activity && Activity.bump) { try { Activity.bump('board'); } catch (e) { /* optional */ } }
+    if (global.Activity && Activity.bump) { try { Activity.bump(b.id); } catch (e) { /* optional */ } }
     refresh(); return made;
   }
   // a task in Doing right now, created from free text (when nothing matches)

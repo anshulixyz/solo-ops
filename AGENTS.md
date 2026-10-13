@@ -105,6 +105,7 @@ remote keeps the block.
    node solo.js import list.md           # bulk: "- [ ] item" lines → tasks
    node solo.js inspo list ; inspo add "https://… #tag" --ws <id> ; inspo use <item> --as task|post|script|note
    node solo.js inspo ai --into tasks    # the inbox as a brainstorm prompt
+   node solo.js share today [--all]      # today as a short card (Doing · Schedule · Next up); the pages copy the same as an image
    node solo.js log ; revert <id>        # see / undo any change (yours included)
    node solo.js prompts builtin          # every Guide prompt; prompts show /standup prints one in full
    node solo.js help                     # everything else
@@ -189,7 +190,10 @@ not fixing? Add it under *Minor / issues* instead of leaving a TODO.
   browser), `activity.js` (daily log), `palette.js` (⌘K), `templates.js`
   (sample data, also `require()`d by the CLI), `prompts.js` (the Guide's
   built-in prompts, also `require()`d by the CLI: one source for the panel,
-  the slash commands and the chat bootstrap). Load order inside a page:
+  the slash commands and the chat bootstrap), `share-card.js` (Share today:
+  model + text shared with the CLI's `share today`, SVG → PNG, the dialog),
+  `home.js` + `home.css` (Home and `overview.html`, one script, two pages:
+  every render step checks its element exists). Load order inside a page:
   `solo.config.js → theme-boot → … → store → config → templates → prompts → theme → sync → activity → palette → app scripts`.
 - Changing a Guide prompt = editing `core/prompts.js`, then
   `node solo.js prompts export && node solo.js prompts export --for cursor && node solo.js prompts export --for chat`

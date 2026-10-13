@@ -1,7 +1,7 @@
 /* core/theme-boot.js — runs in <head> before paint: applies the saved theme
    (or the config default) so there is no flash. Load after solo.config.js. */
 (function () {
-  var mode = 'auto', palette = 'warm', font = 'inter';
+  var mode = 'auto', palette = 'mono', font = 'inter';
   try {
     var cfg = (window.MARATHON_CONFIG && window.MARATHON_CONFIG.theme) || {};
     mode = cfg.mode || mode; palette = cfg.palette || palette; font = cfg.font || font;

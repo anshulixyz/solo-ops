@@ -169,7 +169,7 @@ Never edit by hand; never commit (it is in `.gitignore` via `data/*`).
 
 ## exports/ — files the pages save for you
 
-`data/exports/<name>` holds whatever a page exports: `solo-ops-backup-<stamp>.json`
+`data/exports/<name>` holds whatever a page exports: `today-<date>[-<ws>].png` (Share today, 1080×1080), `solo-ops-backup-<stamp>.json`
 (Guide → Settings → Export everything; a bundle `{ version, exportedAt, files: { "<file>.json": <that file> } }`,
 Import reads it back), `<board>-<stamp>.json` (a board in its file format),
 `runway-<view>-<stamp>.md`, `social-schedule-<date>.json` / `social-backup-<stamp>.json`

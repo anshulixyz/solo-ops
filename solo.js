@@ -434,8 +434,17 @@ function cmdWeek() {
 function latestOf(arr) { return arr.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); })[0]; }
 
 /* ---- share / import ------------------------------------------------------ */
+var SC = safeRequire(path.join(ROOT, 'core', 'share-card.js'));   // Share today: model + text (shared with the pages)
 function cmdShare() {
-  var b = board(); var which = (pos[0] || 'todo').toLowerCase();
+  var which = (pos[0] || 'todo').toLowerCase();
+  if (which === 'today') {   // the card's text version: Doing · Schedule · Next up, titles only
+    if (!SC) fail('core/share-card.js missing');
+    var all = flags.all === true; var tasks = [];
+    (all ? WORKSPACES : [WS]).forEach(function (w) { var wb = boardsOf(w.id); if (!wb.length) wb = [{ id: 'runway' }]; wb.forEach(function (bm) { var bf = read(prefix(w.id) + bm.id); ((bf && bf.tasks) || []).forEach(function (t) { tasks.push(t); }); }); });
+    var m = SC.model({ now: new Date(), scope: all ? 'All projects' : WS.title, tasks: tasks, streak: activitySummary().streak });
+    return out(SC.markdown(m), m);
+  }
+  var b = board();
   var cols = which === 'all' ? COLS : which === 'board' ? ['todo', 'doing', 'done'] : [which];
   if (cols.some(function (c) { return COLS.indexOf(c) < 0; })) fail('Usage: share [todo|doing|done|later|bucket|board|all]');
   var md = ['# ' + boardMeta().title + ' — ' + cols.map(function (c) { return COL_LABEL[c]; }).join(', '), ''];
@@ -948,8 +957,8 @@ function cmdTemplate() {
   out(done, { written: targets });
 }
 function cmdTheme() {
-  var sub = (pos.shift() || 'show').toLowerCase(); var s = read('settings') || { theme: (cfg.theme || { mode: 'auto', palette: 'warm' }) };
-  var palettes = ['warm', 'paper', 'forest', 'dusk', 'mono'], modes = ['auto', 'light', 'dark'], fonts = ['inter', 'system', 'lato', 'editorial'];
+  var sub = (pos.shift() || 'show').toLowerCase(); var s = read('settings') || { theme: (cfg.theme || { mode: 'auto', palette: 'mono' }) };
+  var palettes = ['mono', 'warm', 'paper', 'forest', 'dusk'], modes = ['auto', 'light', 'dark'], fonts = ['inter', 'system', 'lato', 'editorial'];
   if (sub === 'show') return out('theme: mode ' + s.theme.mode + ' · palette ' + s.theme.palette + ' · font ' + (s.theme.font || 'inter') + '\npalettes: ' + palettes.join(', ') + '\nmodes: ' + modes.join(', ') + '\nfonts: ' + fonts.join(', '), s.theme);
   if (sub === 'list') return out(palettes.map(function (p) { return '- ' + p + (p === s.theme.palette ? ' (current)' : ''); }), palettes);
   if (sub === 'set') { var p = (pos[0] || '').toLowerCase(); if (palettes.indexOf(p) < 0) fail('Unknown palette. Pick one of: ' + palettes.join(', ')); s.theme.palette = p; write('settings', s); return out('✓ palette → ' + p + ' (open pages switch within a few seconds)', s.theme); }
@@ -975,7 +984,7 @@ function cmdHelp() {
     'Boards (data/<id>.json — every task command takes --board <id>; default: first board)', '  boards list', '  boards add "Title" [--from blank|sample|<id>]   boards rename <id> "Title"   boards rm <id> --force', '',
     'Tasks', '  list [board|all|todo|doing|done|later|bucket] [--proj X] [--tag Y]', '  show <task>                 full task (id or title fragment)',
     '  add "Title" [--proj X] [--pri high] [--tags a,b] [--col later] [--desc "…"] [--steps "a|b"] [--at <when>] [--until HH:MM] [--due <date>] [--ext <calendar id>]', '  at <task> <when|clear> [--until HH:MM]   due <task> <date|clear>      when = 2026-10-15T14:00 · 2026-10-15 (all day) · tomorrow 14:00 · fri 10:00 · +3d 17:30; a meeting = --tags meeting', '  start|done|later|bucket|todo <task>', '  move <task> <column>        pri <task> <high|medium|low>', '  tag <task> +a -b            step <task> "text"   check|uncheck <task> <n>', '  note <task> ["text"]        edit <task> --title … --proj … --pri …', '  rm <task>', '',
-    'Share', '  share [todo|board|all]      markdown checklist (paste anywhere)', '  import <list.md> [--col]    "- [ ] item" lines become tasks, indented lines become steps', '',
+    'Share', '  share today [--all]         today as a short card: Doing · Schedule · Next up (the page copies it as an image)', '  share [todo|board|all]      markdown checklist (paste anywhere)', '  import <list.md> [--col]    "- [ ] item" lines become tasks, indented lines become steps', '',
     'Posts (data/social.json)', '  social list|next|week|show <post>', '  social add "Title" [--at 2026-10-20T09:00 | +3d 17:30] [--type launch] [--project X] [--copy "…"] [--prep "a|b"]', '  social posted|ready|draft <post> [--url …]   social move <post> <when>', '  social prep <post> "item"   social check <post> <n>   social copy <post> ["text"]   social rm <post>', '',
     'Inspiration (data/inspiration.json — links, ideas, images; tag with a workspace)', '  inspo list [--ws] [--tag x] [--status new|used|archived]   inspo show <item>', '  inspo add [--file <path>] "https://… or an idea #tag" [--ws <id>] [--tags a,b]   inspo tag <item> +a -b   inspo ws <item> <workspace>', '  inspo use <item> --as task|post|script|note [--ws] [--board]   inspo ai [--into tasks] (prompt to paste into an AI)   inspo archive|rm <item>', '',
     'Prompts (built-ins in core/prompts.js, yours in data/prompts.json)', '  prompts builtin [--mode chat|files]   prompts show <title or /slug>   prompts export [--for claude|cursor|codex|chat] [--out dir]', '  prompts list|add "Title" --text "…"|--file p.md [--cat daily] [--desc "…"]|edit <p> …|rm <p>|restore', '',

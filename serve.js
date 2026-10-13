@@ -37,6 +37,9 @@ function safeDataFile(name) {
   return path.join(DATA, name);
 }
 var LOG = path.join(DATA, 'log.jsonl');
+function sameButStamp(a, b) {   // true when two bodies differ only by updatedAt (theme re-saves, first-contact pushes)
+  try { var x = JSON.parse(a), y = JSON.parse(b); delete x.updatedAt; delete y.updatedAt; return JSON.stringify(x) === JSON.stringify(y); } catch (e) { return false; }
+}
 var LOG_MAX = 400, SNAP_MAX = 2 * 1024 * 1024;
 // Append one change record (with the previous content as a snapshot) so any
 // write — page, CLI or agent — can be reverted. Same format as solo.js.
@@ -127,7 +130,7 @@ var server = http.createServer(function (req, res) {
   }
 
   // exports: whole-workspace backups, board files, Markdown, the safety copies made before a destructive action — into data/exports/ instead of ~/Downloads
-  var ex = url.match(/^\/api\/export\/([A-Za-z0-9._-]+\.(json|md|txt|csv))$/);
+  var ex = url.match(/^\/api\/export\/([A-Za-z0-9._-]+\.(json|md|txt|csv|png))$/);
   if (ex) {
     var edir = path.join(DATA, 'exports'); var efile = path.join(edir, ex[1]);
     if (req.method === 'PUT') {
@@ -176,7 +179,7 @@ var server = http.createServer(function (req, res) {
         try { JSON.parse(body); } catch (e) { return json(res, 400, { error: 'invalid json' }); }
         fs.mkdir(DATA, { recursive: true }, function () {
           var prev = ''; try { prev = fs.readFileSync(file, 'utf8'); } catch (e) { /* new file */ }
-          if (prev !== body && !/^(activity|log)\.json$/.test(m[1])) logChange(m[1], prev, req.headers['x-marathon-source'] || 'ui', req.headers['x-marathon-note'] || '');
+          if (prev !== body && !/^(activity|log)\.json$/.test(m[1]) && !sameButStamp(prev, body)) logChange(m[1], prev, req.headers['x-marathon-source'] || 'ui', req.headers['x-marathon-note'] || '');
           fs.writeFile(file, body.replace(/\n?$/, '\n'), 'utf8', function (err) {
             if (err) return json(res, 500, { error: err.code });
             json(res, 200, { ok: true });

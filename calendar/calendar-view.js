@@ -26,6 +26,7 @@
       '<span class="cal-sep"></span>' +
       '<select class="cal-state" onchange="calSetState(this.value)" title="Open, done or everything"><option value="open"' + (u.state === 'open' ? ' selected' : '') + '>Open</option><option value="done"' + (u.state === 'done' ? ' selected' : '') + '>Done</option><option value="all"' + (u.state === 'all' ? ' selected' : '') + '>All</option></select>' +
       (many ? '<label class="cal-all"><input type="checkbox" onchange="calToggleAll(this.checked)"' + (u.all ? ' checked' : '') + '> All projects</label>' : '') +
+      '<button type="button" class="btn small" onclick="calShare()" title="A clean card of today: copy it as an image or text">Share today</button>' +
       '<button type="button" class="btn small cal-addbtn" onclick="calAddOpen()">+ Add</button>' +
       '</div><div id="calAdd"></div>';
   }

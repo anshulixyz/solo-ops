@@ -44,14 +44,15 @@ page is the context around it. Read `AGENTS.md` first if you have not.
 | `38f51d9` | Launch agent without a working directory |
 | `011ef9f`, `ec9915a` | NEXT: repo-name task; Release 1 scope and the M8 design |
 | `4aaae1f` | **M8 Calendar + dates**: `at` / `until` / `due` / `ext` on tasks, `core/when.js`, CLI `add --at`, `at`, `due`, `calendar`, Schedule in `today`; the `calendar/` app (Agenda · Month · filters · tick · + Add); card date chip + popover; dates parsed out of titles everywhere; Home Calendar card; Guide *Bring in* group (`/fill-calendar`, `/plan-today`) |
-| next | Date pickers beside every date field (`core/datepick.js`) |
+| `60c308c` | Date pickers beside every date field (`core/datepick.js`) |
+| next | **Share today + Home as a dashboard** (planned with a UI and a tech reviewer, built, reviewed again): `core/share-card.js`, `core/home.js` + `home.css`, `overview.html`; fixes for the phantom `?ws=`, theme log noise, png exports, `Guide.openPrompt` |
 
 ## Agenda (mirror of NEXT.md → Release 1)
 
 - **Must before launch:** offer the backup repo name during setup
   (`backup setup --name` exists; the prompts and the Guide should ask).
-- **Should, first week:** *Share today* as an image from Home; M1 undo/redo
-  in the browser.
+- **Moved after launch (owner's call, 2026-10-13):** M1 undo/redo in the
+  browser; the trimmed design is written under NEXT.md → Release 1.
 - **Later:** meetings grouped under a strip at the bottom of To Do; Calendar
   Week view, drag to reschedule, now-line, auto-tick ended meetings;
   M3 collaborators, M5 briefing packs, M6 Telegram, M7 phone install.
@@ -94,3 +95,17 @@ page is the context around it. Read `AGENTS.md` first if you have not.
   git-ignored `mine/`.
 - **`.claude/launch.json` is tracked.** Only `marathon` (4321) and
   `marathon-verify` (4399) belong in it.
+- **Home and Overview share `core/home.js`.** Every render step checks that
+  its element exists (`$('id')`), so a section can be dropped from one page
+  without touching the script. Inline `on*` handlers see form controls by
+  id as variables: never give an input the same id as a global handler
+  (that is why the quick add is `homeQuickAdd` + `#qaInput`).
+- **The service worker caches the shell.** After changing a core file the
+  open page shows "New version ready"; reload before judging a fix. After
+  changing `serve.js` restart the server (exports of `.png` need the new
+  regex).
+- **Share today** reads only titles and never writes unless the user
+  presses Save; the card is always the light palette and system fonts
+  (an `<img>`-loaded SVG cannot see web fonts or CSS variables). Section
+  spacing is in `svg()`; `fit()` measures text on a canvas and truncates
+  with an ellipsis because SVG has no wrapping.

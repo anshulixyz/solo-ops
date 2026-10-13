@@ -125,7 +125,7 @@
       { id: 'n2', text: NOTE2, images: {}, createdAt: ts, updatedAt: ts }
     ] };
   }
-  function settings() { return { theme: { mode: 'auto', palette: 'warm' } }; }
+  function settings() { return { theme: { mode: 'auto', palette: 'mono' } }; }
   function inspiration(now) {
     var ts = (now || new Date()).getTime();
     return { items: [

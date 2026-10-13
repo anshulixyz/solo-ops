@@ -105,7 +105,8 @@
     document.body.appendChild(t);
   }
   function init() {
-    Config.setActiveWs(Config.activeWs());
+    var slot0 = document.querySelector('[data-nav]');
+    if (!slot0 || !slot0.hasAttribute('data-no-persist')) Config.setActiveWs(Config.activeWs());   // overview.html looks at a project without switching to it
     var slot = document.querySelector('[data-nav]'); registerSW(slot ? (slot.getAttribute('data-root') || './') : './');
     render();
     if (global.Sync) Sync.on(function (evt, d) { if (evt === 'applied' && d && (d.file === 'boards.json' || d.file === 'workspaces.json')) render(); });

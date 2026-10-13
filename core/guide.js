@@ -306,7 +306,7 @@
       CATS.filter(function (c) { return ASK.indexOf(c[0]) >= 0; }).map(function (c) { var g = all.filter(function (x) { return x.c === c[0] && top.indexOf(x) < 0; }); if (!g.length) return ''; return '<details class="guide-sec" data-cat="' + c[0] + '"' + (open[c[0]] ? ' open' : '') + '><summary><span class="cat-ic">' + I[c[0]] + '</span><b>' + esc(c[1]) + '</b><span class="cat-sub">' + esc(c[2]) + '</span><span class="guide-hint">' + g.length + '</span><button type="button" class="cat-add" data-cat="' + c[0] + '" title="Add my own prompt here">+</button></summary>' + g.map(function (x) { return row(all, x, pg); }).join('') + '<div class="gp-new" data-cat="' + c[0] + '"></div></details>'; }).join('') +
       '<details class="guide-sec" data-cat="about"' + (open.about ? ' open' : '') + '><summary><span class="cat-ic">' + I.moves + '</span><b>This page</b><span class="cat-sub">what it does · shortcuts</span></summary>' + (ABOUT[pg] || []).map(function (x) { return '<p>' + esc(x) + '</p>'; }).join('') + '<p>⌘K commands · ⌘⇧I capture · ? this guide · n add · 1/2/3 board views</p></details>' +
       '<p class="guide-foot-note">Click a prompt to copy it' + (m === 'chat' ? '; it carries a snapshot of this workspace and the reply format, so a fresh chat needs no setup' : m === 'files' ? '; it tells the agent what to read and change. The same prompts are slash commands in Claude Code and Cursor (/standup, /week, /now…)' : '') + '. ✎ edits a prompt, + adds your own.</p>';
-    bindList(all);
+    bindList(all); focusPending(all);
     Array.prototype.forEach.call(el.querySelectorAll('details.guide-sec[data-cat]'), function (d) { d.addEventListener('toggle', function () { var o = openCats(); o[d.dataset.cat] = d.open; Store.setJSON(CAT_KEY, o, { silent: true }); }); });
     renderMoves(all);
   }
@@ -535,5 +535,17 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountHandle); else mountHandle();
   // ?guide=quick|ask|reply|settings (old names still work) opens the panel on load (used for screenshots and deep links)
   (function () { var g = new URLSearchParams(location.search).get('guide'); if (!g) return; if (['moves', 'prompts', 'apply', 'setup', 'do', 'quick', 'ask', 'reply', 'settings'].indexOf(g) >= 0) Store.set(TAB_KEY, TAB_MAP[g] || g, { silent: true }); if (!Store.get(MODE_KEY)) Store.set(MODE_KEY, 'chat', { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); setTimeout(open, 400); })();
-  global.Guide = { open: open, close: close, toggle: toggle, snapshot: snapshot, mode: mode };
+  // open the panel on a prompt card by slug (falls back to the Ask tab when the page does not list it)
+  var pendingSlug = null;
+  function focusPending(all) {   // after every list render while a slug is pending (open() re-renders when the backup status and folder arrive)
+    if (!pendingSlug || !panel) return; var x = all.filter(function (p) { return p.slug === pendingSlug; })[0]; if (!x) { pendingSlug = null; return; }
+    var card = panel.querySelector('.guide-prompt[data-i="' + all.indexOf(x) + '"]'); if (!card) return;
+    var det = card.closest('details'); if (det && !det.open) det.open = true;
+    card.scrollIntoView({ block: 'center' }); card.classList.add('flash');
+  }
+  function openPrompt(slug) {
+    Store.set(TAB_KEY, 'ask', { silent: true }); query = ''; pendingSlug = slug; open();
+    setTimeout(function () { pendingSlug = null; var f = panel && panel.querySelector('.guide-prompt.flash'); if (f) f.classList.remove('flash'); }, 2500);
+  }
+  global.Guide = { open: open, close: close, toggle: toggle, snapshot: snapshot, mode: mode, openPrompt: openPrompt };
 })(window);

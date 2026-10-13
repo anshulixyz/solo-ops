@@ -23,6 +23,12 @@
   global.calToday = function () { var n = new Date(); state.y = n.getFullYear(); state.m = n.getMonth(); render(); };
   global.calDone = function (idx, done) { var i = CalView.items()[idx]; if (!i) return; if (CalModel.setDone(i, done)) toast((done ? (i.kind === 'post' ? 'Posted: ' : 'Done: ') : 'Reopened: ') + i.title); render(); };
   global.calAddOpen = function (day) { state.addDay = day || ''; render(); };
+  // Share today: this project's tasks from the browser copy (every board here is registered, so it is current)
+  global.calShare = function () {
+    if (!global.ShareCard) return; var w = Config.ws(); var tasks = [];
+    Config.boards(w.id).forEach(function (b) { (Store.getJSON(Config.boardKey(b.id, w.id), []) || []).forEach(function (t) { tasks.push(t); }); });
+    ShareCard.open({ scopes: [{ id: w.id, title: w.title }], streak: global.Activity ? Activity.summary().streak : 0, data: function () { return { scope: w.title, tasks: tasks }; }, onPlan: function () { if (global.Guide && Guide.openPrompt) Guide.openPrompt('plan-today'); } });
+  };
   global.calAddClose = function () { state.addDay = undefined; render(); };
   global.calAddSubmit = function (form) {
     var title = form.title.value.trim(); var whenTxt = form.when.value.trim(); var kind = form.kind.value; var untilTxt = (form.until && form.until.value || '').trim(); var board = form.board ? form.board.value : '';
@@ -66,6 +72,7 @@
         { label: 'Agenda view', hint: 'calendar', run: function () { global.calSetView('agenda'); } },
         { label: 'Month view', hint: 'calendar', run: function () { global.calSetView('month'); } },
         { label: 'Add a meeting', hint: 'calendar', keywords: 'new event time', run: function () { global.calAddOpen(''); } },
+        { label: 'Share today', hint: 'calendar', keywords: 'image card copy png', run: function () { global.calShare(); } },
         { label: 'Today', hint: 'calendar', run: global.calToday },
         { label: 'Posting streak', hint: 'nav', run: function () { location.href = '../social/social-calendar.html?ws=' + encodeURIComponent(Config.activeWs()) + '#streak'; } }
       ]);

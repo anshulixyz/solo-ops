@@ -8,11 +8,12 @@
 
   var KEY = 'marathon.theme';
   var PALETTES = [
+    { id: 'mono', label: 'Mono', sw: ['#F2F2F2', '#222222'] },
     { id: 'warm', label: 'Warm', sw: ['#F4F1EA', '#CC6B4A'] },
     { id: 'paper', label: 'Paper', sw: ['#F3F4F6', '#4F5BD5'] },
     { id: 'forest', label: 'Forest', sw: ['#EEF2EA', '#3F7A4E'] },
     { id: 'dusk', label: 'Dusk', sw: ['#F0EEF5', '#7A4E8C'] },
-    { id: 'mono', label: 'Mono', sw: ['#F2F2F2', '#222222'] }
+
   ];
   var MODES = ['auto', 'light', 'dark'];
   // body/heading families — the same ones people already read all day
@@ -30,7 +31,7 @@
     t = t || {};
     return {
       mode: MODES.indexOf(t.mode) >= 0 ? t.mode : 'auto',
-      palette: PALETTES.some(function (p) { return p.id === t.palette; }) ? t.palette : 'warm',
+      palette: PALETTES.some(function (p) { return p.id === t.palette; }) ? t.palette : 'mono',
       font: FONTS.some(function (f) { return f.id === t.font; }) ? t.font : 'inter'
     };
   }
@@ -51,6 +52,7 @@
   function set(partial, opts) {
     cur = normalize({ mode: partial.mode || cur.mode, palette: partial.palette || cur.palette, font: partial.font || cur.font });
     Store.setJSON(KEY, cur, opts);
+    if (global.Sync && !(opts && opts.silent)) Sync.note('settings.json', 'theme: ' + cur.mode + ' · ' + cur.palette + ' · ' + cur.font);
     apply();
     if (pop) renderPop();
   }
@@ -115,7 +117,7 @@
     // mirror to data/settings.json when sync is present
     if (global.Sync) {
       Sync.register({
-        file: 'settings.json', key: KEY, label: 'settings',
+        file: 'settings.json', key: KEY, label: 'settings', activity: false, isFresh: function () { return Store.get(KEY) == null; },
         read: function () { return { theme: cur }; },
         apply: function (body) { if (body && body.theme) set(body.theme, { silent: true }); }
       });
