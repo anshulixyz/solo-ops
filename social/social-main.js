@@ -283,15 +283,18 @@
     });
   };
 
+  // data/exports/ when the server runs or the folder is linked, a download otherwise (core/sync.js)
+  function saveJson(name, json) {
+    if (global.Sync && Sync.saveFile) return Sync.saveFile(name, json, 'application/json');
+    var blob = new Blob([json], { type: 'application/json' }); var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name; a.click(); URL.revokeObjectURL(a.href);
+    return Promise.resolve({ where: 'download', path: name, text: 'Downloaded ' + name });
+  }
   global.exportState = function () {
     SocialModel.exportBundle().then(function (json) {
-      var blob = new Blob([json], { type: 'application/json' });
-      var a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'social-schedule-' + new Date().toISOString().slice(0, 10) + '.json';
-      a.click();
-      URL.revokeObjectURL(a.href);
-      flash('Saved — posts + images included.');
+      return saveJson('social-schedule-' + new Date().toISOString().slice(0, 10) + '.json', json);
+    }).then(function (r) {
+      flash((r.where === 'disk' ? 'Saved to ' + r.path : 'Downloaded') + ' — posts + images included.');
     }).catch(function (e) {
       alert('Export failed: ' + e.message);
     });
@@ -316,26 +319,24 @@
 
   // Destructive: a backup downloads first (same as the task board).
   global.loadTemplate = function () {
-    if (!confirm('Load the sample posting arc?\n\nYour current schedule will be replaced. A backup file (with images) is downloaded first.')) return;
+    var onDisk = global.Sync && Sync.exportsOnDisk && Sync.exportsOnDisk();
+    if (!confirm('Load the sample posting arc?\n\nYour current schedule will be replaced. A backup file (with images) is ' + (onDisk ? 'saved to data/exports/' : 'downloaded') + ' first.')) return;
     SocialModel.exportBundle().then(function (json) {
-      var blob = new Blob([json], { type: 'application/json' });
-      var a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'social-backup-' + new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-') + '.json';
-      a.click(); URL.revokeObjectURL(a.href);
+      return saveJson('social-backup-' + new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-') + '.json', json);
+    }).then(function (r) {
       SocialModel.reset();
       selectedId = SocialModel.getSorted()[0] ? SocialModel.getSorted()[0].id : null;
-      flash('Sample schedule loaded — backup downloaded.');
+      flash('Sample schedule loaded — backup ' + (r.where === 'disk' ? 'in ' + r.path : 'downloaded') + '.');
       render();
     });
   };
   global.clearBoard = function () {
-    if (!confirm('Start with an empty schedule?\n\nA backup file is downloaded first.')) return;
+    var onDisk2 = global.Sync && Sync.exportsOnDisk && Sync.exportsOnDisk();
+    if (!confirm('Start with an empty schedule?\n\nA backup file is ' + (onDisk2 ? 'saved to data/exports/' : 'downloaded') + ' first.')) return;
     SocialModel.exportBundle().then(function (json) {
-      var blob = new Blob([json], { type: 'application/json' });
-      var a = document.createElement('a');
-      a.href = URL.createObjectURL(blob); a.download = 'social-backup.json'; a.click(); URL.revokeObjectURL(a.href);
-      SocialModel.replaceAll([]); selectedId = null; flash('Schedule cleared — backup downloaded.'); render();
+      return saveJson('social-backup-' + new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-') + '.json', json);
+    }).then(function (r) {
+      SocialModel.replaceAll([]); selectedId = null; flash('Schedule cleared — backup ' + (r.where === 'disk' ? 'in ' + r.path : 'downloaded') + '.'); render();
     });
   };
 

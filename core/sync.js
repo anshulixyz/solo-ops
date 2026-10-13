@@ -222,7 +222,7 @@
         if (same || spec.merge || fresh) { applyBody(spec, parsed); lastSeen[spec.file + ':stamp'] = parsed.updatedAt; return; }
         // Real content on both sides and no way to tell which is newer: ask,
         // and download whichever side loses so nothing is unrecoverable.
-        var useFile = confirm('data/' + spec.file + ' differs from the copy in this browser.\n\nOK = load the file (the browser copy downloads as a backup)\nCancel = keep the browser copy' + (writable ? ' and overwrite the file (the file downloads as a backup)' : ''));
+        var useFile = confirm('data/' + spec.file + ' differs from the copy in this browser.\n\nOK = load the file (the browser copy is saved as a backup' + (writable ? ' in data/exports/' : '') + ')\nCancel = keep the browser copy' + (writable ? ' and overwrite the file (the file is saved as a backup in data/exports/)' : ''));
         if (useFile) { download(spec.file, true); applyBody(spec, parsed); lastSeen[spec.file + ':stamp'] = parsed.updatedAt; return; }
         if (writable) { downloadRaw(spec.file.replace(/\.json$/, '') + '.file-backup-' + now().slice(0, 16).replace(/[:T]/g, '-') + '.json', parsed); }
         setMeta(spec.file, now());
@@ -260,19 +260,28 @@
   function startPolling() { stopPolling(); pollTimer = setInterval(poll, cfg.pollMs || 3000); }
   function stopPolling() { if (pollTimer) clearInterval(pollTimer); pollTimer = null; }
 
-  /* ---- manual mode helpers (Save / Load file) --------------------------- */
-  function downloadRaw(name, obj) {
-    var blob = new Blob([JSON.stringify(obj, null, 2) + '\n'], { type: 'application/json' });
+  /* ---- saving a file the user asked for (export, backup before a destructive action) ----
+     Server or linked folder: it lands in data/exports/<name>, next to the data it
+     came from, where the CLI, backups and agents can see it. Anywhere else it
+     downloads. Resolves { where: 'disk' | 'download', path, text }. */
+  function browserDownload(name, text, mime) {
+    var blob = new Blob([text], { type: mime || 'application/octet-stream' });
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
     document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+    return { where: 'download', path: name, text: 'Downloaded ' + name };
   }
+  function saveFile(name, text, mime) {
+    name = String(name || 'export.json').replace(/[^A-Za-z0-9._-]/g, '-'); text = String(text == null ? '' : text);
+    var rel = 'data/exports/' + name; var ok = { where: 'disk', path: rel, text: 'Saved to ' + rel };
+    if (mode === 'server') return fetch('/api/export/' + name, { method: 'PUT', headers: { 'Content-Type': mime || 'application/octet-stream' }, body: text }).then(function (r) { if (!r.ok) throw new Error('export failed'); return ok; }).catch(function () { return browserDownload(name, text, mime); });
+    if (mode === 'folder' && dataDir) return dataDir.getDirectoryHandle('exports', { create: true }).then(function (d) { return d.getFileHandle(name, { create: true }); }).then(function (fh) { return fh.createWritable(); }).then(function (w) { return w.write(text).then(function () { return w.close(); }); }).then(function () { return ok; }).catch(function () { return browserDownload(name, text, mime); });
+    return Promise.resolve(browserDownload(name, text, mime));
+  }
+  function downloadRaw(name, obj) { return saveFile(name, JSON.stringify(obj, null, 2) + '\n', 'application/json'); }
   function download(file, asBackup) {
-    var spec = specFor(file); if (!spec) return;
-    var obj = body(spec);
-    var blob = new Blob([JSON.stringify(obj, null, 2) + '\n'], { type: 'application/json' });
-    var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = asBackup ? file.replace(/\.json$/, '') + '.backup-' + new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-') + '.json' : file;
-    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+    var spec = specFor(file); if (!spec) return Promise.resolve(null);
+    var name = asBackup ? file.replace(/\.json$/, '') + '.backup-' + new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-') + '.json' : file;
+    return saveFile(name, JSON.stringify(body(spec), null, 2) + '\n', 'application/json');
   }
   // Accepts the data/ wrapper or a bare legacy export; returns the wrapper.
   function unwrap(parsed, arrayKey) {
@@ -361,7 +370,7 @@
   global.Sync = {
     register: register, mount: mount, on: function (fn) { listeners.push(fn); },
     linkFolder: linkFolder, unlink: unlink, reconnect: reconnect, pullAll: pullAll,
-    download: download, unwrap: unwrap, fsSupported: fsSupported,
+    download: download, saveFile: saveFile, exportsOnDisk: function () { return mode === 'server' || mode === 'folder'; }, unwrap: unwrap, fsSupported: fsSupported,
     // mark a file's browser copy as just changed (pages that write another
     // app's key, e.g. Home's Start blank, call this so the file is overwritten
     // instead of winning on first contact)

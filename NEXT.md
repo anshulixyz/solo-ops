@@ -45,6 +45,9 @@ in the log, a "mine / theirs" filter on Home, conflict rule when both push
 Nothing to build in Solo Ops beyond prompts: "take my last 20 emails and
 make tasks", "put this week's calendar as posts". Add a *Bring in* category
 to the Guide with 4–5 such prompts, and document the pattern in AGENTS.md.
+*Turn this conversation into tasks* (`/capture`) is the first of these.
+Also wanted: an *Across all my projects* weekly prompt, which needs a
+cross-workspace context token.
 
 ### M5 · Briefing packs — `node solo.js brief --for <role>`
 A filtered snapshot (this workspace, open work only), AGENTS.md, the role's
@@ -96,6 +99,31 @@ QR rendered without a dependency, capture strip and boards usable at
   retake with `docs/screenshots` script when M2 lands.
 
 ## Done
+
+- 2026-10-13 · Privacy hard line + first run: `node solo.js guard [--install]`
+  refuses commits that stage `data/`, exports or personal prompts (pre-commit
+  hook); AGENTS.md *Privacy boundary* and *First run* sections; `/setup`
+  prompt (asks three questions, then doctor → name → sample or plan → serve →
+  week → private backup → guard); `today`/`week`/`doctor` say what to do next
+  on an empty install.
+
+- 2026-10-13 · Exports land in `data/exports/` (server `PUT /api/export/<name>`,
+  linked folder via `Sync.saveFile`) instead of the browser's download folder:
+  Export everything, board JSON + Markdown, the social bundle, and the safety
+  copies before Load template / Clear / first-contact conflicts. Download stays
+  the fallback on plain `file://`.
+
+- 2026-10-13 · Guide prompts rebuilt from one source (`core/prompts.js`, shared
+  with the CLI). Chat-mode prompts carry the reply format, so a fresh ChatGPT
+  or Claude tab needs no setup; *Set up this chat* / *Set up this folder* in
+  Settings; command-mode prompts name the folder path (server `/api/ping`,
+  `file://` pathname). New: I'm stuck, Plan the week / Close the week,
+  Am I overcommitted?, Cut scope to ship by a date, Turn this conversation
+  into tasks, Post about what I just shipped, Repurpose this, Ten hooks for
+  this; Safety prompts moved to Settings. `node solo.js prompts builtin |
+  show | export [--for claude|cursor|codex|chat]`: every prompt is a slash
+  command in `.claude/commands/` and `.cursor/commands/` (the user's own in a
+  git-ignored `mine/`). `{{shipped}}` context token. `core/test-prompts.js`.
 
 - 2026-10-12 · Nothing in `data/` is tracked any more (only SCHEMA.md); sample
   content comes from templates. Fixed: the Script and Writing viewers applied

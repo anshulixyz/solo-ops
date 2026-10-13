@@ -1,8 +1,9 @@
 /* =========================================================================
    core/guide.js — the Guide panel: how to run Solo Ops with your AI agent.
-   • Agent mode: "runs commands" (Claude Code, Cursor, Claude Desktop with
-     the folder) or "chat only" (ChatGPT, Claude.ai). Chat mode packs a
-     snapshot of your data into every prompt and asks for commands back.
+   • Built-in prompts live in core/prompts.js (shared with the CLI, which
+     exports them as slash commands). Agent mode: "runs commands" (Claude
+     Code, Cursor, Codex) or "chat only" (ChatGPT, Claude.ai). Chat mode packs
+     a snapshot of your data and the reply format into every prompt.
    • Paste the reply → Apply (core/apply.js) updates boards, posts, scripts,
      notes and inspiration right here. No terminal needed.
    • Tabs by intent: Quick (five-second actions across all projects, no
@@ -66,73 +67,27 @@
     return L.join('\n');
   }
 
-  /* ---- prompts -------------------------------------------------------- */
-  // Each prompt: title, one-line "does", category, pages where it is top, body builder.
-  // {read} = how the agent gets data (command in files mode, snapshot in chat mode)
-  // {write} = how it should act (run commands / reply with commands)
+  /* ---- prompts: built-ins come from core/prompts.js (shared with the CLI) ---- */
+  var srvFolder = null;   // absolute path of the Solo Ops folder from /api/ping (server mode); '' = unknown
+  function folder() {
+    if (srvFolder) return srvFolder;
+    if (location.protocol === 'file:') { try { var p = decodeURIComponent(location.pathname).replace(/[^/]*$/, ''); var up = (root().match(/\.\.\//g) || []).length; for (var i = 0; i < up; i++) p = p.replace(/[^/]+\/$/, ''); return p.replace(/\/$/, ''); } catch (e) { return ''; } }
+    return '';
+  }
+  function fetchFolder() {
+    if (srvFolder !== null || !global.Sync || Sync.getMode() !== 'server') return Promise.resolve(false);
+    return fetch('/api/ping', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { srvFolder = (j && j.folder) || ''; return !!srvFolder; }).catch(function () { srvFolder = ''; return false; });
+  }
+  function opts() { var w = Config.ws(); var boards = Config.boards(w.id); return { title: w.title, id: w.id, board: boards[0] ? boards[0].id : 'runway', mode: mode() === 'files' ? 'files' : 'chat', folder: folder() }; }
   function prompts() {
-    var w = Config.ws(); var id = w.id; var boards = Config.boards(id); var b = boards[0] ? boards[0].id : 'runway';
-    var files = mode() === 'files';
-    var head = 'You are my operations partner for my Solo Ops workspace "' + w.title + '" (id ' + id + '). ' +
-      (files ? 'The data lives in data/*.json in this folder and the CLI is `node solo.js` (read AGENTS.md first). Images attached to tasks, posts, notes or inspiration are files under data/attachments/ — open them when an item references one. Use `--ws ' + id + ' --as agent --note "what you changed"` on every write.'
-             : 'I cannot run commands, so: read the snapshot I paste, think, and reply with the exact changes as `node solo.js …` command lines in ONE code block at the end (add / done / start / move / pri / step / social add / social copy / scripts add / notes add). I will paste that block back into the app and it applies them. Keep titles short, no ids for new items. When an item mentions an image or link that matters, ask me to upload or paste it before deciding.') + '\n\n';
-    var read = function (cmd, label) { return files ? 'Run `node solo.js ' + cmd + '`' : 'Here is my current ' + (label || 'state') + ' (snapshot below)'; };
-    var tail = files ? '' : '\n\nSNAPSHOT:\n{{snapshot}}';
-    var list = [
-      // daily
-      { c: 'daily', t: 'Daily standup', d: 'Three questions, then the board is updated and you have a plan for today.', pages: ['home', 'board'],
-        p: head + read('today --ws ' + id, 'situation') + '. Run a standup with me: ask (1) what I finished since yesterday, (2) the ONE thing today is about, (3) what is blocking me. Wait for my answers. Then update the board (done / start / note / step as needed), and give me today\'s plan: max 3 items, in order, each with what "done" looks like.' + tail },
-      { c: 'daily', t: 'What should I do right now?', d: 'Picks the single smallest next step and starts it.', pages: ['home', 'board'],
-        p: head + read('today --ws ' + id, 'situation') + '. Pick the single smallest next step that moves the highest-priority Doing task (or the top To Do if nothing is in Doing). Tell me what "done" looks like for it, how long it should take, and start it (`start`).' + tail },
-      { c: 'daily', t: 'Wrap up the day', d: 'Logs what happened, parks what slipped, sets up tomorrow.', pages: ['home', 'board'],
-        p: head + read('today --ws ' + id, 'situation') + '. Wrap up my day: ask me what actually got done and what did not. Mark done / add notes, move anything stale out of Doing, and leave exactly one task in Doing for tomorrow morning with its first step written.' + tail },
-      // weekly
-      { c: 'weekly', t: 'Review my week', d: 'Five-line summary, then concrete moves you approve one by one.', pages: ['home', 'board', 'social'],
-        p: head + read('week --ws ' + id + ' --json', 'week') + '. Give me: (1) a five-line summary — doing, high and untouched, posts due with open prep, anything overdue, idle time; (2) three concrete moves; (3) after I approve, apply them.' + tail },
-      { c: 'weekly', t: 'Retro + plan next week', d: 'What shipped, what slipped, then next week set up.', pages: ['home'],
-        p: head + read('week --ws ' + id + ' --json' + (files ? '` and `node solo.js log --n 100 --json' : ''), 'week') + '. Retro: what shipped, what slipped and why, where the idle gaps were. Then plan next week: move stale To Do to Later, keep max 3 in Doing, schedule the posts, split anything bigger than a day into steps. Show the plan, apply after I confirm.' + tail },
-      // projects
-      { c: 'projects', t: 'Plan a project from scratch', d: 'Asks 5 questions, then builds boards, tasks and a posting arc.', pages: ['home'],
-        p: head + 'I am starting "' + w.title + '". Goal: <goal in one sentence>. Deadline: <deadline>. Ask me at most 5 questions, then create: the boards I need (' + (files ? '`boards add`' : 'tell me their names and I will add them') + '), 10–20 tasks in priority order with steps, and a 2-week posting arc (`social add`). Keep it realistic for one person.' + tail },
-      { c: 'projects', t: 'Add tasks from this list', d: 'Turns a pasted list into tasks with priority and steps.', pages: ['home', 'board'],
-        p: head + 'Turn the list below into tasks on board "' + b + '". One task per line, high priority for anything blocking, steps when a line has obvious sub-steps, tags from the content.\n\nLIST:\n<paste your list — one item per line>', block: 'paste your list — one item per line' },
-      { c: 'projects', t: 'Break this task into steps', d: 'The last task you touched becomes 3–7 concrete steps.', pages: ['board'],
-        p: head + 'Break this task into 3–7 concrete steps, each finishable in under an hour, first step something I can start in 5 minutes. Add them with `step`, and if the task is too big for a week, say so and propose the split.\n\n{{last_task}}' },
-      { c: 'content', t: 'Improve what is open', d: 'The script, draft or post on this page — tightened, with changes marked.', pages: ['scripts', 'writing', 'social'],
-        p: 'Below is what I am working on. Tighten it: stronger first line, shorter sentences, cut anything that does not earn its place. Return the full text; for a draft keep the ~~/++ markup so I can see changes; for a script keep the # / ## structure.\n\n{{this}}' },
-      { c: 'projects', t: 'Clean up the board', d: 'Stale, duplicate or vague tasks get fixed or parked.', pages: ['board', 'home'],
-        p: head + read('list all --ws ' + id, 'board') + '. Find tasks that are stale (no progress, in Doing too long), duplicates, or too vague to start. Propose: park to Later, merge, rewrite the title, or delete (ask me before deleting). Apply what I approve.' + tail },
-      // content
-      { c: 'content', t: 'Draft next week\'s posts', d: 'Writes copy for every post that has none.', pages: ['social', 'home'],
-        p: head + read('social week --ws ' + id + ' --json', 'schedule') + '. Draft copy for every post without copy: ≤ 240 characters, first line is the hook, plain words, no hashtags, no hype. ' + (files ? 'Write each with `social copy ID "…"`.' : 'Reply with `social copy ID "…"` lines.') + ' Then list what still needs prep.' + tail },
-      { c: 'content', t: 'Write a script from an idea', d: 'A 45–60s short-form script, saved to the Script Viewer.', pages: ['scripts', 'inspo'], go: 'scripts',
-        p: head + 'Write a 45–60s short-form script about: <idea>. Structure: # Title · ## Hook (one line, under 2 seconds) · ## Script (5–7 numbered beats, one idea each, spoken language) · ## Inserts (what is on screen per beat) · ## Prep (checklist). ' + (files ? 'Save it with `node solo.js scripts add "the title" --file script.md --ws ' + id + '`.' : 'Reply with the line `scripts add "the title"` followed by the script in a ``` code block.') + ' Then I open it in the Script Viewer.' },
-      { c: 'content', t: 'Edit this draft using my notes', d: 'Does what the [[notes]] ask, returns the text with changes marked.', pages: ['writing'], go: 'writing',
-        p: 'Below is a draft with my markup: ~~remove~~, ++add++, [[instruction for you]]. Do exactly what the [[notes]] ask, keep everything else, and return the full text using the same ~~/++ markup so I can see what changed. No commentary.\n\nDRAFT:\n<paste the draft>', block: 'paste the draft', prefill: function () { var e = document.getElementById('writingInput'); return e ? e.value : ''; } },
-      { c: 'content', t: 'Assess new inspiration', d: 'Everything saved since last time: what it is, tags, and what it should become.', pages: ['inspo', 'home'], reviews: true,
-        p: head + 'Below is what I saved since my last assessment. For each item: one line on what it is and why I probably saved it, 2–3 tags to add, and what it should become — task (which board), post, script, draft, or keep as reference. Reply with `inspo tag ID +tag +tag` lines for the tags' + (files ? ' (run them)' : '') + ', then a short table of your suggestions. I will pick which become work.\n\n{{inspiration_new}}' },
-      { c: 'content', t: 'Turn inspiration into work', d: 'Each saved link or idea becomes a task, post, script or draft — or is skipped.', pages: ['inspo', 'home'],
-        p: head + read('inspo list --ws ' + id, 'inbox') + '. For each inspiration item decide: task (which board), post, script, draft, or skip, in a short table. After I confirm, ' + (files ? 'run `inspo use ID --as task|post|script|note` for each so the link back is kept.' : 'reply with `add` / `social add` / `scripts add` / `notes add` lines for the ones I confirmed.') + tail },
-      { c: 'content', t: 'Brainstorm 10 post ideas', d: 'Ideas grounded in what you are actually building this week.', pages: ['social', 'inspo', 'home'],
-        p: head + read('week --ws ' + id + ' --json', 'week') + '. From what I am building and shipping, give me 10 post ideas: 5 build-in-public, 3 lessons, 2 asks. One line each, with the hook. Then schedule the 3 I pick with `social add`, spaced 2 days apart from tomorrow 9:00.' + tail },
-      { c: 'daily', t: 'Talk through what I just did', d: 'Your last 10 changes with full context — for a second opinion or the next step.', pages: ['home', 'board', 'social', 'scripts', 'writing', 'inspo'],
-        p: head + 'Below is what I just did, newest first, with the current state of each item. Tell me (1) anything that looks like a mistake or a loose end, (2) the single next step, (3) what to leave alone. Short.\n\n{{recent}}' },
-      // fix
-      { c: 'fix', t: 'Set up a private backup on GitHub', d: 'Your data folder as its own private repo, pushed daily. Nothing public.', pages: ['home'],
-        p: (files ? head : '') + 'Set up a private backup of my Solo Ops data. In the Solo Ops folder, `data/` holds everything (JSON files + data/attachments/) and is git-ignored by the main repo on purpose. Steps: (1) create a PRIVATE GitHub repo called solo-ops-data (`gh repo create solo-ops-data --private` if gh is available, otherwise tell me to create it on github.com and give you the SSH URL); (2) run `node solo.js backup --remote <the repo URL>` — it initialises a git repo inside data/, commits everything and pushes; (3) add a daily job that runs `node solo.js backup` (launchd on macOS, cron elsewhere, or a GitHub-free alternative if I prefer: a scheduled copy to iCloud/Dropbox). Show me each command before running it, and confirm the repo is private.' },
-      { c: 'fix', t: 'Back up now', d: 'Commit and push the data folder.', pages: ['home'],
-        p: (files ? head : '') + 'Run `node solo.js backup` in my Solo Ops folder and tell me what was committed and whether the push succeeded. If no remote is set, say so and offer to set one up privately.' },
-      { c: 'fix', t: 'Restore from backup', d: 'Bring the data folder back from the private repo or a backup file.', pages: ['home'],
-        p: (files ? head : '') + 'I need to restore my Solo Ops data. Options: (a) from the private repo: in the Solo Ops folder run `node solo.js backup --status` to see the repo, then `git -C data log --oneline -20` and check out the version I point at; (b) from an exported backup file: tell me to open any page → Guide → Settings → Import. Before changing anything, back up the current data/ (`node solo.js backup` or a copy of the folder) and show me what will change.' },
-      { c: 'fix', t: 'Undo what the agent just did', d: 'Every change is logged; this reverts the last agent step.', pages: ['home'],
-        p: files ? head + 'Run `node solo.js log --n 10`, show me the entries with source "agent", and revert the ones I point at with `node solo.js revert ID`. Confirm each.' : 'No prompt needed: open Home → Recent changes and click Revert on the step (works when `node serve.js` is running). From the terminal: `node solo.js log` then `node solo.js revert ID`.' }
-    ];
+    var P = global.MARATHON_PROMPTS; var o = opts(); var files = o.mode === 'files';
+    var list = P ? P.build(o) : []; var head = P ? P.head(o) : ''; var tail = P ? P.tail(o, { snap: true, writes: true }) : '';
     // your edits (data/prompts.json): overrides of built-ins, hidden built-ins, your own prompts
     var ps = pstore();
-    list.forEach(function (x) { x.builtin = true; var o = ps.overrides[x.t]; if (o) { if (o.d) x.d = o.d; if (o.p) x.p = o.p; x.overridden = true; } });
+    list.forEach(function (x) { var ov = ps.overrides[x.t]; if (ov) { if (ov.d) x.d = ov.d; if (ov.p) x.p = ov.p; x.overridden = true; } });
     list = list.filter(function (x) { return ps.hidden.indexOf(x.t) < 0; });
     ps.custom.forEach(function (c) { list.push({ c: c.c || 'projects', t: c.t || 'My prompt', d: c.d || '', p: c.p || '', pages: c.pages || [], custom: true, id: c.id, go: c.go }); });
-    list.forEach(function (x) { x.p = x.p.split('{{head}}').join(head); if (!files && (x.custom || x.overridden) && x.p.indexOf('{{snapshot}}') < 0 && x.p.indexOf('{{recent}}') < 0) x.p += tail; });
+    list.forEach(function (x) { x.p = x.p.split('{{head}}').join(head); if (!files && (x.custom || x.overridden) && x.p.indexOf('{{snapshot}}') < 0 && x.p.indexOf('{{recent}}') < 0 && x.p.indexOf('HOW TO REPLY') < 0) x.p += tail; });
     return list;
   }
   var I = {
@@ -153,7 +108,8 @@
     search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
     link: '<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>'
   };
-  var CATS = [['daily', 'Daily', 'standup · now · wrap up'], ['weekly', 'Weekly', 'review · retro'], ['projects', 'Projects', 'plan · tasks · clean'], ['content', 'Content', 'posts · scripts · drafts'], ['fix', 'Safety', 'undo · backups']];
+  var CATS = (global.MARATHON_PROMPTS || {}).CATS || [['daily', 'Daily', ''], ['weekly', 'Weekly', ''], ['projects', 'Projects', ''], ['content', 'Content', ''], ['setup', 'Set up', ''], ['fix', 'Safety', '']];
+  var ASK = (global.MARATHON_PROMPTS || {}).ASK || ['daily', 'weekly', 'projects', 'content'];   // groups in the Ask tab; setup + fix live in Settings
   var TAB_KEY = 'marathon.guide.tab';
   /* ---- backup status (server mode only; elsewhere the CLI knows) ---- */
   var backup = { state: 'unknown', at: 0 };   // {repo, remote, lastAt, dirty}
@@ -206,8 +162,9 @@
       (t === 'settings' ? '<h4>How does your AI agent work?</h4><div class="guide-modes">' +
         '<label class="guide-mode' + (m === 'files' ? ' on' : '') + '"><input type="radio" name="gmode" value="files"' + (m === 'files' ? ' checked' : '') + '><b>It can run commands</b><span>Claude Code, Cursor, Codex, Claude Desktop with this folder. It reads your files, opens attachments, runs <code>node solo.js</code> itself.</span></label>' +
         '<label class="guide-mode' + (m === 'chat' ? ' on' : '') + '"><input type="radio" name="gmode" value="chat"' + (m === 'chat' ? ' checked' : '') + '><b>It is a chat</b><span>ChatGPT, Claude.ai, Gemini. Prompts carry a snapshot of your data; you paste the reply into Reply. No terminal needed.</span></label></div>' +
-        (m === 'files' ? '<ol class="guide-steps"><li>Open this folder in your agent.</li><li>Say: <b>"Read AGENTS.md, then run node solo.js week"</b>.</li><li>Keep <code>node serve.js</code> running; pages update as the agent works. Images you attach are saved to <code>data/attachments/</code> so it can open them.</li></ol>'
-         : m === 'chat' ? '<ol class="guide-steps"><li>Copy a prompt from <b>Ask</b> — it includes a snapshot of this workspace.</li><li>When the agent replies with a code block, copy it.</li><li><b>Reply</b> → paste → Preview → Apply. If an item has an image the agent needs, upload it in the chat when asked.</li></ol>' : '') +
+        (m === 'files' ? '<ol class="guide-steps"><li>Open this folder in your agent.</li><li>Say: <b>"Read AGENTS.md, then run node solo.js week"</b> — or type a slash command: <code>/standup</code>, <code>/now</code>, <code>/week</code>… every prompt in Ask ships as one (<code>.claude/commands</code> for Claude Code, <code>.cursor/commands</code> for Cursor; <code>node solo.js prompts export --for codex</code> for Codex).</li><li>Keep <code>node serve.js</code> running; pages update as the agent works. Images you attach are saved to <code>data/attachments/</code> so it can open them.</li></ol>'
+         : m === 'chat' ? '<ol class="guide-steps"><li>Copy a prompt from <b>Ask</b> — it carries a snapshot of this workspace and the reply format, so a brand-new chat works.</li><li>When the agent replies with a code block, copy it.</li><li><b>Reply</b> → paste → Preview → Apply. If an item has an image the agent needs, upload it in the chat when asked.</li></ol>' : '') +
+        (m ? '<h4>Set up once</h4><p>' + (m === 'chat' ? 'Optional: paste this into a ChatGPT or Claude <b>Project</b> as its instructions, and the chat knows Solo Ops before you say anything.' : 'For an agent that was <b>not</b> opened in this folder (Claude Desktop, a terminal started elsewhere): this tells it where the folder is and what to read.') + '</p>' + all.filter(function (x) { return x.c === 'setup' && (m === 'chat' ? x.t === 'Set up this chat' : x.t === 'Set up this folder'); }).map(function (x) { return row(all, x, pg); }).join('') : '') +
         '<h4>Protect your work</h4><div class="guide-status ' + (backup.state === 'ok' && backup.repo && (backupDays() === null || backupDays() < 7) ? 'ok' : backup.state === 'ok' && !backup.repo ? 'warn' : '') + '" id="guideBackup"><span class="dot"></span>' + backupLine() + '</div>' +
         '<p>Every change is logged and can be reverted from Home → Recent changes. A pasted reply never deletes anything. Your tasks never enter the public Solo Ops repo. What is left is keeping a private copy of your data somewhere else; these prompts set it up with your agent:</p>' +
         all.filter(function (x) { return x.c === 'fix'; }).map(function (x) { return row(all, x, pg); }).join('') +
@@ -323,9 +280,9 @@
     var top = here.slice(0, 5); var open = openCats();
     el.innerHTML = '<div class="guide-moves compact" id="guideMoves"></div>' +
       (top.length ? '<div class="guide-cat"><span class="cat-ic">' + I.link + '</span><b>For this page</b></div>' + top.map(function (x) { return row(all, x, pg); }).join('') : '') +
-      CATS.map(function (c) { var g = all.filter(function (x) { return x.c === c[0] && top.indexOf(x) < 0; }); if (!g.length) return ''; return '<details class="guide-sec" data-cat="' + c[0] + '"' + (open[c[0]] ? ' open' : '') + '><summary><span class="cat-ic">' + I[c[0]] + '</span><b>' + esc(c[1]) + '</b><span class="cat-sub">' + esc(c[2]) + '</span><span class="guide-hint">' + g.length + '</span><button type="button" class="cat-add" data-cat="' + c[0] + '" title="Add my own prompt here">+</button></summary>' + g.map(function (x) { return row(all, x, pg); }).join('') + '<div class="gp-new" data-cat="' + c[0] + '"></div></details>'; }).join('') +
+      CATS.filter(function (c) { return ASK.indexOf(c[0]) >= 0; }).map(function (c) { var g = all.filter(function (x) { return x.c === c[0] && top.indexOf(x) < 0; }); if (!g.length) return ''; return '<details class="guide-sec" data-cat="' + c[0] + '"' + (open[c[0]] ? ' open' : '') + '><summary><span class="cat-ic">' + I[c[0]] + '</span><b>' + esc(c[1]) + '</b><span class="cat-sub">' + esc(c[2]) + '</span><span class="guide-hint">' + g.length + '</span><button type="button" class="cat-add" data-cat="' + c[0] + '" title="Add my own prompt here">+</button></summary>' + g.map(function (x) { return row(all, x, pg); }).join('') + '<div class="gp-new" data-cat="' + c[0] + '"></div></details>'; }).join('') +
       '<details class="guide-sec" data-cat="about"' + (open.about ? ' open' : '') + '><summary><span class="cat-ic">' + I.moves + '</span><b>This page</b><span class="cat-sub">what it does · shortcuts</span></summary>' + (ABOUT[pg] || []).map(function (x) { return '<p>' + esc(x) + '</p>'; }).join('') + '<p>⌘K commands · ⌘⇧I capture · ? this guide · n add · 1/2/3 board views</p></details>' +
-      '<p class="guide-foot-note">Click a prompt to copy it' + (m === 'chat' ? '; it carries a snapshot of this workspace' : m === 'files' ? '; it tells the agent what to read and change' : '') + '. ✎ edits a prompt, + adds your own.</p>';
+      '<p class="guide-foot-note">Click a prompt to copy it' + (m === 'chat' ? '; it carries a snapshot of this workspace and the reply format, so a fresh chat needs no setup' : m === 'files' ? '; it tells the agent what to read and change. The same prompts are slash commands in Claude Code and Cursor (/standup, /week, /now…)' : '') + '. ✎ edits a prompt, + adds your own.</p>';
     bindList(all);
     Array.prototype.forEach.call(el.querySelectorAll('details.guide-sec[data-cat]'), function (d) { d.addEventListener('toggle', function () { var o = openCats(); o[d.dataset.cat] = d.open; Store.setJSON(CAT_KEY, o, { silent: true }); }); });
     renderMoves(all);
@@ -357,6 +314,7 @@
     return '<div class="guide-status ' + (ok ? 'ok' : '') + '"><span class="dot"></span><span>' + (m === 'server' ? '<b>Auto-saving</b> to this browser and to the data folder on disk.' : m === 'folder' ? '<b>Auto-saving</b> to this browser and to the linked folder.' : '<b>Saved in this browser only.</b> Run <code>node serve.js</code> or link the folder so files on disk stay in step.') + '</span></div>' +
       '<p>Everything is plain files in <code>data/</code>, ' + files.length + ' of them, about ' + Math.max(1, Math.round(total / 1024)) + ' KB. Nothing is sent anywhere.</p>' +
       '<div class="guide-row"><button type="button" class="gp-copy gd-export">Export everything (one file)</button><button type="button" class="guide-snap gd-import">Import…</button></div>' +
+      '<p class="guide-note">' + (ok ? 'Exports and the safety copies made before a destructive action land in <code>data/exports/</code>, next to your data.' : 'Exports download to your browser\'s download folder; with <code>node serve.js</code> or a linked folder they land in <code>data/exports/</code> instead.') + '</p>' +
       '<details class="guide-sec small"><summary>Details: files, sizes, attachments</summary><ul class="guide-files">' + rows + '</ul>' +
       '<p>An image you drop keeps a small thumbnail inside the item; the original is written to <code>data/attachments/</code> when <code>node serve.js</code> is running or the folder is linked, and waits in this browser until then. Other files are copied the same way up to ' + (global.Attach ? Attach.cfg().copyMaxMB : 25) + ' MB (<code>attachments.copyMaxMB</code> in solo.config.js); bigger ones are saved by name and you paste a path or link.' + (global.Sync && !Sync.attachmentsAvailable() ? ' <b>Right now originals stay in this browser only.</b>' : '') + '</p>' +
       '<p>Terminal: <code>node solo.js doctor</code> checks every file, attachment and the backup age · <code>node solo.js backup</code> refuses a public GitHub repo on purpose · <code>node solo.js prompts</code> lists your prompts (they live in <code>data/prompts.json</code>).</p></details>';
@@ -364,7 +322,8 @@
   function exportAll() {
     var files = dataFiles(); var bundle = { version: 1, exportedAt: new Date().toISOString(), app: 'Solo Ops', files: {} };
     files.forEach(function (f) { var v = Store.getJSON(f.key, null); if (v == null) return; var body = f.wrap ? (function () { var o = {}; o[f.wrap] = v; return o; })() : v; if (f.file.indexOf('.json') > 0 && !f.wrap && f.wrap !== null) {} bundle.files[f.file] = Object.assign({ version: 1, updatedAt: new Date().toISOString() }, body); });
-    var blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }); var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'solo-ops-backup-' + new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-') + '.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+    var name = 'solo-ops-backup-' + new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-') + '.json'; var btn = panel && panel.querySelector('.gd-export');
+    Sync.saveFile(name, JSON.stringify(bundle, null, 2) + '\n', 'application/json').then(function (r) { if (!btn) return; var old = btn.textContent; btn.textContent = r.text; btn.classList.add('copied'); setTimeout(function () { btn.textContent = old; btn.classList.remove('copied'); }, 3200); });
   }
   function importAll() {
     var i = document.createElement('input'); i.type = 'file'; i.accept = 'application/json,.json';
@@ -447,7 +406,7 @@
       '<label>Category<select class="pe-c">' + CATS.map(function (c) { return '<option value="' + c[0] + '"' + ((x ? x.c : cat) === c[0] ? ' selected' : '') + '>' + esc(c[1]) + '</option>'; }).join('') + '</select></label>' +
       '<label>One line, what it does<input class="pe-d" value="' + esc(x ? x.d : '') + '"></label>' +
       '<label>Prompt<textarea class="pe-p" rows="8">' + esc(x ? x.p : '{{head}}') + '</textarea></label>' +
-      '<div class="pe-hint">Blanks like <code>&lt;idea&gt;</code> become fields. <code>{{head}}</code> = agent preamble. Context tokens: <code>{{recent}}</code> <code>{{last_task}}</code> <code>{{this}}</code> <code>{{project}}</code> <code>{{board}}</code> <code>{{doing}}</code> <code>{{posts}}</code> <code>{{inspiration}}</code> <code>{{inspiration_new}}</code> — the same things as the Copy context menu.</div>' +
+      '<div class="pe-hint">Blanks like <code>&lt;idea&gt;</code> become fields. <code>{{head}}</code> = agent preamble. Context tokens: <code>{{recent}}</code> <code>{{last_task}}</code> <code>{{this}}</code> <code>{{project}}</code> <code>{{board}}</code> <code>{{doing}}</code> <code>{{posts}}</code> <code>{{inspiration}}</code> <code>{{inspiration_new}}</code> <code>{{shipped}}</code> — the same things as the Copy context menu.</div>' +
       '<div class="guide-row"><button type="button" class="gp-copy pe-save">Save</button>' + (x && x.builtin && x.overridden ? '<button type="button" class="guide-snap pe-reset">Reset to default</button>' : '') + (x && x.custom ? '<button type="button" class="guide-snap pe-del">Delete</button>' : x && x.builtin ? '<button type="button" class="guide-snap pe-hide" title="Hide this built-in prompt">Hide</button>' : '') + '<button type="button" class="guide-snap pe-cancel">Cancel</button></div></div>';
   }
   function editPrompt(x, card) {
@@ -485,7 +444,7 @@
       if (!bl.length) { finish(x.p, card, x); return; }
       if (form.innerHTML) { form.innerHTML = ''; card.classList.remove('open'); return; }
       card.classList.add('open');
-      form.innerHTML = bl.map(function (b, k) { var isBlock = x.block && b === x.block; return '<label class="gp-field"><span>' + esc(b) + '</span>' + (isBlock ? '<textarea rows="5" data-k="' + k + '">' + esc(x.prefill ? x.prefill() : '') + '</textarea>' : '<input data-k="' + k + '" placeholder="' + esc(b) + '">') + '</label>'; }).join('') + '<button type="button" class="gp-copy">Copy the finished prompt</button>';
+      form.innerHTML = bl.map(function (b, k) { var isBlock = x.block && b === x.block; return '<label class="gp-field"><span>' + esc(b) + '</span>' + (isBlock ? '<textarea rows="5" data-k="' + k + '">' + esc(prefillOf(x)) + '</textarea>' : '<input data-k="' + k + '" placeholder="' + esc(b) + '">') + '</label>'; }).join('') + '<button type="button" class="gp-copy">Copy the finished prompt</button>';
       var first = form.querySelector('input,textarea'); if (first) first.focus();
       form.querySelector('.gp-copy').onclick = function () { var out = x.p; bl.forEach(function (b, k) { var el = form.querySelector('[data-k="' + k + '"]'); var v = (el.value || '').trim(); out = out.split('<' + b + '>').join(v || '<' + b + '>'); }); finish(out, card, x); };
     };
@@ -496,6 +455,7 @@
     text = global.Context ? Context.fill(text) : text.replace('{{snapshot}}', snapshot());
     copyText(text, card, 'Copied — paste into your agent' + (x.go && x.go !== page() ? ' · then open ' + GO[x.go][1] : ''));
   }
+  function prefillOf(x) { if (typeof x.prefill === 'function') return x.prefill(); if (typeof x.prefill === 'string') { var e = document.getElementById(x.prefill); return e ? e.value : ''; } return ''; }
   function blanks(x) { var seen = {}, out = []; (x.p.match(/<([^<>\n]{2,60})>/g) || []).forEach(function (m) { var k = m.slice(1, -1); if (!seen[k]) { seen[k] = 1; out.push(k); } }); return out; }
   function copyText(text, el, msg) {
     navigator.clipboard.writeText(text).then(function () {
@@ -534,7 +494,7 @@
       if (global.Sync) Sync.note('inspiration.json', 'agent reply applied');
     }
   }
-  function open() { if (!panel) { panel = document.createElement('aside'); panel.className = 'guide'; document.body.appendChild(panel); } render(); panel.classList.add('open'); document.body.classList.add('guide-open'); var before = backup.at; backupStatus().then(function () { if (backup.at !== before && panel.classList.contains('open')) render(); }); }
+  function open() { if (!panel) { panel = document.createElement('aside'); panel.className = 'guide'; document.body.appendChild(panel); } render(); panel.classList.add('open'); document.body.classList.add('guide-open'); var before = backup.at; backupStatus().then(function () { if (backup.at !== before && panel.classList.contains('open')) render(); }); fetchFolder().then(function (got) { if (got && panel.classList.contains('open')) render(); }); }
   function close() { if (panel) { panel.classList.remove('open'); document.body.classList.remove('guide-open'); } }
   function toggle() { if (panel && panel.classList.contains('open')) close(); else open(); }
   function mountHandle() {

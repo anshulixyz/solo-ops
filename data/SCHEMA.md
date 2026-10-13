@@ -158,6 +158,18 @@ the linked-folder mode. `prev` is the whole previous file (skipped above
 2 MB), which is what `revert <id>` restores. Capped at the last 400 entries.
 Never edit by hand; never commit (it is in `.gitignore` via `data/*`).
 
+## exports/ — files the pages save for you
+
+`data/exports/<name>` holds whatever a page exports: `solo-ops-backup-<stamp>.json`
+(Guide → Settings → Export everything; a bundle `{ version, exportedAt, files: { "<file>.json": <that file> } }`,
+Import reads it back), `<board>-<stamp>.json` (a board in its file format),
+`runway-<view>-<stamp>.md`, `social-schedule-<date>.json` / `social-backup-<stamp>.json`
+(the social bundle with images), and `<file>.backup-<stamp>.json` /
+`<file>.file-backup-<stamp>.json` (the losing side when a file and the browser
+disagree on first contact). Written only when the server runs or the folder is
+linked; otherwise the browser downloads the same file. Nothing reads this folder
+automatically; `backup` commits it with the rest of `data/`.
+
 ## prompts.json — your Guide prompts
 
 ```json
@@ -165,6 +177,10 @@ Never edit by hand; never commit (it is in `.gitignore` via `data/*`).
   "overrides": { "Daily standup": { "d": "…", "p": "…" } },
   "hidden": ["Undo what the agent just did"] }
 ```
+
+Built-in prompts are not in this file: they live in `core/prompts.js` and are
+keyed by title here. `node solo.js prompts export` writes built-ins and your
+own as slash commands (`.claude/commands/`, yours under `mine/`).
 
 `custom` are your own prompts (`c` is daily | weekly | projects | content |
 fix). `overrides` replace a built-in's text by its title; `hidden` removes

@@ -20,6 +20,7 @@ var ROOT = __dirname;
 var DATA = path.join(ROOT, 'data');
 var cfg = safeRequire(path.join(ROOT, 'solo.config.js')) || {};
 var T = safeRequire(path.join(ROOT, 'core', 'templates.js'));
+var P = safeRequire(path.join(ROOT, 'core', 'prompts.js'));   // the Guide's built-in prompts (shared with the pages)
 var RESERVED = ['social', 'scripts', 'writing', 'settings', 'activity', 'boards', 'workspaces', 'calendar', 'home', 'prompts', 'inspiration', 'log', 'attachments'];
 var COLS = ['todo', 'doing', 'done', 'later', 'bucket'];
 var COL_LABEL = { todo: 'To Do', doing: 'Doing', done: 'Done', later: 'Later', bucket: 'Bucket List' };
@@ -313,6 +314,7 @@ function allTasks() {
   ids.forEach(function (id) { board(id).tasks.forEach(function (t) { out.push(ids.length > 1 ? Object.assign({ _board: id }, t) : t); }); });
   return out;
 }
+var EMPTY_NUDGE = '_Nothing here yet. Ask your agent for /setup · sample sprint: `node solo.js template all` · plan your own: /plan-project (Guide → Plan a project from scratch) · open the app: `node serve.js`_';
 function cmdToday() {
   var tasks = appOn('boards') ? allTasks() : [], s = appOn('social') ? schedule() : { posts: [] };
   var now = new Date(); var end = new Date(now); end.setHours(23, 59, 59, 999);
@@ -321,6 +323,7 @@ function cmdToday() {
   var posts = s.posts.filter(function (p) { return p.status !== 'posted'; }).sort(function (a, c) { return a.datetime.localeCompare(c.datetime); });
   var due = posts.filter(function (p) { return new Date(p.datetime) <= end; });
   var md = ['# Today · ' + now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }), '', activityLine(), ''];
+  if (!tasks.length && !s.posts.length) md.push(EMPTY_NUDGE, '');
   if (appOn('boards')) {
     md.push('## Doing (' + doing.length + ')', doing.length ? doing.map(taskLine).join('\n') : '_nothing in progress — start one: node solo.js start <task>_', '');
     md.push('## High priority, not started (' + high.length + ')', high.length ? high.map(taskLine).join('\n') : '_none_', '');
@@ -339,6 +342,7 @@ function cmdWeek() {
   var overdue = posts.filter(function (p) { return new Date(p.datetime) < now; });
   var prepOpen = posts.reduce(function (acc, p) { return acc + (p.prep || []).filter(function (x) { return !x.done; }).length; }, 0);
   var md = ['# Next ' + days + ' days · ' + now.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' → ' + end.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }), '', activityLine(), ''];
+  if (!tasks.length && !s.posts.length && !sc.scripts.length && !n.notes.length) md.push(EMPTY_NUDGE, '');
   if (appOn('boards')) {
     var boardsLine = (flags.board ? [boardMeta()] : BOARDS).map(function (bm) {
       var bt = board(bm.id).tasks; var dn = bt.filter(function (t) { return t.col === 'done'; }).length; var tot = bt.filter(function (t) { return ['todo', 'doing', 'done'].indexOf(t.col) >= 0; }).length;
@@ -507,22 +511,64 @@ function cmdInspo() {
   fail('Unknown inspo command "' + sub + '". Try: list, show, add, tag, ws, use, archive, rm, ai');
 }
 
-/* ---- prompts (data/prompts.json — your own prompts for the Guide) --------- */
+/* ---- prompts: built-ins in core/prompts.js, yours in data/prompts.json ------- */
+function promptOpts(mode) { return { title: WS.title, id: WS_ID, board: BOARDS[0] ? BOARDS[0].id : 'runway', mode: mode === 'chat' ? 'chat' : 'files', folder: ROOT }; }
+function allPrompts(mode, over) {   // built-ins with your edits applied, plus your own — the list the Guide shows
+  var d = read('prompts') || {}; var ov = d.overrides || {}, hidden = d.hidden || [], custom = d.custom || [];
+  if (!P) fail('core/prompts.js is missing');
+  var o = Object.assign(promptOpts(mode), over || {}); var list = P.build(o); var head = P.head(o);
+  list.forEach(function (x) { if (ov[x.t]) { if (ov[x.t].d) x.d = ov[x.t].d; if (ov[x.t].p) x.p = ov[x.t].p; x.overridden = true; } });
+  list = list.filter(function (x) { return hidden.indexOf(x.t) < 0; });
+  custom.forEach(function (c) { list.push({ c: c.c || 'projects', t: c.t || 'My prompt', d: c.d || '', p: String(c.p || '').split('{{head}}').join(head), pages: c.pages || [], custom: true, id: c.id, slug: P.slugOf(c.t) }); });
+  return list;
+}
 function cmdPrompts() {
   var sub = (pos.shift() || 'list').toLowerCase(); var d = read('prompts') || { custom: [], overrides: {}, hidden: [] };
   d.custom = d.custom || []; d.overrides = d.overrides || {}; d.hidden = d.hidden || [];
-  if (sub === 'list') return out(['## My prompts (' + d.custom.length + ')'].concat(d.custom.length ? d.custom.map(function (c) { return '- [' + c.id + '] ' + c.t + ' · ' + (c.c || 'projects') + (c.d ? ' — ' + c.d : ''); }) : ['_none yet — prompts add "Title" --cat daily --text "…" (or --file prompt.md)_']).concat(Object.keys(d.overrides).length ? ['', '## Edited built-ins', Object.keys(d.overrides).map(function (k) { return '- ' + k; }).join('\n')] : []).concat(d.hidden.length ? ['', '## Hidden built-ins: ' + d.hidden.join(', ')] : []), d);
-  if (sub === 'show') { var x = find(d.custom, pos.join(' '), 'prompt'); return out(['# ' + x.t, '', x.d || '', '', x.p], x); }
+  if (sub === 'list') return out(['## My prompts (' + d.custom.length + ')'].concat(d.custom.length ? d.custom.map(function (c) { return '- [' + c.id + '] ' + c.t + ' · ' + (c.c || 'projects') + (c.d ? ' — ' + c.d : ''); }) : ['_none yet — prompts add "Title" --cat daily --text "…" (or --file prompt.md)_']).concat(Object.keys(d.overrides).length ? ['', '## Edited built-ins', Object.keys(d.overrides).map(function (k) { return '- ' + k; }).join('\n')] : []).concat(d.hidden.length ? ['', '## Hidden built-ins: ' + d.hidden.join(', ')] : []).concat(['', '_Built-ins: prompts builtin · full text: prompts show <title or /slug> · slash commands: prompts export_']), d);
+  if (sub === 'builtin' || sub === 'builtins' || sub === 'all') {
+    var all = allPrompts(flags.mode); var L = ['# Guide prompts · ' + WS.title + ' · ' + (flags.mode === 'chat' ? 'chat' : 'files') + ' mode', ''];
+    P.CATS.forEach(function (c) { var g = all.filter(function (x) { return x.c === c[0]; }); if (!g.length) return; L.push('## ' + c[1] + ' (' + g.length + ')' + (c[0] === 'setup' || c[0] === 'fix' ? ' — in Guide → Settings' : '')); g.forEach(function (x) { L.push('- **' + x.t + '** · /' + x.slug + (x.custom ? ' · mine' : x.overridden ? ' · edited' : '') + (x.d ? ' — ' + x.d : '')); }); L.push(''); });
+    L.push('Full text: `prompts show <title or /slug> [--mode chat|files]`. Slash commands: `prompts export [--for claude|cursor|codex]`. Chat bootstrap: `prompts export --for chat`.');
+    return out(L, all.map(function (x) { return { t: x.t, slug: x.slug, c: x.c, d: x.d, pages: x.pages, custom: !!x.custom, overridden: !!x.overridden }; }));
+  }
+  if (sub === 'show') {
+    var all2 = allPrompts(flags.mode); var q = pos.join(' ').trim().toLowerCase().replace(/^\//, ''); if (!q) fail('Which prompt? A title, part of it, or /slug. See: prompts builtin');
+    var x = all2.filter(function (p) { return p.id === q || p.slug === q || p.t.toLowerCase() === q; })[0] || all2.filter(function (p) { return p.t.toLowerCase().indexOf(q) >= 0; })[0];
+    if (!x) fail('No prompt matches "' + q + '". See: prompts builtin');
+    return out(['# ' + x.t + (x.slug ? ' · /' + x.slug : '') + ' · ' + (flags.mode === 'chat' ? 'chat' : 'files') + ' mode', '', x.d || '', '', x.p], x);
+  }
+  if (sub === 'export') return exportPrompts();
   if (sub === 'add') {
     var title = pos.join(' ').trim() || flags.title; var text = flags.file ? fs.readFileSync(path.resolve(flags.file), 'utf8') : (flags.text || '');
     if (!title || !text) fail('Usage: prompts add "Title" --text "…" | --file prompt.md [--cat daily|weekly|projects|content|fix] [--desc "one line"]\n  {{head}} = agent preamble, {{snapshot}} = your data (chat mode), <blank> = a field to fill');
     var c = { id: 'c' + Date.now().toString(36), t: title, d: flags.desc || '', p: text, c: flags.cat || 'projects', pages: [] }; d.custom.push(c); write('prompts', d);
-    return out('✓ Prompt [' + c.id + '] ' + title + ' added to ' + c.c + ' — it shows in the Guide on every page', c);
+    return out('✓ Prompt [' + c.id + '] ' + title + ' added to ' + c.c + ' — it shows in the Guide on every page (prompts export adds it as /' + P.slugOf(title) + ')', c);
   }
   if (sub === 'edit') { var e = find(d.custom, pos.join(' '), 'prompt'); if (flags.title) e.t = flags.title; if (flags.desc !== undefined) e.d = flags.desc; if (flags.cat) e.c = flags.cat; if (flags.text) e.p = flags.text; if (flags.file) e.p = fs.readFileSync(path.resolve(flags.file), 'utf8'); write('prompts', d); return out('✓ [' + e.id + '] ' + e.t + ' updated', e); }
   if (sub === 'rm') { var r = find(d.custom, pos.join(' '), 'prompt'); d.custom = d.custom.filter(function (c) { return c.id !== r.id; }); write('prompts', d); return out('✓ Deleted [' + r.id + '] ' + r.t, r); }
   if (sub === 'restore') { d.hidden = []; d.overrides = flags.all ? {} : d.overrides; write('prompts', d); return out('✓ Built-in prompts restored' + (flags.all ? ' (edits cleared too)' : ''), d); }
-  fail('Unknown prompts command "' + sub + '". Try: list, show, add, edit, rm, restore');
+  fail('Unknown prompts command "' + sub + '". Try: builtin, show, export, list, add, edit, rm, restore');
+}
+// prompts export: every prompt as a slash command for the agent that runs commands, or the chat bootstrap.
+// Only files carrying the generated marker are overwritten or removed; a hand-written command with the same name is left alone.
+function exportPrompts() {
+  if (!P) fail('core/prompts.js is missing');
+  var tool = String(flags['for'] || 'claude').toLowerCase();
+  if (tool === 'chat' || tool === 'bootstrap') {
+    var bf = path.resolve(flags.out || path.join(ROOT, 'prompts', 'agent-bootstrap.md')); fs.mkdirSync(path.dirname(bf), { recursive: true });
+    fs.writeFileSync(bf, '# Paste this once into a ChatGPT or Claude Project (no file access needed)\n\n<!-- ' + P.MARK + ' -->\n\n' + P.bootstrap(promptOpts('chat')) + '\n\nReady? I will paste my snapshot next.\n');
+    return out('✓ ' + path.relative(ROOT, bf) + ' written (the Guide\'s "Set up this chat" prompt, as a file)', { file: bf });
+  }
+  var dirs = { claude: path.join(ROOT, '.claude', 'commands'), cursor: path.join(ROOT, '.cursor', 'commands'), codex: path.join(process.env.CODEX_HOME || path.join(require('os').homedir(), '.codex'), 'prompts') };
+  if (!dirs[tool]) fail('--for must be claude (default), cursor, codex or chat');
+  var dir = path.resolve(flags.out || dirs[tool]); fs.mkdirSync(dir, { recursive: true });
+  var all = allPrompts('files', { folder: '' }).filter(function (x) { return (x.c !== 'setup' || x.slug === 'setup') && x.slug; });   // no absolute path: a slash command runs inside the folder
+  var written = [], kept = [], removed = []; var o = promptOpts('files'); o.folder = ''; var rel = path.relative(ROOT, dir); if (rel.indexOf('..') === 0) rel = dir;
+  var mineDir = path.join(dir, 'mine'); if (all.some(function (x) { return x.custom; })) fs.mkdirSync(mineDir, { recursive: true });
+  all.forEach(function (x) { var f = path.join(x.custom ? mineDir : dir, x.slug + '.md'); var prev = ''; try { prev = fs.readFileSync(f, 'utf8'); } catch (e) { /* new */ } if (prev && prev.indexOf(P.MARK) < 0) { kept.push(x.slug); return; } fs.writeFileSync(f, P.command(x, o, tool)); written.push((x.custom ? 'mine/' : '') + x.slug); });
+  [dir, mineDir].forEach(function (d, isMine) { var names = []; try { names = fs.readdirSync(d); } catch (e) { return; } names.forEach(function (n) { if (!/\.md$/.test(n)) return; var slug = n.slice(0, -3); if (all.some(function (x) { return x.slug === slug && !!x.custom === !!isMine; })) return; var t = ''; try { t = fs.readFileSync(path.join(d, n), 'utf8'); } catch (e) { return; } if (t.indexOf(P.MARK) >= 0) { fs.unlinkSync(path.join(d, n)); removed.push((isMine ? 'mine/' : '') + slug); } }); });
+  return out(['✓ ' + written.length + ' slash command' + (written.length === 1 ? '' : 's') + ' for ' + tool + ' in ' + rel + '/ (workspace ' + WS_ID + ')', '  ' + written.filter(function (s) { return s.indexOf('mine/') !== 0; }).map(function (s) { return '/' + s; }).join(' ')].concat(written.some(function (s) { return s.indexOf('mine/') === 0; }) ? ['  yours, in ' + rel + '/mine/ (git-ignored): ' + written.filter(function (s) { return s.indexOf('mine/') === 0; }).map(function (s) { return '/' + s.slice(5); }).join(' ')] : []).concat(kept.length ? ['  kept your own: ' + kept.join(', ')] : []).concat(removed.length ? ['  removed stale: ' + removed.join(', ')] : []).concat(tool === 'claude' ? ['Type /standup in Claude Code opened in this folder. Re-run after editing prompts.'] : tool === 'codex' ? ['Codex loads these on start; restart it once.'] : []), { dir: dir, written: written, kept: kept, removed: removed });
 }
 
 /* ---- boards -------------------------------------------------------------- */
@@ -648,6 +694,31 @@ function githubVisibility(remote, cb) {
 }
 
 /* ---- doctor: is the data folder healthy? ---------------------------------- */
+/* ---- guard: the user's content never enters this code repo ----------------- */
+// Paths that hold the user's own content. Staging any of them fails the guard.
+var PRIVATE_PATHS = [/^data\/(?!SCHEMA\.md$)/, /\.(file-)?backup-[\d-]+\.json$/, /^\.claude\/commands\/mine\//, /^\.cursor\/commands\/mine\//, /^solo-ops-backup-.*\.json$/];
+function cmdGuard() {
+  var cp = require('child_process');
+  if (!fs.existsSync(path.join(ROOT, '.git'))) fail('Not a git repository: nothing to guard.');
+  if (flags.install) {
+    var hook = path.join(ROOT, '.git', 'hooks', 'pre-commit'); var cur = ''; try { cur = fs.readFileSync(hook, 'utf8'); } catch (e) { /* none */ }
+    if (/solo\.js"? guard/.test(cur)) return out('✓ pre-commit hook already runs `node solo.js guard`', { installed: true });
+    fs.mkdirSync(path.dirname(hook), { recursive: true });
+    fs.writeFileSync(hook, (cur.trim() ? cur.replace(/\n?$/, '\n') : '#!/bin/sh\n') + '# Solo Ops: never commit the user\'s content (data/, exports, personal prompts). Only a human bypasses this (--no-verify).\nnode "$(git rev-parse --show-toplevel)/solo.js" guard || exit 1\n'); fs.chmodSync(hook, 493);
+    return out('✓ pre-commit hook installed: every commit runs `node solo.js guard` (a human can bypass with --no-verify; agents never do)', { installed: true });
+  }
+  var staged = [];
+  try { staged = cp.execFileSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACMR'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').filter(Boolean); } catch (e) { fail('git is not available here.'); }
+  var bad = staged.filter(function (f) { return PRIVATE_PATHS.some(function (re) { return re.test(f); }); });
+  if (bad.length) {
+    out(['✗ guard: ' + bad.length + ' staged file' + (bad.length === 1 ? ' holds' : 's hold') + ' your own content and must not enter this repository:'].concat(bad.map(function (b) { return '  - ' + b; })).concat(['',
+      'Tasks, posts, scripts, notes, inspiration, attachments, exports and personal prompts belong in a PRIVATE data repo:', '  node solo.js backup --remote <private url>   (refuses public GitHub repos)', '',
+      'Unstage: git restore --staged ' + bad.join(' ')]), { ok: false, blocked: bad });
+    process.exit(1);
+  }
+  return out('✓ guard: nothing personal in the ' + staged.length + ' staged file' + (staged.length === 1 ? '' : 's'), { ok: true, staged: staged.length });
+}
+
 function cmdDoctor() {
   var issues = [], notes = [], files = []; var refs = {}; var browserOnly = 0;
   try { files = fs.readdirSync(DATA).filter(function (f) { return /\.json$/.test(f) && !/\.backup-/.test(f); }); } catch (e) { fail('No data/ folder yet. Run: node solo.js template all'); }
@@ -683,6 +754,8 @@ function cmdDoctor() {
   if (!repo && realData) issues.push('no backup: data/ is not a git repo. Run: node solo.js backup --remote <private repo url>');
   else if (repo && lastBackup && Date.now() - Date.parse(lastBackup) > 7 * 86400000) issues.push('last backup was ' + Math.round((Date.now() - Date.parse(lastBackup)) / 86400000) + ' days ago. Run: node solo.js backup');
   else if (repo) notes.push('backup: last ' + (lastBackup || 'never'));
+  if (!files.length) notes.push('fresh install: data/ has no files yet. Next: ask your agent for /setup, or `node solo.js template all` for the sample sprint, or `node serve.js` and plan in the app');
+  if (fs.existsSync(path.join(ROOT, '.git'))) { var hk = ''; try { hk = fs.readFileSync(path.join(ROOT, '.git', 'hooks', 'pre-commit'), 'utf8'); } catch (e) { /* none */ } if (!/solo\.js"? guard/.test(hk)) notes.push('commit guard not installed: `node solo.js guard --install` makes git refuse commits that contain data/ or personal prompts'); }
   out(['# doctor — ' + (issues.length ? issues.length + ' issue' + (issues.length === 1 ? '' : 's') : 'all good'), ''].concat(issues.map(function (i) { return '⚠ ' + i; })).concat(issues.length ? [''] : []).concat(notes.map(function (n) { return '· ' + n; })), { ok: !issues.length, issues: issues, notes: notes, orphans: orphans, missing: missing, browserOnly: browserOnly, repo: repo, lastBackup: lastBackup });
   if (issues.length && !JSON_OUT) process.exitCode = 2;
 }
@@ -733,9 +806,9 @@ function cmdHelp() {
     'Share', '  share [todo|board|all]      markdown checklist (paste anywhere)', '  import <list.md> [--col]    "- [ ] item" lines become tasks, indented lines become steps', '',
     'Posts (data/social.json)', '  social list|next|week|show <post>', '  social add "Title" [--at 2026-10-20T09:00 | +3d 17:30] [--type launch] [--project X] [--copy "…"] [--prep "a|b"]', '  social posted|ready|draft <post> [--url …]   social move <post> <when>', '  social prep <post> "item"   social check <post> <n>   social copy <post> ["text"]   social rm <post>', '',
     'Inspiration (data/inspiration.json — links, ideas, images; tag with a workspace)', '  inspo list [--ws] [--tag x] [--status new|used|archived]   inspo show <item>', '  inspo add [--file <path>] "https://… or an idea #tag" [--ws <id>] [--tags a,b]   inspo tag <item> +a -b   inspo ws <item> <workspace>', '  inspo use <item> --as task|post|script|note [--ws] [--board]   inspo ai [--into tasks] (prompt to paste into an AI)   inspo archive|rm <item>', '',
-    'Prompts (data/prompts.json — your own Guide prompts)', '  prompts list|show <p>|add "Title" --text "…"|--file p.md [--cat daily] [--desc "…"]|edit <p> …|rm <p>|restore', '',
+    'Prompts (built-ins in core/prompts.js, yours in data/prompts.json)', '  prompts builtin [--mode chat|files]   prompts show <title or /slug>   prompts export [--for claude|cursor|codex|chat] [--out dir]', '  prompts list|add "Title" --text "…"|--file p.md [--cat daily] [--desc "…"]|edit <p> …|rm <p>|restore', '',
     'Studio (data/scripts.json, data/writing.json)', '  scripts list|show <s>|add "Title" [--file x.md]|rm <s>', '  notes list|show <n>|add "Title" [--file x.md]|rm <n>', '',
-    'Safety', '  backup [--remote <private repo url>] [--status]   commit (and push) data/ as its own private git repo (refuses public GitHub repos)', '  doctor                     check every data file, attachments and backup age', '',
+    'Safety', '  backup [--remote <private repo url>] [--status]   commit (and push) data/ as its own private git repo (refuses public GitHub repos)', '  doctor                     check every data file, attachments and backup age', '  guard [--install]          fail when staged files hold your content (data/, exports, personal prompts); --install = run on every commit', '',
     'Setup', '  template [all|board|social|scripts|writing|settings] [--board id] [--force]', '  theme [show|list|set <palette>|mode <auto|light|dark>|font <inter|system|lato|editorial>]', '  config                     show solo.config.js summary', '  serve [--port 4321]        start the local server (pages write data/ directly)', '',
     'Add --json to any command for machine-readable output. Ids: tasks t…, posts p…, scripts s…, notes n….',
     'Agents: add --as agent (and --note "why") so the change log attributes the edit to you.'], null);
@@ -752,7 +825,7 @@ var commands = {
   social: cmdSocial, post: cmdSocial, posts: cmdSocial,
   scripts: cmdScripts, script: cmdScripts, notes: cmdNotes,
   inspo: cmdInspo, inspiration: cmdInspo, prompts: cmdPrompts, prompt: cmdPrompts, boards: cmdBoards, board: cmdBoards, activity: cmdActivity, log: cmdLog, history: cmdLog, revert: cmdRevert, undo: cmdRevert, workspaces: cmdWorkspaces, workspace: cmdWorkspaces, ws: cmdWorkspaces,
-  backup: cmdBackup, doctor: cmdDoctor, check: cmdDoctor, template: cmdTemplate, theme: cmdTheme, config: cmdConfig, serve: cmdServe
+  backup: cmdBackup, doctor: cmdDoctor, check: cmdDoctor, guard: cmdGuard, template: cmdTemplate, theme: cmdTheme, config: cmdConfig, serve: cmdServe
 };
 var fn = commands[cmd];
 if (!fn) fail('Unknown command "' + cmd + '". Run: node solo.js help');

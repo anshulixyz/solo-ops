@@ -68,13 +68,17 @@ steer.** The longer version, and what is coming next, is in
 | **Script Viewer** | Reels/shorts scripts: hook, numbered beats, inserts, prep. Reader view, 9:16 preview, teleprompter. A library of scripts. |
 | **Writing Viewer** | Drafts with `~~cuts~~`, `++adds++` and `[[notes for the AI]]`. Copy for AI, copy clean, change log view, images. |
 | **Inspiration** | An inbox for anything worth keeping. A **capture strip sits under the nav on every page**: type or paste anything and press Enter; drag a link, text or image from anywhere toward the page and drop it; paste with nothing focused. Images save the moment they arrive, details are optional. Every item gets basic information for free: a kind tag, the site as a tag for links, and (with the server running) the page's real title and description. Each save shows a toast with Undo. **Assess new inspiration** hands your agent only what you saved since last time. Tag with a workspace, then **Use as** task / post / script / draft, or **Brainstorm with AI** (copies the items plus instructions for your chat). |
-| **Guide** | The panel on the left edge of every screen (or the `?` key). Four tabs by intent: **Quick** (no agent needed: type what you are doing and the matching task moves to Doing in any project, add tasks one per line with `!high @project #tag`, and the top tasks across all projects with start / done / priority in one click), **Ask** (search, the two next best moves, prompts for this page, then groups: Daily, Weekly, Projects, Content, Safety), **Reply** (paste what your agent answered, preview every change, apply) and **Settings** (how your agent works, Protect your work with live backup status, your data with export/import). A visible switch says whether your agent **runs commands** (Claude Code, Cursor, Claude Desktop with the folder) or is **chat only** (ChatGPT, Claude.ai); in chat mode every prompt carries a snapshot of your data. Prompts with blanks ask you first; ✎ edits any prompt, + adds your own. **Apply a reply** and **Copy context** sit in the footer of every tab. |
+| **Guide** | The panel on the left edge of every screen (or the `?` key). Four tabs by intent: **Quick** (no agent needed: type what you are doing and the matching task moves to Doing in any project, add tasks one per line with `!high @project #tag`, and the top tasks across all projects with start / done / priority in one click), **Ask** (search, the two next best moves, prompts for this page, then groups: Daily — standup, what now, wrap up, I'm stuck; Weekly — review, plan the week, close the week, am I overcommitted; Projects — plan from scratch, tasks from a list, steps, clean up, cut scope, turn this conversation into tasks; Content — improve, ten hooks, edit with my notes, repurpose, script, posts, post about what I shipped, inspiration), **Reply** (paste what your agent answered, preview every change, apply) and **Settings** (how your agent works, Set up once, Protect your work with live backup status, your data with export/import — exports land in `data/exports/`, not in Downloads, whenever the server runs or the folder is linked). A visible switch says whether your agent **runs commands** (Claude Code, Cursor, Codex) or is **chat only** (ChatGPT, Claude.ai). In chat mode every prompt carries a snapshot of your data **and the reply format**, so a brand-new chat works with no setup; *Set up this chat* is the optional one-time text for a ChatGPT or Claude Project. In command mode the same prompts are **slash commands**: `/standup`, `/now`, `/week`, `/stuck`, `/cut-scope`… shipped in `.claude/commands` (Claude Code) and `.cursor/commands` (Cursor), `node solo.js prompts export --for codex` for Codex. Prompts with blanks ask you first; ✎ edits any prompt, + adds your own (`prompts export` turns yours into commands too). **Apply a reply** and **Copy context** sit in the footer of every tab. |
 
 Every page has a **⌘K command palette** with the same verbs as the CLI, a
 **theme picker** (auto/light/dark × five palettes) and a **sync pill** that
 tells you where your data is.
 
 ## Install
+
+**Handing it to your agent?** Clone, open the folder in Claude Code, Cursor
+or Codex, type `/setup` (or say "read AGENTS.md and set Solo Ops up for
+me"). It asks three questions and does the rest.
 
 **Just open it.** Download or clone, double-click `index.html`. Everything
 works from `file://`. In Chrome/Edge, click **Link folder** once and the pages
@@ -123,15 +127,20 @@ any command.
 
 ## Your AI runs it
 
-- **Claude Code / Cursor / any coding agent:** open the folder. `AGENTS.md`
-  (and `CLAUDE.md`) is the contract: files, schema, CLI, conventions. Ask
-  "what should I do this week?", "turn my inspiration into tasks", "draft the
-  three posts for launch week".
+- **Claude Code / Cursor / Codex / any coding agent:** open the folder. `AGENTS.md`
+  (and `CLAUDE.md`) is the contract: files, schema, CLI, conventions, read
+  automatically. Type `/standup`, `/now`, `/week`, `/stuck`, `/cut-scope`,
+  `/ship-post`… — every Guide prompt is a slash command (`.claude/commands`,
+  `.cursor/commands`; `node solo.js prompts export --for codex` for Codex).
+  Or just ask: "what should I do this week?", "turn my inspiration into
+  tasks", "draft the three posts for launch week". An agent that was *not*
+  opened in the folder gets Guide → Settings → *Set up this folder*.
 - **Claude.ai / ChatGPT (no file access, no terminal):** open the Guide,
   choose "my agent is a chat", copy a prompt (it includes a snapshot of your
-  workspace), paste the agent's reply into the **Reply** tab. The app applies
-  the commands itself and logs them. `prompts/agent-bootstrap.md` is the long
-  form of the same contract.
+  workspace and the reply format, so a fresh chat needs no setup), paste the
+  agent's reply into the **Reply** tab. The app applies the commands itself
+  and logs them. Optional: paste *Set up this chat* (Guide → Settings, or
+  `prompts/agent-bootstrap.md`) once into a ChatGPT or Claude Project.
 - **Every agent change is logged** with `source: agent` and a note. Home →
   Recent changes shows it; one click reverts it. `node solo.js log` from
   the terminal.
@@ -145,6 +154,17 @@ any command.
 - **Every write is logged** with its previous content; `node solo.js revert <id>`
   or Home → Recent changes undoes it. Replies pasted into the Guide never
   delete anything (`rm` is ignored).
+- **Your content never enters this repo.** `data/` is git-ignored except the
+  schema, and `node solo.js guard` (installed as a pre-commit hook by
+  `guard --install`) refuses any commit that stages tasks, posts, exports,
+  attachments or personal prompts. The rule binds every agent working in the
+  folder (`AGENTS.md`, *Privacy boundary*); the place for your content is a
+  private repo via `backup`.
+- **Exports stay with your data.** Export everything, a board as JSON or
+  Markdown, the social bundle, and the safety copy taken before *Load
+  template* or *Clear* are written to `data/exports/` when `node serve.js`
+  runs or the folder is linked (so `backup` carries them too). Without
+  either, the browser downloads them as before.
 - **`node solo.js backup`** keeps `data/` as its own git repo and pushes to
   the remote you give it. It checks GitHub remotes first and **refuses public
   repositories**. Guide → Settings → *Protect your work* shows when the last
@@ -209,15 +229,16 @@ index.html              Home (all projects)
 solo.config.js      your settings — plain JS, read by pages and CLI
 solo.js             CLI (node, zero deps)   serve.js  local server + write API + change log
 manifest.json sw.js icons/   installable app shell
-core/                   store · config · theme · sync · activity · nav · palette · inspo-quick · templates
+core/                   store · config · theme · sync · activity · nav · palette · inspo-quick · templates · prompts (the Guide's built-ins, shared with the CLI)
 data/                   per workspace: <board>.json, social, scripts, writing · plus inspiration, boards, workspaces, activity, settings, log.jsonl
 runway/ social/ studio/ inspo/   the apps (classic scripts, file:// safe)
 prompts/ docs/ .claude/skills/   agent bootstrap, Telegram design, Claude Code skill
+.claude/commands/ .cursor/commands/   the Guide prompts as slash commands (generated: node solo.js prompts export)
 ```
 
 Keep apps `file://`-compatible: classic `<script src>`, no modules, no `fetch`
 of local files. Sanity: `for f in core/*.js runway/*.js social/*.js studio/*.js inspo/*.js *.js; do node --check "$f"; done`
-and `node social/test-social-save.js`.
+and `node social/test-social-save.js` and `node core/test-prompts.js`.
 
 MIT licensed. Contributions welcome — the agent contract in `AGENTS.md` is
 also the contributor guide.

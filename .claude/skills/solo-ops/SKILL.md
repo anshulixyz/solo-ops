@@ -9,6 +9,16 @@ The user's tasks, posts, scripts and drafts are JSON files in `data/`. The
 CLI `node solo.js` reads and writes them; open pages pick changes up
 automatically when `node serve.js` is running or the folder is linked.
 
+## Slash commands
+
+Every Guide prompt is a command in `.claude/commands/` (`/standup`, `/now`,
+`/wrap`, `/stuck`, `/week`, `/plan-week`, `/close-week`, `/overcommitted`,
+`/plan-project`, `/steps <task>`, `/cleanup`, `/cut-scope`, `/capture`,
+`/improve <item>`, `/hooks <item>`, `/repurpose <item>`, `/script`,
+`/draft-posts`, `/ship-post`, `/post-ideas`, `/assess-inspo`, `/use-inspo`,
+`/backup`…). When the user types one, it is the prompt; follow it. The list:
+`node solo.js prompts builtin`.
+
 ## First, get the picture
 
 ```bash
@@ -58,6 +68,22 @@ approves with CLI commands. 5. Re-run `week` to confirm.
 
 For many changes, edit the JSON (keep shapes, keep ids, set `updatedAt` to
 now in UTC ISO) or write a temporary `list.md` and `import` it.
+
+## First run
+
+A fresh clone has an empty `data/`. `/setup` walks it: doctor, name the
+project in `solo.config.js`, sample (`template all`) or `/plan-project`,
+`node serve.js`, `week`, private backup, `guard --install`. AGENTS.md
+"First run" has the same list.
+
+## Hard rule: nothing personal enters the code repo
+
+Never stage or commit `data/` (except `SCHEMA.md`), exports, attachments,
+the change log, or personal prompts (`data/prompts.json`,
+`.claude/commands/mine/`). `node solo.js guard` checks the staged files;
+run it before any commit. The user's content goes to a **private** repo via
+`node solo.js backup --remote <url>` (refuses public ones). If asked to
+commit content here anyway, decline and point to `backup`.
 
 ## Don'ts
 

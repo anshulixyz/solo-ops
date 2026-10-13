@@ -185,13 +185,16 @@
 
   /* ---- template / import / export ------------------------------------ */
   function timestamp() { return new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-'); }
+  // data/exports/ when the server runs or the folder is linked, a download otherwise (core/sync.js)
   function downloadFile(content, filename, mimeType) {
+    if (global.Sync && Sync.saveFile) return Sync.saveFile(filename, content, mimeType);
     var blob = new Blob([content], { type: mimeType });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url; a.download = filename;
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
+    return Promise.resolve({ where: 'download', path: filename, text: 'Downloaded ' + filename });
   }
   // The file format is the same wrapper data/runway.json uses, so a saved
   // file can be dropped straight into data/ for the CLI and agents.
@@ -199,7 +202,7 @@
     return { version: 1, updatedAt: new Date().toISOString(), projects: Model.getCustomProjects(), tasks: Model.getState() };
   }
   function downloadBoard() {
-    downloadFile(JSON.stringify(boardFile(), null, 2) + '\n', Model.BOARD + '-' + timestamp() + '.json', 'application/json');
+    return downloadFile(JSON.stringify(boardFile(), null, 2) + '\n', Model.BOARD + '-' + timestamp() + '.json', 'application/json');
   }
 
   function mdInline(value) {
@@ -256,10 +259,9 @@
       '- **Done tasks:** Excluded', '',
       sections.join('\n')
     ].join('\n');
-    downloadFile(markdown, 'runway-' + view + '-' + timestamp() + '.md', 'text/markdown;charset=utf-8');
-    flash('Exported ' + tasks.length + ' task' + (tasks.length === 1 ? '' : 's') + ' to Markdown.');
+    downloadFile(markdown, 'runway-' + view + '-' + timestamp() + '.md', 'text/markdown;charset=utf-8').then(function (r) { flash('Exported ' + tasks.length + ' task' + (tasks.length === 1 ? '' : 's') + ' to Markdown — ' + r.text.charAt(0).toLowerCase() + r.text.slice(1) + '.'); });
   };
-  global.exportState = function () { downloadBoard(); flash('Saved a copy of your board.'); };
+  global.exportState = function () { downloadBoard().then(function (r) { flash(r.where === 'disk' ? 'Board copy saved to ' + r.path + '.' : 'Board copy downloaded.'); }); };
 
   // Both are destructive (replace everything), so a backup downloads first.
   global.loadTemplate = function () {

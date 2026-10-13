@@ -78,7 +78,7 @@ function meta(html, url) {
 var server = http.createServer(function (req, res) {
   var url = decodeURIComponent(req.url.split('?')[0]);
 
-  if (url === '/api/ping') return json(res, 200, { marathon: true, version: 1, data: 'data/', log: true });
+  if (url === '/api/ping') return json(res, 200, { marathon: true, version: 1, data: 'data/', log: true, folder: ROOT });
 
   // link metadata for inspiration items (title, description) — fetched here so the browser is not blocked by CORS
   if (url === '/api/meta') {
@@ -122,6 +122,20 @@ var server = http.createServer(function (req, res) {
     try { var o = JSON.parse(rec.prev); o.updatedAt = new Date().toISOString(); restored = JSON.stringify(o, null, 2) + '\n'; } catch (e) { /* keep raw */ }
     fs.writeFileSync(target, restored);
     return json(res, 200, { ok: true, file: rec.file });
+  }
+
+  // exports: whole-workspace backups, board files, Markdown, the safety copies made before a destructive action — into data/exports/ instead of ~/Downloads
+  var ex = url.match(/^\/api\/export\/([A-Za-z0-9._-]+\.(json|md|txt|csv))$/);
+  if (ex) {
+    var edir = path.join(DATA, 'exports'); var efile = path.join(edir, ex[1]);
+    if (req.method === 'PUT') {
+      var eparts = [];
+      req.on('data', function (c) { eparts.push(c); });
+      req.on('end', function () { fs.mkdir(edir, { recursive: true }, function () { fs.writeFile(efile, Buffer.concat(eparts), function (err) { if (err) return json(res, 500, { error: err.code }); json(res, 200, { ok: true, path: 'data/exports/' + ex[1] }); }); }); });
+      return;
+    }
+    if (req.method === 'GET') return fs.readFile(efile, function (err, buf) { if (err) return json(res, 404, { error: 'none' }); send(res, 200, buf, MIME[path.extname(efile).toLowerCase()] || 'application/octet-stream'); });
+    return json(res, 405, { error: 'method' });
   }
 
   // attachments: images the pages save, as real files agents can open
