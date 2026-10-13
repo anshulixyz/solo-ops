@@ -12,6 +12,7 @@
   var selectedProjects = new Set(); // empty means all; selected projects match with OR
   var selectedTags = new Set();     // empty means all; selected tags match with OR
   var notesOpen = new Set();        // task ids whose notes panel is expanded
+  var whenOpen = null;              // task id whose date popover is open
 
   // Add-panel tag picker state
   var pickerTags = Model.KNOWN_TAGS.slice();  // options shown as toggle chips
@@ -25,7 +26,7 @@
   }
   function filteredTasks() { return Model.getState().filter(taskMatchesFilters); }
   function render() {
-    View.render(view, filteredTasks(), selectedProjects, selectedTags, notesOpen);
+    View.render(view, filteredTasks(), selectedProjects, selectedTags, notesOpen, whenOpen);
     bindDrag();
     updateCollapseAllLabel();
   }
@@ -114,30 +115,53 @@
   function createTask(t) {
     var task = Model.add({
       id: Model.newId(), title: t.title, proj: t.proj || Model.getProjects()[0], pri: t.pri || 'medium',
-      col: t.col || 'todo', tags: t.tags || [], desc: t.desc || '', notes: '', collapsed: true, checklist: []
+      col: t.col || 'todo', tags: t.tags || [], desc: t.desc || '', notes: '', collapsed: true, checklist: [],
+      at: t.at || '', until: t.until || '', due: t.due || ''
     });
+    if ((task.tags || []).indexOf('meeting') >= 0 && !task.at) flash('Meeting without a time. Click + date on the card, or write it like "tomorrow 15:00".');
     var targetView = task.col === 'later' ? 'later' : (task.col === 'bucket' ? 'bucket' : 'board');
     renderTagDatalist();
     if (targetView !== view) setView(targetView); else render();
     return task;
   }
+  // the When field, or a date at the end of the title → at / until / due
+  function whenFromInputs(title) {
+    var out = { title: title, at: '', until: '', due: '' }; if (!window.When) return out;
+    var ex = When.extract(title); if (ex.at || ex.due) out = ex;
+    var wEl = document.getElementById('newWhen'); var w = wEl ? wEl.value.trim() : '';
+    if (w) { var isDue = /^(due|by)\s+/i.test(w); var ex2 = When.extract('x ' + (isDue ? w : 'at ' + w)); if (ex2.at || ex2.due) { out.at = ex2.at || out.at; out.until = ex2.until || out.until; out.due = ex2.due || out.due; } else { var p = When.parse(w); if (p) { if (isDue) out.due = When.dayKey(p.stamp); else out.at = p.stamp; } else flash('Could not read "' + w + '" as a date. Try "tomorrow 14:00" or "due fri".'); } }
+    return out;
+  }
   global.addTask = function () {
     var title = document.getElementById('newTitle').value.trim();
     if (!title) return;
+    var wh = whenFromInputs(title);
     createTask({
-      title: title,
+      title: wh.title,
       proj: document.getElementById('newProj').value,
       pri: document.getElementById('newPri').value,
       col: document.getElementById('newCol').value,
-      tags: Array.from(newTags)
+      tags: Array.from(newTags),
+      at: wh.at, until: wh.until, due: wh.due
     });
-    document.getElementById('newTitle').value = '';
+    document.getElementById('newTitle').value = ''; var wIn = document.getElementById('newWhen'); if (wIn) wIn.value = '';
     newTags.clear();
     pickerTags = Model.KNOWN_TAGS.slice();
     renderTagPicker();
   };
   global.setPri = function (id, val) { Model.setPri(id, val); render(); };
-  global.delTask = function (id) { Model.del(id); notesOpen.delete(id); render(); };
+  global.delTask = function (id) { Model.del(id); notesOpen.delete(id); if (whenOpen === id) whenOpen = null; render(); };
+  /* ---- date popover on a card: when · until · due · meeting ---- */
+  global.toggleWhen = function (id) { whenOpen = whenOpen === id ? null : id; if (whenOpen) { var t = Model.getState().find(function (x) { return x.id === id; }); if (t && t.collapsed) Model.update(id, { collapsed: false }); } render(); if (whenOpen) { var f = document.querySelector('.card[data-id="' + id + '"] .when-form input'); if (f) f.focus(); } };
+  global.saveWhen = function (id, form) {
+    var t = Model.getState().find(function (x) { return x.id === id; }); if (!t || !window.When) return false;
+    var whenTxt = form.when.value.trim(), untilTxt = form.until.value.trim(), dueTxt = form.due.value.trim(); var patch = { at: '', until: '', due: '' };
+    if (whenTxt) { var p = When.parse(whenTxt); if (!p) { flash('Could not read "' + whenTxt + '". Try "tomorrow 14:00" or "fri 10:00".'); return false; } patch.at = p.stamp; if (untilTxt) { patch.until = When.until(patch.at, untilTxt); if (!patch.until) { flash('The end time is before the start.'); return false; } } }
+    if (dueTxt) { var d = When.parse(dueTxt); if (!d) { flash('Could not read the deadline "' + dueTxt + '".'); return false; } patch.due = When.dayKey(d.stamp); }
+    var tags = (t.tags || []).slice(); var isM = tags.indexOf('meeting') >= 0; if (form.meeting.checked && !isM) tags.push('meeting'); if (!form.meeting.checked && isM) tags = tags.filter(function (x) { return x !== 'meeting'; }); patch.tags = tags;
+    Model.update(id, patch); whenOpen = null; render(); flash(patch.at || patch.due ? 'Dated: ' + t.title : 'Date removed: ' + t.title); return false;
+  };
+  global.clearWhen = function (id) { var t = Model.getState().find(function (x) { return x.id === id; }); if (!t) return; Model.update(id, { at: '', until: '', due: '' }); whenOpen = null; render(); flash('Date removed: ' + t.title); };
   global.move = function (id, dir) { Model.move(id, dir); render(); };
   global.sendToBoard = function (id) { Model.moveTo(id, 'todo'); render(); flash('Moved to To Do.'); };
   global.sendToLater = function (id) { Model.moveTo(id, 'later'); render(); flash('Moved to Later.'); };
@@ -410,6 +434,7 @@
       .replace(/(^|\s)!(high|medium|med|low)\b/gi, function (_, sp, p) { t.pri = p.toLowerCase() === 'med' ? 'medium' : p.toLowerCase(); return sp; })
       .replace(/(^|\s)>(todo|doing|done|later|bucket)\b/gi, function (_, sp, c) { t.col = c.toLowerCase(); return sp; })
       .replace(/\s+/g, ' ').trim();
+    if (window.When) { var ex = When.extract(title); if (ex.at || ex.due) { title = ex.title; t.at = ex.at; t.until = ex.until; t.due = ex.due; } }
     t.title = title;
     return t;
   }
@@ -426,7 +451,14 @@
   function registerPalette() {
     Palette.init({ root: '../' });
     Palette.register([
-      { label: 'Add task', prefix: 'add', hint: 'add <title> @proj #tag !high >later', keywords: 'new create task', run: function (arg) {
+      { label: 'Set a time or deadline', prefix: 'at', hint: 'at <task> <when> · tomorrow 14:00 · fri 10:00 · due 2026-10-20 · clear', keywords: 'date schedule meeting due when', run: function (arg) {
+        var toks = arg.trim().split(/\s+/); var q = null, when = null, isDue = false;
+        for (var n = Math.min(3, toks.length - 1); n >= 1 && !when; n--) { var tail = toks.slice(-n).join(' '); var m = tail.match(/^(?:due|by)\s+(.+)$/i); var probe = m ? m[1] : tail; if (probe.toLowerCase() === 'clear' || (window.When && When.parse(probe))) { q = toks.slice(0, -n).join(' '); when = probe; isDue = !!m; } }
+        if (!when) { flash('Say which task and when: at Call with Sam tomorrow 14:00'); return; }
+        var t = pick(q); if (!t) return; if (when.toLowerCase() === 'clear') { Model.update(t.id, { at: '', until: '', due: '' }); render(); flash('Date removed: ' + t.title); return; }
+        var p = When.parse(when); if (isDue) Model.update(t.id, { due: When.dayKey(p.stamp) }); else Model.update(t.id, { at: p.stamp, until: '' }); render(); flash((isDue ? 'Due ' : 'At ') + When.label(isDue ? When.dayKey(p.stamp) : p.stamp) + ': ' + t.title);
+      } },
+      { label: 'Add task', prefix: 'add', hint: 'add <title> @proj #tag !high >later · a date at the end works: tomorrow 15:00, by fri', keywords: 'new create task', run: function (arg) {
         var t = parseAddArg(arg); if (!t.title) { flash('Give the task a title.'); return; }
         createTask(t); flash('Added "' + t.title + '".');
       } },
@@ -497,6 +529,9 @@
     render();
     registerSync();
     registerPalette();
+    // ?id=<task>: expand, scroll to it and flash it (the Calendar links here)
+    (function () { var id = new URLSearchParams(location.search).get('id'); if (!id) return; var t = Model.getState().find(function (x) { return x.id === id; }); if (!t) return; if (t.collapsed) { Model.update(id, { collapsed: false }); render(); }
+      setTimeout(function () { var el = document.querySelector('.card[data-id="' + id + '"]'); if (!el) return; el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('flash'); setTimeout(function () { el.classList.remove('flash'); }, 2200); }, 150); })();
     if (location.hash === '#new' || !Config.boards().length) { toggleBoardPanel(); history.replaceState(null, '', location.pathname + location.search); }
     setBaseNote(Store.ok
       ? (Model.isFresh() ? 'This is the sample board. Add your own tasks, or load a file. ⌘K for commands.' : 'Saved in this browser · ⌘K for commands · n adds a task')

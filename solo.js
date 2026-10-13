@@ -21,6 +21,7 @@ var DATA = path.join(ROOT, 'data');
 var cfg = safeRequire(path.join(ROOT, 'solo.config.js')) || {};
 var T = safeRequire(path.join(ROOT, 'core', 'templates.js'));
 var P = safeRequire(path.join(ROOT, 'core', 'prompts.js'));   // the Guide's built-in prompts (shared with the pages)
+var When = safeRequire(path.join(ROOT, 'core', 'when.js'));    // dates: parse, state, label (shared with the pages)
 var RESERVED = ['social', 'scripts', 'writing', 'settings', 'activity', 'boards', 'workspaces', 'calendar', 'home', 'prompts', 'inspiration', 'log', 'attachments', 'backup', 'exports'];
 var COLS = ['todo', 'doing', 'done', 'later', 'bucket'];
 var COL_LABEL = { todo: 'To Do', doing: 'Doing', done: 'Done', later: 'Later', bucket: 'Bucket List' };
@@ -166,14 +167,18 @@ function fmtDT(s) {
   var d = new Date(s); if (isNaN(d)) return s;
   return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
-function parseWhen(v) {
+function parseWhen(v) {   // posts: a date alone means 09:00; stamps with a zone become local time (core/when.js)
   if (!v) return localDT(tomorrow9());
-  var m = String(v).match(/^\+(\d+)d(?:\s+(\d{1,2}):(\d{2}))?$/);
-  if (m) { var d = new Date(); d.setDate(d.getDate() + parseInt(m[1], 10)); d.setHours(m[2] ? +m[2] : 9, m[3] ? +m[3] : 0, 0, 0); return localDT(d); }
-  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v + 'T09:00';
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v)) return v.slice(0, 16);
-  var d2 = new Date(v); if (!isNaN(d2)) return localDT(d2);
-  fail('Could not read the date "' + v + '". Use 2026-10-20T09:00, 2026-10-20, or +3d 17:30.');
+  var p = When ? When.parse(v) : null; if (p) return p.allDay ? p.stamp + 'T09:00' : p.stamp;
+  fail('Could not read the date "' + v + '". Use 2026-10-20T09:00, 2026-10-20, +3d 17:30, tomorrow 14:00 or fri 10:00.');
+}
+// tasks: a date alone stays all-day; 'clear' removes
+function parseAt(v, what) { if (String(v).toLowerCase() === 'clear') return ''; var p = When ? When.parse(v) : null; if (!p) fail('Could not read the ' + (what || 'date') + ' "' + v + '". Use 2026-10-15T14:00, 2026-10-15, +3d 17:30, tomorrow 14:00 or fri 10:00.'); return p.stamp; }
+function applyDates(t, f) {   // --at --until --due --ext from flags onto a task; 'clear' removes
+  if (f.at !== undefined) { var a = parseAt(f.at, 'time'); if (a) t.at = a; else { delete t.at; delete t.until; } }
+  if (f.until !== undefined) { if (!t.at || String(f.until).toLowerCase() === 'clear') delete t.until; else { var u = When.until(t.at, f.until); if (!u) fail('Could not read --until "' + f.until + '". Use 15:00 or a full date-time.'); if (u < t.at) fail('--until is before --at'); t.until = u; } }
+  if (f.due !== undefined) { var d = parseAt(f.due, 'due date'); if (d) t.due = When.dayKey(d); else delete t.due; }
+  if (f.ext !== undefined) { if (String(f.ext).toLowerCase() === 'clear' || !f.ext) delete t.ext; else t.ext = String(f.ext); }
 }
 function tomorrow9() { var d = new Date(); d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0); return d; }
 function progress(items) { var n = (items || []).length, d = (items || []).filter(function (c) { return c.done; }).length; return n ? d + '/' + n : ''; }
@@ -190,9 +195,62 @@ function find(list, q, label) {
   if (!m.length) fail('No ' + label + ' matches "' + q + '".');
   fail(m.length + ' ' + label + 's match "' + q + '": ' + m.map(function (x) { return x.id + ' (' + x.title + ')'; }).join(', ') + '. Use the id.');
 }
+function whenText(t) { if (!When || (!t.at && !t.due)) return ''; var st = When.state(t); return (t.at ? ' · ' + When.label(t.at) + (t.until && When.dayKey(t.until) === When.dayKey(t.at) ? '–' + When.timeOf(t.until) : '') : '') + (t.due ? ' · due ' + When.label(t.due) : '') + (st === 'overdue' ? ' · OVERDUE' : ''); }
 function taskLine(t) {
   var p = progress(t.checklist);
-  return '- [' + t.id + ']' + (t._board ? ' (' + t._board + ')' : '') + ' ' + t.title + ' · ' + t.proj + ' · ' + t.pri + (t.tags && t.tags.length ? ' · #' + t.tags.join(' #') : '') + (p ? ' · ' + p + ' steps' : '');
+  return '- [' + t.id + ']' + (t._board ? ' (' + t._board + ')' : '') + ' ' + t.title + ' · ' + t.proj + ' · ' + t.pri + whenText(t) + (t.tags && t.tags.length ? ' · #' + t.tags.join(' #') : '') + (p ? ' · ' + p + ' steps' : '');
+}
+// at <task> <when|clear> [--until HH:MM] · due <task> <date|clear>: the date is the trailing one or two words
+function whenCmd(kind) {
+  return function () {
+    var b = board(); var q = null, when = null;
+    for (var n = Math.min(2, pos.length - 1); n >= 1 && !when; n--) { var tail = pos.slice(-n).join(' '); if (tail.toLowerCase() === 'clear' || (When && When.parse(tail))) { q = pos.slice(0, -n).join(' '); when = tail; } }
+    if (!when) fail('Usage: ' + kind + ' <task> <' + (kind === 'at' ? 'when' : 'date') + '|clear>' + (kind === 'at' ? ' [--until 15:00]' : '') + '   e.g. ' + kind + ' t3 tomorrow 14:00');
+    var t = find(b.tasks, q, 'task'); var f = {}; f[kind] = when; if (flags.until !== undefined) f.until = flags.until; applyDates(t, f); saveBoard(b);
+    out('✓ [' + t.id + '] ' + t.title + (when.toLowerCase() === 'clear' ? (kind === 'at' ? ' · time removed' : ' · due date removed') : whenText(t)), t);
+  };
+}
+// every dated item of a workspace (tasks with at/due on any of its boards + posts), for today / week / calendar
+function boardsOf(wsId) {
+  var w = WORKSPACES.filter(function (x) { return x.id === wsId; })[0]; if (!w) return []; var seen = {}, outB = []; var rt = read('boards');
+  w.boards.concat((rt && Array.isArray(rt.boards) ? rt.boards : []).filter(function (b) { return (b.ws || PRIMARY) === wsId; })).map(normBoard).filter(Boolean).forEach(function (b) { if (!seen[b.id]) { seen[b.id] = 1; outB.push(b); } });
+  return outB;
+}
+function datedItems(all) {
+  var items = []; var now = new Date();
+  (all ? WORKSPACES : [WS]).forEach(function (w) {
+    var wb = boardsOf(w.id); if (!wb.length) wb = [{ id: 'runway', title: 'Launch Runway' }];   // a workspace with no boards still has the default file (same fallback as BOARD_ID)
+    wb.forEach(function (bm) { var bf = read(prefix(w.id) + bm.id); ((bf && bf.tasks) || []).forEach(function (t) { if (t.at || t.due) items.push({ kind: 'task', id: t.id, title: t.title, at: t.at || '', until: t.until || '', due: t.due || '', col: t.col, pri: t.pri, tags: t.tags || [], meeting: (t.tags || []).indexOf('meeting') >= 0, board: bm.id, boardTitle: bm.title, ws: w.id, ext: t.ext || '' }); }); });
+    if (w.apps.social !== false) { var sfile = read(prefix(w.id) + 'social'); ((sfile && sfile.posts) || []).forEach(function (p) { if (p.datetime) items.push({ kind: 'post', id: p.id, title: p.title, at: p.datetime.slice(0, 16), until: '', due: '', status: p.status, ws: w.id, board: '' }); }); }
+  });
+  items.forEach(function (i) { i.when = i.at || i.due; i.state = When ? When.state(i, now) : ''; i.open = i.kind === 'task' ? i.col !== 'done' : i.status !== 'posted'; });
+  items.sort(function (a, b) { return a.when.localeCompare(b.when); });
+  return items;
+}
+function itemLine(i, showBoard) {
+  var time = i.at ? (When ? When.range(i.at, i.until) : i.at.slice(11)) : 'due';
+  return '- ' + (i.state === 'overdue' ? 'OVERDUE · ' : '') + (i.state === 'overdue' && !i.at ? 'due ' + i.due + ' ' : time + ' ') + '[' + i.id + '] ' + i.title + (i.meeting ? ' · meeting' : i.kind === 'post' ? ' · post' + (i.status ? ' (' + i.status + ')' : '') : '') + (showBoard && i.board ? ' (' + i.board + ')' : '') + (i.ws !== WS_ID ? ' · ' + i.ws : '');
+}
+// what is on today: everything overdue, then today's dated tasks and posts in time order (all-day first)
+function scheduleToday(items) {
+  var today = When ? When.localD(new Date()) : new Date().toISOString().slice(0, 10);
+  var list = items.filter(function (i) { return i.open && (i.state === 'overdue' || When.dayKey(i.when) === today); });
+  list.sort(function (a, b) { var oa = a.state === 'overdue' ? 0 : 1, ob = b.state === 'overdue' ? 0 : 1; if (oa !== ob) return oa - ob; return (a.when + (a.at ? '' : 'T00:00')).localeCompare(b.when + (b.at ? '' : 'T00:00')); });
+  return list;
+}
+function byDay(items, from, days) {
+  var out = []; var d = new Date(from.getTime()); d.setHours(0, 0, 0, 0);
+  for (var k = 0; k < days; k++) { var key = When.localD(d); var g = items.filter(function (i) { return i.open && When.dayKey(i.when) === key && i.state !== 'overdue'; }); if (g.length) out.push({ day: key, label: d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }), items: g }); d.setDate(d.getDate() + 1); }
+  return out;
+}
+function cmdCalendar() {
+  var days = parseInt(flags.days || pos[0], 10) || 14; var items = datedItems(!!flags.all); var now = new Date(); var showBoard = BOARDS.length > 1 || !!flags.all;
+  var overdue = items.filter(function (i) { return i.open && i.state === 'overdue'; }); var groups = byDay(items, now, days);
+  var md = ['# Calendar · next ' + days + ' days' + (flags.all ? ' · all projects' : ' · ' + WS.title), ''];
+  if (overdue.length) { md.push('## Overdue (' + overdue.length + ')'); overdue.forEach(function (i) { md.push(itemLine(i, showBoard)); }); md.push(''); }
+  if (!groups.length) md.push('_Nothing with a date in this window. Add one: `node solo.js add "Call with X" --at tomorrow 14:00 --until 14:30 --tags meeting`, or ask your agent to fill your calendar._', '');
+  groups.forEach(function (g) { md.push('## ' + g.label + (g.day === When.localD(now) ? ' · today' : '')); g.items.forEach(function (i) { md.push(itemLine(i, showBoard)); }); md.push(''); });
+  out(md, { from: When.localD(now), days: days, all: !!flags.all, overdue: overdue, byDay: groups, items: items.filter(function (i) { return i.open; }) });
 }
 function postLine(p) {
   var pr = progress(p.prep);
@@ -233,7 +291,7 @@ function cmdShow() {
 }
 function cmdAdd() {
   var title = pos.join(' ').trim() || flags.title;
-  if (!title) fail('Usage: add "Task title" [--proj X] [--pri high|medium|low] [--tags a,b] [--col todo|doing|later|bucket] [--desc "..."] [--steps "a|b|c"]');
+  if (!title) fail('Usage: add "Task title" [--proj X] [--pri high|medium|low] [--tags a,b] [--col todo|doing|later|bucket] [--desc "..."] [--steps "a|b|c"] [--at <when>] [--until <HH:MM>] [--due <date>] [--ext <calendar id>]');
   var b = board();
   var projects = ((cfg.projects || []).map(function (p) { return typeof p === 'string' ? p : p.name; })).concat(b.projects || []);
   var t = {
@@ -242,9 +300,16 @@ function cmdAdd() {
     tags: split(flags.tags).map(function (s) { return s.toLowerCase(); }), notes: flags.notes || '', collapsed: true,
     checklist: String(flags.steps || '').split('|').map(function (s) { return s.trim(); }).filter(Boolean).map(function (s) { return { text: s, done: false }; })
   };
+  applyDates(t, flags);
+  // --ext: the id a connected calendar gave this item. Same ext on the board → update it, never a duplicate (safe re-import).
+  var same = t.ext ? b.tasks.filter(function (x) { return x.ext === t.ext; })[0] : null;
+  if (same) {
+    same.title = t.title; if (t.at) same.at = t.at; if (t.until) same.until = t.until; else if (t.at) delete same.until; if (t.due) same.due = t.due; if (t.desc) same.desc = t.desc; t.tags.forEach(function (g) { if (same.tags.indexOf(g) < 0) same.tags.push(g); });
+    saveBoard(b); return out('✓ Updated [' + same.id + '] ' + same.title + ' (same --ext ' + same.ext + ')' + whenText(same), same);
+  }
   if (projects.indexOf(t.proj) < 0) { b.projects = (b.projects || []).concat([t.proj]); }
   b.tasks.unshift(t); saveBoard(b);
-  out('✓ Added [' + t.id + '] ' + t.title + ' → ' + COL_LABEL[t.col] + ' · ' + t.proj + ' · ' + t.pri, t);
+  out('✓ Added [' + t.id + '] ' + t.title + ' → ' + COL_LABEL[t.col] + ' · ' + t.proj + ' · ' + t.pri + whenText(t), t);
 }
 function moveCmd(col, verb) {
   return function () {
@@ -303,7 +368,8 @@ function cmdEdit() {
   if (flags.pri && PRI.hasOwnProperty(flags.pri)) t.pri = flags.pri;
   if (flags.col && COLS.indexOf(flags.col) >= 0) t.col = flags.col;
   if (flags.tags !== undefined) t.tags = split(flags.tags);
-  saveBoard(b); out('✓ Updated [' + t.id + '] ' + t.title, t);
+  applyDates(t, flags);
+  saveBoard(b); out('✓ Updated [' + t.id + '] ' + t.title + whenText(t), t);
 }
 
 /* ---- overviews ----------------------------------------------------------- */
@@ -324,12 +390,14 @@ function cmdToday() {
   var due = posts.filter(function (p) { return new Date(p.datetime) <= end; });
   var md = ['# Today · ' + now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }), '', activityLine(), ''];
   if (!tasks.length && !s.posts.length) md.push(EMPTY_NUDGE, '');
+  var sched = When ? scheduleToday(datedItems(false)) : [];
+  if (sched.length || tasks.some(function (t) { return t.at || t.due; })) md.push('## Schedule (' + sched.length + ')', sched.length ? sched.map(function (i) { return itemLine(i, BOARDS.length > 1); }).join('\n') : '_nothing dated today_', '');
   if (appOn('boards')) {
     md.push('## Doing (' + doing.length + ')', doing.length ? doing.map(taskLine).join('\n') : '_nothing in progress — start one: node solo.js start <task>_', '');
     md.push('## High priority, not started (' + high.length + ')', high.length ? high.map(taskLine).join('\n') : '_none_', '');
   }
   if (appOn('social')) md.push('## Posts due today or overdue (' + due.length + ')', due.length ? due.map(postLine).join('\n') : '_none_' + (posts[0] ? ' — next: ' + fmtDT(posts[0].datetime) + ' · ' + posts[0].title : ''), '');
-  out(md, { activity: activitySummary(), doing: doing, high: high, due: due, next: posts[0] || null });
+  out(md, { activity: activitySummary(), schedule: sched, doing: doing, high: high, due: due, next: posts[0] || null });
 }
 function cmdWeek() {
   var days = parseInt(flags.days || pos[0], 10) || 7;
@@ -352,6 +420,8 @@ function cmdWeek() {
     md.push('## Doing (' + doing.length + ')', doing.length ? doing.map(taskLine).join('\n') : '_nothing in progress_', '');
     md.push('## To Do by priority (' + todo.length + ')', todo.length ? todo.map(taskLine).join('\n') : '_empty_', '');
   }
+  var dayGroups = When ? byDay(datedItems(false), now, days) : []; var wkOverdue = When ? datedItems(false).filter(function (i) { return i.open && i.state === 'overdue'; }) : [];
+  if (dayGroups.length || wkOverdue.length) { md.push('## By day' + (wkOverdue.length ? ' (' + wkOverdue.length + ' overdue)' : '')); wkOverdue.forEach(function (i) { md.push(itemLine(i, BOARDS.length > 1)); }); dayGroups.forEach(function (g) { md.push('**' + g.label + '**'); g.items.forEach(function (i) { md.push(itemLine(i, BOARDS.length > 1)); }); }); md.push(''); }
   if (appOn('social')) md.push('## Posts scheduled (' + posts.length + (overdue.length ? ', ' + overdue.length + ' overdue' : '') + ' · ' + prepOpen + ' prep items open)', posts.length ? posts.map(postLine).join('\n') : '_no posts in this window_', '');
   if (appOn('scripts') || appOn('writing')) {
     md.push('## Studio');
@@ -359,7 +429,7 @@ function cmdWeek() {
     if (appOn('writing')) md.push('- ' + n.notes.length + ' note' + (n.notes.length === 1 ? '' : 's') + (n.notes[0] ? ' · latest: ' + titleOf(latestOf(n.notes).text) + ' (' + stamp(latestOf(n.notes).updatedAt) + ')' : ''));
     md.push('');
   }
-  out(md, { window: { from: now.toISOString(), days: days }, activity: activitySummary(), boards: BOARDS.map(function (b) { return b.id; }), doing: doing, todo: todo, done: done.length, posts: posts, overdue: overdue, prepOpen: prepOpen, scripts: sc.scripts.length, notes: n.notes.length });
+  out(md, { byDay: dayGroups, overdueDated: wkOverdue, window: { from: now.toISOString(), days: days }, activity: activitySummary(), boards: BOARDS.map(function (b) { return b.id; }), doing: doing, todo: todo, done: done.length, posts: posts, overdue: overdue, prepOpen: prepOpen, scripts: sc.scripts.length, notes: n.notes.length });
 }
 function latestOf(arr) { return arr.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); })[0]; }
 
@@ -842,6 +912,12 @@ function cmdDoctor() {
   if (orphans.length) notes.push('attachments: ' + orphans.length + ' file(s) nothing references (safe to delete): ' + orphans.slice(0, 5).join(', ') + (orphans.length > 5 ? '…' : ''));
   if (browserOnly) issues.push(browserOnly + ' attachment original(s) exist only in a browser (stored: browser). Open the app with node serve.js running so they are written to data/attachments/.');
   var total = 0; onDisk.forEach(function (f) { try { total += fs.statSync(path.join(adir, f)).size; } catch (e) { /* skip */ } }); if (onDisk.length) notes.push('attachments: ' + onDisk.length + ' file(s), ' + (total / 1048576).toFixed(1) + ' MB on disk');
+  // dates on tasks: warn, never fail (core/when.js stamps)
+  files.forEach(function (f) { var kind = f.replace(/\.json$/, '').replace(/^.*-/, ''); if (shapes.hasOwnProperty(kind)) return; var o = null; try { o = JSON.parse(fs.readFileSync(path.join(DATA, f), 'utf8')); } catch (e) { return; } ((o && o.tasks) || []).forEach(function (t) {
+    ['at', 'until'].forEach(function (k) { if (t[k] !== undefined && !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(String(t[k]))) notes.push(f + ' [' + t.id + '] ' + k + ' is not a date stamp: ' + JSON.stringify(t[k])); });
+    if (t.due !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(t.due))) notes.push(f + ' [' + t.id + '] due is not a date: ' + JSON.stringify(t.due));
+    if (t.at && t.until && String(t.until) < String(t.at)) notes.push(f + ' [' + t.id + '] until is before at');
+  }); });
   var repo = fs.existsSync(path.join(DATA, '.git')); var lastBackup = null;
   if (repo) { try { lastBackup = require('child_process').execFileSync('git', ['-C', DATA, 'log', '-1', '--format=%cI'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch (e) { /* none */ } }
   var realData = files.some(function (f) { return !/^(settings|activity|boards|workspaces|prompts|backup)\.json$/.test(f); });
@@ -893,12 +969,12 @@ function cmdConfig() {
 function cmdServe() { require('child_process').spawn(process.execPath, [path.join(ROOT, 'serve.js')].concat(flags.port ? ['--port', String(flags.port)] : []), { stdio: 'inherit' }); }
 function cmdHelp() {
   out(['# solo.js — tasks, posts, scripts and notes from the terminal', '',
-    'Overviews', '  today                      what is in play now + idle reminder',
+    'Overviews', '  today                      what is in play now + idle reminder + today\'s schedule', '  calendar [--days 14] [--all]   agenda: overdue, then every dated task, meeting and post by day (--all = every project)',
     '  log [--n 30]               recent changes by page / cli / agent, with ids', '  revert <id>                restore a file to how it was before that change', '  week [--days 7]            tasks by priority + posts + studio for the window', '  review                     same as week', '  activity                   streak + last 14 days', '',
     'Workspaces (one project = its own boards, schedule, scripts, notes; add --ws <id> to any command)', '  workspaces list', '  workspaces add "Title" [--apps social,scripts,writing] [--boards "A,B"] [--sample]   workspaces rename <id> "Title"   workspaces rm <id>', '',
     'Boards (data/<id>.json — every task command takes --board <id>; default: first board)', '  boards list', '  boards add "Title" [--from blank|sample|<id>]   boards rename <id> "Title"   boards rm <id> --force', '',
     'Tasks', '  list [board|all|todo|doing|done|later|bucket] [--proj X] [--tag Y]', '  show <task>                 full task (id or title fragment)',
-    '  add "Title" [--proj X] [--pri high] [--tags a,b] [--col later] [--desc "…"] [--steps "a|b"]', '  start|done|later|bucket|todo <task>', '  move <task> <column>        pri <task> <high|medium|low>', '  tag <task> +a -b            step <task> "text"   check|uncheck <task> <n>', '  note <task> ["text"]        edit <task> --title … --proj … --pri …', '  rm <task>', '',
+    '  add "Title" [--proj X] [--pri high] [--tags a,b] [--col later] [--desc "…"] [--steps "a|b"] [--at <when>] [--until HH:MM] [--due <date>] [--ext <calendar id>]', '  at <task> <when|clear> [--until HH:MM]   due <task> <date|clear>      when = 2026-10-15T14:00 · 2026-10-15 (all day) · tomorrow 14:00 · fri 10:00 · +3d 17:30; a meeting = --tags meeting', '  start|done|later|bucket|todo <task>', '  move <task> <column>        pri <task> <high|medium|low>', '  tag <task> +a -b            step <task> "text"   check|uncheck <task> <n>', '  note <task> ["text"]        edit <task> --title … --proj … --pri …', '  rm <task>', '',
     'Share', '  share [todo|board|all]      markdown checklist (paste anywhere)', '  import <list.md> [--col]    "- [ ] item" lines become tasks, indented lines become steps', '',
     'Posts (data/social.json)', '  social list|next|week|show <post>', '  social add "Title" [--at 2026-10-20T09:00 | +3d 17:30] [--type launch] [--project X] [--copy "…"] [--prep "a|b"]', '  social posted|ready|draft <post> [--url …]   social move <post> <when>', '  social prep <post> "item"   social check <post> <n>   social copy <post> ["text"]   social rm <post>', '',
     'Inspiration (data/inspiration.json — links, ideas, images; tag with a workspace)', '  inspo list [--ws] [--tag x] [--status new|used|archived]   inspo show <item>', '  inspo add [--file <path>] "https://… or an idea #tag" [--ws <id>] [--tags a,b]   inspo tag <item> +a -b   inspo ws <item> <workspace>', '  inspo use <item> --as task|post|script|note [--ws] [--board]   inspo ai [--into tasks] (prompt to paste into an AI)   inspo archive|rm <item>', '',
@@ -916,7 +992,7 @@ var commands = {
   today: cmdToday, week: cmdWeek, review: cmdWeek,
   list: cmdList, ls: cmdList, show: cmdShow, add: cmdAdd, edit: cmdEdit,
   done: moveCmd('done', 'Done'), start: moveCmd('doing', 'Started'), later: moveCmd('later', 'Parked'), bucket: moveCmd('bucket', 'Bucketed'), todo: moveCmd('todo', 'Back to To Do'),
-  move: cmdMove, pri: cmdPri, tag: cmdTag, step: cmdStep, check: checkCmd(true), uncheck: checkCmd(false), note: cmdNote, rm: cmdRm, del: cmdRm,
+  move: cmdMove, pri: cmdPri, tag: cmdTag, at: whenCmd('at'), due: whenCmd('due'), calendar: cmdCalendar, agenda: cmdCalendar, step: cmdStep, check: checkCmd(true), uncheck: checkCmd(false), note: cmdNote, rm: cmdRm, del: cmdRm,
   share: cmdShare, import: cmdImport,
   social: cmdSocial, post: cmdSocial, posts: cmdSocial,
   scripts: cmdScripts, script: cmdScripts, notes: cmdNotes,

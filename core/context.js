@@ -9,10 +9,10 @@
   function ws() { return Config.ws(); }
   function page() {
     var h = location.pathname.replace(/.*\//, '');
-    return { 'index.html': 'home', '': 'home', 'marathon-board.html': 'board', 'social-board.html': 'social', 'social-calendar.html': 'social', 'script-viewer.html': 'scripts', 'writing-viewer.html': 'writing', 'inspiration.html': 'inspo' }[h] || 'home';
+    return { 'index.html': 'home', '': 'home', 'marathon-board.html': 'board', 'social-board.html': 'social', 'social-calendar.html': 'social', 'calendar.html': 'calendar', 'script-viewer.html': 'scripts', 'writing-viewer.html': 'writing', 'inspiration.html': 'inspo' }[h] || 'home';
   }
   function task(t, bTitle) {
-    return '[' + t.id + '] ' + t.title + (bTitle ? ' · board: ' + bTitle : '') + ' · ' + t.col + ' · ' + t.pri + (t.tags.length ? ' · #' + t.tags.join(' #') : '') + ' · project: ' + t.proj +
+    return '[' + t.id + '] ' + t.title + (bTitle ? ' · board: ' + bTitle : '') + ' · ' + t.col + ' · ' + t.pri + (t.at ? ' · at ' + t.at.replace('T', ' ') + (t.until ? '–' + t.until.slice(11) : '') : '') + (t.due ? ' · due ' + t.due : '') + (t.tags.length ? ' · #' + t.tags.join(' #') : '') + ' · project: ' + t.proj +
       (t.desc ? '\n  ' + t.desc : '') + ((t.checklist || []).length ? '\n  steps: ' + t.checklist.map(function (c, i) { return (c.done ? '[x] ' : '[ ] ') + (i + 1) + '. ' + c.text; }).join(' · ') : '\n  (no steps yet)') + (t.notes ? '\n  notes: ' + t.notes.replace(/\n/g, ' / ') : '');
   }
   function post(p) {
@@ -65,6 +65,18 @@
       if (L.length === 1) { var d = allTasks().filter(function (x) { return x.t.col === 'done'; }).slice(0, 5); if (!d.length) return '(nothing finished yet — mark a task done first)'; L.push('(from the Done column)'); d.forEach(function (x) { L.push(task(x.t, x.b.title)); }); }
       return L.join('\n');
     } },
+    schedule: { label: 'My schedule', hint: 'next 7 days: meetings, dated tasks, posts, overdue first', get: function () {
+      var W = global.When; if (!W) return ''; var w = ws(); var now = new Date(); var items = [];
+      allTasks().forEach(function (x) { var t = x.t; if (!t.at && !t.due) return; items.push({ kind: 'task', id: t.id, title: t.title, at: t.at || '', until: t.until || '', due: t.due || '', col: t.col, meeting: (t.tags || []).indexOf('meeting') >= 0, board: x.b.title, open: t.col !== 'done' }); });
+      if (w.apps.social) (Store.getJSON(Config.key('social', w.id), []) || []).forEach(function (p) { if (p.datetime) items.push({ kind: 'post', id: p.id, title: p.title, at: String(p.datetime).slice(0, 16), until: '', due: '', status: p.status, open: p.status !== 'posted' }); });
+      items.forEach(function (i) { i.when = i.at || i.due; i.state = W.state(i, now); }); items = items.filter(function (i) { return i.open; }); items.sort(function (a, b) { return a.when.localeCompare(b.when); });
+      function line(i) { return '- ' + (i.state === 'overdue' ? 'OVERDUE · ' : '') + (i.at ? W.range(i.at, i.until) : 'due ' + i.due) + ' [' + i.id + '] ' + i.title + (i.meeting ? ' · meeting' : i.kind === 'post' ? ' · post (' + i.status + ')' : ' · ' + i.board); }
+      var L = ['# My schedule · next 7 days (' + w.title + ')']; var over = items.filter(function (i) { return i.state === 'overdue'; }); if (over.length) { L.push('', '## Overdue'); over.forEach(function (i) { L.push(line(i)); }); }
+      var d = new Date(now.getTime()); d.setHours(0, 0, 0, 0); var any = false;
+      for (var k = 0; k < 7; k++) { var key = W.localD(d); var g = items.filter(function (i) { return W.dayKey(i.when) === key && i.state !== 'overdue'; }); if (g.length) { any = true; L.push('', '## ' + d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }) + (k === 0 ? ' · today' : '')); g.forEach(function (i) { L.push(line(i)); }); } d.setDate(d.getDate() + 1); }
+      if (!any && !over.length) L.push('', '(nothing with a date in the next 7 days)');
+      return L.join('\n');
+    } },
     posts: { label: 'Upcoming posts', hint: 'next 14 days with copy and prep', get: function () {
       var w = ws(); var end = new Date(Date.now() + 14 * 86400000); var posts = (Store.getJSON(Config.key('social', w.id), []) || []).filter(function (p) { return p.status !== 'posted' && new Date(p.datetime) <= end; }).sort(function (a, b) { return a.datetime.localeCompare(b.datetime); });
       return posts.length ? '# Upcoming posts (' + posts.length + ')\n\n' + posts.map(post).join('\n\n') : '(no posts in the next 14 days)';
@@ -77,6 +89,6 @@
     // replace every {{token}} in a prompt
     fill: function (text) { return String(text).replace(/\{\{(\w+)\}\}/g, function (m, k) { if (k === 'snapshot') k = 'project'; return C[k] ? C[k].get() : m; }); },
     // the Context menu, with what is most useful on this page first
-    menu: function () { var pg = page(); var order = pg === 'board' ? ['this', 'last_task', 'board', 'recent', 'doing', 'project', 'posts', 'inspiration_new', 'inspiration'] : pg === 'social' ? ['this', 'posts', 'recent', 'doing', 'project', 'inspiration_new', 'inspiration', 'last_task', 'board'] : pg === 'scripts' || pg === 'writing' ? ['this', 'recent', 'inspiration_new', 'inspiration', 'project', 'last_task', 'doing', 'posts', 'board'] : pg === 'inspo' ? ['inspiration_new', 'inspiration', 'recent', 'project', 'doing', 'posts', 'last_task', 'this', 'board'] : ['recent', 'project', 'inspiration_new', 'doing', 'last_task', 'posts', 'inspiration', 'this', 'board']; order.splice(order.indexOf('recent') + 1, 0, 'shipped'); return order.map(function (k) { return { id: k, label: C[k].label, hint: C[k].hint }; }); }
+    menu: function () { var pg = page(); var order = pg === 'board' ? ['this', 'last_task', 'board', 'recent', 'doing', 'project', 'posts', 'inspiration_new', 'inspiration'] : pg === 'social' ? ['this', 'posts', 'recent', 'doing', 'project', 'inspiration_new', 'inspiration', 'last_task', 'board'] : pg === 'scripts' || pg === 'writing' ? ['this', 'recent', 'inspiration_new', 'inspiration', 'project', 'last_task', 'doing', 'posts', 'board'] : pg === 'inspo' ? ['inspiration_new', 'inspiration', 'recent', 'project', 'doing', 'posts', 'last_task', 'this', 'board'] : ['recent', 'project', 'inspiration_new', 'doing', 'last_task', 'posts', 'inspiration', 'this', 'board']; order.splice(order.indexOf('recent') + 1, 0, 'shipped'); order.splice(pg === 'calendar' || pg === 'home' ? 0 : order.indexOf('shipped') + 1, 0, 'schedule'); return order.map(function (k) { return { id: k, label: C[k].label, hint: C[k].hint }; }); }
   };
 })(window);

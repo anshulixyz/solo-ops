@@ -24,13 +24,15 @@
   }
   function title(kind, x) { if (kind === 'note') { var m = (x.text || '').match(/^#\s+(.+)/m); return m ? m[1].slice(0, 60) : (x.text || '').split('\n')[0].slice(0, 60) || 'untitled'; } return x.title || x.url || 'untitled'; }
   function sig(kind, x) {   // what counts as "changed"
-    if (kind === 'task') return [x.col, x.pri, (x.tags || []).join(','), (x.checklist || []).map(function (c) { return (c.done ? '1' : '0') + c.text; }).join('|'), x.notes, x.desc, x.title].join('\u0001');
+    if (kind === 'task') return [x.col, x.pri, (x.tags || []).join(','), (x.checklist || []).map(function (c) { return (c.done ? '1' : '0') + c.text; }).join('|'), x.notes, x.desc, x.title, x.at || '', x.until || '', x.due || ''].join('\u0001');
     if (kind === 'post') return [x.datetime, x.status, x.copy, (x.prep || []).map(function (c) { return (c.done ? '1' : '0') + c.text; }).join('|'), x.title, (x.posted || {}).url].join('\u0001');
     if (kind === 'script') return [x.title, x.text].join('\u0001'); if (kind === 'note') return x.text; if (kind === 'inspo') return [x.status, x.title, x.text, (x.tags || []).join(','), x.ws].join('\u0001');
     return '';
   }
   function describe(kind, a, b) {   // a = before, b = after (same id)
     if (kind === 'task') {
+      if ((a.at || '') !== (b.at || '') || (a.until || '') !== (b.until || '')) return (b.at ? (a.at ? 'rescheduled: ' : 'scheduled: ') : 'unscheduled: ') + b.title;
+      if ((a.due || '') !== (b.due || '')) return (b.due ? 'due ' + b.due + ': ' : 'due date removed: ') + b.title;
       if (a.col !== b.col) return (b.col === 'done' ? 'finished' : b.col === 'doing' ? 'started' : 'moved to ' + b.col) + ': ' + b.title;
       var da = (a.checklist || []).filter(function (c) { return c.done; }).length, db = (b.checklist || []).filter(function (c) { return c.done; }).length;
       if ((b.checklist || []).length > (a.checklist || []).length) return 'added a step to: ' + b.title;

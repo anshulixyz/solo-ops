@@ -35,15 +35,25 @@
   function split(v) { return String(v || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean); }
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
   function localDT(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
-  function parseWhen(v) {
+  function parseWhen(v) {   // posts: date-only means 09:00; zones are converted to local (core/when.js)
     var d = new Date(); d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0);
     if (!v) return localDT(d);
-    var m = String(v).match(/^\+(\d+)d(?:\s+(\d{1,2}):(\d{2}))?$/);
-    if (m) { d = new Date(); d.setDate(d.getDate() + parseInt(m[1], 10)); d.setHours(m[2] ? +m[2] : 9, m[3] ? +m[3] : 0, 0, 0); return localDT(d); }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v + 'T09:00';
-    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v)) return v.slice(0, 16);
+    var p = global.When ? When.parse(v) : null; if (p) return p.allDay ? p.stamp + 'T09:00' : p.stamp;
     var d2 = new Date(v); return isNaN(d2) ? localDT(d) : localDT(d2);
   }
+  // when does a line count as a command? Bare `at` / `due` only when it ends in something date-shaped (chat prose says "at this point" a lot).
+  function looksCmd(line) {
+    if (/^(\$\s*)?(node\s+solo\.js|node\s+marathon\.js|solo|marathon)\s+/.test(line)) return true;
+    if (/^(add|done|start|later|bucket|todo|move|pri|tag|step|check|note|rm|del|social|post|scripts|notes|inspo)\s/.test(line)) return true;
+    if (/^(at|due)\s/.test(line)) { var toks = line.trim().split(/\s+/); var last = (toks[toks.length - 1] || '').toLowerCase(); var prev = (toks[toks.length - 2] || '').toLowerCase(); var WD = global.When ? When.WEEKDAY : /^(mon|tue|wed|thu|fri|sat|sun)$/; return toks.length >= 3 && (last === 'clear' || /^\d{4}-\d{2}-\d{2}/.test(last) || /^\+\d+d$/.test(last) || /^(today|tomorrow|now)$/.test(last) || WD.test(last) || (/^\d{1,2}:\d{2}$/.test(last) && (/^\d{4}-\d{2}-\d{2}$/.test(prev) || /^\+\d+d$/.test(prev) || /^(today|tomorrow)$/.test(prev) || WD.test(prev)))); }
+    return false;
+  }
+  // `at <task> <when>` / `due <task> <date>`: the date is the trailing one or two tokens; the rest names the task
+  function splitWhen(posArr) {
+    for (var n = Math.min(2, posArr.length - 1); n >= 1; n--) { var tail = posArr.slice(-n).join(' '); if (tail.toLowerCase() === 'clear' || (global.When && When.parse(tail))) return { q: posArr.slice(0, -n).join(' '), when: tail }; }
+    return null;
+  }
+
 
   function ctx(wsId, dry) {
     var ws = wsId || Config.activeWs(); var boards = Config.boards(ws);
@@ -77,7 +87,7 @@
   // checklist item (plus its indented steps). Used for the preview.
   function segment(text) {
     var lines = String(text || '').split('\n'); var units = []; var i = 0;
-    function isCmd(line) { return /^(\$\s*)?(node\s+solo\.js|node\s+marathon\.js|solo|marathon)\s+/.test(line) || /^(add|done|start|later|bucket|todo|move|pri|tag|step|check|note|rm|del|social|post|scripts|notes|inspo)\s/.test(line); }
+    function isCmd(line) { return looksCmd(line); }
     while (i < lines.length) {
       var raw = lines[i]; var line = raw.trim();
       if (!line || line.indexOf('```') === 0 || (line.indexOf('#') === 0)) { i++; continue; }
@@ -124,7 +134,7 @@
       if (!line || line.indexOf('```') === 0 || line.indexOf('#') === 0 && !/^#\s*\[/.test(line)) { i++; continue; }
       // checklist item
       var cl = raw.match(/^(\s*)[-*]\s+(?:\[([ xX])\]\s+)?(.+)$/);
-      var isCmd = /^(\$\s*)?(node\s+solo\.js|node\s+marathon\.js|solo|marathon)\s+/.test(line) || /^(add|done|start|later|bucket|todo|move|pri|tag|step|check|note|rm|social|scripts|notes|inspo)\s/.test(line);
+      var isCmd = looksCmd(line);
       if (cl && !isCmd) {
         var indent = cl[1].length, done = (cl[2] || '').toLowerCase() === 'x', title = cl[3].trim();
         if (indent === 0) {
@@ -146,7 +156,13 @@
           var bid2 = c.pickBoard(a.flags); if (!bid2) { skipped.push('no board for: ' + q); i++; continue; }
           var tasks2 = c.loadBoard(bid2);
           var nt = { id: uid('t'), title: q, desc: a.flags.desc || '', proj: a.flags.proj || Config.projectNames()[0], col: COLS.indexOf(a.flags.col) >= 0 ? a.flags.col : 'todo', pri: ['high', 'medium', 'low'].indexOf(a.flags.pri) >= 0 ? a.flags.pri : 'medium', tags: split(a.flags.tags).map(function (s) { return s.toLowerCase(); }), notes: a.flags.notes || '', collapsed: true, checklist: String(a.flags.steps || '').split('|').map(function (s) { return s.trim(); }).filter(Boolean).map(function (s) { return { text: s, done: false }; }) };
-          tasks2.unshift(nt); c.saveBoard(bid2, tasks2); lastTask = { board: bid2, id: nt.id }; applied.push('added task: ' + q);
+          var untilDropped = false;
+          if (a.flags.at && global.When) { var pa = When.parse(a.flags.at); if (pa) { nt.at = pa.stamp; if (a.flags.until) { nt.until = When.until(nt.at, a.flags.until); if (!nt.until) untilDropped = true; } } }
+          if (a.flags.due && global.When) { var pd = When.parse(a.flags.due); if (pd) nt.due = When.dayKey(pd.stamp); }
+          if (a.flags.ext) nt.ext = String(a.flags.ext);
+          var same = nt.ext ? tasks2.filter(function (x) { return x.ext === nt.ext; })[0] : null;
+          if (same) { same.title = nt.title; if (nt.at) same.at = nt.at; if (nt.until) same.until = nt.until; if (nt.due) same.due = nt.due; nt.tags.forEach(function (g) { if (same.tags.indexOf(g) < 0) same.tags.push(g); }); c.saveBoard(bid2, tasks2); lastTask = { board: bid2, id: same.id }; applied.push('updated (same ext): ' + same.title); }
+          else { tasks2.unshift(nt); c.saveBoard(bid2, tasks2); lastTask = { board: bid2, id: nt.id }; applied.push('added task: ' + q + (nt.at ? ' · ' + nt.at.replace('T', ' ') : '') + (untilDropped ? ' (end time ignored: before the start)' : '')); }
         } else if (['done', 'start', 'later', 'bucket', 'todo'].indexOf(cmd) >= 0) {
           var col = { done: 'done', start: 'doing', later: 'later', bucket: 'bucket', todo: 'todo' }[cmd];
           var r = c.mutateTask(q, a.flags, function (t) { t.col = col; return cmd + ': ' + t.title; }); (/^no |tasks match/.test(r) ? skipped : applied).push(r);
@@ -163,6 +179,13 @@
           var n = parseInt(a.pos.pop(), 10); var r6 = c.mutateTask(a.pos.join(' '), a.flags, function (t) { if (t.checklist[n - 1]) t.checklist[n - 1].done = cmd === 'check'; return cmd + ' ' + n + ': ' + t.title; }); (/^no |tasks match/.test(r6) ? skipped : applied).push(r6);
         } else if (cmd === 'note') {
           var txt2 = a.flags.text || a.pos.slice(1).join(' '); var r7 = c.mutateTask(a.flags.text ? q : a.pos[0], a.flags, function (t) { t.notes = (t.notes ? t.notes + '\n' : '') + txt2; return 'note added: ' + t.title; }); (/^no |tasks match/.test(r7) ? skipped : applied).push(r7);
+        } else if (cmd === 'at' || cmd === 'due') {
+          var sw = splitWhen(a.pos); if (!sw) { skipped.push(cmd + ': give a task and a date, e.g. `' + cmd + ' t3 tomorrow 14:00`'); i++; continue; }
+          var r8 = c.mutateTask(sw.q, a.flags, function (t) {
+            if (sw.when.toLowerCase() === 'clear') { if (cmd === 'at') { delete t.at; delete t.until; } else delete t.due; return (cmd === 'at' ? 'unscheduled: ' : 'due date removed: ') + t.title; }
+            var pw = When.parse(sw.when); if (cmd === 'at') { t.at = pw.stamp; var u8 = a.flags.until ? When.until(t.at, a.flags.until) : ''; if (u8) t.until = u8; else delete t.until; return 'at ' + t.at.replace('T', ' ') + (u8 ? '–' + When.timeOf(u8) : a.flags.until ? ' (end time ignored: before the start)' : '') + ': ' + t.title; }
+            t.due = When.dayKey(pw.stamp); return 'due ' + t.due + ': ' + t.title;
+          }); (/^no |tasks match/.test(r8) ? skipped : applied).push(r8);
         } else if (cmd === 'rm' || cmd === 'del') {
           skipped.push('not deleting "' + q + '" from a pasted reply — delete it yourself if you agree');
         } else if (cmd === 'social' || cmd === 'post') {

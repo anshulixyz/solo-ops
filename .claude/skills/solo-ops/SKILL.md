@@ -42,6 +42,8 @@ node solo.js add "Title" --proj <project> --pri high|medium|low --tags a,b --ste
 node solo.js start|done|later|bucket|todo <id or title fragment>
 node solo.js move <task> <column> ; pri <task> high ; tag <task> +x -y
 node solo.js step <task> "text" ; check <task> <n> ; note <task> "text"
+node solo.js add "Call with X" --at tomorrow 14:00 --until 14:30 --tags meeting --ext gcal:<id>   # meeting = task with a time
+node solo.js at <task> <when|clear> ; due <task> <date|clear> ; calendar [--days 14] [--all]
 node solo.js social add "Title" --at 2026-10-20T09:00|+3d 17:30 --type launch --project x --copy "…" --prep "a|b"
 node solo.js social next|week|show <post> ; social posted <post> --url … ; social prep <post> "item"
 node solo.js scripts add "Title" --file x.md ; notes add "Title" --file x.md ; notes show <n>

@@ -48,6 +48,23 @@
       '</svg><span class="ring-num">' + center + '</span></div>';
   }
 
+  // date chip: 'Today 14:00–14:30', 'Tomorrow', 'due Wed 15 Oct'; coloured by state (overdue · today · past)
+  function whenFormHTML(t) {
+    var W = window.When; var atV = t.at ? t.at.replace('T', ' ') : ''; var unV = t.until ? W.timeOf(t.until) : '';
+    return '<form class="when-form" onsubmit="return saveWhen(\'' + t.id + '\', this)" onclick="event.stopPropagation()">' +
+      '<label>When<input name="when" value="' + esc(atV) + '" placeholder="tomorrow 14:00 · fri 10:00 · 2026-10-20" autocomplete="off"></label>' +
+      '<label>Until<input name="until" value="' + esc(unV) + '" placeholder="14:30" size="6" autocomplete="off"></label>' +
+      '<label>Deadline<input name="due" value="' + esc(t.due || '') + '" placeholder="2026-10-20 · fri" autocomplete="off"></label>' +
+      '<label class="chk"><input type="checkbox" name="meeting"' + ((t.tags || []).indexOf('meeting') >= 0 ? ' checked' : '') + '> meeting</label>' +
+      '<span class="when-btns"><button type="submit" class="btn small primary">Save</button>' + (t.at || t.due ? '<button type="button" class="btn small ghost" onclick="clearWhen(\'' + t.id + '\')">Clear</button>' : '') + '<button type="button" class="btn small ghost" onclick="toggleWhen(\'' + t.id + '\')">Cancel</button></span></form>';
+  }
+  function whenChipHTML(t) {
+    var W = window.When; if (!W) return '';
+    if (!t.at && !t.due) return t.collapsed ? '' : '<button type="button" class="tag when ghost" onclick="event.stopPropagation();toggleWhen(\'' + t.id + '\')" title="Give this task a time or a deadline">+ date</button>';
+    var st = W.state(t); var txt = t.at ? W.label(t.at) + (t.until && W.dayKey(t.until) === W.dayKey(t.at) ? '–' + W.timeOf(t.until) : '') : 'due ' + W.label(t.due);
+    var tip = (t.at ? 'At ' + t.at.replace('T', ' ') + (t.until ? ' until ' + t.until.replace('T', ' ') : '') : '') + (t.due ? (t.at ? ' · ' : '') + 'Due ' + t.due : '') + (st === 'overdue' ? ' · overdue' : '');
+    return '<button type="button" class="tag when ' + esc(st) + '" onclick="event.stopPropagation();toggleWhen(\'' + t.id + '\')" title="' + esc(tip) + ' · click to change">' + esc(txt) + '</button>';
+  }
   function tagsHTML(t, editable) {
     var chips = t.tags.map(function (tag) {
       var rm = editable
@@ -124,13 +141,14 @@
       '<button class="card-del" onclick="delTask(\'' + t.id + '\')" title="Delete task">delete</button></div>';
   }
 
-  function cardHTML(t, view, notesOpen) {
+  function cardHTML(t, view, notesOpen, whenOpen) {
     var isDone = t.col === 'done';
     var body = '';
     if (!t.collapsed) {
       body = '<div class="card-body">' +
         (t.desc ? '<div class="card-desc">' + esc(t.desc) + '</div>' : '') +
         checklistHTML(t) +
+        (whenOpen === t.id ? whenFormHTML(t) : '') +
         notesHTML(t, notesOpen) +
         footHTML(t, view) +
         '</div>';
@@ -141,7 +159,7 @@
       '<div class="card-head-main">' +
       '<div class="card-tags">' + prioritySelect(t) +
       '<span class="tag proj" style="--h:' + projHue(t.proj) + '">' + esc(projLabel(t.proj)) + '</span>' +
-      tagsHTML(t, !t.collapsed) + '</div>' +
+      whenChipHTML(t) + tagsHTML(t, !t.collapsed) + '</div>' +
       '<div class="card-title">' + esc(t.title) + '</div>' +
       '</div>' +
       ringHTML(t) +
@@ -154,7 +172,7 @@
   }
 
   /* ---- top-level render ---------------------------------------------- */
-  function render(view, visible, selectedProjects, selectedTags, notesOpen) {
+  function render(view, visible, selectedProjects, selectedTags, notesOpen, whenOpen) {
     var state = Model.getState();
 
     if (view === 'board') {
@@ -162,7 +180,7 @@
         var items = visible.filter(function (t) { return t.col === col; }).sort(byPriority);
         var zone = document.querySelector('.dropzone[data-col="' + col + '"]');
         zone.innerHTML = items.length
-          ? items.map(function (t) { return cardHTML(t, view, notesOpen.has(t.id)); }).join('')
+          ? items.map(function (t) { return cardHTML(t, view, notesOpen.has(t.id), whenOpen); }).join('')
           : '<div class="empty">' + (col === 'done'
               ? 'Nothing finished yet.<br>Drag a card here when it ships.'
               : col === 'doing' ? 'Pull a card in to start.' : 'All clear.') + '</div>';
@@ -173,7 +191,7 @@
       var items = visible.filter(function (t) { return t.col === targetCol; }).sort(byPriority);
       var zone = document.querySelector('.parking-zone[data-col="' + targetCol + '"]');
       zone.innerHTML = items.length
-        ? items.map(function (t) { return cardHTML(t, view, notesOpen.has(t.id)); }).join('')
+        ? items.map(function (t) { return cardHTML(t, view, notesOpen.has(t.id), whenOpen); }).join('')
         : '<div class="empty">' + (view === 'bucket' ? 'No video or demo ideas yet.' : 'No parked items.') + '</div>';
       document.getElementById('c-' + targetCol).textContent = items.length;
     }

@@ -95,6 +95,8 @@ remote keeps the block.
    node solo.js week --json              # read the whole picture (every board of the workspace)
    node solo.js boards                   # which boards exist; add --board <id> to any task command
    node solo.js add "Title" --proj launch --pri high --tags content --steps "a|b" [--board <id>]
+   node solo.js add "Call with X" --at tomorrow 14:00 --until 14:30 --tags meeting [--ext gcal:<id>]   # a meeting is a task with a time; --ext makes re-imports update, not duplicate
+   node solo.js at <task> <when|clear> ; due <task> <date|clear> ; calendar [--days 14] [--all]   # when = 2026-10-15T14:00 · 2026-10-15 · tomorrow 14:00 · fri 10:00 · +3d 17:30
    node solo.js done <id or title> ; start … ; move … later ; pri … high
    node solo.js step <task> "text" ; check <task> 2 ; note <task> "text" ; tag <task> +x -y
    node solo.js social add "Title" --at 2026-10-20T09:00 --type launch --copy "…"
@@ -131,6 +133,18 @@ remote keeps the block.
   board in config. Never move tasks between boards by editing ids; add + rm.
 - `doing` means in progress now; keep it short. `later` is parked, `bucket` is
   ideas. Priority is `high | medium | low`. Tags are lowercase free text.
+- **Dates.** A task may carry `at` (a time, local, `YYYY-MM-DDTHH:MM`, or a
+  date alone for all-day), `until` (end) and `due` (deadline). A **meeting is
+  a task with `at` and the tag `meeting`**; it lives on a board like any task.
+  Overdue = `due` before today, or `at` in the past with no `until`; a meeting
+  that ended is past, not overdue. `today` prints a Schedule block, `week` a
+  By-day block, `calendar` the agenda. **Filling the calendar from the one you
+  are connected to** (Google, Apple, Outlook through your connector): next 7
+  days, local time, skip declined and free events, one `add … --at … --until …
+  --tags meeting --ext <calendar>:<event id>` per meeting (all-day: `--at
+  <date>`, no until), never move or delete existing tasks, show the list first
+  and ask before adding more than 10. The `ext` id makes re-runs safe. No
+  connector: say how to connect one in Claude or ChatGPT, then stop.
 - `today`/`week` start with an activity line. If it says idle, lead with the
   smallest next step; the user wants a nudge, not a lecture.
 - A weekly review = `node solo.js week`: Doing, To Do by priority, posts in

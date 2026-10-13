@@ -81,7 +81,7 @@
   }
   function normalize(arr) {
     return (arr || []).map(function (t) {
-      return {
+      var o = {
         id: t.id || ('t' + Math.abs(hash(JSON.stringify(t)))),
         title: t.title || '',
         desc: t.desc || '',
@@ -95,6 +95,12 @@
           return { text: (c && c.text) || '', done: !!(c && c.done) };
         }) : []
       };
+      // dates (core/when.js stamps, local time) and the id a connected calendar gave the item; kept only when set
+      if (typeof t.at === 'string' && t.at) o.at = t.at;
+      if (typeof t.until === 'string' && t.until) o.until = t.until;
+      if (typeof t.due === 'string' && t.due) o.due = t.due;
+      if (typeof t.ext === 'string' && t.ext) o.ext = t.ext;
+      return o;
     });
   }
   function hash(s) {

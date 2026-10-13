@@ -406,7 +406,8 @@
       { label: 'Next unposted', hint: 'view', keywords: 'upcoming', run: function () {
         var n = SocialModel.getSorted().find(function (p) { return p.status !== 'posted'; }); if (n) selectPost(n.id); else flash('Everything is posted.');
       } },
-      { label: 'Open calendar', hint: 'nav', run: function () { location.href = 'social-calendar.html?ws=' + encodeURIComponent(Config.activeWs()); } },
+      { label: 'Posting streak', hint: 'nav', keywords: 'heatmap calendar', run: function () { location.href = 'social-calendar.html?ws=' + encodeURIComponent(Config.activeWs()) + '#streak'; } },
+      { label: 'Open calendar', hint: 'nav', keywords: 'meetings agenda', run: function () { location.href = '../calendar/calendar.html?ws=' + encodeURIComponent(Config.activeWs()); } },
       { label: 'Save schedule to file', hint: 'export', keywords: 'download json backup', run: global.exportState },
       { label: 'Load schedule from file', hint: 'import', keywords: 'upload', run: function () { document.getElementById('importFile').click(); } },
       { label: 'Load sample schedule', hint: 'template', keywords: 'reset example', run: global.loadTemplate },

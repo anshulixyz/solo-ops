@@ -55,9 +55,18 @@ Board ids are slugs: lowercase, digits and dashes; `social`, `scripts`,
     "tags": ["content", "research"],      // free text, lowercase
     "notes": "",                          // private rough notes
     "collapsed": true,                    // UI state, safe to ignore
-    "checklist": [{ "text": "Draft 3 versions", "done": false }]
+    "checklist": [{ "text": "Draft 3 versions", "done": false }],
+    "at": "2026-10-15T14:00",                // optional: when (local, no zone); "2026-10-15" alone = all day
+    "until": "2026-10-15T14:30",             // optional end, full stamp; meetings have one
+    "due": "2026-10-20",                     // optional deadline (date)
+    "ext": "gcal:abc123"                    // optional id from a connected calendar; `add --ext` updates instead of duplicating
   }]
 }
+
+A **meeting** is a task with `at` (and usually `until`) and the tag `meeting`.
+State rules (core/when.js): overdue = `due` before today, or `at` in the past
+with no `until`; past = `until` has passed; today; upcoming. Absent fields are
+absent, not empty strings.
 ```
 
 `later` is the parking lot, `bucket` is the ideas list (video/demo ideas by

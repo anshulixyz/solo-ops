@@ -83,7 +83,7 @@
   .hm i.today{outline:1.5px solid var(--accent); outline-offset:1px;}
   .hm-legend{display:flex; gap:12px; flex-wrap:wrap; font-family:var(--mono); font-size:10px; color:var(--faint); margin-top:8px; letter-spacing:.04em;}
   /* lists */
-  .today{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px;}
+  .today{display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:12px;}
   .today ul{list-style:none; margin:0; padding:0;}
   .today li{display:flex; gap:10px; align-items:baseline; padding:7px 0; border-top:1px solid var(--line-2); font-size:13.5px;}
   .today li:first-child{border-top:0;}
@@ -205,6 +205,7 @@
 <script src="core/config.js"></script>
 <script src="core/templates.js"></script>
 <script src="core/prompts.js"></script>
+<script src="core/when.js"></script>
 <script src="core/theme.js"></script>
 <script src="core/sync.js"></script>
 <script src="core/activity.js"></script>
@@ -347,6 +348,18 @@
       var n = (t.checklist || []).length, d = (t.checklist || []).filter(function (c) { return c.done; }).length;
       return '<li><span class="id">' + esc(t.id) + '</span><a href="runway/marathon-board.html?ws=' + esc(t._ws) + '&board=' + esc(t._board) + '">' + esc(t.title) + '</a><span class="meta">' + (many ? esc(wsTitleOf(t._ws)) + ' · ' : '') + esc(t.col) + ' · ' + esc(t.pri) + (n ? ' · ' + d + '/' + n : '') + '</span></li>';
     }).join('') + '</ul>' : '<div class="empty">Nothing in Doing and no high-priority To Do anywhere. ⌘K → add on a board.</div>') + '</div>';
+    // schedule: everything with a date across every project — overdue, today, tomorrow
+    var W = window.When; var sched = [];
+    if (W) {
+      var now = new Date(); var tkey = W.localD(now); var tm = new Date(now.getTime()); tm.setDate(tm.getDate() + 1); var tmkey = W.localD(tm);
+      tasks.forEach(function (t) { if (!t.at && !t.due) return; var st = W.state(t, now); var day = W.dayKey(t.at || t.due); if (t.col !== 'done' && (st === 'overdue' || day === tkey || day === tmkey)) sched.push({ kind: 'task', id: t.id, title: t.title, at: t.at || '', until: t.until || '', due: t.due || '', st: st, day: day, ws: t._ws, board: t._board, meeting: (t.tags || []).indexOf('meeting') >= 0 }); });
+      sched.sort(function (a, b) { var oa = a.st === 'overdue' ? 0 : 1, ob = b.st === 'overdue' ? 0 : 1; if (oa !== ob) return oa - ob; return ((a.at || a.due) + (a.at ? '' : 'T00:00')).localeCompare((b.at || b.due) + (b.at ? '' : 'T00:00')); });
+    }
+    html += '<div class="hub-card"><div class="sec-h" style="margin:0 0 8px">Calendar · today and tomorrow <a href="calendar/calendar.html" style="float:right;font-weight:500">Open →</a></div>' + (sched.length ? '<ul>' + sched.slice(0, 10).map(function (i) {
+      var when = i.st === 'overdue' ? 'overdue' : (i.day === tmkey ? 'tomorrow ' : '') + (i.at ? W.range(i.at, i.until) : 'due');
+      var link = i.kind === 'post' ? 'social/social-board.html?ws=' + esc(i.ws) + '&id=' + esc(i.id) : 'runway/marathon-board.html?ws=' + esc(i.ws) + '&board=' + esc(i.board) + '&id=' + esc(i.id);
+      return '<li><span class="id">' + esc(when) + '</span><a href="' + link + '">' + esc(i.title) + '</a><span class="meta">' + (many ? esc(wsTitleOf(i.ws)) + ' · ' : '') + (i.kind === 'post' ? 'post' : i.meeting ? 'meeting' : 'task') + '</span></li>';
+    }).join('') + '</ul>' : '<div class="empty">Nothing with a time today or tomorrow. Add a meeting on the Calendar (+ Add), give a card a date (+ date), or ask your agent to fill it in.</div>') + '</div>';
     html += '<div class="hub-card"><div class="sec-h" style="margin:0 0 8px">Posts · next 7 days</div>' + (week.length ? '<ul>' + week.map(function (p) {
       var n = (p.prep || []).length, d = (p.prep || []).filter(function (c) { return c.done; }).length;
       return '<li><span class="id">' + esc(p.id) + '</span><a href="social/social-board.html?ws=' + esc(p._ws) + '&id=' + esc(p.id) + '">' + esc(p.title) + '</a><span class="meta">' + (many ? esc(wsTitleOf(p._ws)) + ' · ' : '') + esc(fmt(p.datetime)) + (n ? ' · ' + d + '/' + n + ' prep' : '') + '</span></li>';

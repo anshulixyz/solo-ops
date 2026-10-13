@@ -20,7 +20,7 @@
   function builtins() {
     var nav = [
       ['Hub', 'index.html'], ['Task board', 'runway/marathon-board.html'], ['Social schedule', 'social/social-board.html'],
-      ['Calendar', 'social/social-calendar.html'], ['Script viewer', 'studio/script-viewer.html'], ['Writing viewer', 'studio/writing-viewer.html']
+      ['Calendar', 'calendar/calendar.html'], ['Posting streak', 'social/social-calendar.html'], ['Script viewer', 'studio/script-viewer.html'], ['Writing viewer', 'studio/writing-viewer.html']
     ].map(function (n) { return { label: 'Go to ' + n[0], hint: 'nav', keywords: 'open page', run: function () { location.href = root + n[1] + (global.Config ? '?ws=' + encodeURIComponent(Config.activeWs()) : ''); } }; });
     var theme = [];
     if (global.Theme) {

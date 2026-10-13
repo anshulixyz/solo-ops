@@ -262,3 +262,19 @@ h1 .dot{color:var(--accent);}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;}}
 :focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+
+/* date chip on a card (core/when.js states) */
+.tag.when{background:var(--panel); border:1px solid var(--line); color:var(--ink); text-transform:none; letter-spacing:0; font-weight:600;}
+.tag.when.today{border-color:var(--accent); color:var(--accent);}
+.tag.when.overdue{border-color:var(--amber-line, var(--line)); color:var(--amber, #b7791f);}
+.tag.when.past{opacity:.6;}
+.tag.when{font:inherit; font-family:var(--mono); font-size:10px; cursor:pointer;}
+.tag.when.ghost{border-style:dashed; color:var(--muted); font-weight:500;}
+.tag.when.ghost:hover{border-color:var(--accent); color:var(--accent);}
+.when-form{display:flex; flex-wrap:wrap; gap:6px 8px; align-items:flex-end; margin:8px 0; padding:8px 10px; border:1px solid var(--line); border-radius:9px; background:var(--panel-2);}
+.when-form label{display:flex; flex-direction:column; gap:3px; font-family:var(--mono); font-size:9.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted);}
+.when-form label.chk{flex-direction:row; align-items:center; gap:5px; text-transform:none; font-family:var(--display); font-size:12px; padding-bottom:7px;}
+.when-form input[type=text],.when-form input:not([type]){height:28px; border-radius:7px; border:1px solid var(--line); background:var(--panel); color:var(--ink); font:inherit; font-size:12.5px; padding:0 8px;}
+.when-form input[name=when]{width:190px;} .when-form input[name=due]{width:130px;}
+.when-btns{display:flex; gap:5px; margin-left:auto;}
+.card.flash{box-shadow:0 0 0 2px var(--accent), var(--shadow-lift); transition:box-shadow .3s;}

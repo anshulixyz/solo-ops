@@ -19,7 +19,8 @@ HOW TO WORK
 
 HOW TO REPLY WITH CHANGES (the app applies these lines itself; nothing else runs):
 Put the commands at the end of your reply in one ``` block, one per line, in order.
-  add "Title" --pri high|medium|low --tags a,b --steps "step|step" [--board <id>]
+  add "Title" --pri high|medium|low --tags a,b --steps "step|step" [--board <id>] [--at 2026-10-15T14:00 | tomorrow 14:00] [--until 15:00] [--due 2026-10-20]
+  at <task> <when|clear> · due <task> <date|clear>   (a meeting = a task with --at and --tags meeting)
   start | done | later | bucket | todo <id or title fragment>
   move <task> todo|doing|done|later|bucket · pri <task> high|medium|low · tag <task> +a -b
   step <task> "text" · check <task> <n> · note <task> "text"

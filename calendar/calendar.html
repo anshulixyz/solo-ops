@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="../icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../icons/icon-192.png">
+<meta name="theme-color" content="#CC6B4A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Solo Ops">
+<title>Calendar — Solo Ops</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Lato:wght@400;700&display=swap" rel="stylesheet">
+<script src="../solo.config.js"></script>
+<script src="../core/theme-boot.js"></script>
+<link rel="stylesheet" href="../runway/styles.css">
+<link rel="stylesheet" href="../social/social-styles.css">
+<link rel="stylesheet" href="../social/social-calendar.css">
+<link rel="stylesheet" href="calendar.css">
+<link rel="stylesheet" href="../core/theme.css">
+<link rel="stylesheet" href="../core/ui.css">
+</head>
+<body class="cal-page">
+<div class="wrap">
+  <nav data-nav data-root="../"></nav>
+  <header>
+    <div class="eyebrow"><span data-cfg="name"></span> · what has a date</div>
+    <h1>Calendar<span class="dot">.</span></h1>
+    <details class="cal-intro" id="calIntro" open>
+      <summary>Meetings, timed tasks, deadlines and posts · how it works</summary>
+      <div class="priorities">
+        <div class="pri">
+          <span class="k">▦</span>
+          <span><span class="t">Everything with a date, in one place</span><br><span class="s">A <b>meeting</b> is a task with a time (tag <code>meeting</code>); a <b>timed task</b> has a time, a <b>deadline</b> a due date. Filter by board, meetings, posts · tick to finish · click to open</span></span>
+        </div>
+        <div class="pri two">
+          <span class="k">✦</span>
+          <span><span class="t">Three ways in</span><br><span class="s"><b>+ Add</b> here · the <b>+ date</b> chip on any card · or an agent: Guide → Ask → <i>Fill my calendar</i> reads the calendar your Claude or ChatGPT is connected to</span></span>
+        </div>
+      </div>
+    </details>
+  </header>
+
+  <div id="calendarRoot"></div>
+
+  <p class="note"><a href="../social/social-calendar.html#streak">Posting streak</a> · <code>node solo.js calendar</code> prints this agenda</p>
+</div>
+
+<script src="../core/store.js"></script>
+<script src="../core/config.js"></script>
+<script src="../core/templates.js"></script>
+<script src="../core/prompts.js"></script>
+<script src="../core/when.js"></script>
+<script src="../core/theme.js"></script>
+<script src="../core/sync.js"></script>
+<script src="../core/activity.js"></script>
+<script src="../core/recent.js"></script>
+<script src="../core/palette.js"></script>
+<script src="../core/attach.js"></script>
+<script src="../inspo/inspo-model.js"></script>
+<script src="../core/inspo-quick.js"></script>
+<script src="../core/apply.js"></script>
+<script src="../core/context.js"></script>
+<script src="../core/quick.js"></script>
+<script src="../core/guide.js"></script>
+<script src="../core/nav.js"></script>
+<script src="calendar-model.js"></script>
+<script src="calendar-view.js"></script>
+<script src="calendar-main.js"></script>
+<div class="toast" id="toast"></div>
+</body>
+</html>

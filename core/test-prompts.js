@@ -24,14 +24,14 @@ var fails = 0; function ok(cond, msg) { if (!cond) { fails++; console.error('✗
   // the folder path reaches the files-mode preamble
   if (mode === 'files') ok(list[0].p.indexOf('/tmp/solo') >= 0, 'files: folder path missing from the preamble');
   // every page has at least two prompts on top
-  ['home', 'board', 'social', 'scripts', 'writing', 'inspo'].forEach(function (pg) { var n = list.filter(function (x) { return x.pages.indexOf(pg) >= 0; }).length; ok(n >= 2, mode + ': page ' + pg + ' has only ' + n + ' prompts'); });
+  ['home', 'board', 'social', 'scripts', 'writing', 'inspo', 'calendar'].forEach(function (pg) { var n = list.filter(function (x) { return x.pages.indexOf(pg) >= 0; }).length; ok(n >= 2, mode + ': page ' + pg + ' has only ' + n + ' prompts'); });
   // the titles the Guide's "next best moves" point at still exist
   ['Plan a project from scratch', 'Daily standup', 'What should I do right now?', 'Clean up the board', 'Break this task into steps', 'Draft next week\'s posts', 'Brainstorm 10 post ideas', 'Assess new inspiration', 'Turn inspiration into work', 'Set up a private backup', 'Back up now'].forEach(function (t) { ok(titles[t], mode + ': moves target missing: ' + t); });
 });
 
 // every verb the cheat sheet teaches is one core/apply.js accepts
 var sheet = P.cheatsheet();
-['add', 'start', 'done', 'later', 'bucket', 'todo', 'move', 'pri', 'tag', 'step', 'check', 'note', 'social', 'scripts', 'notes', 'inspo'].forEach(function (v) {
+['add', 'start', 'done', 'later', 'bucket', 'todo', 'move', 'pri', 'tag', 'step', 'check', 'note', 'at', 'due', 'social', 'scripts', 'notes', 'inspo'].forEach(function (v) {
   ok(sheet.indexOf(v) >= 0, 'cheat sheet does not mention ' + v);
   ok(new RegExp("'" + v + "'").test(applySrc) || new RegExp('\\|' + v + '[|)]').test(applySrc), 'apply.js does not know verb ' + v);
 });

@@ -12,8 +12,7 @@ in step with what you change, and run `node solo.js doctor` plus
 ## Release 1 — what ships, what waits
 
 **Must, before the public launch**
-- **M8 · Calendar + dates** (below): one place where tasks, meetings and
-  posts with a date show up together, filterable by where they come from.
+- ~~M8 · Calendar + dates~~ — shipped 2026-10-13 (see Done).
 - Backup repo name offered during setup (first item under Minor).
 
 **Should, first week after**
@@ -124,6 +123,13 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Minor / issues
 
+- **Meetings pile into To Do** (UX review 2026-10-13). Four meetings and a
+  dentist sit between real work on the board. Group `meeting`-tagged cards
+  under a collapsed *Meetings (n)* strip at the bottom of To Do, or hide them
+  behind a chip by default, since the Calendar is their home.
+- **Calendar, later**: Week view with time blocks; drag to reschedule in
+  Month; a now-line; auto-tick a meeting whose end has passed (with undo).
+
 - **Backup repo name is not offered.** `node solo.js backup setup` creates
   `solo-ops-data` unless `--name <name>` is passed, but nothing asks. Offer
   the name: the `/setup` and `/backup-setup` prompts should ask "private repo
@@ -164,6 +170,22 @@ QR rendered without a dependency, capture strip and boards usable at
   retake with `docs/screenshots` script when M2 lands.
 
 ## Done
+
+- 2026-10-13 · M8 Calendar + dates. Tasks carry `at` / `until` / `due` / `ext`
+  (`core/when.js` parses `tomorrow 14:00`, `fri 10:00`, `+3d 17:30`, zoned
+  stamps → local; `normalize()` keeps the fields). CLI: `add --at --until
+  --due --ext` (same `ext` updates instead of duplicating), `at`, `due`,
+  `calendar [--days] [--all]`, Schedule block in `today`, By day in `week`,
+  doctor warnings. Reply tab accepts the same (`at`/`due` only when the line
+  ends in a date). New `calendar/` app: Agenda + Month, filters by board ·
+  meetings · posts · open/done · all projects (other workspaces peeked
+  read-only), tick to finish, + on a day, every file shown registered with
+  sync. Nav Calendar for every workspace; the posts page is now Streak.
+  Home: Schedule card. Guide: *Bring in* group with *Fill my calendar* and
+  *Plan today around my meetings*, `{{schedule}}` token, calendar page
+  prompts. Sample sprint has one meeting. Cut for release 1 (from review):
+  Week view with time blocks, drag reschedule, writes across workspaces,
+  ⌘K/Quick date token, `import`/`share` dates.
 
 - 2026-10-13 · Backup as part of setup, for non-technical users: `node solo.js
   backup setup` (gh logged in → private repo `solo-ops-data` created and

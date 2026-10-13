@@ -24,9 +24,12 @@
   }
 
   function runway() {
+    var m = task('t0', 'Weekly check-in (sample meeting)', 'general', 'todo', 'medium', ['meeting'], 'A meeting is a task with a time. Ask your agent to fill these in from your calendar, or add one with --at.', ['Agenda: what shipped, what is stuck', 'Write the notes here after']);
+    var d = new Date(); d.setDate(d.getDate() + 1); m.at = at(d, 0, 10, 0); m.until = at(d, 0, 10, 30);
     return {
       projects: [],
       tasks: [
+        m,
         task('t1', 'Write the one-line pitch', 'launch', 'doing', 'high', ['content', 'research'],
           'One sentence a stranger understands in five seconds. Everything else points back to it.',
           [['Collect 5 ways people describe the problem', true], 'Draft 3 versions', 'Test on two friends', 'Pick one, paste into README and landing page']),

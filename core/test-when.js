@@ -1,0 +1,53 @@
+/* core/test-when.js — date parsing and state rules shared by pages and CLI. Run: node core/test-when.js */
+'use strict';
+var W = require('./when.js'); var fails = 0;
+function eq(a, b, msg) { if (a !== b) { fails++; console.error('✗ ' + msg + ': got ' + JSON.stringify(a) + ', want ' + JSON.stringify(b)); } }
+var now = new Date(2026, 9, 13, 15, 0, 0, 0);   // Tue 13 Oct 2026 15:00 local
+eq(W.parse('2026-10-15T14:00', now).stamp, '2026-10-15T14:00', 'full stamp kept');
+eq(W.parse('2026-10-15', now).allDay, true, 'date alone is all-day');
+eq(W.parse('2026-10-15 14:30', now).stamp, '2026-10-15T14:30', 'date + time');
+eq(W.parse('tomorrow 14:00', now).stamp, '2026-10-14T14:00', 'tomorrow + time');
+eq(W.parse('tomorrow', now).stamp, '2026-10-14', 'tomorrow all-day');
+eq(W.parse('today 9:05', now).stamp, '2026-10-13T09:05', 'today + time');
+eq(W.parse('fri 10:00', now).stamp, '2026-10-16T10:00', 'next friday');
+eq(W.parse('tue', now).stamp, '2026-10-20', 'same weekday means next week');
+eq(W.parse('+3d 17:30', now).stamp, '2026-10-16T17:30', 'relative days + time');
+eq(W.parse('+1d', now).stamp, '2026-10-14T09:00', 'relative days default 09:00 (posts habit)');
+eq(W.parse('16:45', now).stamp, '2026-10-13T16:45', 'time alone = today');
+var z = W.parse('2026-10-15T09:00:00Z', now).stamp; var zd = new Date('2026-10-15T09:00:00Z');
+eq(z, W.localDT(zd), 'a zoned stamp is converted to local time');
+eq(W.parse('nonsense', now), null, 'garbage is null');
+eq(W.parse('money', now), null, 'money is not Monday');
+eq(W.parse('friend 10:00', now), null, 'friend is not Friday');
+eq(W.parse('monday 9:00', now).stamp, '2026-10-19T09:00', 'full weekday name');
+eq(W.parse('2', now), null, 'a bare number is not a date');
+eq(W.parse('Oct 20', now), null, 'a month and day without a year is not a date');
+eq(W.parse('20 Oct 2026 14:00', now).stamp, '2026-10-20T14:00', 'a written date with a year is');
+eq(W.parse('2026-02-31', now), null, 'February 31 is not a date');
+eq(W.parse('2026-13-01', now), null, 'month 13 is not a date');
+eq(W.until('2026-10-15T14:00', '13:00', now), '', 'an end before the start is dropped');
+eq(W.until('2026-10-15T14:00', '15:30', now), '2026-10-15T15:30', 'until HH:MM = same day');
+eq(W.until('2026-10-15T14:00', '2026-10-16T09:00', now), '2026-10-16T09:00', 'until full stamp');
+eq(W.state({ at: '2026-10-13T16:00' }, now), 'today', 'later today');
+eq(W.state({ at: '2026-10-13T14:00' }, now), 'overdue', 'a moment in the past with no end is overdue');
+eq(W.state({ at: '2026-10-13T13:00', until: '2026-10-13T13:30' }, now), 'past', 'a meeting that ended is past, not overdue');
+eq(W.state({ at: '2026-10-13T13:00', until: '2026-10-13T13:30', col: 'done' }, now), 'past', 'done meeting is past');
+eq(W.state({ due: '2026-10-12' }, now), 'overdue', 'due yesterday');
+eq(W.state({ due: '2026-10-13' }, now), 'today', 'due today');
+eq(W.state({ due: '2026-10-12', col: 'done' }, now), 'past', 'done and dated in the past is past');
+eq(W.state({ at: '2026-10-13' }, now), 'today', 'all-day today');
+eq(W.state({ at: '2026-10-12' }, now), 'overdue', 'all-day yesterday, open');
+eq(W.state({ at: '2026-10-20T10:00' }, now), 'upcoming', 'next week');
+eq(W.state({}, now), '', 'no dates, no state');
+eq(W.label('2026-10-13T16:00', now), 'Today 16:00', 'label today');
+eq(W.label('2026-10-14', now), 'Tomorrow', 'label tomorrow all-day');
+eq(W.range('2026-10-15T14:00', '2026-10-15T14:30'), '14:00–14:30', 'range same day');
+eq(W.range('2026-10-15', ''), 'all day', 'range all-day');
+var X = W.extract('Call with Sam tomorrow 15:00-15:30', now); eq(X.title + '|' + X.at + '|' + X.until, 'Call with Sam|2026-10-14T15:00|2026-10-14T15:30', 'extract: title + time range');
+X = W.extract('Pay rent by friday', now); eq(X.title + '|' + X.due, 'Pay rent|2026-10-16', 'extract: by + weekday = deadline');
+X = W.extract('Dentist 2026-10-16', now); eq(X.title + '|' + X.at, 'Dentist|2026-10-16', 'extract: ISO date alone = all-day');
+X = W.extract('Prepare for Monday', now); eq(X.title + '|' + X.at, 'Prepare for Monday|', 'extract: a bare weekday stays in the title');
+X = W.extract('Standup on tue 9:15', now); eq(X.title + '|' + X.at, 'Standup|2026-10-20T09:15', 'extract: on + weekday + time');
+X = W.extract('tomorrow 15:00', now); eq(X.title + '|' + X.at, 'tomorrow 15:00|', 'extract: nothing left for a title → untouched');
+if (fails) { console.error(fails + ' problem' + (fails === 1 ? '' : 's')); process.exit(1); }
+console.log('✓ when: parse, until, state, label');

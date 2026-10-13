@@ -29,10 +29,8 @@
       out.push({ id: 'board:' + b.id, icon: 'board', label: b.title, href: root + 'runway/marathon-board.html' + q + '&board=' + encodeURIComponent(b.id),
         on: here === 'marathon-board.html' && (global.Model ? Model.BOARD === b.id : cur.get('board') === b.id) });
     });
-    if (w.apps.social) {
-      out.push({ id: 'social', icon: 'social', label: Config.get('social.title'), href: root + 'social/social-board.html' + q, on: here === 'social-board.html' });
-      out.push({ id: 'calendar', icon: 'calendar', label: 'Calendar', href: root + 'social/social-calendar.html' + q, on: here === 'social-calendar.html' });
-    }
+    out.push({ id: 'calendar', icon: 'calendar', label: 'Calendar', href: root + 'calendar/calendar.html' + q, on: here === 'calendar.html' });
+    if (w.apps.social) out.push({ id: 'social', icon: 'social', label: Config.get('social.title'), href: root + 'social/social-board.html' + q, on: here === 'social-board.html' || here === 'social-calendar.html' });
     if (w.apps.scripts) out.push({ id: 'scripts', icon: 'script', label: Config.get('studio.scriptTitle'), href: root + 'studio/script-viewer.html' + q, on: here === 'script-viewer.html' });
     if (w.apps.writing) out.push({ id: 'writing', icon: 'writing', label: Config.get('studio.writingTitle'), href: root + 'studio/writing-viewer.html' + q, on: here === 'writing-viewer.html' });
     out.push({ id: 'inspo', icon: 'inspo', label: 'Inspiration', href: root + 'inspo/inspiration.html' + q, on: here === 'inspiration.html' });

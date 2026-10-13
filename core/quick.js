@@ -50,6 +50,7 @@
       .replace(/(^|\s)!(high|medium|med|low|h|m|l)\b/gi, function (_, sp, p) { p = p.toLowerCase(); t.pri = p === 'med' || p === 'm' ? 'medium' : p === 'h' ? 'high' : p === 'l' ? 'low' : p; return sp; })
       .replace(/(^|\s)>(todo|doing|done|later|bucket)\b/gi, function (_, sp, c) { t.col = c.toLowerCase(); return sp; })
       .replace(/\s+/g, ' ').trim();
+    if (global.When && When.extract) { var ex = When.extract(title); if (ex.at || ex.due) { title = ex.title; if (ex.at) t.at = ex.at; if (ex.until) t.until = ex.until; if (ex.due) t.due = ex.due; } }
     t.title = title; return t;
   }
   // lines → tasks in one board of the open workspace (default: its first board)
@@ -59,7 +60,7 @@
     var projects = (Config.get('projects') || []).map(function (p) { return typeof p === 'string' ? p : p.name; });
     String(text || '').split('\n').forEach(function (line) {
       var p = parseLine(line); if (!p.title) return;
-      var t = { id: uid(), title: p.title, desc: '', proj: p.proj || opts.proj || projects[0] || 'general', col: p.col || opts.col || 'todo', pri: p.pri || opts.pri || 'medium', tags: p.tags, notes: '', collapsed: true, checklist: [], createdAt: Date.now(), updatedAt: Date.now() };
+      var t = { id: uid(), title: p.title, desc: '', proj: p.proj || opts.proj || projects[0] || 'general', col: p.col || opts.col || 'todo', pri: p.pri || opts.pri || 'medium', tags: p.tags, notes: '', collapsed: true, checklist: [], at: p.at, until: p.until, due: p.due, createdAt: Date.now(), updatedAt: Date.now() };
       list.unshift(t); made.push({ ws: w.id, wsTitle: w.title, board: b.id, boardTitle: b.title, key: key, file: file, task: t });
     });
     if (!made.length) return made;

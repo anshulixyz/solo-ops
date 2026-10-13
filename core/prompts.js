@@ -27,10 +27,11 @@
     ['weekly', 'Weekly', 'plan · close · reality check'],
     ['projects', 'Projects', 'plan · tasks · steps · scope'],
     ['content', 'Content', 'posts · scripts · drafts · inspiration'],
+    ['bringin', 'Bring in', 'calendar · what your agent is connected to'],
     ['setup', 'Set up', 'this chat · this folder'],
     ['fix', 'Safety', 'undo · backups']
   ];
-  var ASK = ['daily', 'weekly', 'projects', 'content'];
+  var ASK = ['daily', 'weekly', 'projects', 'content', 'bringin'];
 
   // The reply contract for chat agents. Mirrors exactly what core/apply.js
   // accepts, so a fresh ChatGPT tab answers in a form the app can apply.
@@ -38,7 +39,8 @@
     return [
       'HOW TO REPLY WITH CHANGES (the app applies these lines itself; nothing else runs):',
       'Put the commands at the end of your reply in one ``` block, one per line, in order.',
-      '  add "Title" --pri high|medium|low --tags a,b --steps "step|step" [--board <id>]',
+      '  add "Title" --pri high|medium|low --tags a,b --steps "step|step" [--board <id>] [--at 2026-10-15T14:00 | tomorrow 14:00] [--until 15:00] [--due 2026-10-20]',
+      '  at <task> <when|clear> · due <task> <date|clear>   (a meeting = a task with --at and --tags meeting)',
       '  start | done | later | bucket | todo <id or title fragment>',
       '  move <task> todo|doing|done|later|bucket · pri <task> high|medium|low · tag <task> +a -b',
       '  step <task> "text" · check <task> <n> · note <task> "text"',
@@ -76,7 +78,7 @@
     var S = { snap: true };                   // snapshot, read-only
     var list = [
       /* ---- daily: the ritual spine ---------------------------------------- */
-      { c: 'daily', slug: 'standup', t: 'Daily standup', d: 'Three questions, then the board is updated and you have a plan for today.', pages: ['home', 'board'],
+      { c: 'daily', slug: 'standup', t: 'Daily standup', d: 'Three questions, then the board is updated and you have a plan for today.', pages: ['home', 'board', 'calendar'],
         p: H + read('today' + ws, 'situation') + '. Run a standup with me: ask (1) what I finished since yesterday, (2) the ONE thing today is about, (3) what is blocking me. Wait for my answers. Then update the board (done / start / note / step as needed), and give me today\'s plan: max 3 items, in order, each with what "done" looks like.' + tail(o, W) },
       { c: 'daily', slug: 'now', t: 'What should I do right now?', d: 'Asks how long you have, picks the single smallest next step that fits, starts it.', pages: ['home', 'board'],
         p: H + read('today' + ws, 'situation') + '. Ask me one question first: how much time do I have right now? Then pick the single smallest next step that fits it and moves the highest-priority Doing task (or the top To Do if nothing is in Doing). Tell me what "done" looks like for it, then start it (`start`).' + tail(o, W) },
@@ -132,6 +134,14 @@
         p: H + 'Below is what I saved since my last assessment. For each item: one line on what it is and why I probably saved it, 2–3 tags to add, and what it should become — task (which board), post, script, draft, or keep as reference. Reply with `inspo tag ID +tag +tag` lines for the tags' + (files ? ' (run them)' : '') + ', then a short table of your suggestions. I will pick which become work.\n\n{{inspiration_new}}' + tail(o, R) },
       { c: 'content', slug: 'use-inspo', t: 'Turn inspiration into work', d: 'Each saved link or idea becomes a task, post, script or draft — or is skipped.', pages: ['inspo', 'home'],
         p: H + read('inspo list' + ws, 'inbox') + '. For each inspiration item decide: task (which board), post, script, draft, or skip, in a short table. After I confirm, ' + (files ? 'run `inspo use ID --as task|post|script|note` for each so the link back is kept.' : 'reply with `add` / `social add` / `scripts add` / `notes add` lines for the ones I confirmed.') + tail(o, W) },
+
+      /* ---- bring in: what the agent is connected to, into Solo Ops ---------- */
+      { c: 'bringin', slug: 'fill-calendar', t: 'Fill my calendar', d: 'The agent reads the calendar it is connected to and adds this week\'s meetings as tasks with a time. Safe to run every morning.', pages: ['calendar', 'home'], go: 'calendar',
+        p: H + (files
+          ? 'Fill my Solo Ops calendar from the calendar you are connected to (Google, Apple, Outlook — whatever Claude or ChatGPT gives you access to). If you have no calendar connector, say so, tell me how to connect one in your settings, and stop. Window: today through the next 7 days, in my local time. Skip events I declined and events marked free. For each meeting run `node solo.js add "<title>" --at <YYYY-MM-DDTHH:MM> --until <HH:MM> --tags meeting --ext <calendar>:<event id>' + ws + ' --as agent --note "from <calendar name>"`; an all-day event gets `--at <YYYY-MM-DD>` and no --until. The --ext id makes re-runs safe: the same event updates instead of duplicating. Never move or delete existing tasks. Show me the list first; if it is more than 10, ask before adding. Finish with `node solo.js calendar --days 7`.'
+          : 'I will paste my week below (from my calendar app, or from a connector you have). Reply with one `add` line per meeting: `add "<title>" --at <YYYY-MM-DDTHH:MM> --until <HH:MM> --tags meeting`; an all-day event gets `--at <YYYY-MM-DD>`. Skip anything already in my schedule below (same title and start). Then tell me where meetings collide with posts or with the tasks in Doing.\n\nMY WEEK:\n<paste your week here>\n\nSCHEDULE I ALREADY HAVE:\n{{schedule}}') + tail(o, R), block: 'paste your week here' },
+      { c: 'bringin', slug: 'plan-today', t: 'Plan today around my meetings', d: 'Meetings stay fixed; the top 3 tasks get a time in the gaps; the rest is named, not moved.', pages: ['calendar', 'home', 'board'],
+        p: H + read('today' + ws, 'situation') + '. My meetings are fixed. Put a time on at most 3 tasks in the gaps between them (`at <task> today HH:MM --until HH:MM`), highest priority first, with realistic lengths and a break. Leave everything else where it is and name what will not happen today. Show the plan, apply after I confirm.' + (files ? '' : '\n\nSCHEDULE:\n{{schedule}}') + tail(o, W) },
 
       /* ---- setup: one-time, lives in Settings ----------------------------- */
       { c: 'setup', slug: 'setup', t: 'Set up Solo Ops for me', d: 'First run: name the project, pick the parts, sample or empty, server, backup. The agent does it; you answer three questions.', pages: [],
