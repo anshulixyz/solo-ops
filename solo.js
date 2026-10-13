@@ -644,9 +644,13 @@ function exportPrompts() {
   var dir = path.resolve(flags.out || dirs[tool]); fs.mkdirSync(dir, { recursive: true });
   var all = allPrompts('files', { folder: '' }).filter(function (x) { return (x.c !== 'setup' || x.slug === 'setup') && x.slug; });   // no absolute path: a slash command runs inside the folder
   var written = [], kept = [], removed = []; var o = promptOpts('files'); o.folder = ''; var rel = path.relative(ROOT, dir); if (rel.indexOf('..') === 0) rel = dir;
-  var mineDir = path.join(dir, 'mine'); if (all.some(function (x) { return x.custom; })) fs.mkdirSync(mineDir, { recursive: true });
-  all.forEach(function (x) { var f = path.join(x.custom ? mineDir : dir, x.slug + '.md'); var prev = ''; try { prev = fs.readFileSync(f, 'utf8'); } catch (e) { /* new */ } if (prev && prev.indexOf(P.MARK) < 0) { kept.push(x.slug); return; } fs.writeFileSync(f, P.command(x, o, tool)); written.push((x.custom ? 'mine/' : '') + x.slug); });
-  [dir, mineDir].forEach(function (d, isMine) { var names = []; try { names = fs.readdirSync(d); } catch (e) { return; } names.forEach(function (n) { if (!/\.md$/.test(n)) return; var slug = n.slice(0, -3); if (all.some(function (x) { return x.slug === slug && !!x.custom === !!isMine; })) return; var t = ''; try { t = fs.readFileSync(path.join(d, n), 'utf8'); } catch (e) { return; } if (t.indexOf(P.MARK) >= 0) { fs.unlinkSync(path.join(d, n)); removed.push((isMine ? 'mine/' : '') + slug); } }); });
+  // The shared files are always the built-in text (they are committed with the code). Your own prompts AND your edits of
+  // built-ins go to mine/ (git-ignored): /mine:use-inspo is your version, /use-inspo stays the built-in.
+  var pristine = P.build(o).filter(function (x) { return (x.c !== 'setup' || x.slug === 'setup') && x.slug; });
+  var mine = all.filter(function (x) { return x.custom || x.overridden; });
+  var mineDir = path.join(dir, 'mine'); if (mine.length) fs.mkdirSync(mineDir, { recursive: true });
+  pristine.concat(mine).forEach(function (x) { var isMine = x.custom || x.overridden; var f = path.join(isMine ? mineDir : dir, x.slug + '.md'); var prev = ''; try { prev = fs.readFileSync(f, 'utf8'); } catch (e) { /* new */ } if (prev && prev.indexOf(P.MARK) < 0) { kept.push(x.slug); return; } fs.writeFileSync(f, P.command(x, o, tool)); written.push((isMine ? 'mine/' : '') + x.slug); });
+  [dir, mineDir].forEach(function (d, isMine) { var names = []; try { names = fs.readdirSync(d); } catch (e) { return; } names.forEach(function (n) { if (!/\.md$/.test(n)) return; var slug = n.slice(0, -3); if ((isMine ? mine : pristine).some(function (x) { return x.slug === slug; })) return; var t = ''; try { t = fs.readFileSync(path.join(d, n), 'utf8'); } catch (e) { return; } if (t.indexOf(P.MARK) >= 0) { fs.unlinkSync(path.join(d, n)); removed.push((isMine ? 'mine/' : '') + slug); } }); });
   return out(['✓ ' + written.length + ' slash command' + (written.length === 1 ? '' : 's') + ' for ' + tool + ' in ' + rel + '/ (workspace ' + WS_ID + ')', '  ' + written.filter(function (s) { return s.indexOf('mine/') !== 0; }).map(function (s) { return '/' + s; }).join(' ')].concat(written.some(function (s) { return s.indexOf('mine/') === 0; }) ? ['  yours, in ' + rel + '/mine/ (git-ignored): ' + written.filter(function (s) { return s.indexOf('mine/') === 0; }).map(function (s) { return '/' + s.slice(5); }).join(' ')] : []).concat(kept.length ? ['  kept your own: ' + kept.join(', ')] : []).concat(removed.length ? ['  removed stale: ' + removed.join(', ')] : []).concat(tool === 'claude' ? ['Type /standup in Claude Code opened in this folder. Re-run after editing prompts.'] : tool === 'codex' ? ['Codex loads these on start; restart it once.'] : []), { dir: dir, written: written, kept: kept, removed: removed });
 }
 
@@ -881,6 +885,15 @@ function cmdGuard() {
   try { staged = cp.execFileSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACMR'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').filter(Boolean); } catch (e) { fail('git is not available here.'); }
   var allowed = !!(G.allowData && G.remote && G.remote === rootRemote());
   var bad = allowed ? [] : staged.filter(function (f) { return PRIVATE_PATHS.some(function (re) { return re.test(f); }); });
+  // a shared slash command that carries an edited prompt is personal text too: it must equal the built-in export
+  var po = promptOpts('files'); po.folder = '';
+  var edited = P ? staged.filter(function (f) {
+    var m = f.match(/^\.(claude|cursor)\/commands\/([a-z0-9-]+)\.md$/); if (!m) return false;
+    var x = P.build(po).filter(function (y) { return y.slug === m[2]; })[0]; if (!x) return false;
+    var have = ''; try { have = cp.execFileSync('git', ['show', ':' + f], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch (e) { return false; }
+    return have.indexOf(P.MARK) >= 0 && have !== P.command(x, po, m[1]);
+  }) : [];
+  if (edited.length && !allowed) { out(['✗ Not committing ' + edited.length + ' slash command' + (edited.length === 1 ? '' : 's') + ' that differ from the built-in text (your edit of a prompt is your content):'].concat(edited.map(function (b) { return '  - ' + b; })).concat(['', 'Run `node solo.js prompts export` (and `--for cursor`): the shared files go back to the built-in and your version lands in mine/ (git-ignored, /mine:<name>).']), { ok: false, blocked: edited }); process.exit(1); }
   if (bad.length) {
     out(['✗ Not committing ' + bad.length + ' file' + (bad.length === 1 ? '' : 's') + ': ' + (bad.length === 1 ? 'it is' : 'they are') + ' your content, and this repository is the Solo Ops code.'].concat(bad.map(function (b) { return '  - ' + b; })).concat(['',
       'Why: this repo is public, and so is any fork of it. Your tasks, posts and drafts should live where only you can read them.', '',

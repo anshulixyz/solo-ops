@@ -248,6 +248,14 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Done
 
+- 2026-10-13 · Privacy: the committed `/use-inspo` slash command carried the
+  owner's edited prompt text (export applied `data/prompts.json` overrides to
+  the shared files). `prompts export` now writes the built-in text to the
+  shared files and the user's edits of built-ins to `mine/` (git-ignored,
+  `/mine:<name>`), and `guard` refuses a shared command whose text differs
+  from the built-in export. Found by a fresh-clone test before the
+  announcement.
+
 - 2026-10-13 · README and About for launch: new copy (one folder, your own
   AI, who it is for, three ways in), eight fresh screenshots from a seeded
   scratch copy, roadmap in step with `about.html` and M9/M10. Launch film
@@ -276,11 +284,18 @@ QR rendered without a dependency, capture strip and boards usable at
   frames), `mock/chat.html` + `mock/term.html` (reproductions with verbatim
   content), `mock/frame.html` + `shoot.js` (headless Chrome, 1440×900 @2×).
   57 images in `docs/screenshots/launch/` (local only, git-ignored like the
-  film; README images live in `docs/screenshots/`); the launch video (73 s: setup in
-  one command, onboarding in the chat, agent-first, the no-terminal route,
-  Home, the feature wall), a 46 s teaser and the earlier 72 s film in
-  `docs/launch/video/` (Remotion, built from the screenshots, synthesised
-  soundtracks). README pass still to come.
+  film; README images live in `docs/screenshots/`) plus the week
+  (`week.js`/`week.sh`: one week of the sample project run step by step with
+  the real CLI, a frame shot between steps). The launch video (60 s,
+  `docs/launch/VIDEO-SCRIPT.md`, reviewed by a tech-marketing and a copy
+  reviewer before the build), a 46 s teaser and the earlier 72 s film in
+  `docs/launch/video/` (Remotion, synthesised soundtracks). README pass still
+  to come.
+- 2026-10-13 · Calendar: boards created at runtime were missing on a fresh
+  browser's first load (the registry `boards.json` lands silently, so the
+  calendar never registered their files until a reload). Found while shooting
+  the week; fixed in `calendar/calendar-main.js` by re-registering on the
+  registry's `applied` event.
 
 - 2026-10-13 · Guide: ask box + blanks fix (plan reviewed by a tech and a
   usability agent before building; scope cut to what both agreed). The field
