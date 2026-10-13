@@ -207,7 +207,14 @@
     var front = tool === 'cursor' ? '' : '---\ndescription: ' + String(x.d || x.t).replace(/\n/g, ' ') + '\n' + (x.arg ? 'argument-hint: [' + x.arg + ' id or title]\n' : '') + '---\n';
     return front + '<!-- ' + MARK + ' -->\n' + body + '\n';
   }
+  // The blanks a prompt asks the user to fill before copying: <idea>, <paste the draft>…
+  // Notation in the reply legend (<task>, <when|clear>) and inside `CLI examples` is not a blank.
+  function blanks(text) {
+    var p = String(text || ''); var i = p.indexOf('HOW TO REPLY WITH CHANGES'); if (i >= 0) p = p.slice(0, i);
+    p = p.replace(/`[^`\n]*`/g, '');
+    var seen = {}, out = []; (p.match(/<([^<>\n]{2,60})>/g) || []).forEach(function (m) { var k = m.slice(1, -1); if (!seen[k]) { seen[k] = 1; out.push(k); } }); return out;
+  }
   function slugOf(t) { return String(t || '').toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40); }
 
-  return { CATS: CATS, ASK: ASK, build: build, head: head, tail: tail, cheatsheet: cheatsheet, bootstrap: bootstrap, command: command, cliTokens: cliTokens, slugOf: slugOf, MARK: MARK };
+  return { CATS: CATS, ASK: ASK, build: build, blanks: blanks, head: head, tail: tail, cheatsheet: cheatsheet, bootstrap: bootstrap, command: command, cliTokens: cliTokens, slugOf: slugOf, MARK: MARK };
 });

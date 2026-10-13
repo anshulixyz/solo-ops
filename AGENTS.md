@@ -212,7 +212,7 @@ not fixing? Add it under *Minor / issues* instead of leaving a TODO.
   a `data/*.json` shape in `SCHEMA.md`, a CLI group in `solo.js`, a card in
   `index.html`.
 - Sanity: `for f in core/*.js runway/*.js social/*.js studio/*.js *.js; do node --check "$f"; done`,
-  `node social/test-social-save.js` and `node core/test-prompts.js`.
+  `node social/test-social-save.js`, `node core/test-prompts.js` and `node core/test-apply.js`.
 
 ## "What did I just do?"
 

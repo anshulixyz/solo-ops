@@ -133,6 +133,27 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Minor / issues
 
+- **Guide, after the ask box (design reviewed 2026-10-13, tech + usability):**
+  (1) *Ask AI* on items: a button in the task card **header** row (the footer
+  only renders on expanded cards; new tasks are collapsed), on the selected
+  post in the social detail panel, beside Copy for AI in both viewers; plus
+  right-click on a card as the shortcut, never the only route. Opens the Guide
+  on Ask with one chip, "This task: <title>", a status line "Asking about:
+  <title>" with × to detach, cursor in the box. Needs `Guide.askAbout(kind,
+  id)` using the `pendingSlug` pattern (open() re-renders twice) and a
+  `Context.item(kind, id)` builder by id (posts are matched by title today).
+  (2) A **"My AI already has the setup text"** switch in Settings that drops
+  the preamble and reply legend from every copy. Exact-string removal must
+  happen inside `prompts()` (same `o` as `P.build`), chat mode only, and
+  custom prompts carry the head baked in from the editor; cut from launch
+  because a user who pasted the setup into a plain chat flips it and the next
+  day's chat answers in prose. (3) Prompts as presets that fill the ask box,
+  "Save as prompt" from the box, a simpler prompt editor. (4) Paste-anywhere
+  into Reply (⌘V with no field focused): conflicts with the capture strip,
+  which saves such a paste to Inspiration; rule: text `Apply.segment()` parses
+  as commands goes to Reply while the Guide is open. (5) After Apply, each
+  change links to and flashes its card (apply.js returns labels, not ids).
+
 - **Meetings pile into To Do** (UX review 2026-10-13). Four meetings and a
   dentist sit between real work on the board. Group `meeting`-tagged cards
   under a collapsed *Meetings (n)* strip at the bottom of To Do, or hide them
@@ -195,6 +216,36 @@ QR rendered without a dependency, capture strip and boards usable at
   retake with `docs/screenshots` script when M2 lands.
 
 ## Done
+
+- 2026-10-13 · Guide: ask box + blanks fix (plan reviewed by a tech and a
+  usability agent before building; scope cut to what both agreed). The field
+  pile on prompt cards was a bug: `blanks()` read the reply legend's notation
+  (`<task>`, `<when|clear>`…) as fields, so 23 of 27 Ask prompts showed up to nine
+  bogus inputs in chat mode and *Fill my calendar* showed seven in files mode.
+  Now `P.blanks()` (core/prompts.js) ignores the legend and anything inside
+  backticks; `core/test-prompts.js` asserts 4 one-field Ask prompts in chat mode
+  (list, draft, idea, your week) plus the folder path in *Set up this folder*,
+  3 in files mode, zero elsewhere. New at
+  the top of **Ask**: *Ask your AI* — one box in plain words, "Sends along"
+  chips named after the item ("This task: …", "This board", "My schedule"…,
+  defaults per page), **Copy for my AI** composes preamble + each chip's
+  context + `WHAT I WANT:` + the sentence + the reply legend (files mode: no
+  legend, a line about `node solo.js show <id>`); the box and chips survive
+  the Guide's async re-renders; Reply then reads "Your ask copied…". Chat mode
+  shows *New chat? Paste this first, once.* with Copy setup above the box.
+  Reply placeholder: "Paste the whole answer here. The changes are picked out
+  for you, and nothing happens until you press Preview."
+  Footer button on other tabs: *Paste the answer*. "Recent context" chip
+  renamed *Recent changes*. Prompt texts and the slash-command export are
+  byte-identical. A Node harness ran every verb of the reply legend through
+  `core/apply.js` against an in-memory store and found two real bugs, fixed:
+  `at <task> fri 10:00 --until 11:00` was not recognised as a command (the
+  *Plan today* answers would have been ignored), and a `scripts add` /
+  `notes add` whose body block followed the commands block (how every chat AI
+  formats it, often with a ```markdown tag or a "Here is the script:" line)
+  produced an empty script or note. `bodyAfter()` now tracks fences; preview
+  units for scripts and notes are self-contained. A user's edited or own
+  prompt that carries `{{snapshot}}` but no reply legend now gets the legend.
 
 - 2026-10-13 · Share today + Home as a dashboard (reviewed twice before
   building). `core/share-card.js`: a 1080×1080 card of today (Doing · Schedule

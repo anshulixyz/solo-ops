@@ -21,7 +21,7 @@
   function allTasks() { var w = ws(); var out = []; Config.boards(w.id).forEach(function (b) { (Store.getJSON(Config.boardKey(b.id, w.id), []) || []).forEach(function (t) { out.push({ t: t, b: b }); }); }); return out; }
 
   var C = {
-    recent: { label: 'Recent context', hint: 'last 10 changes, with each item\'s current state', get: function () { return global.Recent ? Recent.text(10) : ''; } },
+    recent: { label: 'Recent changes', hint: 'last 10 changes, with each item\'s current state', get: function () { return global.Recent ? Recent.text(10) : ''; } },
     last_task: { label: 'Last task I touched', hint: 'the full card', get: function () {
       var evs = global.Recent ? Recent.load().slice().reverse().filter(function (e) { return e.kind === 'task' && !e.gone; }) : [];
       for (var i = 0; i < evs.length; i++) { var hit = allTasks().filter(function (x) { return x.t.id === evs[i].id; })[0]; if (hit) return '# Last task I touched (' + Activity.ago(evs[i].ts) + ': ' + evs[i].what + ')\n' + task(hit.t, hit.b.title); }

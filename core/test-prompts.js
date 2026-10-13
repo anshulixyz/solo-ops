@@ -21,6 +21,9 @@ var fails = 0; function ok(cond, msg) { if (!cond) { fails++; console.error('✗
     if (mode === 'files') { ok(x.p.indexOf('{{snapshot}}') < 0, 'files: snapshot token in ' + x.t); if (x.c !== 'setup') ok(x.p.indexOf('HOW TO REPLY') < 0, 'files: chat reply format in ' + x.t); }
     if (mode === 'files' && x.c !== 'setup') { var cmd = P.command(x, { id: 'demo' }, 'claude'); ok(cmd.indexOf('---\ndescription:') === 0, 'command frontmatter missing for ' + x.slug); ok(cmd.indexOf('{{') < 0, 'command still has a token: ' + x.slug); if (x.arg) ok(cmd.indexOf('$ARGUMENTS') >= 0, 'command ' + x.slug + ' takes an argument but has no $ARGUMENTS'); ok(P.command(x, { id: 'demo' }, 'cursor').indexOf('$ARGUMENTS') < 0, 'cursor command ' + x.slug + ' must not use $ARGUMENTS'); }
   });
+  // blanks: only a real <blank> becomes a field; the reply legend and `CLI examples` never do
+  var ONE = { chat: ['tasks-from-list', 'edit-draft', 'script', 'fill-calendar', 'setup-folder'], files: ['tasks-from-list', 'edit-draft', 'script'] };   // setup-folder: the path, only while the folder is unknown
+  list.forEach(function (x) { var b = P.blanks(x.p); var want = ONE[mode].indexOf(x.slug) >= 0 ? 1 : 0; ok(b.length === want, mode + ': ' + x.t + ' should have ' + want + ' blank(s), has ' + b.length + (b.length ? ' (' + b.join(', ') + ')' : '')); });
   // the folder path reaches the files-mode preamble
   if (mode === 'files') ok(list[0].p.indexOf('/tmp/solo') >= 0, 'files: folder path missing from the preamble');
   // every page has at least two prompts on top

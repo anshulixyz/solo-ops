@@ -82,13 +82,13 @@
   function opts() { var w = Config.ws(); var boards = Config.boards(w.id); return { title: w.title, id: w.id, board: boards[0] ? boards[0].id : 'runway', mode: mode() === 'files' ? 'files' : 'chat', folder: folder() }; }
   function prompts() {
     var P = global.MARATHON_PROMPTS; var o = opts(); var files = o.mode === 'files';
-    var list = P ? P.build(o) : []; var head = P ? P.head(o) : ''; var tail = P ? P.tail(o, { snap: true, writes: true }) : '';
+    var list = P ? P.build(o) : []; var head = P ? P.head(o) : ''; if (!P) return list;
     // your edits (data/prompts.json): overrides of built-ins, hidden built-ins, your own prompts
     var ps = pstore();
     list.forEach(function (x) { var ov = ps.overrides[x.t]; if (ov) { if (ov.d) x.d = ov.d; if (ov.p) x.p = ov.p; x.overridden = true; } });
     list = list.filter(function (x) { return ps.hidden.indexOf(x.t) < 0; });
     ps.custom.forEach(function (c) { list.push({ c: c.c || 'projects', t: c.t || 'My prompt', d: c.d || '', p: c.p || '', pages: c.pages || [], custom: true, id: c.id, go: c.go }); });
-    list.forEach(function (x) { x.p = x.p.split('{{head}}').join(head); if (!files && (x.custom || x.overridden) && x.p.indexOf('{{snapshot}}') < 0 && x.p.indexOf('{{recent}}') < 0 && x.p.indexOf('HOW TO REPLY') < 0) x.p += tail; });
+    list.forEach(function (x) { x.p = x.p.split('{{head}}').join(head); if (!files && (x.custom || x.overridden)) { if (x.p.indexOf('{{snapshot}}') < 0 && x.p.indexOf('{{recent}}') < 0 && x.p.indexOf('HOW TO REPLY') < 0) x.p += P.tail(o, { snap: true }); if (x.p.indexOf('HOW TO REPLY') < 0) x.p += P.tail(o, { writes: true }); } });   // your own prompts: snapshot when they carry no context, the reply legend always
     return list;
   }
   var I = {
@@ -162,10 +162,10 @@
       (!backupDone() && backup.state !== 'unknown' && t !== 'settings' ? '<button type="button" class="guide-pending" title="Open Protect your work"><span class="dot"></span><span><b>Save your data somewhere private.</b> ' + (backup.state === 'ok' ? 'Right now it lives only on this computer.' : 'Nothing here says it is backed up yet.') + '</span><span class="go">Set up →</span></button>' : '') +
       '<div class="guide-body">' +
       (t === 'quick' ? quickSection() : '') +
-      (t === 'ask' ? '<div class="guide-search-wrap">' + I.search + '<input type="search" class="guide-search" placeholder="Search prompts" value="' + esc(query) + '" aria-label="Search prompts"></div><div id="guideList"></div>' : '') +
-      (t === 'reply' ? '<div class="guide-status ' + (lc ? 'ok' : '') + '"><span class="dot"></span><span>' + (lc ? '<b>' + esc(lc.t) + '</b> copied ' + esc(ago(lc.at)) + '. Paste what your agent answered below.' : 'Copy a prompt from <b>Ask</b>, send it to your agent, then paste the answer here.') + '</span></div>' +
+      (t === 'ask' ? askSection(all, pg) + '<div class="guide-search-wrap">' + I.search + '<input type="search" class="guide-search" placeholder="Search prompts" value="' + esc(query) + '" aria-label="Search prompts"></div><div id="guideList"></div>' : '') +
+      (t === 'reply' ? '<div class="guide-status ' + (lc ? 'ok' : '') + '"><span class="dot"></span><span>' + (lc ? '<b>' + esc(lc.t) + '</b> copied ' + esc(ago(lc.at)) + '. Paste ' + who(m) + '\'s answer below.' : 'Ask something in <b>Ask</b>, send it to ' + who(m) + ', then paste the answer here.') + '</span></div>' +
         (m === 'files' ? '<p class="guide-note">Your agent writes the files itself, so you rarely need this. Use it when it answers in the chat instead.</p>' : '') +
-        '<textarea class="guide-reply" rows="8" placeholder="Paste your agent\'s reply here."></textarea>' +
+        '<textarea class="guide-reply" rows="8" placeholder="Paste the whole answer here. The changes are picked out for you, and nothing happens until you press Preview."></textarea>' +
         '<div class="guide-row"><button type="button" class="gp-copy guide-preview">Preview changes</button><button type="button" class="guide-snap guide-snapbtn" title="Copy a text snapshot of this workspace for any chat">Copy project</button></div>' +
         '<div class="guide-plan"></div><div class="guide-result"></div>' +
         '<details class="guide-sec small"><summary>How this works</summary><p>Your agent answers with a list of changes (or a plain checklist). Paste it here and press <b>Preview</b>: you see every change before anything happens, untick what you do not want, then <b>Apply</b>. The changes land in this workspace. Nothing runs on your computer, nothing is deleted, and every change shows in Home → Recent changes where it can be reverted.</p></details>' +
@@ -201,6 +201,7 @@
     var ex = panel.querySelector('.gd-export'); if (ex) ex.onclick = exportAll; var im = panel.querySelector('.gd-import'); if (im) im.onclick = importAll;
     if (t === 'quick') bindQuick();
     if (t === 'ask') {
+      bindAsk(all, pg);
       renderList(all, here, pg);
       var si = panel.querySelector('.guide-search'); si.oninput = function () { query = si.value.trim(); renderList(all, here, pg); }; si.onkeydown = function (e) { if (e.key === 'Escape') { si.value = ''; query = ''; renderList(all, here, pg); } };
       if (query) { si.focus(); si.setSelectionRange(si.value.length, si.value.length); }
@@ -214,7 +215,7 @@
     }
     // footer: the two quick actions on every tab — apply a reply (preview first) and copy context
     var foot = document.createElement('div'); foot.className = 'guide-foot';
-    foot.innerHTML = '<button type="button" class="guide-foot-apply">' + I.apply + (t === 'reply' ? 'Preview changes' : 'Apply a reply') + '</button>' +
+    foot.innerHTML = '<button type="button" class="guide-foot-apply">' + I.apply + (t === 'reply' ? 'Preview changes' : 'Paste the answer') + '</button>' +
       '<div class="guide-ctx"><button type="button" class="guide-foot-ctx" title="Copy context for your agent: recent changes, the last task, this item, the whole project…">' + I.link + 'Copy context <span class="chev">▾</span></button><div class="guide-ctx-menu"></div></div>';
     panel.appendChild(foot);
     foot.querySelector('.guide-foot-apply').onclick = function () { if (t === 'reply') { previewReply(); return; } Store.set(TAB_KEY, 'reply', { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); render(); var ta = panel.querySelector('.guide-reply'); if (ta) ta.focus(); };
@@ -251,6 +252,57 @@
       '<h4>' + I.list + ' Top tasks <span class="guide-hint">all projects</span><button type="button" class="qk-copy" title="Copy this list for your agent">copy</button></h4>' +
       (top.length ? '<ul class="qk-top">' + top.map(quickRow).join('') + '</ul>' : '<p class="guide-note">Nothing in Doing or To Do yet. Add tasks above.</p>') +
       '<p class="guide-foot-note">Doing first, then To Do by priority. ▶ starts a task, ✓ finishes it, the badge changes priority. Every change is logged like any other.' + (pg !== 'board' ? ' Boards update when you open them.' : '') + '</p>';
+  }
+  /* ---- Ask: one box, what you want in plain words, with the context attached ------ */
+  var ask = { text: '', chips: null, focus: false };   // survives the re-renders (open() re-renders twice while the backup status and folder arrive)
+  var ASK_DEFAULT = { board: ['this', 'board'], social: ['this', 'posts'], scripts: ['this'], writing: ['this'], inspo: ['inspiration_new'], calendar: ['schedule', 'recent'], home: ['recent', 'schedule'] };
+  function who(m) { return m === 'files' ? 'your agent' : 'your AI'; }
+  function askChips(pg) {
+    if (!ask.chips) { var d = (ASK_DEFAULT[pg] || ASK_DEFAULT.home).slice(); if (d.indexOf('this') >= 0 && !hasThis()) { d = d.filter(function (c) { return c !== 'this'; }); if (!d.length) d = ['recent']; } ask.chips = d; }
+    return ask.chips;
+  }
+  function chipLabel(it) {   // "This item" names the item: a user sees what goes along, not a token
+    if (it.id !== 'this' && it.id !== 'last_task') return it.label;
+    var txt = global.Context ? Context.get(it.id) : ''; var first = (txt.match(/^#\s*([^\n]*)/) || [])[1] || '';
+    if (/^(Task|Post|Last task I touched|Task in progress)/.test(first)) { var m = txt.match(/^#[^\n]*\n\[[^\]]+\]\s*([^·\n]+)/); if (m) return (it.id === 'last_task' ? 'Last task' : 'This ' + (/^Post/.test(first) ? 'post' : 'task')) + ': ' + m[1].trim().slice(0, 40); }
+    if (/^(Script|Draft)/.test(first)) { var title = first.replace(/^(Script|Draft)[^:]*:?\s*/, '').replace(/\(.*$/, '').trim(); if (!title) { var m2 = txt.match(/\n#\s+([^\n]{1,60})/); title = m2 ? m2[1].trim() : ''; } return 'This ' + (/^Script/.test(first) ? 'script' : 'draft') + (title ? ': ' + title.slice(0, 40) : ''); }
+    return it.label + (hasThis() ? '' : ' (nothing open)');
+  }
+  function hasThis() { var t = global.Context ? Context.get('this') : ''; return /^# (Task|Post|Script|Draft|Last task I touched|Task in progress)/.test(t); }   // one open item, not the board/project fallback
+  function askItems() {   // the Context menu minus "Last task" when it is the same card as "This item"
+    var items = global.Context ? Context.menu() : []; var same = items.some(function (x) { return x.id === 'this'; }) && items.some(function (x) { return x.id === 'last_task'; }) && Context.get('this').split('\n')[1] === Context.get('last_task').split('\n')[1];
+    return same ? items.filter(function (x) { return x.id !== 'last_task'; }) : items;
+  }
+  function askSection(all, pg) {
+    var m = mode(); var on = askChips(pg); var items = askItems();
+    var setup = m !== 'files' ? all.filter(function (x) { return x.t === 'Set up this chat'; })[0] : null;
+    return (setup ? '<div class="guide-teach"><div><b>New chat? Paste this first, once.</b><span>Then your AI knows how Solo Ops works. Skip it if you use a ChatGPT or Claude Project that already has it.</span></div><button type="button" class="guide-snap guide-teach-copy" data-i="' + all.indexOf(setup) + '">Copy setup</button></div>' : '') +
+      '<div class="guide-ask"><h4>Ask ' + who(m) + '</h4>' +
+      '<textarea class="guide-ask-in" rows="2" placeholder="Say it in plain words — “move this to done and write a script for it”">' + esc(ask.text) + '</textarea>' +
+      '<div class="guide-chips"><span class="guide-chips-l">Sends along:</span>' + items.map(function (it) { var isOn = on.indexOf(it.id) >= 0; return '<button type="button" class="guide-chip' + (isOn ? ' on' : '') + '" data-chip="' + it.id + '" title="' + esc(it.hint) + (isOn ? ' · click to leave it out' : ' · click to send it along') + '">' + (isOn ? '<span class="tick">✓</span>' : '') + esc(chipLabel(it)) + '</button>'; }).join('') + '</div>' +
+      '<button type="button" class="gp-copy guide-ask-copy">Copy for ' + who(m) + '</button>' +
+      '<p class="guide-note">Paste it into ' + (m === 'files' ? 'your agent' : 'ChatGPT or Claude') + '. When it answers, bring the answer back in <b>Reply</b>.</p></div>';
+  }
+  function bindAsk(all, pg) {
+    var ta = panel.querySelector('.guide-ask-in'); if (!ta) return;
+    ta.oninput = function () { ask.text = ta.value; }; ta.onfocus = function () { ask.focus = true; }; ta.onblur = function () { ask.focus = false; };
+    ta.onkeydown = function (e) { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); copyAsk(pg); } };
+    if (ask.focus) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+    Array.prototype.forEach.call(panel.querySelectorAll('.guide-chip'), function (b) { b.onclick = function () { var c = askChips(pg); var i = c.indexOf(b.dataset.chip); if (i >= 0) c.splice(i, 1); else c.push(b.dataset.chip); render(); }; });
+    panel.querySelector('.guide-ask-copy').onclick = function () { copyAsk(pg); };
+    var tc = panel.querySelector('.guide-teach-copy'); if (tc) tc.onclick = function () { copyText(global.Context ? Context.fill(all[+tc.dataset.i].p) : all[+tc.dataset.i].p, tc, 'Copied'); };   // not finish(): nothing to paste back after the setup text
+  }
+  function copyAsk(pg) {
+    var btn = panel.querySelector('.guide-ask-copy'); var ta = panel.querySelector('.guide-ask-in'); var text = ask.text.trim();
+    if (!text) { ta.focus(); var old = btn.textContent; btn.textContent = 'Type what you want first.'; setTimeout(function () { if (btn.textContent === 'Type what you want first.') btn.textContent = old; }, 1800); return; }
+    if (!mode()) Store.set(MODE_KEY, 'chat', { silent: true });
+    var P = global.MARATHON_PROMPTS; var o = opts(); var files = o.mode === 'files';
+    var chips = askChips(pg).filter(function (id) { return global.Context && Context.info(id); });
+    var parts = chips.map(function (id) { var body = Context.get(id); return (/^#/.test(body) ? '' : '# ' + Context.info(id).label + '\n') + body; });
+    var out = (P ? P.head(o) : '') + (parts.length ? parts.join('\n\n') + '\n\n' : '') + 'WHAT I WANT:\n' + text + (files ? '\n\nThe ids above are the ones `node solo.js show <id>` takes.' : '') + (P && !files ? '\n\n' + P.cheatsheet() : '');
+    btn.textContent = 'Copy for ' + who(o.mode);   // in case the empty-box warning is still showing
+    Store.setJSON(LAST_KEY, { t: 'Your ask', at: Date.now(), ws: Config.activeWs() }, { silent: true });   // Reply's status line: "Your ask copied…"
+    copyText(out, btn, 'Copied — now paste it into ' + who(o.mode)).then(function (ok) { if (ok) { ask.text = ''; ta.value = ''; } });   // a failed copy keeps the text
   }
   var quickNoteT = null; var quickNote = null;   // { msg, until }: survives the re-renders that follow a change
   function bindQuick() {
@@ -477,15 +529,15 @@
     if (x && x.reviews && global.InspoModel) setTimeout(function () { InspoModel.markReviewed(); }, 0);
     if (x && x.t) Store.setJSON(LAST_KEY, { t: x.t, at: Date.now(), ws: Config.activeWs() }, { silent: true });
     text = global.Context ? Context.fill(text) : text.replace('{{snapshot}}', snapshot());
-    copyText(text, card, 'Copied — paste into your agent' + (x.go && x.go !== page() ? ' · then open ' + GO[x.go][1] : ''));
+    copyText(text, card, 'Copied — paste into ' + who(mode()) + (x.go && x.go !== page() ? ' · then open ' + GO[x.go][1] : ''));
   }
   function prefillOf(x) { if (typeof x.prefill === 'function') return x.prefill(); if (typeof x.prefill === 'string') { var e = document.getElementById(x.prefill); return e ? e.value : ''; } return ''; }
-  function blanks(x) { var seen = {}, out = []; (x.p.match(/<([^<>\n]{2,60})>/g) || []).forEach(function (m) { var k = m.slice(1, -1); if (!seen[k]) { seen[k] = 1; out.push(k); } }); return out; }
-  function copyText(text, el, msg) {
-    navigator.clipboard.writeText(text).then(function () {
+  function blanks(x) { return global.MARATHON_PROMPTS && MARATHON_PROMPTS.blanks ? MARATHON_PROMPTS.blanks(x.p) : []; }   // real <blanks> only: the reply legend and `CLI examples` are notation (core/prompts.js)
+  function copyText(text, el, msg) {   // → Promise<boolean>: true when the clipboard took it
+    return navigator.clipboard.writeText(text).then(function () {
       var t = el.querySelector ? (el.querySelector('.gp-t') || el) : el; var old = t.textContent; el.classList.add('copied'); t.textContent = msg;
-      setTimeout(function () { el.classList.remove('copied'); t.textContent = old; }, 2200);
-    }).catch(function () { prompt('Copy this:', text); });
+      setTimeout(function () { el.classList.remove('copied'); t.textContent = old; }, 2200); return true;
+    }).catch(function () { try { prompt('Copy this:', text); } catch (e) { /* embedded browsers */ } return false; });
   }
   function previewReply() {
     var ta = panel.querySelector('.guide-reply'); var out = panel.querySelector('.guide-result'); var planEl = panel.querySelector('.guide-plan'); var text = ta.value.trim();

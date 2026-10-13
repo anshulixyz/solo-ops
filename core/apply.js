@@ -45,7 +45,7 @@
   function looksCmd(line) {
     if (/^(\$\s*)?(node\s+solo\.js|node\s+marathon\.js|solo|marathon)\s+/.test(line)) return true;
     if (/^(add|done|start|later|bucket|todo|move|pri|tag|step|check|note|rm|del|social|post|scripts|notes|inspo)\s/.test(line)) return true;
-    if (/^(at|due)\s/.test(line)) { var toks = line.trim().split(/\s+/); var last = (toks[toks.length - 1] || '').toLowerCase(); var prev = (toks[toks.length - 2] || '').toLowerCase(); var WD = global.When ? When.WEEKDAY : /^(mon|tue|wed|thu|fri|sat|sun)$/; return toks.length >= 3 && (last === 'clear' || /^\d{4}-\d{2}-\d{2}/.test(last) || /^\+\d+d$/.test(last) || /^(today|tomorrow|now)$/.test(last) || WD.test(last) || (/^\d{1,2}:\d{2}$/.test(last) && (/^\d{4}-\d{2}-\d{2}$/.test(prev) || /^\+\d+d$/.test(prev) || /^(today|tomorrow)$/.test(prev) || WD.test(prev)))); }
+    if (/^(at|due)\s/.test(line)) { var toks = line.trim().replace(/\s--\w+(=\S+|\s+\S+)?/g, '').split(/\s+/); /* flags (--until 11:00) do not hide the date */ var last = (toks[toks.length - 1] || '').toLowerCase(); var prev = (toks[toks.length - 2] || '').toLowerCase(); var WD = global.When ? When.WEEKDAY : /^(mon|tue|wed|thu|fri|sat|sun)$/; return toks.length >= 3 && (last === 'clear' || /^\d{4}-\d{2}-\d{2}/.test(last) || /^\+\d+d$/.test(last) || /^(today|tomorrow|now)$/.test(last) || WD.test(last) || (/^\d{1,2}:\d{2}$/.test(last) && (/^\d{4}-\d{2}-\d{2}$/.test(prev) || /^\+\d+d$/.test(prev) || /^(today|tomorrow)$/.test(prev) || WD.test(prev)))); }
     return false;
   }
   // `at <task> <when>` / `due <task> <date>`: the date is the trailing one or two tokens; the rest names the task
@@ -83,14 +83,27 @@
     return { ws: ws, dry: !!dry, boards: boards, touched: touched, loadBoard: loadBoard, saveBoard: saveBoard, pickBoard: pickBoard, mutateTask: mutateTask, sched: sched, saveSched: saveSched, findPost: findPost };
   }
 
+  // The ``` block that carries a script / note body after line k. The command
+  // usually sits inside the commands block, so that block's closing fence comes
+  // first; a short prose line ("Here is the script:") may sit between.
+  function bodyAfter(lines, k, inFence) {
+    var j = k + 1; function fence(n) { return n < lines.length && lines[n].trim().indexOf('```') === 0; }
+    if (inFence) { while (j < lines.length && !lines[j].trim()) j++; if (!fence(j)) return null; j++; }
+    var hops = 0; while (j < lines.length && !fence(j) && hops < 3) { var h = lines[j].trim(); if (h && (looksCmd(h) || /^[-*]\s/.test(h))) return null; if (h) hops++; j++; }   // a command or checklist item in between: no body here
+    if (!fence(j)) return null;
+    var body = []; j++; while (j < lines.length && !fence(j)) { body.push(lines[j]); j++; }
+    var firstLine = body.map(function (l) { return l.trim(); }).filter(Boolean)[0] || ''; if (looksCmd(firstLine)) return null;   // that block is more commands, not a body
+    return { text: body.join('\n'), end: j };   // end = the closing fence (or past the last line)
+  }
   // Split a reply into units: one command (plus its fenced block) or one
   // checklist item (plus its indented steps). Used for the preview.
   function segment(text) {
-    var lines = String(text || '').split('\n'); var units = []; var i = 0;
+    var lines = String(text || '').split('\n'); var units = []; var i = 0; var inFence = false;
     function isCmd(line) { return looksCmd(line); }
     while (i < lines.length) {
       var raw = lines[i]; var line = raw.trim();
-      if (!line || line.indexOf('```') === 0 || (line.indexOf('#') === 0)) { i++; continue; }
+      if (line.indexOf('```') === 0) { inFence = !inFence; i++; continue; }
+      if (!line || (line.indexOf('#') === 0)) { i++; continue; }
       var cl = raw.match(/^(\s*)[-*]\s+(?:\[([ xX])\]\s+)?(.+)$/);
       if (cl && !isCmd(line) && cl[1].length === 0) {
         var block = [raw]; var j = i + 1;
@@ -99,9 +112,9 @@
       }
       if (isCmd(line)) {
         var block2 = [raw]; var k = i + 1; while (k < lines.length && !lines[k].trim()) k++;
-        if (/^(scripts|notes)\s+add|solo\.js\s+(scripts|notes)\s+add|^(solo|marathon)\s+(scripts|notes)\s+add/.test(line.replace(/^\$\s*/, '')) && k < lines.length && lines[k].trim().indexOf('```') === 0) {
-          block2.push(lines[k]); k++; while (k < lines.length && lines[k].trim().indexOf('```') !== 0) { block2.push(lines[k]); k++; } if (k < lines.length) { block2.push(lines[k]); k++; }
-          units.push({ text: block2.join('\n') }); i = k; continue;
+        if (/^(scripts|notes)\s+add|solo\.js\s+(scripts|notes)\s+add|^(solo|marathon)\s+(scripts|notes)\s+add/.test(line.replace(/^\$\s*/, ''))) {
+          var fb = /\s--text(=|\s)/.test(line) ? null : bodyAfter(lines, i, inFence);   // --text carries the body inline
+          if (fb) { units.push({ text: raw + '\n```\n' + fb.text + '\n```' }); i = fb.end + 1; inFence = false; continue; }   // self-contained: the unit re-runs on its own
         }
         units.push({ text: raw }); i++; continue;
       }
@@ -121,17 +134,12 @@
   function run(text, opts) { return exec(ctx(opts && opts.ws, !!(opts && opts.dry)), text); }
   function exec(c, text) {
     var applied = [], skipped = []; var dry = c.dry;
-    var lines = String(text || '').split('\n'); var i = 0;
-    function fenceAfter(k) {   // a ``` block right after line k → its content
-      var j = k + 1; while (j < lines.length && !lines[j].trim()) j++;
-      if (j >= lines.length || lines[j].trim().indexOf('```') !== 0) return null;
-      var body = []; j++; while (j < lines.length && lines[j].trim().indexOf('```') !== 0) { body.push(lines[j]); j++; }
-      return { text: body.join('\n'), end: j };
-    }
+    var lines = String(text || '').split('\n'); var i = 0; var inFence = false;
     var lastTask = null;
     while (i < lines.length) {
       var raw = lines[i]; var line = raw.trim();
-      if (!line || line.indexOf('```') === 0 || line.indexOf('#') === 0 && !/^#\s*\[/.test(line)) { i++; continue; }
+      if (line.indexOf('```') === 0) { inFence = !inFence; i++; continue; }
+      if (!line || line.indexOf('#') === 0 && !/^#\s*\[/.test(line)) { i++; continue; }
       // checklist item
       var cl = raw.match(/^(\s*)[-*]\s+(?:\[([ xX])\]\s+)?(.+)$/);
       var isCmd = looksCmd(line);
@@ -205,7 +213,7 @@
         } else if (cmd === 'scripts' || cmd === 'notes') {
           var sub2 = (a.pos.shift() || '').toLowerCase(); var title2 = a.pos.join(' ');
           if (sub2 !== 'add') { skipped.push(cmd + ' ' + sub2 + ' is not supported here'); i++; continue; }
-          var fence = fenceAfter(i); var body = a.flags.text || (fence ? fence.text : '');
+          var fence = a.flags.text ? null : bodyAfter(lines, i, inFence); var body = a.flags.text || (fence ? fence.text : '');
           if (cmd === 'scripts') {
             var k = Config.key('scripts', c.ws); var lib = Store.getJSON(k, { activeId: '', scripts: [] }) || { activeId: '', scripts: [] }; lib.scripts = lib.scripts || [];
             var si = { id: uid('s'), title: title2 || 'Untitled', text: body || ('# ' + title2 + '\n\n## Hook\n\n## Script\n1. \n'), createdAt: Date.now(), updatedAt: Date.now() }; lib.scripts.unshift(si); lib.activeId = si.id; if (!dry) { Store.setJSON(k, lib); c.touched[Config.file('scripts', c.ws)] = 1; } applied.push('script added: ' + si.title + (body ? '' : ' (empty — no code block followed)'));
@@ -213,7 +221,7 @@
             var k2 = Config.key('writing', c.ws); var nl = Store.getJSON(k2, { activeId: '', notes: [] }) || { activeId: '', notes: [] }; nl.notes = nl.notes || [];
             var ni = { id: uid('n'), text: body || ('# ' + title2 + '\n\n'), images: {}, createdAt: Date.now(), updatedAt: Date.now() }; nl.notes.unshift(ni); nl.activeId = ni.id; if (!dry) { Store.setJSON(k2, nl); c.touched[Config.file('writing', c.ws)] = 1; } applied.push('note added: ' + (title2 || 'untitled'));
           }
-          if (fence) i = fence.end;
+          if (fence) { i = fence.end; inFence = false; }   // the body's closing fence is consumed with it
         } else if (cmd === 'inspo') {
           var sub3 = (a.pos.shift() || '').toLowerCase();
           if (sub3 === 'add' && global.InspoModel) { if (!InspoModel._inited) { InspoModel.init(); InspoModel._inited = true; } var it = InspoModel.parseQuick(a.pos.join(' '), { ws: c.ws, source: 'agent' }); if (a.flags.tags) it.tags = (it.tags || []).concat(split(a.flags.tags)); if (!dry) InspoModel.add(it); applied.push('inspiration saved: ' + (it.title || it.url)); }
