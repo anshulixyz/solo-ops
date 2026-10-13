@@ -38,12 +38,24 @@ Ops in phases, one tool at a time, as the need came. SaaS stopped solving
 anything here: these are basic things, and your own computer and your own
 AI can do them. You do not need heavy or expensive tools for them.
 
+## The elevator pitch (README top, bio, first reply to "what is it")
+
+**Every tool lets you give a task to an AI. None of them lets the AI manage
+your tasks.** Managing still means a project tool, ten plugins and
+connectors, and typing every task in by hand after the AI did the work.
+
+Solo Ops flips it. You decide who does what: you, an agent, a human, a mix.
+Your AI does the managing: it plans the project, adds the tasks, moves the
+cards, fills the calendar, writes the standup. You work inside the AI you
+already use and never type a task twice. Everything stays local: one folder
+on your computer, plain files, no account.
+
 ## One line
 
-**Your tasks, meetings, posts and drafts in one folder on your computer,
-managed for you by the AI you already use. You decide who does what.**
+**You decide who does what. Your AI does the managing.**
 
-Shorter: *You decide who does what. Your AI does the rest of the managing.*
+Longer: *Your tasks, meetings, posts and drafts in one folder on your
+computer, managed for you by the AI you already use.*
 
 ## The X thread (post this first)
 

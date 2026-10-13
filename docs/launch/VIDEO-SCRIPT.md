@@ -43,7 +43,7 @@ no account.*
 | # | s | Chip | On screen | Shot | Caption (serif) · kicker (mono) |
 |---|---|---|---|---|---|
 | 1 | 3 | — | **Open on motion, not type.** The board from beat 3 filling itself: cards landing in To Do one after another, the posting arc appearing under it. Hook as caption over it | `22-board-from-agent` (card-by-card build in the video code, from the one shot) | **Monday, an empty folder. Friday, a week your AI managed.** |
-| 2 | 5 | MON | Title "Set up in one command." with `git clone → open the folder in your agent → /setup`, then three held frames of the real session, not a scroll: `/setup` · the three questions and the answer "Empty, we plan it next" · the last line "Done. The three things you will use most" | `06-term-setup` (**reshoot** with the empty-board answer) | **Three questions. It runs on your computer, no account.** · `/setup · needs only Node · nothing else to install` |
+| 2 | 5 | MON | Title "Set up in one command." with `git clone → open the folder in your agent → /setup`, then three held frames of the real session, not a scroll: `/setup` · the four questions (name, project, parts, sample or empty) and the answer "Empty, we plan it next" · the last line "Done. The three things you will use most" | `06-term-setup` (**reshoot** with the empty-board answer) | **Four questions. It runs on your computer, no account.** · `/setup · needs only Node · nothing else to install` |
 | 3 | 6 | MON | `/plan-project`: the five answers held, a fast scroll of the add lines, then the board it produced, full, matching beat 1 | `21-term-plan-project` → `22-board-from-agent` (**shoot**) | **Say what you are building. Back comes a board, steps, a posting plan.** · `/plan-project · or say it in your own words` |
 | 4 | 8 | MON | The board held still; four callouts pop in turn: the export bug with its steps and the agent's note · the demo video task with its script attached · a post waiting in the schedule · Thursday's call with its time | `22-board-from-agent` | **A bug, a video, a post, a meeting. One board, because it is one week.** · `tasks · scripts · schedule · calendar · one folder` |
 | 5 | 4 | TUE | `/standup`: only the three answers and the four green ticks, then the board with the two moved cards lit | `20-term-standup` → `32-board-full` (moved state, **reshoot**) | **Talk for a minute. The agent moves the cards.** · `/standup · Claude Code, Cursor, Codex` |
@@ -80,7 +80,7 @@ post with shot 06.
 
 | Shot | How | Truth check |
 |---|---|---|
-| `06-term-setup` reshoot | In `conversations/terms.js`, Mara's answer becomes "Pocket Studio, a tiny video tool for founders. All four. Empty, we plan it next." and the `template all` step goes; the rest of the session is unchanged | Keeps the setup and the plan continuous: no sample data appears before `/plan-project` |
+| `06-term-setup` reshoot | In `conversations/terms.js`, the agent asks four questions (name first, as the shipped prompt does) and Mara's answer becomes "Mara. Pocket Studio, a tiny video tool for founders. All four. Empty, we plan it next." and the `template all` step goes; the rest of the session is unchanged | Keeps the setup and the plan continuous: no sample data appears before `/plan-project` |
 | `22-board-from-agent` | Fresh `data/`, run the `/plan-project` commands from `capture.sh` (board, 14 tasks with steps, four posts), add the Thursday call, shoot the board | The board the conversation produced, nothing else on it. Fixes the continuity break of showing a 12-day streak five minutes after setup |
 | `32-board-full` moved state | Reseed, apply the standup's four commands, reshoot | Real page, real commands |
 | `26-calendar-after-fill` | Reseed, apply the four `--ext gcal:` adds, shoot the agenda | Real page |
@@ -134,7 +134,7 @@ twelve captions read in a row with no pictures must tell the story, and a
 viewer must be able to repeat two sentences to a friend afterwards.
 
 **The twelve captions, final, in a row:** Monday, an empty folder. Friday, a
-week your AI managed. · Three questions. It runs on your computer, no
+week your AI managed. · Four questions. It runs on your computer, no
 account. · Say what you are building. Back comes a board, steps, a posting
 plan. · A bug, a video, a post, a meeting. One board, because it is one
 week. · Talk for a minute. The agent moves the cards. · Your AI already has

@@ -11,7 +11,7 @@ shot 06-term-setup; shot 18-chat-mail-connector
 step mon-a; shot wk-mon-a
 step mon-b; shot wk-mon-b
 step mon-c; shot wk-mon-c
-step mon-d; shot wk-mon-board
+step mon-d; shot wk-mon-d; shot wk-mon-board
 step tue-standup; shot wk-tue-board
 step tue-cal; shot wk-tue-calendar
 shot wk-wed-reply

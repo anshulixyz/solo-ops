@@ -135,30 +135,44 @@ card expanded, the Calendar agenda, and the phone. Files:
 To retake one: reseed the scratch copy (`personas.js <copy> lena`), then
 `node docs/launch/shoot.js --only persona-lena`.
 
+## The week (the launch video's frames)
+
+`week.js <copy> <step>` runs one week of Mara's Pocket Studio on a scratch
+copy with the real CLI, one step at a time (reset · mon-a…d · tue-standup ·
+tue-cal · wed-mail · thu · agent); `week.sh <copy>` runs the steps in order
+and shoots a frame between each (`wk-*` in `docs/screenshots/launch/`).
+Every `wk-` frame is therefore a real page in the state the story has
+reached: the board as `/plan-project` built it (`wk-mon-a…d`, `wk-mon-board`),
+after the standup (`wk-tue-board`), the agenda after `/fill-calendar`
+(`wk-tue-calendar`), the Reply preview with the mail to-dos (`wk-wed-reply`),
+the script, the teleprompter rolling and the post (`wk-thu-*`), Home
+mid-typing and Share today (`wk-fri-*`), Recent changes with the agent rows
+(`wk-agent-recent`). Two reproductions join them: `06-term-setup` (now ends on
+an empty board by choice) and `18-chat-mail-connector` (a chat with a mail
+connector: one line typed, a tool chip, the change block; retake it for real
+in Claude.ai before launch). The copy's default board is renamed "Ops" so the
+`/plan-project` board sits beside it as the terminal frame shows.
+
 ## The launch video
 
 `video/` is a Remotion project (its own `package.json`; the product stays
-npm-free) that builds the films from these screenshots. The soundtrack is
-synthesised from oscillators and noise (`scripts/soundtrack.py`), no
-samples. `npm install` once, then:
+npm-free). The soundtrack is synthesised from oscillators and noise
+(`scripts/soundtrack.py`), no samples. `npm install` once, then:
 
-- `npm run render` → `out/solo-ops-final.mp4`, **the launch video** (73 s,
-  `src/Final.tsx` + `src/finalTimeline.ts`): hook and flip in type; *Set up
-  in one command* and the real `/setup` session (06); `/plan-project`
-  building the board (21); the *Agent-first* card; "say what shipped" from
-  the chat where you are coding (23); `/standup` (20); the no-terminal route,
-  emails pasted into Claude and the board that moved (16, 32); Home with
-  callouts (30); the wall of twelve features; three people; the claim;
-  lockup and what is coming.
-- `npm run render:teaser` → the 46-second teaser (two screens, the wall,
-  three people, the claim) and `npm run render:film` → the older 72-second
-  nine-act film, kept for cutting.
-- `npm run frames` for stills (`COMP=Final sh scripts/frames.sh 330 600`),
-  `npm run studio` to scrub.
+- `npm run render` → `out/solo-ops-week.mp4`, **the launch video** (60 s,
+  `src/Week.tsx` + `src/weekTimeline.ts`, script in `VIDEO-SCRIPT.md`):
+  the board filling itself under the hook; MON setup and plan; the board with
+  four ringed callouts; TUE standup and calendar; WED mail; THU script,
+  teleprompter, post; FRI typing and Share today; Agent-first; the flip; the
+  one action.
+- `npm run render:teaser` → the 46-second type teaser and
+  `npm run render:film` → the earlier 72-second nine-act film, both kept for
+  cutting.
+- `COMP=Week sh scripts/frames.sh 640` for stills, `npm run studio` to scrub.
 
 Each composition's timing lives in its timeline file and is mirrored in the
-soundtrack script's act plan (`FINAL`, `TEASER`, `FILM`), which writes
-`final.wav`, `teaser.wav`, `film.wav`; the render refuses when the two
+soundtrack script's act plan (`WEEK` + `WEEK_CUTS`, `TEASER`, `FILM`), which
+writes `week.wav`, `teaser.wav`, `film.wav`; the render refuses when the two
 disagree. Rendered files are kept in `video/video/` (not in git).
 
 ## How the frames stay honest

@@ -10,10 +10,10 @@ window.TERMS = {
   ] },
   '06-term-setup': { title: 'Claude Code — ~/Documents/pocket-studio', lines: [
     { t: 'user', slash: '/setup', hint: 'Set up Solo Ops for me · .claude/commands/setup.md' },
-    { t: 'agent', text: 'Three questions before I touch anything:\n  1. What are you building, in one line? It becomes the project name.\n  2. Which parts do you want: boards · posting schedule · scripts · drafts?\n  3. The sample sprint to look at, or an empty board?' },
-    { t: 'user', text: 'Pocket Studio, a tiny video tool for founders. All four. Empty, we plan it next.' },
+    { t: 'agent', text: 'Four questions before I touch anything:\n  1. Your first name? Home greets you with it.\n  2. What are you building, in one line? It becomes the project name.\n  3. Which parts do you want: boards · posting schedule · scripts · drafts?\n  4. The sample sprint to look at, or an empty board?' },
+    { t: 'user', text: 'Mara. Pocket Studio, a tiny video tool for founders. All four. Empty, we plan it next.' },
     { t: 'tool', cmd: 'node solo.js doctor', file: '05-doctor-fresh.txt' },
-    { t: 'tool', tool: 'Update', cmd: 'solo.config.js', out: "name: 'Pocket Studio',  eyebrow: 'Mara · building in public'" },
+    { t: 'tool', tool: 'Update', cmd: 'solo.config.js', out: "owner: 'Mara',  name: 'Pocket Studio',  eyebrow: 'Mara · building in public'" },
     { t: 'tool', cmd: 'node solo.js template settings', out: '- wrote data/settings.json' },
     { t: 'tool', cmd: 'node serve.js', out: 'Solo Ops → http://localhost:4321\n   (writes data/*.json · Ctrl-C to stop)' },
     { t: 'agent', text: 'It is running: open http://localhost:4321 (Chrome or Edge: Install makes it an app). Last thing, and it is not optional: your tasks never go into this code repo, so they need a private home of their own. GitHub (I create a private repo with gh), or a folder that syncs like iCloud Drive?' },

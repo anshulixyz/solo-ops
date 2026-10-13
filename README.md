@@ -6,12 +6,16 @@ Boards · calendar · posting schedule · video scripts · drafts · inspiration
 
 ---
 
-Solo Ops is one folder on your computer that holds your boards, calendar,
-posting schedule, scripts, drafts and an inbox for ideas, as plain files. The
-AI you already use (ChatGPT, Claude, Claude Code, Cursor) reads and updates
-those files: it adds the tasks, fills the calendar, writes the standup and
-says what is next. You decide what gets done; Solo Ops never calls an AI for
-you.
+**Every tool lets you give a task to an AI. None of them lets the AI manage
+your tasks.** Managing still means a project tool, ten plugins and
+connectors, and typing every task in by hand after the AI did the work.
+
+Solo Ops flips it. You decide who does what: you, an agent, a human, a mix.
+Your AI does the managing: it plans the project, adds the tasks, moves the
+cards, fills the calendar, writes the standup. You work inside the AI you
+already use (ChatGPT, Claude, Claude Code, Cursor) and never type a task
+twice. Everything stays local: one folder on your computer, plain files,
+no account. Solo Ops never calls an AI for you.
 
 <p align="center"><img src="docs/screenshots/home.png" width="900" alt="Home: Mara's workspaces, today across every project, Share today, Start / Done on any task"></p>
 
@@ -59,12 +63,11 @@ Last activity 2 h ago · streak 6 days
 
 ## Why it exists
 
-Every tool lets you hand a task to an AI. None of them hands the *managing*
-to the AI: you still open five apps, move the card, save the link, and paste
-the plan into a chat every morning. It started as one person's problem: a
-creator, a developer and a founder at once, needing one more SaaS every
-month, none of which let the AI in. The longer story and what is coming
-next: [`about.html`](about.html) (also linked from Home and the Guide).
+It started as one person's problem: a creator, a developer and a founder at
+once, needing one more SaaS every month, none of which let the AI in. Plain
+files on your own computer are enough, and the AI you already pay for can do
+the managing. The longer story and what is coming next:
+[`about.html`](about.html) (also linked from Home and the Guide).
 
 ## Why it is different
 

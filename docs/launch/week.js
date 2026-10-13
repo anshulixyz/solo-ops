@@ -47,7 +47,7 @@ var steps = {
     add('Analytics: the sign-up funnel', ['--proj', 'launch', '--pri', 'low', '--tags', 'website']);
     add('Reply to the 12 testers with the beta link', ['--proj', 'launch', '--pri', 'medium', '--tags', 'beta', '--due', '2026-10-16']);
     add('Launch day checklist', ['--proj', 'launch', '--pri', 'high', '--due', '2026-11-03', '--steps', 'Page live|Demo out|Post up|Reply to everyone for two hours|Write down what broke']);
-    add('Beta call with the testers', ['--at', '2026-10-14T11:00', '--until', '11:45', '--tags', 'meeting,beta']);
+    add('Beta call with the testers', ['--at', '2026-10-14T11:00', '--until', '11:45', '--pri', 'high', '--tags', 'meeting,beta']);
     ['Why I am building this|2026-10-20T09:00|story|Every founder I know records a demo on their phone, then spends a Sunday fixing it on a laptop. Pocket Studio is the Sunday, gone.',
      'The ugly first version|2026-10-23T17:00|update|Here is what it looked like three weeks ago. Shipping anyway.',
      'Beta: twelve testers, one request|2026-10-27T12:00|update|',
