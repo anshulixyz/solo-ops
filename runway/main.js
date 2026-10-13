@@ -27,6 +27,7 @@
   function filteredTasks() { return Model.getState().filter(taskMatchesFilters); }
   function render() {
     View.render(view, filteredTasks(), selectedProjects, selectedTags, notesOpen, whenOpen);
+    if (window.DatePick) DatePick.mount(document.getElementById('boardView') || document);
     bindDrag();
     updateCollapseAllLabel();
   }
@@ -527,6 +528,7 @@
     renderProjectSelect();
     renderTagDatalist();
     render();
+    if (window.DatePick) DatePick.mount(document.getElementById('addpanel'));
     registerSync();
     registerPalette();
     // ?id=<task>: expand, scroll to it and flash it (the Calendar links here)

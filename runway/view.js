@@ -52,9 +52,9 @@
   function whenFormHTML(t) {
     var W = window.When; var atV = t.at ? t.at.replace('T', ' ') : ''; var unV = t.until ? W.timeOf(t.until) : '';
     return '<form class="when-form" onsubmit="return saveWhen(\'' + t.id + '\', this)" onclick="event.stopPropagation()">' +
-      '<label>When<input name="when" value="' + esc(atV) + '" placeholder="tomorrow 14:00 · fri 10:00 · 2026-10-20" autocomplete="off"></label>' +
-      '<label>Until<input name="until" value="' + esc(unV) + '" placeholder="14:30" size="6" autocomplete="off"></label>' +
-      '<label>Deadline<input name="due" value="' + esc(t.due || '') + '" placeholder="2026-10-20 · fri" autocomplete="off"></label>' +
+      '<label>When<span class="dp-row"><input name="when" data-pick="datetime" value="' + esc(atV) + '" placeholder="tomorrow 14:00 · fri 10:00" autocomplete="off"></span></label>' +
+      '<label>Until<span class="dp-row"><input name="until" data-pick="time" value="' + esc(unV) + '" placeholder="14:30" size="6" autocomplete="off"></span></label>' +
+      '<label>Deadline<span class="dp-row"><input name="due" data-pick="date" value="' + esc(t.due || '') + '" placeholder="2026-10-20 · fri" autocomplete="off"></span></label>' +
       '<label class="chk"><input type="checkbox" name="meeting"' + ((t.tags || []).indexOf('meeting') >= 0 ? ' checked' : '') + '> meeting</label>' +
       '<span class="when-btns"><button type="submit" class="btn small primary">Save</button>' + (t.at || t.due ? '<button type="button" class="btn small ghost" onclick="clearWhen(\'' + t.id + '\')">Clear</button>' : '') + '<button type="button" class="btn small ghost" onclick="toggleWhen(\'' + t.id + '\')">Cancel</button></span></form>';
   }

@@ -10,7 +10,7 @@ if (VERSION.indexOf('__') === 0) VERSION = 'solo-ops-static-1';
 var SHELL = ['./', './index.html', './manifest.json', './solo.config.js', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png',
   './core/store.js', './core/config.js', './core/templates.js', './core/theme.js', './core/theme-boot.js', './core/theme.css', './core/ui.css',
   './core/sync.js', './core/activity.js', './core/palette.js', './core/nav.js', './core/inspo-quick.js', './core/attach.js', './core/quick.js', './about.html',
-  './core/prompts.js', './core/when.js', './core/apply.js', './core/context.js', './core/guide.js', './core/recent.js',
+  './core/prompts.js', './core/when.js', './core/datepick.js', './core/apply.js', './core/context.js', './core/guide.js', './core/recent.js',
   './calendar/calendar.html', './calendar/calendar.css', './calendar/calendar-model.js', './calendar/calendar-view.js', './calendar/calendar-main.js',
   './runway/marathon-board.html', './runway/styles.css', './runway/model.js', './runway/view.js', './runway/main.js',
   './social/social-board.html', './social/social-calendar.html', './social/social-styles.css', './social/social-graph.css', './social/social-calendar.css',

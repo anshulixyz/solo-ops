@@ -127,6 +127,11 @@ QR rendered without a dependency, capture strip and boards usable at
   dentist sit between real work on the board. Group `meeting`-tagged cards
   under a collapsed *Meetings (n)* strip at the bottom of To Do, or hide them
   behind a chip by default, since the Calendar is their home.
+- **Date pickers**: the board's When field accepts "due fri" as text, but
+  picking a date with the button writes a plain date-time and so turns the
+  deadline into a timed task; give the add row a separate Deadline picker
+  or a Time/Deadline toggle. Firefox and macOS Safari show no popup for
+  `type=time` (the Until button there just focuses the field).
 - **Calendar, later**: Week view with time blocks; drag to reschedule in
   Month; a now-line; auto-tick a meeting whose end has passed (with undo).
 

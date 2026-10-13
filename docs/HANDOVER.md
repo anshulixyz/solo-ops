@@ -1,0 +1,96 @@
+# Handover — Solo Ops, pre-launch (written 2026-10-13)
+
+For whoever picks this up next, human or agent: how we work, what shipped
+today, what is next, and the traps. `NEXT.md` stays the live agenda; this
+page is the context around it. Read `AGENTS.md` first if you have not.
+
+## How we work (agreed with the owner)
+
+- **Nothing major lands unverified.** Propose in a few lines, get a yes,
+  build, then show proof: command output, screenshots, a round trip through
+  the file. Small fixes may go straight in, but say what changed and how it
+  was checked.
+- **Review before commit.** Significant work gets two independent reviewer
+  agents before it is committed: one technical (correctness, data loss,
+  sync, security) and one product/usability (as a Trello user and as a
+  schedule checker). Fix every finding or write it into `NEXT.md`, re-verify,
+  then commit and push on the owner's word.
+- **Commit and push only when asked.** One commit per approved batch, with
+  a message that says what and why; `node solo.js guard` runs as the
+  pre-commit hook and refuses anything personal.
+- **The privacy hard line** (AGENTS.md → Privacy boundary): the user's
+  content never enters this repo. The agent never bypasses the guard.
+- **Verify on a scratch copy, not on the owner's data.** `rsync` the tree
+  (excluding `.git`, `data`, `node_modules`, `.claude/commands/mine`,
+  `.cursor/commands/mine`) into a temp folder, `node solo.js template all`
+  there, add a temporary entry to `.claude/launch.json` pointing at that
+  copy's `serve.js` on a spare port, and **remove the entry before
+  committing**. The owner's own `node serve.js` runs on 4321; after
+  changing `serve.js` it needs a restart to pick the change up.
+- **Sanity before you call anything done:**
+  ```bash
+  for f in core/*.js calendar/*.js runway/*.js social/*.js studio/*.js inspo/*.js *.js; do node --check "$f"; done
+  node core/test-when.js && node core/test-prompts.js && node social/test-social-save.js && node solo.js doctor
+  ```
+  After touching `core/prompts.js`:
+  `node solo.js prompts export && node solo.js prompts export --for cursor && node solo.js prompts export --for chat`.
+
+## What shipped on 2026-10-13 (all on `main`)
+
+| Commit | What |
+|---|---|
+| `45b3335` | Guide prompts from one source (`core/prompts.js`); chat prompts carry the reply format; prompts as slash commands (`.claude/commands`, `.cursor/commands`); exports land in `data/exports/`; `node solo.js guard`; AGENTS.md *First run* and *Privacy boundary*; `/setup` |
+| `d5e655a` | Backup as part of setup: `backup setup` (private GitHub repo via gh, or the two human ways), `backup --to <folder>`, `backup --daily`; pending card in the Guide; guard explains itself; `--allow-data` for a private fork |
+| `38f51d9` | Launch agent without a working directory |
+| `011ef9f`, `ec9915a` | NEXT: repo-name task; Release 1 scope and the M8 design |
+| `4aaae1f` | **M8 Calendar + dates**: `at` / `until` / `due` / `ext` on tasks, `core/when.js`, CLI `add --at`, `at`, `due`, `calendar`, Schedule in `today`; the `calendar/` app (Agenda · Month · filters · tick · + Add); card date chip + popover; dates parsed out of titles everywhere; Home Calendar card; Guide *Bring in* group (`/fill-calendar`, `/plan-today`) |
+| next | Date pickers beside every date field (`core/datepick.js`) |
+
+## Agenda (mirror of NEXT.md → Release 1)
+
+- **Must before launch:** offer the backup repo name during setup
+  (`backup setup --name` exists; the prompts and the Guide should ask).
+- **Should, first week:** *Share today* as an image from Home; M1 undo/redo
+  in the browser.
+- **Later:** meetings grouped under a strip at the bottom of To Do; Calendar
+  Week view, drag to reschedule, now-line, auto-tick ended meetings;
+  M3 collaborators, M5 briefing packs, M6 Telegram, M7 phone install.
+- **Pre-launch testing still open:** the `file://` linked-folder flow end to
+  end, and dragging an image from another app into the capture strip
+  (both code-reviewed only). The legacy `anshuli.*` localStorage migration
+  keys in `core/theme-boot.js`, `runway/model.js`, `social/*` are the
+  author's old handle in code; harmless, remove when convenient.
+
+## Traps and things to remember
+
+- **`runway/model.js normalize()` is a whitelist.** Any new task field must
+  be added there or the first browser edit silently erases it from every
+  task (and the file follows). `core/apply.js add`, `cmdEdit`, `Quick`
+  build tasks too.
+- **Pages mirror `data/settings.json` as `{ theme }` only.** Anything else
+  kept there is overwritten on the next theme change. CLI-only config goes
+  to its own file: backup and guard live in `data/backup.json`.
+- **Dates are local stamps without a zone**, `YYYY-MM-DDTHH:MM` or a date
+  alone for all-day; `core/when.js` is the only parser. Overdue = deadline
+  passed, or a timed item in the past with no end; an ended meeting is
+  *past*. Posts keep "date alone = 09:00".
+- **A meeting is a task** with `at` and the tag `meeting`. `ext` is the id
+  a connected calendar gave it; `add --ext` updates instead of duplicating,
+  which is what makes `/fill-calendar` safe to re-run.
+- **The Calendar page registers every file it shows** with Sync (isFresh =
+  key absent) so it never triggers the first-contact dialog; boards created
+  at runtime register when `boards.json` arrives. Writes go through the
+  Store key and carry a log note.
+- **Prompts are keyed by title** for the user's overrides in
+  `data/prompts.json` and for the Guide's next-best-moves; rename with care.
+  The reply format in chat prompts must match what `core/apply.js` accepts;
+  `core/test-prompts.js` checks it.
+- **Backups:** `data/` is its own private git repo pushed to GitHub, plus a
+  launchd job every evening; `backup --status` and `doctor` report both.
+  A Claude Code session may be refused permission to create a GitHub repo
+  on the owner's behalf; the owner runs `node solo.js backup setup`.
+- **The exported slash commands say "the folder you are opened in"** on
+  purpose; never commit an absolute path. Personal prompts export to the
+  git-ignored `mine/`.
+- **`.claude/launch.json` is tracked.** Only `marathon` (4321) and
+  `marathon-verify` (4399) belong in it.

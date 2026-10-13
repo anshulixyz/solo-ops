@@ -10,7 +10,7 @@
   var root, pillNode = null;
   // the view re-renders its controls; the sync pill is mounted once and moved into the new slot each time
   function placePill() { var slot = root && root.querySelector('[data-sync-pill]'); if (!slot || !global.Sync) return; if (!pillNode) pillNode = slot.querySelector('.sync-pill') || Sync.mount(slot); else if (!slot.contains(pillNode)) slot.appendChild(pillNode); }
-  function render() { if (root) { CalView.render(root, state); placePill(); } }
+  function render() { if (root) { CalView.render(root, state); placePill(); if (global.DatePick) DatePick.mount(root); } }
   function toast(msg) { var el = document.getElementById('toast'); if (!el) return; el.textContent = msg; el.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(function () { el.classList.remove('show'); }, 2200); }
 
   global.calSetView = function (v) { CalModel.setUi({ view: v }); render(); };

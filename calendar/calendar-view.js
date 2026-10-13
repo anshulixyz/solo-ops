@@ -33,8 +33,8 @@
     var w = Config.ws(); var boards = Config.boards(w.id);
     return '<form class="cal-add panel" onsubmit="return calAddSubmit(this)">' +
       '<input name="title" placeholder="What? e.g. Call with Priya" required autocomplete="off">' +
-      '<input name="when" placeholder="When? tomorrow 14:00 · fri 10:00 · 2026-10-20" value="' + esc(day ? day + ' 10:00' : '') + '" required autocomplete="off">' +
-      '<input name="until" placeholder="until 14:30" size="10" autocomplete="off">' +
+      '<span class="dp-row grow"><input name="when" data-pick="datetime" placeholder="When? tomorrow 14:00 · fri 10:00" value="' + esc(day ? day + ' 10:00' : '') + '" required autocomplete="off"></span>' +
+      '<span class="dp-row"><input name="until" data-pick="time" placeholder="until 14:30" size="10" autocomplete="off"></span>' +
       '<select name="kind"><option value="meeting">Meeting</option><option value="task">Timed task</option><option value="due">Deadline</option>' + (w.apps.social ? '<option value="post">Post</option>' : '') + '</select>' +
       (boards.length > 1 ? '<select name="board">' + boards.map(function (b) { return '<option value="' + esc(b.id) + '">' + esc(b.title) + '</option>'; }).join('') + '</select>' : '') +
       '<button type="submit" class="btn primary small">Add</button><button type="button" class="btn ghost small" onclick="calAddClose()">Cancel</button>' +
