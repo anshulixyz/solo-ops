@@ -43,7 +43,7 @@ a.hub-card:hover{border-color:var(--accent); box-shadow:var(--shadow-lift);}
 .today-strip .date .dt{color:var(--muted); font-size:13px; margin-top:4px;}
 .today-strip .date .ctr{display:flex; flex-wrap:wrap; gap:6px; margin-top:12px;}
 .today-strip .ctr a, .today-strip .ctr span{font-family:var(--mono); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); background:var(--panel-2); border:1px solid var(--line); border-radius:6px; padding:3px 7px; text-decoration:none;}
-.today-strip .ctr a.warn{color:#fff; background:var(--accent); border-color:var(--accent);}
+.today-strip .ctr a.warn{color:var(--on-accent,#fff); background:var(--accent); border-color:var(--accent);}
 .today-strip .ctr .good{color:var(--accent); border-color:var(--accent);}
 .today-strip .scope{display:flex; flex-wrap:wrap; align-items:center; gap:4px; margin-top:10px;}
 .today-strip .scope-l{font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); margin-right:3px;}

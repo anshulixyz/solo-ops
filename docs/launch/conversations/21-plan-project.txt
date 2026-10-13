@@ -1,0 +1,15 @@
+$ node solo.js boards add "Launch runway" --from blank
+✓ Board [launch-runway] Launch runway created with 0 tasks → data/launch-runway.json
+  use it: node solo.js week --board launch-runway   ·   open: runway/marathon-board.html?ws=main&board=launch-runway
+$ node solo.js add "Name and one-line pitch" --board launch-runway --proj launch --pri high --steps "Ten names|Say each out loud|Pick one, domain check" --as agent --note plan-project
+✓ Added [tmv6qeoawtoh] Name and one-line pitch → To Do · launch · high
+$ node solo.js add "Landing page with a waitlist" --board launch-runway --proj launch --pri high --steps "One sentence|One button|Email capture" --as agent --note plan-project
+✓ Added [tmv6qeobx1c9] Landing page with a waitlist → To Do · launch · high
+$ node solo.js add "Record the 60-second demo" --board launch-runway --proj launch --pri high --tags video --steps "Script the three beats|Record|Pick the take" --as agent --note plan-project
+✓ Added [tmv6qeocs9wv] Record the 60-second demo → To Do · launch · high
+$ node solo.js add "Beta to 10 people" --board launch-runway --proj launch --pri medium --steps "List 10|DM each|Collect one line of feedback" --as agent --note plan-project
+✓ Added [tmv6qeodr1qr] Beta to 10 people → To Do · launch · medium
+$ node solo.js social add "Why I am building this" --at 2026-10-20T09:00 --type story --as agent --note plan-project
+✓ Scheduled [pmv6qeoetebl] Why I am building this · Tue, Oct 20 09:00 AM
+$ node solo.js social add "The ugly first version" --at 2026-10-23T17:00 --type update --as agent --note plan-project
+✓ Scheduled [pmv6qeog1tg4] The ugly first version · Fri, Oct 23 05:00 PM

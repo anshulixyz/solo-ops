@@ -1,0 +1,24 @@
+# Today · Tuesday, October 13
+
+Last activity 1 min ago · streak 12 days · 65 active days logged
+
+## Schedule (2)
+- OVERDUE · due 2026-10-12 [tmv6qelq13vl] Send the press kit to 10 writers (runway)
+- 19:03–19:33 [tmv6qelj3q5t] Call with the editor · meeting (runway)
+
+## Doing (3)
+- [tmv6qele0gar] (runway) Landing page copy, final pass · launch · high · due Thu, Oct 15 · #website #copy
+- [tmv6qel8t6w4] (runway) Record the 60-second demo · launch · high · #video · 3/6 steps
+- [tmv6qelgg6un] (runway) Onboarding email sequence (3 emails) · launch · medium · #email · 1/3 steps
+
+## High priority, not started (6)
+- [tmv6qelx9lc7] (runway) Fix the export crash on long clips · general · high · #bug
+- [tmv6qelsyve8] (runway) Write the launch post · launch · high · #content · 0/4 steps
+- [tmv6qelr7wl8] (runway) Set up the waitlist form · launch · high · #website · 0/3 steps
+- [tmv6qelq13vl] (runway) Send the press kit to 10 writers · launch · high · due Mon, Oct 12 · OVERDUE · #press
+- [tmv6qelowz92] (runway) Submit the App Store listing · launch · high · due Sun, Oct 18 · #release · 0/3 steps
+- [tmv6qemghi8d] (ops) Pay the editor · general · high · due Fri, Oct 16
+
+## Posts due today or overdue (0)
+_none_ — next: Wed, Oct 14 09:00 AM · Quote: "Nobody finishes the tutorial. Everybody finishes the demo."
+

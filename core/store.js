@@ -70,6 +70,7 @@
     // sample-data flags: set when a model seeds the template, cleared by the
     // first real write; sync lets a data file win over fresh sample data
     markFresh: function (k) { try { if (ok) localStorage.setItem(FRESH + k, '1'); else mem[FRESH + k] = '1'; } catch (e) { mem[FRESH + k] = '1'; } },
-    isFresh: function (k) { return get(FRESH + k) === '1'; }
+    isFresh: function (k) { return get(FRESH + k) === '1'; },
+    clearFresh: function (k) { remove(FRESH + k); }   // sample data has yielded to the file: from now on file changes are real changes
   };
 })(typeof window !== 'undefined' ? window : this);

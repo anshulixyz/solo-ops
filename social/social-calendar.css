@@ -2,7 +2,7 @@
    social-calendar.css — monthly social media calendar grid
    ========================================================================= */
 
-.cal-page .wrap{max-width:1100px;}
+.cal-page .wrap{max-width:1280px;}
 
 /* ---- GitHub-style streak heatmap ---- */
 .streak-panel{margin-bottom:16px;}

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>shot frame</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#fff}iframe{border:0;width:100%;height:100%;display:block}</style>
+</head>
+<body>
+<iframe id="f"></iframe>
+<script>
+/* docs/launch/mock/frame.html — the screenshot harness (served from the scratch copy, same origin as the app).
+   ?go=<page url from the root>   the page to show
+   &ls=<json>                     localStorage entries to set before the page loads (theme, acks, tabs)
+   &do=<actions>                  after load, ';;'-separated: click:<css> · clicktext:<css>|<text> · type:<css>|<text> ·
+                                  js:<expression> · wait:<ms> · scroll:<y> · focus:<css>
+   Headless Chrome screenshots the window after --virtual-time-budget; actions run with small delays in between. */
+(function () {
+  var p = new URLSearchParams(location.search);
+  try { var ls = p.get('ls') ? JSON.parse(p.get('ls')) : null; if (ls) Object.keys(ls).forEach(function (k) { if (ls[k] === null) localStorage.removeItem(k); else localStorage.setItem(k, typeof ls[k] === 'string' ? ls[k] : JSON.stringify(ls[k])); }); } catch (e) { /* ignore */ }
+  var f = document.getElementById('f'); var go = p.get('go') || 'index.html'; var acts = (p.get('do') || '').split(';;').filter(Boolean);
+  f.src = '/' + go.replace(/^\//, '');
+  function run(win, doc, i) {
+    if (i >= acts.length) { document.title = 'ready'; return; }
+    var a = acts[i]; var k = a.slice(0, a.indexOf(':')); var v = a.slice(a.indexOf(':') + 1); var delay = 350;
+    try {
+      if (k === 'click') { var el = doc.querySelector(v); if (el) el.click(); }
+      else if (k === 'clicktext') { var sel = v.split('|')[0], txt = v.split('|').slice(1).join('|').toLowerCase(); var els = doc.querySelectorAll(sel); for (var j = 0; j < els.length; j++) { if ((els[j].textContent || '').trim().toLowerCase().indexOf(txt) >= 0) { els[j].click(); break; } } }
+      else if (k === 'type') { var sel2 = v.split('|')[0], txt2 = v.split('|').slice(1).join('|'); var inp = doc.querySelector(sel2); if (inp) { inp.focus(); inp.value = txt2; inp.dispatchEvent(new win.Event('input', { bubbles: true })); } }
+      else if (k === 'focus') { var fe = doc.querySelector(v); if (fe) fe.focus(); }
+      else if (k === 'js') { win.eval(v); }
+      else if (k === 'scroll') { win.scrollTo(0, parseInt(v, 10) || 0); }
+      else if (k === 'wait') { delay = parseInt(v, 10) || 0; }
+    } catch (e) { console.error('action failed: ' + a, e); }
+    setTimeout(function () { run(win, doc, i + 1); }, delay);
+  }
+  f.addEventListener('load', function () { setTimeout(function () { run(f.contentWindow, f.contentDocument, 0); }, 1200); });
+})();
+</script>
+</body>
+</html>

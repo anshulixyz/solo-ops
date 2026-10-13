@@ -1,0 +1,8 @@
+✗ Not committing 1 file: it is your content, and this repository is the Solo Ops code.
+  - data/runway.json
+
+Why: this repo is public, and so is any fork of it. Your tasks, posts and drafts should live where only you can read them.
+
+Do this instead:   node solo.js backup setup         (a private GitHub repo, or a folder that syncs — it tells you)
+Own private fork?  node solo.js guard --allow-data   (checks the remote is private, then lets data/ through)
+Unstage:           git restore --staged data/runway.json   (no commits yet? git rm --cached data/runway.json)

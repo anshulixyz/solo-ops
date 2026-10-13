@@ -29,8 +29,9 @@ in step with what you change, and run `node solo.js doctor` plus
   is focused; if the file changed underneath since the step, say so and ask.
   CLI undo and IndexedDB wait for the full M1.
 
-**After**: M3, M5, M6, M7, the rest of M4. Freeze everything else and spend
-the remaining time on the first-run path.
+**After**: M9 (MCP server) and M10 (Mac and Windows notes) are the first two
+after launch, then M3, M5, M6, M7, the rest of M4. Freeze everything else and
+spend the remaining time on the first-run path.
 
 ## Major
 
@@ -100,6 +101,26 @@ can read back. A page opened by double-click has nothing to revert from.
   step; ⌘Z / ⇧⌘Z when no field is focused; `node solo.js undo` / `redo` in
   the CLI using the same ring exported to `data/undo.json`.
 
+### M9 · An MCP server: Solo Ops anywhere, with any agent
+One local process (`node solo.js mcp`, stdio) that exposes the CLI's verbs as
+Model Context Protocol tools: `today`, `week`, `calendar`, `add`, `done`,
+`start`, `move`, `at`, `due`, `step`, `note`, `social add`, `share today`,
+plus `prompt <slug>` returning a Guide prompt with the snapshot filled in.
+Same files, same `log.jsonl` (source `mcp:<client>`), same guard and backup.
+Claude Desktop, ChatGPT (when it speaks MCP), Cursor and a phone client then
+use the folder without pasting. Zero dependencies: the protocol is JSON over
+stdio, written by hand like `serve.js`. Ships with a `/setup-mcp` prompt that
+writes the client's config entry.
+
+### M10 · Your notes on the Mac and on Windows flow in
+A watcher (`node solo.js watch`) that reads what people already write in:
+Apple Notes and Reminders on the Mac (AppleScript / the Notes SQLite, read
+only), Sticky Notes and Notepad on Windows, and any Markdown folder
+(Obsidian, iA Writer). New notes or new `- [ ]` lines become inbox items or
+tasks with a link back to the note; a tag like `#solo` or a folder name picks
+the project. Nothing is moved or edited at the source. The Guide gets
+*Assess new notes* next to *Assess new inspiration*.
+
 ### M3 · Collaborators through agents, no shared app
 An editor or writer installs Solo Ops, points their agent at the same
 private data repo (`node solo.js backup --remote …`), and the two agents
@@ -120,7 +141,7 @@ A filtered snapshot (this workspace, open work only), AGENTS.md, the role's
 prompts, and a one-paragraph "how we work" from `solo.config.js`. Output as
 one Markdown file to hand to a person or paste into their agent.
 
-### M6 · Telegram
+### M6 · Telegram (and WhatsApp the same way)
 Design in `docs/telegram.md`: `/add`, `/done`, `/next`, and any link or
 photo into Inspiration. A small Node process beside `serve.js`, token in
 `data/settings.json` (never in the repo).
@@ -227,6 +248,15 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Done
 
+- 2026-10-13 · README and About for launch: new copy (one folder, your own
+  AI, who it is for, three ways in), eight fresh screenshots from a seeded
+  scratch copy, roadmap in step with `about.html` and M9/M10. Launch film
+  and launch screenshots stay out of the repo (`.gitignore`). Sample data
+  yielding to a file is no longer logged as agent deletions, and the fresh
+  flag clears after that first apply so later agent/CLI edits are logged
+  (`core/sync.js`, `Store.clearFresh`). Overdue chip readable in dark
+  palettes (`--on-accent`). `doctor | health` in help.
+
 - 2026-10-13 · Home: owner name, scope, Start/Done across projects, create →
   Home. `owner` in `solo.config.js` makes the title "Anshuli’s workspaces"
   (the brand moves to the eyebrow; `/setup` asks for the name). Creating a
@@ -245,7 +275,12 @@ QR rendered without a dependency, capture strip and boards usable at
   three hero workspaces), `capture.sh` (real CLI output for the terminal
   frames), `mock/chat.html` + `mock/term.html` (reproductions with verbatim
   content), `mock/frame.html` + `shoot.js` (headless Chrome, 1440×900 @2×).
-  55 images in `docs/screenshots/launch/`. README pass still to come.
+  57 images in `docs/screenshots/launch/` (local only, git-ignored like the
+  film; README images live in `docs/screenshots/`); the launch video (73 s: setup in
+  one command, onboarding in the chat, agent-first, the no-terminal route,
+  Home, the feature wall), a 46 s teaser and the earlier 72 s film in
+  `docs/launch/video/` (Remotion, built from the screenshots, synthesised
+  soundtracks). README pass still to come.
 
 - 2026-10-13 · Guide: ask box + blanks fix (plan reviewed by a tech and a
   usability agent before building; scope cut to what both agreed). The field
@@ -276,6 +311,9 @@ QR rendered without a dependency, capture strip and boards usable at
   produced an empty script or note. `bodyAfter()` now tracks fences; preview
   units for scripts and notes are self-contained. A user's edited or own
   prompt that carries `{{snapshot}}` but no reply legend now gets the legend.
+
+- 2026-10-13 · CLI: `check <task> <n>` ran `doctor` (the alias `check: cmdDoctor` came
+  later in the command table and won). The doctor alias is now `health`.
 
 - 2026-10-13 · Share today + Home as a dashboard (reviewed twice before
   building). `core/share-card.js`: a 1080×1080 card of today (Doing · Schedule

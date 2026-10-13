@@ -62,6 +62,19 @@ page is the context around it. Read `AGENTS.md` first if you have not.
   keys in `core/theme-boot.js`, `runway/model.js`, `social/*` are the
   author's old handle in code; harmless, remove when convenient.
 
+## Launch screenshots
+
+`docs/launch/SHOTLIST.md` is the script; `shoot.js` takes every shot with
+headless Chrome against two scratch servers (a seeded copy on 4412, a fresh
+`template all` copy on 4413, both temporary entries in `.claude/launch.json`
+while shooting). Reseed with `seed.js` (Pocket Studio) or `personas.js`
+(Tomas, Noor, Lena) into an EMPTY scratch `data/`, never the owner's; run
+`capture.sh` after a reseed so the terminal frames quote the new ids. Chat
+and terminal frames are reproductions whose content is verbatim and whose
+reply blocks were checked through the Reply tab. Shots that write (board
+expand, quick add, the dark theme) are made idempotent or silent; profiles
+are wiped per run so stale ids never show as deletions.
+
 ## Traps and things to remember
 
 - **`runway/model.js normalize()` is a whitelist.** Any new task field must

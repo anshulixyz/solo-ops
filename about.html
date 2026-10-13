@@ -36,6 +36,13 @@
   .about .foot a{color:var(--accent-strong);}
   .about .steer{background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:16px 18px; margin:14px 0 6px; box-shadow:var(--shadow);}
   .about .steer p{margin:0;}
+  .about .people{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:4px 0 8px;}
+  .about .person{background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:14px 16px; box-shadow:var(--shadow);}
+  .about .person b{display:block; font-family:var(--serif); font-size:16px; margin-bottom:4px;}
+  .about .person p{font-size:13.5px; color:var(--muted); margin:0; line-height:1.55;}
+  .about .ways{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:4px 0 8px;}
+  .about .way{border:1px solid var(--line); border-radius:var(--r); padding:14px 16px; background:var(--panel-2);}
+  .about .way b{display:block; margin-bottom:4px;} .about .way p{font-size:13.5px; margin:0; color:var(--muted); line-height:1.55;}
 </style>
 </head>
 <body>
@@ -43,37 +50,58 @@
   <nav data-nav data-root="./"></nav>
   <div class="about">
     <div class="hero">
-      <img src="icons/icon.svg" alt="">
+      <img src="icons/icon.svg?v=mono" alt="">
       <div>
-        <h1><span data-cfg="name">Solo Ops</span></h1>
+        <h1>Solo Ops</h1>
         <div class="eyebrow">local · file-based · agent-native · MIT</div>
       </div>
     </div>
-    <p class="lede">A planning board for one person and their agents. Everything is a plain file on your computer. The agents do most of the work. You steer.</p>
+    <p class="lede">Your tasks, meetings, posts and drafts in one folder on your own computer, managed for you by the AI you already use. You decide who does what: you, an agent, a human, or a mix.</p>
 
     <h2>Why this exists</h2>
-    <p>Static files are enough now. A folder of JSON and HTML, opened by double-click, is a complete tool: no account, no server to pay for, nothing to sync, nothing that disappears when a company pivots. Solo Ops is built on that bet.</p>
-    <p>Most of us already have several agents working for us: one writes, one codes, one researches. Managing them is the hard part, and paying for yet another SaaS to do that managing feels redundant. The boards, the schedule, the inbox are the shared memory your agents and you both read and write. They run the loop; you decide what the loop is for.</p>
-    <div class="steer"><p><b>You become the one who steers.</b> Standups, weekly reviews, turning a saved link into three tasks and a post, cleaning the board, writing the script: a prompt away, logged, revertable. Your attention goes to the decisions, not the upkeep.</p></div>
+    <p>Every tool today lets you hand a task to an AI. None of them hands the <i>managing</i> to the AI. You still open five apps, add the task, move the card, save the link, paste the plan into a chat every morning, and keep the agents in your head. The AI does the work; you do the admin of the work.</p>
+    <p>Solo Ops switches it. You decide who does each thing. Everything around that decision is the AI's job: adding the tasks and their steps, researching, saving inspiration, keeping the to-dos and the calendar honest, writing the standup, drafting the replies, saying what is next. And it is one folder instead of ten apps: the solo-founder versions of a board, notes and drafts, a script writer with a teleprompter, a posting scheduler, a calendar, an inbox for ideas and a daily brief, each as small as one person needs, all readable by the same agent.</p>
+    <p>It started as my own problem. I am a creator, a developer, an AI engineer and a founder at once, and I kept needing one more tool, each a SaaS with a login and a price for a feature used once a day, none of which let the AI in. So I built Solo Ops in phases, one tool at a time, as the need came. These are basic things; your own computer and your own AI can do them. Solo Ops is the bet that plain files are enough. A folder of JSON and HTML, opened by double-click, is a complete tool: no account, no server to pay for, nothing that disappears when a company pivots. The boards, the calendar, the schedule and the inbox are the shared memory you and your agents both read and write. They run the loop; you decide what the loop is for.</p>
+    <div class="steer"><p><b>You become the one who steers.</b> A standup, a weekly review, a saved link turned into three tasks and a post, your calendar pulled in, a board built from one conversation: each is a prompt away, logged, revertable. Your attention goes to the decisions, not the upkeep.</p></div>
+
+    <h2>Who it is for</h2>
+    <div class="people">
+      <div class="person"><b>The solo founder</b><p>Ships a product, answers support, chases invoices, and has a life. One board holds all four, and the agent that writes the code also drafts the replies and keeps the board honest.</p></div>
+      <div class="person"><b>The creator</b><p>A pipeline of videos and letters, sponsors to close, an editor to pay. Scripts, a posting arc and the week's deadlines in one place; the AI drafts titles and replies from what is actually there.</p></div>
+      <div class="person"><b>The freelancer</b><p>Clients, money and errands on the same board, because that is what a week is. Proposals drafted from the last two, overdue invoices that stay red, the vet next to the kickoff.</p></div>
+    </div>
+
+    <h2>Three ways in</h2>
+    <div class="ways">
+      <div class="way"><b>Just you</b><p>Open the pages. Boards, calendar, schedule, scripts, drafts, inbox. The Guide's Quick tab does the daily moves with no AI at all.</p></div>
+      <div class="way"><b>A chat (ChatGPT, Claude.ai)</b><p>Type what you want in the Guide's <b>Ask your AI</b> box and Copy for your AI: the copy carries your data and the reply format. Paste the answer back; every change is previewed before it lands.</p></div>
+      <div class="way"><b>An agent that runs commands</b><p>Claude Code, Cursor, Codex. <code>/standup</code>, <code>/plan-project</code>, <code>/fill-calendar</code> and the rest are slash commands; the agent runs <code>node solo.js</code> and the pages follow live.</p></div>
+    </div>
 
     <h2>How it works today</h2>
     <ul>
-      <li><span class="ic">01</span><div><b>Plain files, plain pages</b>Tasks, posts, scripts, notes and inspiration are <code>data/*.json</code>. The pages are static HTML. Open <code>index.html</code>, or run <code>node serve.js</code> and install it as an app.</div></li>
-      <li><span class="ic">02</span><div><b>One contract for every agent</b><code>AGENTS.md</code> tells Claude Code, Cursor, Codex or any file-capable agent where things are and how to change them. Chat agents (Claude.ai, ChatGPT) get a snapshot in the prompt and answer with commands the app applies itself.</div></li>
-      <li><span class="ic">03</span><div><b>Every change is logged</b>Yours, the CLI's and the agents', with who, when and what, and the previous content. One click reverts. Nothing is deleted from a prompt.</div></li>
-      <li><span class="ic">04</span><div><b>Workspaces are projects</b>Each one picks its own apps and boards. Home shows all of them at once. Inspiration is one inbox across all of them.</div></li>
-      <li><span class="ic">05</span><div><b>Backups you own, and why your data is not in this repo</b>This folder is the code, and the code is public, including any copy of it. Your tasks, posts and drafts stay out of it on purpose and get a private home: <code>node solo.js backup setup</code> makes a private GitHub repo, or <code>backup --to</code> copies into a folder that syncs. It refuses public repos; <code>--daily</code> repeats it. <code>doctor</code> checks every file and attachment.</div></li>
+      <li><span class="ic">01</span><div><b>Plain files, plain pages</b>Tasks, posts, scripts, notes and inspiration are <code>data/*.json</code>. The pages are static HTML. Open <code>index.html</code>, or run <code>node serve.js</code> and install it as an app on the Mac or PC.</div></li>
+      <li><span class="ic">02</span><div><b>One contract for every agent</b><code>AGENTS.md</code> tells any file-capable agent where things are and how to change them, with <code>--as agent --note</code> on every write so you can see and undo what it did. Chat agents get the same rules inside each prompt.</div></li>
+      <li><span class="ic">03</span><div><b>Home answers "what now"</b>Your name on top, every project under it. The Today strip: the meeting in progress or the next one, what is in Doing, overdue and this-week counts, <b>Show</b> chips for all projects or one, a quick add that understands "Call Sam tomorrow 14:00", and <b>Share today</b>: a clean card of the day for any project or all, as an image or text. Tasks in play carry ▶ Start and ✓ Done for any project, so today is picked from everything you have.</div></li>
+      <li><span class="ic">04</span><div><b>A calendar without an integration</b>Tasks carry a time, an end and a deadline; a meeting is a task with a time. The agent fills the week from the calendar <i>it</i> is connected to (Google, Apple, Outlook through Claude or ChatGPT) and re-runs are safe. No OAuth in Solo Ops: the agent is the integration.</div></li>
+      <li><span class="ic">05</span><div><b>The Guide beside every page</b>Quick (no AI needed). Ask starts with <b>Ask your AI</b>: say what you want in plain words, tick what goes along (this task, this board, my schedule, recent changes), copy; the prompts for rituals (standup, plan the week, cut scope, fill my calendar…) sit under it. Reply: paste the whole answer, preview every change, apply. Settings. Every prompt is also a slash command, generated from one source.</div></li>
+      <li><span class="ic">06</span><div><b>Every change is logged</b>Yours, the CLI's and the agents', with who, when and what, and the previous content. Home shows them in plain words; <i>Restore a file</i> puts any file back. Nothing is deleted from a prompt.</div></li>
+      <li><span class="ic">07</span><div><b>Projects, not one big list</b>Each project picks its own apps and boards and has an Overview page. Home shows all of them; Inspiration is one inbox across them.</div></li>
+      <li><span class="ic">08</span><div><b>Backups you own, and why your data is not in this repo</b>This folder is the code, and the code is public, including any copy of it. Your tasks, posts and drafts stay out of it on purpose and get a private home: <code>node solo.js backup setup</code> makes a private GitHub repo, or <code>backup --to</code> copies into a folder that syncs. A guard refuses commits that carry your content; <code>--daily</code> repeats the backup; <code>doctor</code> checks every file.</div></li>
     </ul>
 
     <h2>What is coming <span class="pill">upcoming</span></h2>
+    <p>The direction is one idea: Solo Ops should be reachable from wherever you and your agents already are, and should take in whatever you already write things down in. Nothing below adds a service in the middle.</p>
     <ul>
-      <li class="soon"><span class="ic">→</span><div><b>Collaborators, through agents, no shared app</b>Tomorrow you work with an editor; next month a writer joins for two weeks. Ask your agent to brief them. They install Solo Ops on their laptop, point their own agent at the same private data repo, and the two agents talk through the files: tasks assigned, drafts handed back, questions left as notes. No common UI, no seats, no invites.</div></li>
-      <li class="soon"><span class="ic">→</span><div><b>Pull from the apps you already use</b>Whatever your Claude or ChatGPT is connected to (mail, calendar, docs, analytics, your CRM) can land here as tasks, posts or inspiration. The integration lives in your agent; Solo Ops only needs the result.</div></li>
-      <li class="soon"><span class="ic">→</span><div><b>Telegram</b><code>/add</code>, <code>/done</code>, <code>/next</code>, and "just send me the link" into the inbox from your phone. Design in <code>docs/telegram.md</code>.</div></li>
+      <li class="soon"><span class="ic">→</span><div><b>An MCP server: use it anywhere, with any agent</b>One local server that speaks the Model Context Protocol, so Claude Desktop, ChatGPT, Cursor, a phone app or whatever comes next can read your board and write to it with the same verbs the CLI has: <code>today</code>, <code>add</code>, <code>done</code>, <code>calendar</code>, <code>share today</code>. Same files, same log, same guard. The Guide's prompts become tools the agent can call without you pasting anything.</div></li>
+      <li class="soon"><span class="ic">→</span><div><b>Your notes on the Mac and on Windows</b>The things you already jot down keep landing where you jot them. A watcher for Apple Notes and Reminders on the Mac, Sticky Notes and Notepad on Windows, and any folder of Markdown (Obsidian, iA Writer): new lines become inbox items or tasks, with a link back to the note. Nothing is moved; Solo Ops reads.</div></li>
+      <li class="soon"><span class="ic">→</span><div><b>Pull from the apps you already use, through your AI</b>The calendar works this way today. Next: mail ("put the replies I owe into my to-dos"), docs and meeting notes ("the action items from this call"), analytics ("what did the last three posts do"). The connector lives in your Claude or ChatGPT; Solo Ops only needs the result, and every pull is a logged, revertable change.</div></li>
+      <li class="soon"><span class="ic">→</span><div><b>Collaboration with no API in the middle</b>An editor or a cofounder installs Solo Ops, points their own agent at the same private data repo, and the two agents update each other on what they have done, through the files: tasks handed over, drafts handed back, questions left as notes. No shared app, no seats, no integration to pay for.</div></li>
+      <li class="soon"><span class="ic">→</span><div><b>Telegram and WhatsApp</b><code>/add</code>, <code>/done</code>, <code>/next</code>, and "just send me the link" into the inbox from your phone. Design in <code>docs/telegram.md</code>.</div></li>
       <li class="soon"><span class="ic">→</span><div><b>On your phone, still local</b>The same pages served from your laptop on your own wifi, a QR code on Home, installed as an app on the phone. No cloud in between.</div></li>
-      <li class="soon"><span class="ic">→</span><div><b>Briefing packs</b><code>node solo.js brief --for editor</code>: a filtered snapshot plus the contract plus the right prompts, ready to hand to a person or their agent.</div></li>
+      <li class="soon"><span class="ic">→</span><div><b>Briefing packs and undo everywhere</b><code>node solo.js brief --for editor</code>: a filtered snapshot plus the contract plus the right prompts for a person or their agent. And ⌘Z in the browser for every change, yours or the agent's.</div></li>
     </ul>
-    <p class="muted">Upcoming means designed and intended, not shipped. The order follows what people ask for.</p>
+    <p class="muted">Upcoming means designed and intended, not shipped. The order follows what people ask for; the list lives in <code>NEXT.md</code>.</p>
 
     <h2>Principles</h2>
     <ul>
@@ -81,9 +109,10 @@
       <li><span class="ic">·</span><div><b>Agents do, humans steer.</b> Every feature is reachable as a prompt before it is reachable as a button.</div></li>
       <li><span class="ic">·</span><div><b>Nothing silent, nothing final.</b> Logged, attributed, revertable. Deletion needs a human.</div></li>
       <li><span class="ic">·</span><div><b>Private by default.</b> Your data never enters the public repo; backups refuse public remotes.</div></li>
+      <li><span class="ic">·</span><div><b>Bring your own AI.</b> Any model, any vendor, chat or terminal. Solo Ops never calls one for you.</div></li>
     </ul>
 
-    <p class="foot">Open source, MIT. <a href="https://github.com/anshulixyz/solo-ops" target="_blank" rel="noopener">github.com/anshulixyz/solo-ops</a> · <a href="README.md" target="_blank">README</a> · <a href="AGENTS.md" target="_blank">AGENTS.md</a> · <a href="index.html">Back to Home</a></p>
+    <p class="foot">Open source, MIT. <a href="https://github.com/anshulixyz/solo-ops" target="_blank" rel="noopener">github.com/anshulixyz/solo-ops</a> · <a href="README.md" target="_blank">README</a> · <a href="AGENTS.md" target="_blank">AGENTS.md</a> · <a href="NEXT.md" target="_blank">NEXT.md</a> · <a href="index.html">Back to Home</a></p>
   </div>
 </div>
 <script src="core/store.js"></script>

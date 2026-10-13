@@ -1,0 +1,6 @@
+- wrote data/runway.json (sample content)
+- wrote data/social.json (sample content)
+- wrote data/scripts.json (sample content)
+- wrote data/writing.json (sample content)
+- wrote data/inspiration.json (sample content)
+- wrote data/settings.json (sample content)

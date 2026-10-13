@@ -1,0 +1,8 @@
+$ node solo.js done "Landing page copy" --as agent --note "standup: finished last night"
+✓ Done: [tmv6qele0gar] Landing page copy, final pass → Done
+$ node solo.js start "Write the launch post" --as agent --note "standup: today is about this"
+✓ Started: [tmv6qelsyve8] Write the launch post → Doing
+$ node solo.js note "Write the launch post" "Lead with the Sunday line from the first post" --as agent --note standup
+✓ [tmv6qelsyve8] note added
+$ node solo.js add "Reply to Priya before the intro" --pri high --due 2026-10-14 --as agent --note "standup: blocker"
+✓ Added [tmv6qenz3cwz] Reply to Priya before the intro → To Do · general · high · due Tomorrow

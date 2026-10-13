@@ -11,3 +11,8 @@ data/*
 # your own Guide prompts exported as slash commands (built-ins are committed, yours are not)
 .claude/commands/mine/
 .cursor/commands/mine/
+
+# launch material stays local: the film (source, renders, node_modules) and the
+# 57 launch screenshots never enter the repo. README images live in docs/screenshots/.
+docs/launch/video/
+docs/screenshots/launch/

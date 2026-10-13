@@ -77,11 +77,13 @@
   function applyBody(spec, parsed) {
     applying = true;
     var keys = spec.keys || [spec.key];
+    var wasFresh = !spec.freshApplied && (!!(spec.isFresh && spec.isFresh()) || keys.some(function (k) { return Store.isFresh(k); }));   // sample data giving way to the file is not a change anyone made; only once per page, so later agent/CLI edits are logged
     if (global.Recent) Recent.beforeApply(keys);
     try {
       setMeta(spec.file, parsed.updatedAt || now());
       spec.apply(parsed);
-      if (global.Recent) Recent.afterApply(keys, 'agent or CLI');
+      if (wasFresh) { spec.freshApplied = true; keys.forEach(function (k) { if (Store.clearFresh) Store.clearFresh(k); }); }
+      if (global.Recent) { if (wasFresh) Recent.beforeApply(keys); else Recent.afterApply(keys, 'agent or CLI'); }
       emit('applied', { file: spec.file, label: spec.label });
     } finally { applying = false; }
   }

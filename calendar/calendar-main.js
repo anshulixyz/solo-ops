@@ -66,6 +66,8 @@
     if (CalModel.ui().all) CalModel.peekOthers(render);
     render();
     Store.onChange(function (k) { if (k === Config.BOARDS_KEY) registerSync(); if (k === Config.BOARDS_KEY || /^marathon\.(board\.|[^.]+\.social|social)/.test(k)) render(); });
+    // the registry (data/boards.json) lands silently on first contact: boards made at runtime must still be registered and pulled
+    Sync.on(function (evt, d) { if (evt === 'applied' && d && (d.file === 'boards.json' || d.file === 'workspaces.json')) { registerSync(); render(); } });
     if (global.Palette) {
       Palette.init({ root: '../' });
       Palette.register([

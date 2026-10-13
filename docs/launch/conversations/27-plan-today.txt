@@ -1,0 +1,6 @@
+$ node solo.js at "Write the launch post" today 10:00 --until 11:30 --as agent --note "plan today"
+✓ [tmv6qelsyve8] Write the launch post · Today 10:00–11:30
+$ node solo.js at "Fix the export crash" today 13:00 --until 14:30 --as agent --note "plan today"
+✓ [tmv6qelx9lc7] Fix the export crash on long clips · Today 13:00–14:30
+$ node solo.js at "Set up the waitlist form" today 16:00 --until 17:00 --as agent --note "plan today"
+✓ [tmv6qelr7wl8] Set up the waitlist form · Today 16:00–17:00
