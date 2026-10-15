@@ -82,7 +82,7 @@ the managing. The longer story and what is coming next:
 
 | | What it does |
 |---|---|
-| **Home** | *Your name's workspaces* (`owner` in `solo.config.js`; `/setup` asks for it). A Today strip: the meeting in progress or the next one, what is in Doing, overdue and this-week counts, **Show** chips that filter the page to all projects or one, a quick add that understands "Call Sam tomorrow 14:00", **Share today** as an image or text for any project or all, Plan today with your agent. One card per project that opens its Overview (boards, apps, rename / remove). **Tasks in play** for the week with ▶ Start and ✓ Done on every row, whichever project it belongs to; calendar today and tomorrow; posts for the week; the inspiration inbox; recent changes in plain words with *Restore a file* underneath; the activity streak folded away. |
+| **Home** | *Your name's workspaces* (`node solo.js config set owner "Mara"`; `/setup` asks for it). A Today strip: the meeting in progress or the next one, what is in Doing, overdue and this-week counts, **Show** chips that filter the page to all projects or one, a quick add that understands "Call Sam tomorrow 14:00", **Share today** as an image or text for any project or all, Plan today with your agent. One card per project that opens its Overview (boards, apps, rename / remove). **Tasks in play** for the week with ▶ Start and ✓ Done on every row, whichever project it belongs to; calendar today and tomorrow; posts for the week; the inspiration inbox; recent changes in plain words with *Restore a file* underneath; the activity streak folded away. |
 | **Boards** | Kanban: To Do / Doing / Done, a Later parking lot, a Bucket List for ideas. Checklists, priority, project chips, tags, notes, drag & drop. One file per board; create boards blank, from the sample sprint, or as a copy. |
 | **Calendar** | Everything with a date in one place: tasks with a time or a deadline, **meetings** (a task with a time and the tag `meeting`), and posts, across every board, with *all projects* a click away. Agenda (today onward, overdue first) and Month. Filter by board, meetings, posts; tick to finish; click to open the item where it lives; + on any day. Your agent fills it: Guide → **Bring in** → *Fill my calendar* reads the calendar your Claude or ChatGPT is connected to and adds the week's meetings (re-runs update, never duplicate). `node solo.js calendar` prints the same agenda; `add --at tomorrow 14:00 --until 14:30 --tags meeting` adds one. No calendar OAuth inside Solo Ops: the agent is the integration. |
 | **Social Schedule** | A posting arc: date, copy, type, prep checklist, images, video status; mark posted and log engagement. Calendar with a 52-week streak heatmap. |
@@ -249,10 +249,20 @@ down in. Nothing below adds a service in the middle.
 
 ## Make it yours
 
-`solo.config.js` holds your name (`owner`), the project name, workspaces (or just the apps and boards
-of the default one), projects with colors, tags, post types, prep kinds,
-milestones and focus cards, idle-reminder hours, attachment size caps and
-the default theme. The Theme button offers light/dark, five palettes and
+`solo.config.js` is part of the app itself, identical for everyone who
+downloads Solo Ops, so do not put your name in it. Your own settings (your
+name, the project name, board titles, your post types) live next to your
+tasks in `data/settings.json`. Set them with
+`node solo.js config set owner "Mara" name "Pocket Studio"`, add to a list
+with `node solo.js config add social.postTypes reel carousel`, or ask your
+agent (`/setup` does it; a pasted reply can carry `config set` lines too).
+Any key of `solo.config.js` works, one board at a time as
+`boards.runway.title "Launch runway"`; `node solo.js config` shows what is
+in use. Git never sees that file, and if you change `solo.config.js` by
+mistake the guard stops the commit. The file itself holds the defaults:
+workspaces (or just the apps and boards of the default one), projects with
+colors, tags, post types, prep kinds, milestones and focus cards,
+idle-reminder hours, attachment size caps and the default theme. The Theme button offers light/dark, five palettes and
 four font presets (Inter, System as in Trello, Lato as in Slack, Editorial);
 `?theme=dark&palette=dusk&font=system` works on any page. Workspaces
 and boards can also be created from Home or the CLI; sample content ships in

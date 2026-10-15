@@ -18,10 +18,10 @@ document is the whole contract; read it once and you can operate the system.
 | `data/log.jsonl` | every change with who/when/what + previous content; revertable | `log`, `revert <id>` |
 | `data/activity.json` | per-day change counts, last-active stamps (written automatically) | `activity` |
 | `data/prompts.json` | the user's own Guide prompts and edits to built-ins (built-ins live in `core/prompts.js`) | `prompts …` |
-| `data/settings.json` | theme | `theme …` |
+| `data/settings.json` | theme, and under `config` the user's personal values over `solo.config.js`: `owner`, board titles and milestones, post types, labels (same keys, same shapes) | `theme …` `config set <path> <value>` |
 | `data/backup.json` | the backup copy folder and its last run; the guard's `--allow-data` decision (CLI only) | `backup …` `guard …` |
 | `data/exports/` | what the pages export (whole-workspace backup, a board as JSON or Markdown, the social bundle) and the safety copy taken before a destructive action. Written when the server runs or the folder is linked; otherwise the browser downloads instead | — |
-| `solo.config.js` | `owner` (the user's name, Home greets them with it), apps on/off, boards, projects, tags, post types, labels, idle hours, default theme | `config` |
+| `solo.config.js` | the shipped defaults: apps on/off, boards, projects, tags, post types, labels, idle hours, default theme. **Shipped code, never personalised**: the user's own values go to `data/settings.json` through `config set` | `config` |
 
 Schema with every field: `data/SCHEMA.md`. Every data file carries
 `updatedAt` (ISO 8601 UTC); sync uses it to decide which side is newer.
@@ -34,9 +34,11 @@ list as a slash command; without it, in order:
 
 1. `node solo.js doctor` — says "fresh install" when `data/` is empty.
 2. Ask what they are building and which parts they want (boards · posting
-   schedule · scripts · drafts). Set `name` and `eyebrow` in
-   `solo.config.js` (keep the shape), or `node solo.js workspaces add
-   "Title" --apps …` for a second project.
+   schedule · scripts · drafts). `node solo.js config set owner "<first
+   name>" name "<project>"` (lands in `data/settings.json`; never edit
+   `solo.config.js`, it is shipped code and the guard refuses a personalised
+   one), or `node solo.js workspaces add "Title" --apps …` for a second
+   project.
 3. Content: `node solo.js template all` for the sample sprint to look at, or
    plan the real thing with `/plan-project` (five questions, then boards,
    tasks with steps, a posting arc).

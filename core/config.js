@@ -45,7 +45,100 @@
     raw.boards = [{ id: 'runway', title: raw.runway.title, sprintLabel: raw.runway.sprintLabel, milestones: raw.runway.milestones, focus: raw.runway.focus }];
     raw.board = raw.board || { tags: raw.runway.tags, tagHues: raw.runway.tagHues };
   }
+  // Personal values (owner, board titles, post types …) live in data/settings.json
+  // under `config`, never in solo.config.js, which is shipped code. The browser
+  // keeps the last copy it saw under OVR_KEY so every page can read it before
+  // the file arrives; theme.js's settings.json sync hands new copies to
+  // setOverrides, which reloads once when they differ from what this page used.
+  var OVR_KEY = 'marathon.config';
+  function storedOverrides() {
+    var o = null;
+    try { o = global.Store ? Store.getJSON(OVR_KEY, null) : JSON.parse(localStorage.getItem(OVR_KEY) || 'null'); } catch (e) { o = null; }
+    return o && typeof o === 'object' && !Array.isArray(o) ? o : null;
+  }
+  var overrides = storedOverrides();
+  var LOADED = JSON.stringify(overrides || {});
+  if (overrides) raw = mergeOverrides(raw, overrides);
   var cfg = merge(DEFAULTS, raw);
+
+  /* ---- personal values: edit, check and merge against the shipped config ----
+     Shared by the pages, the Reply tab (core/apply.js) and the CLI, which
+     require()s this file. `shipped` is solo.config.js as it ships. */
+  function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
+  function kindOf(v) { return Array.isArray(v) ? 'list' : isObj(v) ? 'group' : (v === null || v === undefined) ? 'none' : typeof v; }
+  function clone(v) { return v === undefined ? v : JSON.parse(JSON.stringify(v)); }
+  function lev(a, b) { var m = [], i, j; for (i = 0; i <= a.length; i++) { m[i] = [i]; } for (j = 1; j <= b.length; j++) m[0][j] = j; for (i = 1; i <= a.length; i++) for (j = 1; j <= b.length; j++) m[i][j] = Math.min(m[i - 1][j] + 1, m[i][j - 1] + 1, m[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); return m[a.length][b.length]; }
+  function closest(name, keys) { var best = '', bd = 3; keys.forEach(function (k) { var d = lev(name.toLowerCase(), k.toLowerCase()); if (d < bd) { bd = d; best = k; } }); return best; }
+  // "42", "true", "[…]", "{…}" become values; anything else stays the text as typed
+  function parseValue(text) { if (typeof text !== 'string') return text; var t = text.trim(); if (/^[\[{]/.test(t) || /^(true|false|null|-?\d+(\.\d+)?)$/.test(t)) { try { return JSON.parse(t); } catch (e) { return text; } } return text; }
+  function listOf(v) { return Array.isArray(v) ? v : String(v).split(',').map(function (x) { return x.trim(); }).filter(Boolean); }
+  // The same shape as the shipped value, or an Error that says what the setting is and how to write it.
+  function coerce(p, shipped, v) {
+    var k = kindOf(shipped);
+    if (k === 'list') {
+      var strings = shipped.every(function (x) { return typeof x === 'string'; });
+      if (!strings && !Array.isArray(v)) throw new Error('`' + p + '` is a list of ' + (shipped[0] && shipped[0].id ? 'entries with an id' : 'groups') + '. Set one entry with `' + p + '.<id>.<key> <value>`, or the whole list as JSON: \'[' + JSON.stringify(shipped[0] || {}) + ']\'');
+      v = listOf(v); if (!v.every(function (x) { return typeof x === 'string'; })) throw new Error('`' + p + '` is a list of words. Write it as: ' + p + ' a,b,c'); return v;
+    }
+    if (k === 'group') { if (!isObj(v)) throw new Error('`' + p + '` is a group of settings (' + Object.keys(shipped).join(', ') + '). Set one of them: `' + p + '.' + (Object.keys(shipped)[0] || 'key') + ' <value>`'); return v; }
+    if (k === 'string') { if (v && typeof v === 'object') throw new Error('`' + p + '` is text. Quote values with spaces: ' + p + ' "Mara Jane"'); return String(v == null ? '' : v); }
+    if (k === 'number') { var n = Number(v); if (!isFinite(n) || String(v).trim() === '') throw new Error('`' + p + '` is a number (now ' + shipped + ')'); return n; }
+    if (k === 'boolean') { if (v === true || v === false) return v; if (/^(true|false)$/i.test(String(v))) return /^true$/i.test(String(v)); throw new Error('`' + p + '` is true or false'); }
+    return v;
+  }
+  var PATH_RE = /^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$/;
+  // override(shipped, current, 'set'|'add'|'unset'|'clear', path, value, { force }) → { config, label, unchanged }
+  // A segment inside a list of {id} entries picks that entry (boards.runway.title); the list is copied whole first, since lists replace.
+  function override(shipped, current, op, p, value, opts) {
+    opts = opts || {}; var cur = clone(isObj(current) ? current : {});
+    if (op === 'clear') return { config: {}, label: 'your settings cleared; solo.config.js as shipped applies' };
+    p = String(p || '').trim();
+    if (!PATH_RE.test(p)) throw new Error('`' + p + '` is not a setting. Names look like owner or social.postTypes; `node solo.js config` lists them.');
+    var segs = p.split('.'); var top = segs[0];
+    if (op === 'unset') {   // walks what is stored, not the shipped file: a name that was never set is simply not there
+      var un = cur; for (var u = 0; u < segs.length - 1; u++) { un = isObj(un) ? un[segs[u]] : (Array.isArray(un) ? un.filter(function (x) { return x && x.id === segs[u]; })[0] : undefined); }
+      var lk = segs[segs.length - 1]; if (!isObj(un) || !(lk in un)) return { config: prune(cur), label: '`' + p + '` was not set; nothing changed', unchanged: true };
+      delete un[lk]; return { config: prune(cur), label: '`' + p + '` back to the shipped value' };
+    }
+    if (!(top in shipped) && !opts.force) { var c = closest(top, Object.keys(shipped)); throw new Error('`' + top + '` is not a setting.' + (c ? ' Did you mean `' + c + '`?' : '') + ' `node solo.js config` lists them (add --force for a key your own fork added).'); }
+    var sh = shipped, node = cur, parents = [];
+    for (var i = 0; i < segs.length; i++) {
+      var s = segs[i], last = i === segs.length - 1;
+      if (Array.isArray(sh)) {
+        if (/^\d+$/.test(s)) throw new Error('`' + segs.slice(0, i).join('.') + '` is a list; pick an entry by id (' + sh.map(function (x) { return x && x.id; }).filter(Boolean).join(', ') + '), e.g. `' + segs.slice(0, i).join('.') + '.' + ((sh[0] || {}).id || 'id') + '.title`');
+        var idx = -1; sh.forEach(function (x, n) { if (x && x.id === s) idx = n; });
+        if (idx < 0) throw new Error('no entry `' + s + '` in `' + segs.slice(0, i).join('.') + '` (' + sh.map(function (x) { return x && x.id; }).filter(Boolean).join(', ') + ')');
+        var pk = segs[i - 1]; var parent = parents[parents.length - 1];
+        if (!Array.isArray(parent[pk])) parent[pk] = clone(sh);
+        var entry = parent[pk].filter(function (x) { return x && x.id === s; })[0]; if (!entry) { entry = clone(sh[idx]); parent[pk].push(entry); }
+        if (last) throw new Error('set one key of the entry: `' + p + '.title <value>`');
+        parents.push(node); node = entry; sh = sh[idx]; continue;
+      }
+      if (!isObj(sh) && i > 0) throw new Error('`' + segs.slice(0, i).join('.') + '` is ' + (kindOf(sh) === 'none' ? 'not a setting' : 'a single value') + '; nothing sits under it');
+      var next = isObj(sh) ? sh[s] : undefined;
+      if (last) {
+        var v = op === 'add' ? (function () { if (kindOf(next) !== 'list' || !next.every(function (x) { return typeof x === 'string'; })) throw new Error('`' + p + '` is not a list of words; use `config set`'); var base = Array.isArray(node[s]) ? node[s].slice() : next.slice(); listOf(value).forEach(function (x) { if (base.indexOf(x) < 0) base.push(x); }); return base; })() : coerce(p, next, parseValue(value));
+        node[s] = v; return { config: prune(cur), label: p + ' = ' + JSON.stringify(v) };
+      }
+      if (!isObj(node[s]) && !Array.isArray(node[s])) node[s] = Array.isArray(next) ? undefined : {};
+      if (Array.isArray(next)) { parents.push(node); sh = next; node = node; continue; }   // the next segment picks the entry
+      parents.push(node); node = node[s]; sh = next;
+    }
+    return { config: prune(cur), label: p };
+  }
+  function prune(o) { Object.keys(o).forEach(function (k) { if (o[k] === undefined) delete o[k]; else if (isObj(o[k])) { prune(o[k]); if (!Object.keys(o[k]).length) delete o[k]; } }); return o; }
+  // Problems in a `config` object next to the shipped file: unknown top-level keys and values of another shape.
+  function check(shipped, config) {
+    var issues = []; if (config === undefined) return issues; if (!isObj(config)) return ['config must be an object of solo.config.js keys'];
+    (function walk(sh, o, pre) { Object.keys(o).forEach(function (k) { var p = pre ? pre + '.' + k : k; if (!pre && !(k in sh)) { issues.push('`' + k + '` is not a setting'); return; } var sv = isObj(sh) ? sh[k] : undefined, ov = o[k]; var ks = kindOf(sv), ko = kindOf(ov); if (ks === 'none') return; if ((ks === 'list') !== (ko === 'list') || (ks === 'group') !== (ko === 'group')) { issues.push('`' + p + '` should be a ' + ks + ' (it is ' + (ko === 'string' ? 'text' : ko) + ')'); return; } if (ks === 'group') walk(sv, ov, p); }); })(shipped, config, '');
+    return issues;
+  }
+  // merge that skips values of another shape, so a hand-edited settings.json cannot blank a page
+  function mergeOverrides(base, over) {
+    var o = {}; Object.keys(base || {}).forEach(function (k) { o[k] = base[k]; });
+    Object.keys(over || {}).forEach(function (k) { var v = over[k], b = base ? base[k] : undefined; if (v === undefined) return; if (b !== undefined && ((Array.isArray(b) !== Array.isArray(v)) || (isObj(b) !== isObj(v)))) return; o[k] = isObj(v) && isObj(b) ? mergeOverrides(b, v) : v; });
+    return o;
+  }
   // workspaces: config list, or one built from the top-level apps/boards
   if (!Array.isArray(raw.workspaces) || !raw.workspaces.length) {
     cfg.workspaces = [{ id: 'main', title: cfg.name, apps: cfg.apps, boards: cfg.boards }];
@@ -165,6 +258,10 @@
   // mirror runtime-created boards to data/boards.json once Sync exists
   function registerBoardsSync() {
     if (!global.Sync) return;
+    // The file is the truth for personal config: after the first pull, compare settings.json → config with the copy this page
+    // used (a page that saw the file before it carried config, or before this code, would otherwise never pick it up).
+    var healed = false;
+    Sync.on(function (ev) { if (ev !== 'pulled' || healed || !Sync.peek) return; healed = true; Sync.peek('settings.json').then(function (f) { if (f && typeof f === 'object' && f.updatedAt) global.Config.setOverrides(f.config); }); });
     Sync.register({
       file: 'boards.json', key: BOARDS_KEY, label: 'boards', activity: false, merge: true,
       read: function () { return { boards: allRuntimeBoards() }; },
@@ -195,6 +292,22 @@
   global.Config = {
     get: function (p) { return p ? path(cfg, p) : cfg; },
     all: cfg,
+    OVR_KEY: OVR_KEY,
+    overrides: storedOverrides,
+    // Store the `config` object from data/settings.json; reload once when it differs from what this page was built with.
+    setOverrides: function (o) {
+      var next = o && typeof o === 'object' && !Array.isArray(o) && Object.keys(o).length ? o : null;
+      if (JSON.stringify(next || {}) === LOADED) return false;
+      if (!global.Store || !Store.ok) return false;   // nowhere to keep it (private window): a reload would only loop
+      if (next) Store.setJSON(OVR_KEY, next, { silent: true }); else Store.remove(OVR_KEY);
+      if (typeof location !== 'undefined' && location.reload) (function go() {   // not while someone is typing
+        var el = typeof document !== 'undefined' ? document.activeElement : null;
+        if (el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable)) return setTimeout(go, 2000);
+        location.reload();
+      })();
+      return true;
+    },
+    override: override, check: check, mergeOverrides: mergeOverrides, parseValue: parseValue,
     BOARDS_KEY: BOARDS_KEY, WS_KEY: WS_KEY, RESERVED: RESERVED, PRIMARY: PRIMARY, slug: slug,
     workspaces: workspaces, workspace: workspace, ws: ws, activeWs: activeWs, setActiveWs: setActiveWs,
     addWorkspace: addWorkspace, updateWorkspace: updateWorkspace, removeWorkspace: removeWorkspace,

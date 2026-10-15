@@ -44,7 +44,7 @@
   // when does a line count as a command? Bare `at` / `due` only when it ends in something date-shaped (chat prose says "at this point" a lot).
   function looksCmd(line) {
     if (/^(\$\s*)?(node\s+solo\.js|node\s+marathon\.js|solo|marathon)\s+/.test(line)) return true;
-    if (/^(add|done|start|later|bucket|todo|move|pri|tag|step|check|note|rm|del|social|post|scripts|notes|inspo)\s/.test(line)) return true;
+    if (/^(add|done|start|later|bucket|todo|move|pri|tag|step|check|note|rm|del|social|post|scripts|notes|inspo|config)\s/.test(line)) return true;
     if (/^(at|due)\s/.test(line)) { var toks = line.trim().replace(/\s--\w+(=\S+|\s+\S+)?/g, '').split(/\s+/); /* flags (--until 11:00) do not hide the date */ var last = (toks[toks.length - 1] || '').toLowerCase(); var prev = (toks[toks.length - 2] || '').toLowerCase(); var WD = global.When ? When.WEEKDAY : /^(mon|tue|wed|thu|fri|sat|sun)$/; return toks.length >= 3 && (last === 'clear' || /^\d{4}-\d{2}-\d{2}/.test(last) || /^\+\d+d$/.test(last) || /^(today|tomorrow|now)$/.test(last) || WD.test(last) || (/^\d{1,2}:\d{2}$/.test(last) && (/^\d{4}-\d{2}-\d{2}$/.test(prev) || /^\+\d+d$/.test(prev) || /^(today|tomorrow)$/.test(prev) || WD.test(prev)))); }
     return false;
   }
@@ -236,6 +236,19 @@
             else { if (!dry) InspoModel.update(hits[0].id, { status: 'archived' }); applied.push('archived: ' + (hits[0].title || hits[0].url)); }
           }
           else skipped.push('inspo ' + sub3 + ' is not supported here');
+        } else if (cmd === 'config' && ['set', 'add', 'unset', 'clear'].indexOf((a.pos[0] || '').toLowerCase()) >= 0) {
+          // your settings (data/settings.json → config): the page keeps them in the browser and the settings sync writes the file
+          var csub = a.pos.shift().toLowerCase();
+          if (!global.Config || !Config.override || !global.Sync || !Sync.exportsOnDisk || !Sync.exportsOnDisk()) skipped.push('config ' + csub + ': run this one in the terminal (this page cannot write settings.json here)');
+          else {
+            var shipped = global.MARATHON_CONFIG || {}; var curCfg = c.config === undefined ? (Config.overrides() || {}) : c.config;
+            try {
+              if (csub === 'clear') { var rc = Config.override(shipped, curCfg, 'clear'); c.config = rc.config; applied.push(rc.label); }
+              else if (csub === 'unset') { var ru = Config.override(shipped, curCfg, 'unset', a.pos[0]); c.config = ru.config; (ru.unchanged ? skipped : applied).push(ru.label); }
+              else if (csub === 'add') { var ra = Config.override(shipped, curCfg, 'add', a.pos[0], a.pos.slice(1).join(','), { force: !!a.flags.force }); c.config = ra.config; applied.push(ra.label); }
+              else { if (a.pos.length < 2 || a.pos.length % 2) throw new Error('config set needs a setting and a value, e.g. `config set owner "Mara"`'); for (var ci = 0; ci < a.pos.length; ci += 2) { var rs = Config.override(shipped, c.config === undefined ? curCfg : c.config, 'set', a.pos[ci], a.pos[ci + 1], { force: !!a.flags.force }); c.config = rs.config; applied.push(rs.label); } }
+            } catch (e) { skipped.push('config ' + csub + ': ' + e.message); }
+          }
         } else if (['week', 'today', 'list', 'show', 'log', 'activity', 'boards', 'workspaces', 'config', 'help', 'share', 'review'].indexOf(cmd) >= 0) {
           /* read-only commands: nothing to apply */
         } else skipped.push('unknown command: ' + line.slice(0, 60));
@@ -243,6 +256,15 @@
       i++;
     }
     if (!dry) Object.keys(c.touched).forEach(function (f) { if (global.Sync) { Sync.touch(f); Sync.note(f, 'agent reply applied'); } });
+    if (!dry && c.config !== undefined && global.Config && Config.OVR_KEY) {
+      // store the new settings (the settings.json sync picks the key up and writes the file), then reload once the file is written
+      Store.set('marathon.config.dirty', '1', { silent: true });   // this page's copy wins the next settings.json write
+      if (Object.keys(c.config).length) Store.setJSON(Config.OVR_KEY, c.config); else Store.set(Config.OVR_KEY, 'null');
+      Sync.note('settings.json', 'settings changed from a reply');
+      var reloaded = false; var go = function () { if (reloaded) return; reloaded = true; location.reload(); };
+      Sync.on(function (ev, d) { if (ev === 'wrote' && d && d.file === 'settings.json') setTimeout(go, 300); });
+      setTimeout(go, 4000);
+    }
     return { applied: applied, skipped: skipped };
   }
   global.Apply = { run: run, plan: plan, segment: segment, tokens: tokens };

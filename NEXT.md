@@ -203,6 +203,8 @@ QR rendered without a dependency, capture strip and boards usable at
 - **Calendar, later**: Week view with time blocks; drag to reschedule in
   Month; a now-line; auto-tick a meeting whose end has passed (with undo).
 
+- **Your settings, small leftovers (reviews 2026-10-15):** `core/theme-boot.js` reads only the shipped `theme`, so a `config set theme.palette dusk` default paints late (until the user picks a theme); `social/social-calendar.html` keeps a static title and ignores a `name` setting; `social/social-model.js` relabels a post whose type left the list as the third type instead of keeping it (so a shorter `social.postTypes` list rewrites old posts on their next edit); no way to set your name without the terminal or a pasted reply yet (click the Home heading to type it, writing the same setting, is the planned follow-up). `boards.<id>.<key>` copies the whole shipped board into your settings (so a later change to the shipped milestones no longer reaches that board): merge list entries by id at read time instead and store only the changed key. The Reply preview counts a `config set a 1 b 2` line as one change.
+
 - **Backup repo name is not offered.** `node solo.js backup setup` creates
   `solo-ops-data` unless `--name <name>` is passed, but nothing asks. Offer
   the name: the `/setup` and `/backup-setup` prompts should ask "private repo
@@ -253,6 +255,8 @@ QR rendered without a dependency, capture strip and boards usable at
   retake with `docs/screenshots` script when M2 lands.
 
 ## Done
+
+- 2026-10-15 · Your settings out of the public repo: `solo.config.js` is part of the app, the same for everyone; a person's own values (`owner`, `name`, board titles and milestones, post types, any key) live in `data/settings.json` → `config`, written by `node solo.js config set <setting> <value>` (`add <list> a b`, `unset`, `set --file x.json`, `clear`) and by `config set` lines in a pasted reply (core/apply.js, served or linked pages). One shared library in `core/config.js` (`Config.override` · `check` · `mergeOverrides`) checks every value against the shipped one (comma lists, one list entry by id such as `boards.runway.title`, unknown keys refused with a suggestion), merges them over the file for the pages, the CLI and serve.js, and ignores values of another shape so a hand-edited file cannot blank a page (`doctor` reports them). The browser keeps the last copy as `marathon.config`, reloads once when the file changes (not while typing, never without storage), reconciles after the first pull, and the file's `config` wins every write of settings.json unless the page changed it, so a theme click never drops or rolls back what the CLI wrote. `guard` refuses a staged `solo.config.js` whose `owner` is set and warns on other personal-looking values; `template settings --force` keeps the settings; `/setup` uses `config set`. Reviewed by two agents (technical, usability), findings fixed. `core/test-config.js`.
 
 - 2026-10-13 · Fresh-install pass before the announcement (a clone followed
   the README step by step, plus a repo hygiene review). `node serve.js` on a

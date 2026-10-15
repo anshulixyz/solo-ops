@@ -1,7 +1,13 @@
 /* =========================================================================
-   solo.config.js — the one file to edit to make Solo Ops yours.
+   solo.config.js — the shipped defaults. This file is part of the app and
+   identical for everyone, so DO NOT put your name or your own setup in it.
+   Your values go next to your data: `node solo.js config set owner "Mara"`
+   (any key below works: config set social.postTypes reel,carousel) writes
+   them to data/settings.json, and the pages and the CLI read them over this
+   file. The guard refuses to commit a personalised copy.
    Loaded by every page as a classic script AND required by the CLI, so it
-   must stay plain JavaScript (no imports). Agents: edit values, keep shape.
+   must stay plain JavaScript (no imports). Agents: never edit the values
+   here for a user; use `config set`.
    ========================================================================= */
 (function (root, factory) {
   var cfg = factory();
@@ -12,7 +18,7 @@
     /* ---- identity --------------------------------------------------- */
     name: 'Solo Ops',                 // the product / first project name: page titles, the eyebrow on Home
     eyebrow: 'Solo founder ops',      // small label above every page title
-    owner: '',                        // your name: Home says "<owner>'s workspaces" (empty = "Your workspaces")
+    owner: '',                        // leave empty here; `node solo.js config set owner "Mara"` makes Home say "Mara's workspaces"
 
     /* ---- workspaces --------------------------------------------------
        One workspace = one project: its own boards, posting schedule,

@@ -17,6 +17,10 @@ var ROOT = __dirname;
 var DATA = path.join(ROOT, 'data');
 var cfg = {};
 try { cfg = require(path.join(ROOT, 'solo.config.js')); } catch (e) { /* defaults */ }
+try {   // the user's own values (data/settings.json → config, written by `node solo.js config set`) over the shipped file, e.g. sync.port
+  var ownCfg = JSON.parse(fs.readFileSync(path.join(DATA, 'settings.json'), 'utf8')).config; var CfgLib = require(path.join(ROOT, 'core', 'config.js')).Config;
+  if (ownCfg && typeof ownCfg === 'object' && !Array.isArray(ownCfg) && CfgLib && CfgLib.mergeOverrides) cfg = CfgLib.mergeOverrides(cfg, ownCfg);
+} catch (e) { /* as shipped */ }
 if (process.argv.indexOf('--help') > -1 || process.argv.indexOf('-h') > -1) { console.log('node serve.js [--port 4321]   serves Solo Ops at http://localhost:<port> and writes data/*.json (binds to 127.0.0.1 only)'); process.exit(0); }
 var argPort = process.argv.indexOf('--port');
 var PORT = argPort > -1 ? parseInt(process.argv[argPort + 1], 10) : ((cfg.sync && cfg.sync.port) || 4321);

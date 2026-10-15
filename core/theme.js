@@ -117,9 +117,14 @@
     // mirror to data/settings.json when sync is present
     if (global.Sync) {
       Sync.register({
-        file: 'settings.json', key: KEY, label: 'settings', activity: false, isFresh: function () { return Store.get(KEY) == null; },
-        read: function () { return { theme: cur }; },
-        apply: function (body) { if (body && body.theme) set(body.theme, { silent: true }); }
+        file: 'settings.json', key: KEY, keys: [KEY].concat(global.Config && Config.OVR_KEY ? [Config.OVR_KEY] : []), label: 'settings', activity: false, isFresh: function () { return Store.get(KEY) == null; },
+        // settings.json also carries `config` (personal values over solo.config.js). The file's copy of it wins on every
+        // write (keep), unless this page changed it (dirty, set by core/apply.js); so a theme click can never drop or
+        // roll back what the CLI wrote. Whatever the file held is handed to Config after the write (kept).
+        read: function () { var o = { theme: cur }; var c = global.Config && Config.overrides(); if (c) o.config = c; return o; },
+        keep: ['config'], dirty: function () { return Store.get('marathon.config.dirty') === '1'; }, clean: function () { Store.remove('marathon.config.dirty'); },
+        kept: function (body) { if (global.Config && Config.setOverrides) Config.setOverrides(body.config); },
+        apply: function (body) { if (body && body.theme) set(body.theme, { silent: true }); Store.remove('marathon.config.dirty'); if (body && global.Config && Config.setOverrides) Config.setOverrides(body.config); }   // the file won: nothing of this page's is pending
       });
     }
   }

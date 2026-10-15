@@ -17,8 +17,12 @@ var fs = require('fs');
 var path = require('path');
 
 var ROOT = __dirname;
-var DATA = path.join(ROOT, 'data');
-var cfg = safeRequire(path.join(ROOT, 'solo.config.js')) || {};
+var DATA = process.env.SOLO_DATA ? path.resolve(process.env.SOLO_DATA) : path.join(ROOT, 'data');   // SOLO_DATA: another data folder (a second identity on one machine, tests)
+var SHIPPED = safeRequire(path.join(ROOT, 'solo.config.js')) || {};   // the file as it ships: never personalised (this repository is public)
+var CfgLib = (safeRequire(path.join(ROOT, 'core', 'config.js')) || {}).Config || null;   // shared with the pages: override · check · mergeOverrides
+// The user's own values (owner, board titles, post types …) come from data/settings.json → `config`, merged over the
+// shipped file; values of another shape than the shipped one are ignored (doctor reports them). `config set` writes them.
+var OVERRIDES = configOverrides(); var cfg = OVERRIDES ? (CfgLib ? CfgLib.mergeOverrides(SHIPPED, OVERRIDES) : mergeCfg(SHIPPED, OVERRIDES)) : SHIPPED;
 var T = safeRequire(path.join(ROOT, 'core', 'templates.js'));
 var P = safeRequire(path.join(ROOT, 'core', 'prompts.js'));   // the Guide's built-in prompts (shared with the pages)
 var When = safeRequire(path.join(ROOT, 'core', 'when.js'));    // dates: parse, state, label (shared with the pages)
@@ -28,6 +32,15 @@ var COL_LABEL = { todo: 'To Do', doing: 'Doing', done: 'Done', later: 'Later', b
 var PRI = { high: 0, medium: 1, low: 2 };
 
 function safeRequire(p) { try { return require(p); } catch (e) { return null; } }
+function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
+function mergeCfg(base, over) {   // same rules as core/config.js: objects merge, arrays and scalars replace
+  var o = {}; Object.keys(base || {}).forEach(function (k) { o[k] = base[k]; });
+  Object.keys(over || {}).forEach(function (k) { var v = over[k]; if (isObj(v) && isObj(base && base[k])) o[k] = mergeCfg(base[k], v); else if (v !== undefined) o[k] = v; });
+  return o;
+}
+function configOverrides() { try { var s = JSON.parse(fs.readFileSync(path.join(DATA, 'settings.json'), 'utf8')); return isObj(s.config) && Object.keys(s.config).length ? s.config : null; } catch (e) { return null; } }
+// Read a solo.config.js text (as shipped or as staged) without running the rest of the CLI.
+function evalConfigText(text) { try { var m = { exports: {} }; new Function('module', 'exports', text).call({}, m, m.exports); return isObj(m.exports) ? m.exports : null; } catch (e) { return null; } }
 
 /* ---- args ---------------------------------------------------------------- */
 var argv = process.argv.slice(2);
@@ -498,7 +511,7 @@ function cmdSocial() {
       project: flags.project || flags.proj || ((cfg.projects || [])[0] || {}).name || 'general', copy: flags.copy || '', video: { title: '', status: 'none', notes: '', link: '' }, links: [], assets: [],
       prep: String(flags.prep || '').split('|').map(function (x) { return x.trim(); }).filter(Boolean).map(function (x) { return { text: x, done: false, kind: 'content' }; }),
       notes: flags.notes || '', status: 'draft', posted: { url: '', postedAt: '', stats: {}, notes: '', screenshotId: '' } };
-    s.posts.push(np); write(fileName('social'), s); return out('✓ Scheduled [' + np.id + '] ' + np.title + ' · ' + fmtDT(np.datetime), np);
+    s.posts.push(np); write(fileName('social'), s); return out('✓ Scheduled [' + np.id + '] ' + np.title + ' · ' + fmtDT(np.datetime) + (flags.type && types.indexOf(flags.type) < 0 ? '\n  · type "' + flags.type + '" is not in your post types (' + types.join(', ') + '), so it is "' + np.postType + '". Add it: node solo.js config add social.postTypes ' + flags.type : ''), np);
   }
   if (sub === 'posted' || sub === 'ready' || sub === 'draft') {
     var pp = find(s.posts, pos.join(' '), 'post'); pp.status = sub;
@@ -886,6 +899,17 @@ function cmdGuard() {
   try { staged = cp.execFileSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACMR'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').filter(Boolean); } catch (e) { fail('git is not available here.'); }
   var allowed = !!(G.allowData && G.remote && G.remote === rootRemote());
   var bad = allowed ? [] : staged.filter(function (f) { return PRIVATE_PATHS.some(function (re) { return re.test(f); }); });
+  // solo.config.js is shipped code; a staged copy with a name in `owner` is someone's personal setup
+  if (!allowed && staged.indexOf('solo.config.js') >= 0) {
+    var stagedCfg = ''; try { stagedCfg = cp.execFileSync('git', ['show', ':solo.config.js'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch (e) { /* unreadable: let it through */ }
+    var sc = evalConfigText(stagedCfg);
+    if (sc && String(sc.owner || '').trim()) {
+      out(['✗ Not committing solo.config.js: its `owner` is "' + String(sc.owner).trim() + '", so this is your personal setup, and this repository is the Solo Ops code (public, like any fork).', '',
+        'Your name belongs in data/settings.json, which git never sees:', '  node solo.js config set owner "' + String(sc.owner).trim() + '"        (any solo.config.js key works: config set <setting> <value>, or config set --file your.json)',
+        'Then put the shipped file back:   git restore --staged solo.config.js && git restore solo.config.js', '  (a fork that already committed a name: git checkout upstream/main -- solo.config.js)'], { ok: false, blocked: ['solo.config.js'] });
+      process.exit(1);
+    }
+  }
   // a shared slash command that carries an edited prompt is personal text too: it must equal the built-in export
   var po = promptOpts('files'); po.folder = '';
   var edited = P ? staged.filter(function (f) {
@@ -903,7 +927,12 @@ function cmdGuard() {
       'Unstage:           git restore --staged ' + bad.join(' ') + '   (no commits yet? git rm --cached ' + bad.join(' ') + ')']), { ok: false, blocked: bad });
     process.exit(1);
   }
-  return out('✓ guard: nothing personal in the ' + staged.length + ' staged file' + (staged.length === 1 ? '' : 's') + (allowed ? ' (data/ allowed: ' + G.remote + ' is private)' : ''), { ok: true, staged: staged.length, allowed: allowed });
+  var warn = [];
+  if (staged.indexOf('solo.config.js') >= 0) {   // other values that are usually personal: a warning, not a block (a shipped default may change on purpose)
+    var headCfg = null, newCfg = null; try { headCfg = evalConfigText(cp.execFileSync('git', ['show', 'HEAD:solo.config.js'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })); newCfg = evalConfigText(cp.execFileSync('git', ['show', ':solo.config.js'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })); } catch (e) { /* no HEAD yet */ }
+    if (headCfg && newCfg) { var pick = function (c) { return JSON.stringify({ n: c.name, e: c.eyebrow, b: (c.boards || []).map(function (b) { return b && b.title; }), p: c.projects }); }; if (pick(headCfg) !== pick(newCfg)) { var sets = []; ['name', 'eyebrow'].forEach(function (k) { if (headCfg[k] !== newCfg[k]) sets.push(k + ' ' + JSON.stringify(newCfg[k])); }); (newCfg.boards || []).forEach(function (b) { var hb = (headCfg.boards || []).filter(function (x) { return x && b && x.id === b.id; })[0]; if (b && hb && hb.title !== b.title) sets.push('boards.' + b.id + '.title ' + JSON.stringify(b.title)); }); if (JSON.stringify(headCfg.projects) !== JSON.stringify(newCfg.projects)) sets.push('projects \'' + JSON.stringify(newCfg.projects || []) + '\''); warn.push('· solo.config.js changes ' + (sets.length ? sets.map(function (x) { return x.split(' ')[0]; }).join(', ') : 'name, eyebrow, board titles or projects') + '. Fine for a shipped default; if these are your own values, keep the file as shipped and set them with: node solo.js config set ' + (sets.join(' ') || '<setting> <value>')); } }
+  }
+  return out(['✓ guard: nothing personal in the ' + staged.length + ' staged file' + (staged.length === 1 ? '' : 's') + (allowed ? ' (data/ allowed: ' + G.remote + ' is private)' : '')].concat(warn), { ok: true, staged: staged.length, allowed: allowed, warnings: warn });
 }
 
 function cmdDoctor() {
@@ -916,7 +945,7 @@ function cmdDoctor() {
     if (!obj.updatedAt) issues.push(f + ': no updatedAt (sync cannot tell which side is newer)'); else if (isNaN(Date.parse(obj.updatedAt))) issues.push(f + ': updatedAt is not an ISO date');
     var base = f.replace(/\.json$/, ''); var kind = Object.keys(shapes).filter(function (k) { return base === k || base.slice(-k.length - 1) === '-' + k; })[0];
     var arrKey = kind ? shapes[kind] : 'tasks';
-    if (kind === 'settings') { if (!obj.theme) issues.push(f + ': no theme'); }
+    if (kind === 'settings') { if (!obj.theme) issues.push(f + ': no theme'); var cp = CfgLib ? CfgLib.check(SHIPPED, obj.config) : []; cp.forEach(function (m) { issues.push(f + ': ' + m + ' (fix: node solo.js config set …; the page ignores it meanwhile)'); }); if (isObj(obj.config) && Object.keys(obj.config).length && !cp.length) notes.push(f + ': your settings: ' + Object.keys(obj.config).join(', ')); }
     else if (kind === 'activity') { if (!obj.days || typeof obj.days !== 'object') issues.push(f + ': no days map'); }
     else if (arrKey) {
       var arr = obj[arrKey]; if (!Array.isArray(arr)) { issues.push(f + ': expected an array "' + arrKey + '"'); return; }
@@ -966,6 +995,7 @@ function cmdTemplate() {
     var name = t === 'board' ? boardFile() : (t === 'settings' || t === 'inspiration') ? t : fileName(t);
     if (fs.existsSync(fileOf(name)) && !flags.force) { done.push('- data/' + name + '.json exists — skipped (use --force to overwrite)'); return; }
     var body = t === 'board' ? T.runway() : t === 'social' ? T.social(new Date()) : t === 'scripts' ? T.scripts(new Date()) : t === 'writing' ? T.writing(new Date()) : t === 'inspiration' ? T.inspiration(new Date()) : T.settings();
+    if (t === 'settings') { var curS = read('settings'); if (curS && isObj(curS.config)) body.config = curS.config; }   // the sample theme never drops your settings
     write(name, body, { noActivity: true }); done.push('- wrote data/' + name + '.json (sample content)');
   });
   out(done, { written: targets });
@@ -980,14 +1010,39 @@ function cmdTheme() {
   if (sub === 'font') { var f = (pos[0] || '').toLowerCase(); if (fonts.indexOf(f) < 0) fail('Font must be one of: ' + fonts.join(', ')); s.theme.font = f; write('settings', s); return out('✓ font → ' + f, s.theme); }
   fail('Usage: theme [show|list|set <palette>|mode <auto|light|dark>|font <inter|system|lato|editorial>]');
 }
+// config set <setting> <value> [<setting> <value> …] · config add <list> a b … · config unset <setting> · config set --file x.json · config clear
+// Your settings live in data/settings.json → `config`, merged over solo.config.js by the pages and the CLI. Every value is
+// checked against the shipped one (core/config.js → Config.override): lists take a,b,c or JSON; one entry of a list by id.
 function cmdConfig() {
+  var sub = (pos[0] || '').toLowerCase();
+  if (sub === 'set' || sub === 'add' || sub === 'unset' || sub === 'clear') {
+    if (!CfgLib) fail('core/config.js not found.');
+    var s = read('settings') || { theme: cfg.theme || { mode: 'auto', palette: 'mono' } }; var o = isObj(s.config) ? s.config : {}; var labels = []; var changed = false;
+    function step(op, p, v) { var r; try { r = CfgLib.override(SHIPPED, o, op, p, v, { force: !!flags.force }); } catch (e) { fail(e.message); } o = r.config; if (!r.unchanged) changed = true; labels.push((r.unchanged ? '· ' : '✓ ') + r.label); }
+    if (sub === 'clear') step('clear');
+    else if (sub === 'set' && flags.file) {
+      var fromFile; try { fromFile = JSON.parse(fs.readFileSync(path.resolve(String(flags.file)), 'utf8')); } catch (e) { fail('Could not read ' + flags.file + ' as JSON.'); }
+      if (!isObj(fromFile)) fail('The file must hold one JSON object with solo.config.js keys.');
+      var probs = CfgLib.check(SHIPPED, fromFile); if (probs.length && !flags.force) fail(probs.join('\n✗ ') + '\n  (--force keeps them anyway)');
+      o = CfgLib.mergeOverrides(o, fromFile); changed = true; labels.push('✓ merged ' + Object.keys(fromFile).join(', ') + ' from ' + flags.file);
+    }
+    else if (sub === 'set') { var pairs = pos.slice(1); if (pairs.length < 2 || pairs.length % 2) fail('Usage: config set <setting> <value> [<setting> <value> …]\n  e.g. config set owner "Mara" name "Pocket Studio"   ·   quote values with spaces   ·   lists: social.postTypes reel,carousel   ·   one board: boards.runway.title "Launch runway"'); for (var j = 0; j < pairs.length; j += 2) step('set', pairs[j], pairs[j + 1]); }
+    else if (sub === 'add') { if (pos.length < 3) fail('Usage: config add <list> <word> [<word> …]   e.g. config add social.postTypes reel carousel'); step('add', pos[1], pos.slice(2).join(',')); }
+    else { if (!pos[1]) fail('Usage: config unset <setting>'); step('unset', pos[1]); }
+    if (changed) { if (Object.keys(o).length) s.config = o; else delete s.config; write('settings', s); }
+    var restart = changed && labels.some(function (l) { return /^✓ sync\./.test(l); }) ? ['  sync.* is read by node serve.js when it starts: restart it.'] : [];
+    var left = CfgLib.check(SHIPPED, Object.keys(o).length ? o : undefined).map(function (m) { return '  ✗ already in the file and ignored: ' + m + ' (node solo.js doctor)'; });
+    return out(labels.concat(['  Your settings (data/settings.json): ' + (Object.keys(o).length ? Object.keys(o).join(', ') : 'none, solo.config.js as shipped applies') + (Object.keys(o).length ? '   (the values: node solo.js config --json)' : '')].concat(changed ? ['  Open pages pick this up within a few seconds.'] : []).concat(restart).concat(left)), s.config || null);
+  }
   var projects = (cfg.projects || []).map(function (p) { return typeof p === 'string' ? p : p.name; });
   out(['# ' + (cfg.name || 'Solo Ops') + ' config', '', '- workspaces: ' + WORKSPACES.map(function (w) { return w.id + ' (' + w.title + ')'; }).join(', ') + '  — default for CLI: ' + WS_ID,
     '- apps in ' + WS_ID + ': ' + ['boards', 'social', 'scripts', 'writing'].filter(appOn).join(', '),
     '- boards: ' + BOARDS.map(function (b) { return b.id + ' (' + b.title + ')'; }).join(', ') + '  — default for CLI: ' + BOARD_ID,
     '- projects: ' + projects.join(', '), '- task tags: ' + ((cfg.board && cfg.board.tags) || (cfg.runway && cfg.runway.tags) || []).join(', '),
     '- post types: ' + ((cfg.social && cfg.social.postTypes) || []).join(', '), '- idle reminder after: ' + ((cfg.activity && cfg.activity.reminderAfterHours) || 24) + ' h', '- theme default: ' + JSON.stringify(cfg.theme || {}), '- data dir: ' + DATA,
-    '- files: ' + BOARDS.map(function (b) { return prefix() + b.id; }).concat(['social', 'scripts', 'writing'].map(function (a) { return fileName(a); })).concat(['settings', 'activity']).map(function (f) { return f + '.json' + (fs.existsSync(fileOf(f)) ? ' ✓' : ' (missing)'); }).join(' · '), '', 'Edit solo.config.js to change any of this.'], cfg);
+    '- files: ' + BOARDS.map(function (b) { return prefix() + b.id; }).concat(['social', 'scripts', 'writing'].map(function (a) { return fileName(a); })).concat(['settings', 'activity']).map(function (f) { return f + '.json' + (fs.existsSync(fileOf(f)) ? ' ✓' : ' (missing)'); }).join(' · '),
+    '- your settings (data/settings.json): ' + (OVERRIDES ? JSON.stringify(OVERRIDES) : 'none, solo.config.js as shipped'), '',
+    'Change them with `node solo.js config set <setting> <value>` (owner "Mara" · name "Pocket Studio" · social.postTypes reel,carousel · boards.runway.title "Launch runway") or `config add <list> a b`, never by editing solo.config.js: that file is part of the app, the same for everyone.'], cfg);
 }
 function cmdServe() { require('child_process').spawn(process.execPath, [path.join(ROOT, 'serve.js')].concat(flags.port ? ['--port', String(flags.port)] : []), { stdio: 'inherit' }); }
 function cmdHelp() {
@@ -1004,7 +1059,7 @@ function cmdHelp() {
     'Prompts (built-ins in core/prompts.js, yours in data/prompts.json)', '  prompts builtin [--mode chat|files]   prompts show <title or /slug>   prompts export [--for claude|cursor|codex|chat] [--out dir]', '  prompts list|add "Title" --text "…"|--file p.md [--cat daily] [--desc "…"]|edit <p> …|rm <p>|restore', '',
     'Studio (data/scripts.json, data/writing.json)', '  scripts list|show <s>|add "Title" [--file x.md]|rm <s>', '  notes list|show <n>|add "Title" [--file x.md]|rm <n>', '',
     'Safety', '  backup setup [--name solo-ops-data] [--no-github]   first time: a PRIVATE GitHub repo via gh, or it tells you the two other ways', '  backup [--remote <private url>] [--to <folder>] [--status]   push data/ to its private repo and/or copy it to a syncing folder; refuses public repos', '  backup --daily [--hour 21] [--dry-run]   run it every evening (launchd / crontab / a schtasks line)', '  guard [--install] [--allow-data]   fail when staged files hold your content; --install = on every commit; --allow-data = your own PRIVATE fork only', '  doctor | health            check every data file, attachments and backup age', '',
-    'Setup', '  template [all|board|social|scripts|writing|settings] [--board id] [--force]', '  theme [show|list|set <palette>|mode <auto|light|dark>|font <inter|system|lato|editorial>]', '  config                     show solo.config.js summary', '  serve [--port 4321]        start the local server (pages write data/ directly)', '',
+    'Setup', '  template [all|board|social|scripts|writing|settings] [--board id] [--force]', '  theme [show|list|set <palette>|mode <auto|light|dark>|font <inter|system|lato|editorial>]', '  config                     the settings in use (solo.config.js + your settings)', '  config set <setting> <value>  your values, kept in data/settings.json: owner "Mara" · name "Pocket Studio" · social.postTypes reel,carousel · boards.runway.title "…"', '  config add <list> a b      add to a list (config unset <setting> · config set --file x.json · config clear)', '  serve [--port 4321]        start the local server (pages write data/ directly)', '',
     'Add --json to any command for machine-readable output. Ids: tasks t…, posts p…, scripts s…, notes n….',
     'Agents: add --as agent (and --note "why") so the change log attributes the edit to you.'], null);
 }

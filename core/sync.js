@@ -186,7 +186,7 @@
     if (!dirHandle) return Promise.resolve(false);
     return dirHandle.requestPermission({ mode: 'readwrite' }).then(function (p) {
       if (p !== 'granted') return false;
-      return resolveDataDir(dirHandle).then(function (d) { dataDir = d; mode = 'folder'; startPolling(); render(); return pullAll(true).then(function () { return true; }); });
+      return resolveDataDir(dirHandle).then(function (d) { dataDir = d; mode = 'folder'; startPolling(); render(); return firstPull(true).then(function () { return true; }); });
     }).catch(function () { return false; });
   }
 
@@ -200,9 +200,13 @@
   var lastWriteAt = '';
   function writeOne(spec) {
     var obj = body(spec); lastWriteAt = now();
-    var p = mode === 'server' ? serverWrite(spec.file, obj) : mode === 'folder' ? folderWrite(spec.file, obj) : Promise.resolve();
+    // spec.keep: keys the file owns (settings.json → config). The file's copy wins every write unless this page changed
+    // them (spec.dirty), so a theme click can never drop or roll back what the CLI wrote; spec.kept gets the written body.
+    var keepFromFile = (mode === 'server' || mode === 'folder') && spec.keep && spec.keep.length && !(spec.dirty && spec.dirty());
+    var pre = keepFromFile ? readFile(spec.file).catch(function () { return null; }).then(function (f) { spec.keep.forEach(function (k) { if (f && f[k] !== undefined) obj[k] = f[k]; else delete obj[k]; }); }) : Promise.resolve();
     setPillState('busy');
-    return p.then(function () { lastSeen[spec.file + ':stamp'] = obj.updatedAt; render(); emit('wrote', { file: spec.file }); })
+    return pre.then(function () { return mode === 'server' ? serverWrite(spec.file, obj) : mode === 'folder' ? folderWrite(spec.file, obj) : Promise.resolve(); })
+      .then(function () { lastSeen[spec.file + ':stamp'] = obj.updatedAt; render(); if (spec.clean) spec.clean(); emit('wrote', { file: spec.file }); if (spec.kept) spec.kept(obj); })
       .catch(function (e) { render(); emit('error', { file: spec.file, error: e }); });
   }
   // Compare file vs local: newer file → apply; newer local (or no file) → write.
@@ -348,19 +352,20 @@
 
   /* ---- init ------------------------------------------------------------- */
   var started = false;
+  function firstPull(push) { return pullAll(push).then(function () { emit('pulled', { first: true }); }); }   // 'pulled' also fires here, not only on Reload from files, so pages can reconcile once the files are in
   function init() {
     if (started) return; started = true;
     serverPing().then(function (ok) {
-      if (ok) { mode = 'server'; ready = true; startPolling(); render(); return pullAll(true); }
+      if (ok) { mode = 'server'; ready = true; startPolling(); render(); return firstPull(true); }
       if (location.protocol.indexOf('http') === 0) {
-        mode = 'static'; ready = true; startPolling(); render(); return pullAll(false);
+        mode = 'static'; ready = true; startPolling(); render(); return firstPull(false);
       }
       if (!fsSupported) { ready = true; render(); return; }
       return idbGet('dir').then(function (h) {
         if (!h) { ready = true; render(); return; }
         dirHandle = h;
         return h.queryPermission({ mode: 'readwrite' }).then(function (p) {
-          if (p === 'granted') return resolveDataDir(h).then(function (d) { dataDir = d; mode = 'folder'; ready = true; startPolling(); render(); return pullAll(true); });
+          if (p === 'granted') return resolveDataDir(h).then(function (d) { dataDir = d; mode = 'folder'; ready = true; startPolling(); render(); return firstPull(true); });
           ready = true; render();
         });
       });

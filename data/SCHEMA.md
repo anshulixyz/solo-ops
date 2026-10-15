@@ -200,11 +200,30 @@ changes with state), `{{last_task}}`, `{{this}}` (what is open on the page),
 `{{doing}}`, `{{posts}}`, `{{inspiration}}`; `<blank>` becomes a field to
 fill. Merged on sync.
 
-## settings.json — theme
+## settings.json — theme and your personal config
 
 ```json
-{ "theme": { "mode": "auto", "palette": "warm" } }
+{
+  "theme": { "mode": "auto", "palette": "warm" },
+  "config": {                               // optional: your values over solo.config.js, same keys and shapes
+    "owner": "Mara",
+    "boards": [{ "id": "runway", "title": "Pocket Studio launch", "milestones": ["Build", "Ship"] }],
+    "social": { "postTypes": ["announcement", "update", "reel", "carousel"] }
+  }
+}
 ```
+
+`solo.config.js` is shipped code (the repository is public), so anything
+personal goes here: `node solo.js config set owner "Mara"` writes it, the
+pages and the CLI merge it over the config file (objects merge, arrays and
+scalars replace; a value of another shape than the shipped one is ignored
+and `doctor` reports it). Lists of words take the comma form
+(`social.postTypes reel,carousel`) or JSON; `config add <list> a b` appends;
+one entry of a list of entries is addressed by id (`boards.runway.title`),
+which copies the whole list first because lists replace. The browser keeps
+the last copy it saw in `localStorage` (`marathon.config`) and reloads once
+when the file changes; the file's copy wins every write of `settings.json`
+unless the page itself changed it through a pasted reply.
 
 ## backup.json — where the copies go (CLI only)
 
