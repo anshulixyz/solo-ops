@@ -9,7 +9,7 @@
 (function (global) {
   'use strict';
 
-  var RESERVED = ['social', 'scripts', 'writing', 'settings', 'activity', 'boards', 'workspaces', 'calendar', 'home', 'prompts', 'inspiration', 'log', 'attachments'];
+  var RESERVED = ['social', 'scripts', 'writing', 'settings', 'activity', 'boards', 'workspaces', 'calendar', 'home', 'prompts', 'inspiration', 'log', 'attachments', 'backup', 'exports', 'videos', 'video', 'models', 'secrets'];
   var BOARDS_KEY = 'marathon.boards';
   var WS_KEY = 'marathon.workspaces';       // runtime-created workspaces (data/workspaces.json)
   var WS_ACTIVE = 'marathon.workspace';     // last used workspace id (this browser)
@@ -23,7 +23,8 @@
     social: { title: 'Social Schedule', network: 'X / Twitter', arcLabel: 'Posting arc', milestones: [], focus: [],
       postTypes: ['announcement', 'launch', 'update', 'thread', 'teaser'],
       prepKinds: ['content', 'video', 'dev', 'design', 'outreach', 'other'] },
-    studio: { scriptTitle: 'Script Viewer', writingTitle: 'Writing Viewer' },
+    studio: { scriptTitle: 'Script Viewer', writingTitle: 'Writing Viewer', videoTitle: 'Video' },
+    video: { engine: '', ffmpeg: '', whisper: '', model: 'small.en', captions: { style: 'sentence', burn: false } },
     activity: { reminderAfterHours: 24 },
     theme: { mode: 'auto', palette: 'warm' },
     sync: { port: 4321, pollMs: 3000 }

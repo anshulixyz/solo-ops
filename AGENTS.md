@@ -14,6 +14,7 @@ document is the whole contract; read it once and you can operate the system.
 | `data/social.json` (`<ws>-social.json`) | scheduled posts with copy, prep, posted stats | `social …` |
 | `data/scripts.json` (`<ws>-scripts.json`) | video scripts (Markdown text) | `scripts …` |
 | `data/writing.json` (`<ws>-writing.json`) | drafts / notes with `~~cut~~ ++add++ [[note]]` markup | `notes …` |
+| `data/videos.json` (`<ws>-videos.json`) + `data/videos/<id>/` | takes: the footage by path (never copied), its words with times, the cut (EDL), the exports. The folder holds `transcript.json`, the `.srt` and the renders; only the first two are backed up | `video …` |
 | `data/inspiration.json` | the inbox: links, ideas, images the user wants to keep, tagged with a workspace | `inspo …` |
 | `data/log.jsonl` | every change with who/when/what + previous content; revertable | `log`, `revert <id>` |
 | `data/activity.json` | per-day change counts, last-active stamps (written automatically) | `activity` |
@@ -104,6 +105,8 @@ remote keeps the block.
    node solo.js social add "Title" --at 2026-10-20T09:00 --type launch --copy "…"
    node solo.js social posted <post> --url … ; social prep <post> "item"
    node solo.js scripts add "Title" --file script.md ; notes add "Title" --file draft.md
+   node solo.js video add "Title" --file ./take.mov ; video transcribe <v> --engine whisper ; video show <v>   # words with times: the view you read to pick the cut
+   node solo.js video cut <v> --keep "2.4-6.8, 8.1-15.0" | --drop "um, uh" | --edl cut.json ; video render <v> --preview ; video post <v>
    node solo.js import list.md           # bulk: "- [ ] item" lines → tasks
    node solo.js inspo list ; inspo add "https://… #tag" --ws <id> ; inspo use <item> --as task|post|script|note
    node solo.js inspo ai --into tasks    # the inbox as a brainstorm prompt
@@ -158,6 +161,23 @@ remote keeps the block.
 - Scripts follow `# Title / ## Hook / ## Script (numbered beats) / ## Inserts /
   ## Prep`. Drafts use `~~remove~~`, `++add++`, `[[instruction for you]]` —
   when a note asks you to edit, answer by editing the text, not by explaining.
+- **Video (cut a take by its words).** A take is a recording the user adds
+  by path (`video add`); the footage never moves and is never copied.
+  `video transcribe` gets the words with times (the user picks the engine:
+  whisper.cpp on this computer, ElevenLabs where only the audio leaves the
+  machine and `--yes` is required because it costs credits, or `--from` an
+  SRT/VTT/JSON they already have; with nothing set it prints the three ways
+  and stops: show them, never pick a paid one yourself). `video show` prints
+  the phrases with `[start-end]` times: read those, propose the cut in plain
+  words (what goes, what stays, the runtime), **wait for a yes**, then
+  `video cut --keep "…"` or `--drop "um, uh"` or `--edl cut.json` (every
+  edge snaps to a word boundary and is padded; the write is logged and
+  `revert` undoes it), `video render --preview` (fast 720p), and only after
+  they watched it `video render` for the final. One render at a time;
+  exports are numbered and never overwritten or deleted by you. Captions
+  ride along as a track and a `.srt`; `--burn` burns them when ffmpeg can.
+  `video post` links the final into a new post, never copies it. ffmpeg is
+  required; `doctor` says so when it is missing.
 - **Inspiration flow:** the user drops links/ideas/images into the inbox (often
   by pasting into you first). Items arrive with auto tags (kind, site) and,
   when the server was running, the page's title and description in `meta`.

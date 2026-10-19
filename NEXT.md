@@ -121,6 +121,44 @@ tasks with a link back to the note; a tag like `#solo` or a folder name picks
 the project. Nothing is moved or edited at the source. The Guide gets
 *Assess new notes* next to *Assess new inspiration*.
 
+### M11 · Video: cut by transcript, on your own files (plan v2 2026-10-19, reviewed)
+Plan: `docs/video-plan.md` (two review passes folded in, product + tech).
+A creator edits by transcript in Descript and has to upload her footage,
+so a multi-GB take becomes a low-quality proxy. Solo Ops does it on the
+local file: `video add` (ffprobe, referenced by path, never copied),
+`video transcribe` (ffmpeg extracts the audio; the user picks the engine:
+whisper.cpp local, ElevenLabs audio-only with `--yes`, or an imported
+SRT/VTT/JSON), `video show` (phrases with timestamps, the view the agent
+reads), `video cut --keep | --drop | --edl` (snapped to word boundaries,
+clamped padding, logged and revertable), `video render [--preview]`
+(per-segment extract, 30 ms fades, lossless concat, one encode, captions
+as sidecar + mov_text by default because slim ffmpeg builds have no
+`subtitles` filter, `--burn` when it exists, one render at a time),
+`video post` (links the cut to a post, never copies). Step 0 done 2026-10-19:
+whisper.cpp `small.en` on the 8 GB M2 does 240 s of audio in 17 s at
+866 MB peak, and keeps fillers once a filler prompt is passed (the plain
+invocation drops them); details in the plan. Then two Guide prompts (cut
+this take · post this video), then a Studio page with phrase toggles and
+render through serve.js. Taken from video-studio: video-use's production
+rules, the packed transcript, the EDL shape, the caption style, the
+machine rules. Not taken: OpenMontage, Remotion, generated video. Media,
+models and the ElevenLabs key never enter git or the backup; the backup
+ignore is applied on every run. **Slice 1 built 2026-10-19 (uncommitted):** `core/video.js`, the `video`
+CLI group, the `video` settings group, backup ignore on every run +
+folder-copy filter, guard media rule, doctor's video block, the `/data/`
+static fix in serve.js, `today`/`week` Video line, `core/test-video.js`
+(87 checks, in `npm test`), AGENTS/SCHEMA rows. Proven on the owner's
+4-minute 720p intro: 623 words in 13 s, first minute kept, 19 fillers
+dropped into 10 pieces, preview and final rendered with a caption track.
+Reviewed by a fresh-eyes developer and a product engineer (40 findings),
+all folded in: a dropped filler shorter than the merge gap is never
+stitched back, repeated drops do not move edges, `/data/` cannot be
+reached by URL tricks, keys are refused by `config set`, HDR takes render
+as HEVC, a final older than the cut cannot be posted, exports of the same
+cut are not rendered twice, the log names each step. Still untested on
+this machine: `--burn` (no ffmpeg with libass here). 114 checks.
+Next: slice 2 (Guide prompts, `{{take}}` token), then the page.
+
 ### M3 · Collaborators through agents, no shared app
 An editor or writer installs Solo Ops, points their agent at the same
 private data repo (`node solo.js backup --remote …`), and the two agents

@@ -26,7 +26,7 @@ var OVERRIDES = configOverrides(); var cfg = OVERRIDES ? (CfgLib ? CfgLib.mergeO
 var T = safeRequire(path.join(ROOT, 'core', 'templates.js'));
 var P = safeRequire(path.join(ROOT, 'core', 'prompts.js'));   // the Guide's built-in prompts (shared with the pages)
 var When = safeRequire(path.join(ROOT, 'core', 'when.js'));    // dates: parse, state, label (shared with the pages)
-var RESERVED = ['social', 'scripts', 'writing', 'settings', 'activity', 'boards', 'workspaces', 'calendar', 'home', 'prompts', 'inspiration', 'log', 'attachments', 'backup', 'exports'];
+var RESERVED = ['social', 'scripts', 'writing', 'settings', 'activity', 'boards', 'workspaces', 'calendar', 'home', 'prompts', 'inspiration', 'log', 'attachments', 'backup', 'exports', 'videos', 'video', 'models', 'secrets'];
 var COLS = ['todo', 'doing', 'done', 'later', 'bucket'];
 var COL_LABEL = { todo: 'To Do', doing: 'Doing', done: 'Done', later: 'Later', bucket: 'Bucket List' };
 var PRI = { high: 0, medium: 1, low: 2 };
@@ -412,6 +412,7 @@ function cmdToday() {
     md.push('## Doing (' + doing.length + ')', doing.length ? doing.map(taskLine).join('\n') : '_nothing in progress — start one: node solo.js start <task>_', '');
     md.push('## High priority, not started (' + high.length + ')', high.length ? high.map(taskLine).join('\n') : '_none_', '');
   }
+  var vn = videoNudge(); if (vn) md.push('## Video', vn, '');
   if (appOn('social')) md.push('## Posts due today or overdue (' + due.length + ')', due.length ? due.map(postLine).join('\n') : '_none_' + (posts[0] ? ' — next: ' + fmtDT(posts[0].datetime) + ' · ' + posts[0].title : ''), '');
   out(md, { activity: activitySummary(), schedule: sched, doing: doing, high: high, due: due, next: posts[0] || null });
 }
@@ -443,9 +444,10 @@ function cmdWeek() {
     md.push('## Studio');
     if (appOn('scripts')) md.push('- ' + sc.scripts.length + ' script' + (sc.scripts.length === 1 ? '' : 's') + (sc.scripts[0] ? ' · latest: ' + latestOf(sc.scripts).title + ' (' + stamp(latestOf(sc.scripts).updatedAt) + ')' : ''));
     if (appOn('writing')) md.push('- ' + n.notes.length + ' note' + (n.notes.length === 1 ? '' : 's') + (n.notes[0] ? ' · latest: ' + titleOf(latestOf(n.notes).text) + ' (' + stamp(latestOf(n.notes).updatedAt) + ')' : ''));
+    var vn2 = videoNudge(); if (vn2) md.push(vn2);
     md.push('');
   }
-  out(md, { byDay: dayGroups, overdueDated: wkOverdue, window: { from: now.toISOString(), days: days }, activity: activitySummary(), boards: BOARDS.map(function (b) { return b.id; }), doing: doing, todo: todo, done: done.length, posts: posts, overdue: overdue, prepOpen: prepOpen, scripts: sc.scripts.length, notes: n.notes.length });
+  out(md, { byDay: dayGroups, overdueDated: wkOverdue, window: { from: now.toISOString(), days: days }, activity: activitySummary(), boards: BOARDS.map(function (b) { return b.id; }), doing: doing, todo: todo, done: done.length, posts: posts, overdue: overdue, prepOpen: prepOpen, scripts: sc.scripts.length, notes: n.notes.length, videos: videos().videos.length, videoNudge: videoNudge() });
 }
 function latestOf(arr) { return arr.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); })[0]; }
 
@@ -550,6 +552,211 @@ function libCmd(name, key, label, mk) {
 var cmdScripts = libCmd('scripts', 'scripts', 'script', function (text) { return { id: newId('s'), title: titleOf(text), text: text, createdAt: Date.now(), updatedAt: Date.now() }; });
 var cmdNotes = libCmd('writing', 'notes', 'note', function (text) { return { id: newId('n'), text: text, images: {}, createdAt: Date.now(), updatedAt: Date.now() }; });
 
+/* ---- video: cut a take by its words, on the local file (core/video.js) ------
+   data/videos.json holds the takes; data/videos/<id>/ the transcript, the
+   captions and the exports. The footage is referenced by path, never copied. */
+var V = safeRequire(path.join(ROOT, 'core', 'video.js'));
+function videos() { var d = read(fileName('videos')); return d && Array.isArray(d.videos) ? d : { activeId: '', videos: [] }; }
+function videoCfg() { return Object.assign({ engine: '', ffmpeg: '', whisper: '', model: 'small.en', captions: { style: 'sentence', burn: false } }, cfg.video || {}); }
+function videoDir(id) { return path.join(DATA, 'videos', id); }
+function relData(abs) { return 'data/' + path.relative(DATA, abs).split(path.sep).join('/'); }
+function absData(rel) { return path.isAbsolute(rel) ? rel : /^data\//.test(rel) ? path.join(DATA, rel.replace(/^data\//, '')) : path.join(ROOT, rel); }
+function fmtSize(b) { b = b || 0; return b < 1048576 ? Math.max(1, Math.round(b / 1024)) + ' KB' : b < 10 * 1048576 ? (b / 1048576).toFixed(1) + ' MB' : b < 1073741824 ? Math.round(b / 1048576) + ' MB' : (b / 1073741824).toFixed(1) + ' GB'; }
+function requireFfmpeg() { if (!V) fail('core/video.js not found.'); var t = V.node.tools(videoCfg()); if (!t.ffmpeg || !t.ffprobe) fail(V.node.NEED_FFMPEG); return t; }
+function secrets() { try { return JSON.parse(fs.readFileSync(path.join(DATA, 'secrets.json'), 'utf8')) || {}; } catch (e) { return {}; } }
+function edlHash(edl) { return require('crypto').createHash('sha1').update(JSON.stringify((edl || []).map(function (s) { return [s.start, s.end]; }))).digest('hex').slice(0, 10); }
+var NO_LIBASS = 'Burned captions need an ffmpeg built with libass, and Homebrew\'s is not. The captions are in the file as a track and next to it as a .srt, which YouTube, LinkedIn and TikTok read when you upload it. For burned-in captions: brew trust homebrew-ffmpeg/ffmpeg && brew tap homebrew-ffmpeg/ffmpeg && brew install homebrew-ffmpeg/ffmpeg/ffmpeg (it compiles, takes a while), or point video.ffmpeg at another ffmpeg: node solo.js config set video.ffmpeg /path/to/ffmpeg';
+function videoStatus(v, s) {   // posted = the linked post says so
+  if (v.postId) { var p = (s || schedule()).posts.filter(function (x) { return x.id === v.postId; })[0]; if (p && p.status === 'posted') return 'posted'; }
+  return v.status || 'recorded';
+}
+function latestExport(v, kind) { return (v.exports || []).filter(function (e) { return e.kind === kind; }).pop() || null; }
+function videoLine(v, s) { var src = (v.sources || [])[0] || {}; var ex = (v.exports || []).filter(function (e) { return e.kind === 'final'; }); return '- [' + v.id + '] ' + v.title + ' · ' + videoStatus(v, s) + (src.duration ? ' · ' + V.fmt(src.duration) : '') + (src.width ? ' · ' + src.width + '×' + src.height : '') + (v.transcript && v.transcript.words ? ' · ' + v.transcript.words + ' words' : '') + (v.edl && v.edl.length ? ' · cut: ' + v.edl.length + ' piece' + (v.edl.length === 1 ? '' : 's') : '') + (ex.length ? ' · ' + ex.length + ' final' + (ex.length === 1 ? '' : 's') : ''); }
+function readTranscript(v) { var f = v.transcript && v.transcript.file ? absData(v.transcript.file) : ''; if (!f || !fs.existsSync(f)) return null; try { var t = JSON.parse(fs.readFileSync(f, 'utf8')); return t && Array.isArray(t.words) ? t : null; } catch (e) { return null; } }
+function wsFlag() { return WS_ID === PRIMARY ? '' : ' --ws ' + WS_ID; }
+// the example in a Next line comes from the take itself, so the numbers exist
+function keepExample(v) { var ph = v.phrases || []; if (ph.length < 2) return ph[0] ? '"' + ph[0].s.toFixed(1) + '-' + ph[0].e.toFixed(1) + '"' : '"2.4-6.8, 8.1-15.0"'; var a = ph[0], b = ph[ph.length - 1]; return '"' + a.s.toFixed(1) + '-' + a.e.toFixed(1) + ', ' + b.s.toFixed(1) + '-' + b.e.toFixed(1) + '"'; }
+function videoNext(v, s) {
+  var st = videoStatus(v, s);
+  if (st === 'recorded') return 'node solo.js video transcribe ' + v.id + wsFlag();
+  if (st === 'transcribed') return 'node solo.js video cut ' + v.id + ' --keep ' + keepExample(v) + '   (the [start-end] numbers are seconds; keep what you want, in that order)   or   --drop "um, uh"';
+  if (st === 'cut') return 'node solo.js video render ' + v.id + ' --preview' + wsFlag();
+  if (st === 'rendered') return v.postId ? 'node solo.js social posted ' + v.postId + ' --url … once it is up' : 'node solo.js video post ' + v.id + ' --at "tomorrow 09:00"' + wsFlag();
+  return '';
+}
+// one line for today/week: the take that waits for its next step, or nothing
+function videoNudge() {
+  if (!V) return ''; var d = read(fileName('videos')); if (!d || !Array.isArray(d.videos) || !d.videos.length) return '';
+  var s = schedule(); var waiting = d.videos.filter(function (v) { return ['recorded', 'transcribed', 'cut'].indexOf(videoStatus(v, s)) >= 0; }).sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
+  if (!waiting.length) return '';
+  var v = waiting[0]; var st = videoStatus(v, s); var what = st === 'recorded' ? 'not transcribed yet' : st === 'transcribed' ? 'words ready, not cut yet' : 'cut, not rendered yet';
+  return '- ' + waiting.length + ' take' + (waiting.length === 1 ? '' : 's') + ' waiting · [' + v.id + '] ' + v.title + ' · ' + st + ' ' + ago(new Date(v.updatedAt || 0).toISOString()) + ' · ' + what + ' → ' + videoNext(v, s).split('   ')[0];
+}
+function cmdVideo() {
+  if (!V) fail('core/video.js not found.');
+  var sub = (pos.shift() || 'list').toLowerCase(); var d = videos(); var VC = videoCfg();
+  function note(t) { if (!flags.note) flags.note = t; }   // the change log names the step, not just "video"
+  if (sub === 'key') {   // video key set elevenlabs <key> | --stdin → data/secrets.json (never settings.json, never the backup)
+    var service = String(pos[1] || '').toLowerCase(); if ((pos[0] || '') !== 'set' || service !== 'elevenlabs') fail('Usage: video key set elevenlabs <key>   (or --stdin to paste it without leaving it in your shell history). Kept in data/secrets.json, which the backup never includes.');
+    var keyVal = flags.stdin ? fs.readFileSync(0, 'utf8').trim() : String(pos[2] || ''); if (!keyVal) fail('No key given. Paste it: echo <key> | node solo.js video key set elevenlabs --stdin');
+    var sec = secrets(); sec[service] = keyVal; fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(path.join(DATA, 'secrets.json'), JSON.stringify(sec, null, 2) + '\n', { mode: 384 }); try { fs.chmodSync(path.join(DATA, 'secrets.json'), 384); } catch (e) { /* windows */ }
+    return out('✓ ' + service + ' key saved in data/secrets.json (not in settings.json, not in the backup)' + (flags.stdin ? '' : '\n  Tip: --stdin keeps it out of your shell history next time.'), { saved: service });
+  }
+  if (sub === 'list') { var sl = schedule(); return out(['## Takes (' + d.videos.length + ')'].concat(d.videos.length ? d.videos.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); }).map(function (v) { return videoLine(v, sl); }) : ['_no takes yet: node solo.js video add --file ./take.mov_']), d.videos.map(function (v) { return { id: v.id, title: v.title, status: videoStatus(v, sl), sources: v.sources, transcript: v.transcript, edl: v.edl, exports: v.exports, postId: v.postId, next: videoNext(v, sl) }; })); }
+  if (sub === 'add') {
+    if (!flags.file) fail('Usage: video add ["Title"] --file ./take.mov [--script s3]   (no title: the file name is used)');
+    var T = requireFfmpeg(); var abs = path.resolve(String(flags.file)); if (!fs.existsSync(abs)) fail('No such file: ' + flags.file);
+    var title = pos.join(' ').trim() || flags.title || path.basename(abs).replace(/\.[^.]+$/, '');
+    var pr; try { pr = V.node.probe(T, abs); } catch (e) { fail(path.basename(abs) + ' is not a video or audio file ffmpeg can read. Takes are .mov, .mp4, .mkv, .webm (or audio: .wav, .m4a).' + (JSON_OUT ? ' [' + e.message + ']' : '')); }
+    var scriptId = ''; if (flags.script) { var sc = find(scripts().scripts.map(function (x) { return { id: x.id, title: x.title || titleOf(x.text) }; }), String(flags.script), 'script'); scriptId = sc.id; }
+    var v = { id: newId('v'), title: title, scriptId: scriptId, postId: '', status: 'recorded', sources: [{ id: 'a', path: abs, size: pr.size, duration: pr.duration, width: pr.width, height: pr.height, fps: pr.fps, rotation: pr.rotation, hdr: pr.hdr, hasAudio: pr.hasAudio, hash: V.node.hashFile(abs) }], transcript: null, phrases: [], edl: [], edlHash: '', captions: { style: VC.captions.style || 'sentence', burn: !!VC.captions.burn }, exports: [], notes: flags.notes || '', createdAt: Date.now(), updatedAt: Date.now() };
+    note('video add ' + v.id + ' ' + title); d.videos.unshift(v); d.activeId = v.id; write(fileName('videos'), d);
+    return out(['✓ Added take [' + v.id + '] ' + v.title + (pos.length || flags.title ? '' : '   (title from the file name; rename with --title)'), '  ' + abs, '  ' + V.fmt(pr.duration) + ' · ' + pr.width + '×' + pr.height + ' · ' + pr.fps + ' fps · ' + fmtSize(pr.size) + (pr.hdr ? ' · HDR' : '') + (pr.rotation ? ' · rotated ' + pr.rotation + '°' : '') + (pr.hasAudio ? '' : ' · no audio track (no words to transcribe; --keep trims still work)'), '  The file stays where it is; nothing was copied.', '  Next: ' + videoNext(v)], v);
+  }
+  if (!read(fileName('videos'))) fail('No takes yet. Add one: node solo.js video add --file ./take.mov');
+  if (sub === 'show') {
+    var v1 = find(d.videos, pos.join(' '), 'take'); var src1 = v1.sources[0] || {}; var s1 = schedule();
+    var md = ['# ' + v1.title, '', '- id: ' + v1.id + ' · status: ' + videoStatus(v1, s1) + (v1.scriptId ? ' · script: ' + v1.scriptId : '') + (v1.postId ? ' · post: ' + v1.postId : ''), '- file: ' + src1.path + (fs.existsSync(src1.path || '') ? '' : '  ⚠ not found (moved? node solo.js video source ' + v1.id + ' <new path>)'), '- ' + V.fmt(src1.duration) + ' · ' + src1.width + '×' + src1.height + ' · ' + src1.fps + ' fps · ' + fmtSize(src1.size) + (src1.hdr ? ' · HDR' : '') + (src1.hasAudio === false ? ' · no audio track' : ''), ''];
+    if (v1.transcript) md.push('## Words (' + v1.transcript.words + ', ' + v1.transcript.engine + (v1.transcript.model ? ' ' + v1.transcript.model : '') + (v1.transcript.granularity === 'cue' ? ', cue-level: cuts snap to cues' : '') + ')', '', V.packed(v1.phrases || []), '');
+    else md.push('_No transcript yet: node solo.js video transcribe ' + v1.id + '_', '');
+    if (v1.edl && v1.edl.length) { md.push('## Cut (' + v1.edl.length + ' piece' + (v1.edl.length === 1 ? '' : 's') + ', ' + V.fmt(v1.edl.reduce(function (a, s) { return a + s.end - s.start; }, 0)) + ')'); v1.edl.forEach(function (s, i) { md.push((i + 1) + '. ' + V.fmt(s.start) + '-' + V.fmt(s.end) + (s.quote ? '  "' + s.quote + '"' : '') + (s.reason ? '  (' + s.reason + ')' : '')); }); md.push(''); }
+    if (v1.exports && v1.exports.length) { md.push('## Exports'); var lf = latestExport(v1, 'final'), lp = latestExport(v1, 'preview'); v1.exports.forEach(function (e) { var fp = absData(e.file); var there = fs.existsSync(fp); md.push('- ' + e.file + ' · ' + e.kind + ' · ' + V.fmt(e.duration) + (there ? ' · ' + fmtSize(fs.statSync(fp).size) : '  ⚠ file missing') + (e === lf ? '  ← latest final (open / post use this)' : e === lp ? '  ← latest preview' : '') + (e.edlHash !== v1.edlHash ? '  ⚠ rendered before the current cut: node solo.js video render ' + v1.id : '')); }); md.push(''); }
+    if (v1.notes) md.push('## Notes', '', v1.notes, '');
+    var nx = videoNext(v1, s1); if (nx) md.push('Next: ' + nx);
+    return out(md, v1);
+  }
+  if (sub === 'rm') { var vr = find(d.videos, pos.join(' '), 'take'); note('video rm ' + vr.id + ' ' + vr.title); d.videos = d.videos.filter(function (x) { return x.id !== vr.id; }); if (d.activeId === vr.id) d.activeId = d.videos[0] ? d.videos[0].id : ''; write(fileName('videos'), d); var dirR = videoDir(vr.id); var hasDir = fs.existsSync(dirR); if (flags.files && hasDir) V.node.rmrf(dirR); return out('✓ Removed take [' + vr.id + '] ' + vr.title + (hasDir ? (flags.files ? ' and deleted ' + relData(dirR) : '. The transcript and exports stay in ' + relData(dirR) + '/ (add --files to delete them). The footage was never touched.') : ''), vr); }
+  if (sub === 'source') {
+    var vs = find(d.videos, pos[0], 'take'); var np = pos.slice(1).join(' ').trim() || flags.file; if (!np) fail('Usage: video source <take> <new path>');
+    var Ts = requireFfmpeg(); var abs2 = path.resolve(np); if (!fs.existsSync(abs2)) fail('No such file: ' + np);
+    var pr2; try { pr2 = V.node.probe(Ts, abs2); } catch (e) { fail(path.basename(abs2) + ' is not a video or audio file ffmpeg can read.'); } var h2 = V.node.hashFile(abs2); var same = vs.sources[0] && vs.sources[0].hash === h2;
+    vs.sources[0] = { id: 'a', path: abs2, size: pr2.size, duration: pr2.duration, width: pr2.width, height: pr2.height, fps: pr2.fps, rotation: pr2.rotation, hdr: pr2.hdr, hasAudio: pr2.hasAudio, hash: h2 };
+    if (!same) { vs.transcript = null; vs.phrases = []; vs.edl = []; vs.edlHash = ''; vs.status = 'recorded'; }
+    note('video source ' + vs.id + (same ? ' (same file)' : ' (different file)')); vs.updatedAt = Date.now(); write(fileName('videos'), d);
+    return out('✓ [' + vs.id + '] now points at ' + abs2 + (same ? ' (same recording: the words and the cut are kept)' : ' (a different recording: transcribe it again; the old words and cut were cleared)'), vs);
+  }
+  if (sub === 'transcribe') {
+    var vt = find(d.videos, pos.join(' '), 'take'); var T2 = requireFfmpeg(); var src = vt.sources[0]; if (!src || !fs.existsSync(src.path)) fail('The file is not where it was: ' + (src && src.path) + '. Point at it again: node solo.js video source ' + vt.id + ' <new path>');
+    if (src.hasAudio === false) fail('This take has no audio track, so there are no words to transcribe. You can still trim it: node solo.js video cut ' + vt.id + ' --keep "0-' + V.fmt(src.duration) + '"');
+    var dir = videoDir(vt.id); fs.mkdirSync(dir, { recursive: true }); var lang = flags.lang ? String(flags.lang).toLowerCase() : ''; var model = String(flags.model || VC.model || 'small.en');
+    if (!/^[a-z0-9.-]+$/.test(model)) fail('video.model "' + model + '" is not a model name (small.en, base.en, small, medium …)');
+    var engine = flags.from ? 'import' : String(flags.engine || VC.engine || '').toLowerCase();
+    if (!engine) return out(['Which way do you want the words? Pick one and run it:', '', '  (1) On this computer: free, nothing leaves your machine, about a minute per 10 minutes of audio on a recent Mac (first time: downloads a 490 MB model into data/models/, once).', '      node solo.js video transcribe ' + vt.id + ' --engine whisper', '  (2) ElevenLabs: the audio (not the video) is sent to them; about $0.40 per hour of audio; needs a key (node solo.js video key set elevenlabs <key>). It shows the price for this take and asks before spending.', '      node solo.js video transcribe ' + vt.id + ' --engine elevenlabs', '  (3) I already have a transcript (an SRT, VTT or JSON from YouTube, Descript or another tool).', '      node solo.js video transcribe ' + vt.id + ' --from captions.srt', '', 'Remember the choice: node solo.js config set video.engine whisper'], { ask: 'engine', options: ['whisper', 'elevenlabs', 'import'] });
+    if (['whisper', 'elevenlabs', 'import'].indexOf(engine) < 0) fail('Unknown engine "' + engine + '". Engines: whisper (local) · elevenlabs (audio only leaves the machine) · --from <file> (import)');
+    var tFile = path.join(dir, 'transcript.json'); var cached = null; try { cached = JSON.parse(fs.readFileSync(tFile, 'utf8')); } catch (e) { cached = null; }
+    function finish(words, granularity, raw, eng, mdl, langUsed) {
+      var t = { engine: eng, model: mdl || '', lang: langUsed || '', granularity: granularity, source: { hash: src.hash, path: src.path }, words: words, text: words.map(function (w) { return w.w; }).join(' '), createdAt: Date.now() };
+      fs.writeFileSync(tFile, JSON.stringify(t, null, 1) + '\n'); if (raw) fs.writeFileSync(path.join(dir, 'transcript-raw.json'), JSON.stringify(raw) + '\n');
+      var changed = cached && cached.words && JSON.stringify(cached.words) !== JSON.stringify(words); var cutNote = '';
+      if (changed && vt.edl && vt.edl.length) { vt.edl = []; vt.edlHash = ''; cutNote = '\n  · the words changed, so the earlier cut (made on the old words) was cleared; node solo.js revert <id> brings it back'; }
+      vt.transcript = { engine: eng, model: mdl || '', lang: langUsed || '', granularity: granularity, words: words.length, file: relData(tFile) }; vt.phrases = V.phrases(words); if (vt.status === 'recorded' || (changed && vt.status === 'cut')) vt.status = 'transcribed'; vt.updatedAt = Date.now();
+      note('video transcribe ' + vt.id + ' (' + words.length + ' words, ' + eng + ')'); write(fileName('videos'), d);
+      var md2 = ['✓ ' + words.length + ' words from ' + eng + (mdl ? ' ' + mdl : '') + (granularity === 'cue' ? ' (cue-level: cuts will snap to the cues, not to words)' : '') + ' → ' + relData(tFile) + cutNote, '', V.packed(vt.phrases.slice(0, 12)) + (vt.phrases.length > 12 ? '\n… ' + (vt.phrases.length - 12) + ' more: node solo.js video show ' + vt.id : ''), '', 'Next: say what to keep — ' + videoNext(vt)];
+      return out(md2, vt);
+    }
+    if (engine === 'import') {
+      var f = path.resolve(String(flags.from)); if (!fs.existsSync(f)) fail('No such file: ' + flags.from);
+      var imp; try { imp = V.importTranscript(fs.readFileSync(f, 'utf8'), path.extname(f)); } catch (e) { fail(e.message); }
+      return finish(imp.words, imp.granularity, null, imp.engine === 'import' ? 'import' : imp.engine, '', lang);
+    }
+    if (engine === 'whisper' && lang && lang !== 'en' && /\.en$/.test(model) && !flags.model) model = model.replace(/\.en$/, '');   // the .en models are English only
+    var langUsed = engine === 'whisper' ? (lang || (/\.en$/.test(model) ? 'en' : 'auto')) : lang;
+    if (cached && cached.source && cached.source.hash === src.hash && cached.engine === engine && (engine !== 'whisper' || cached.model === model) && !flags.force) { vt.transcript = Object.assign(vt.transcript || {}, { engine: cached.engine, model: cached.model, lang: cached.lang || '', granularity: cached.granularity || 'word', words: cached.words.length, file: relData(tFile) }); vt.phrases = V.phrases(cached.words); if (vt.status === 'recorded') vt.status = 'transcribed'; note('video transcribe ' + vt.id + ' (cached)'); write(fileName('videos'), d); return out('✓ Already transcribed with ' + engine + (cached.model ? ' ' + cached.model : '') + ' (cached, the file did not change). --force runs it again.\n\nNext: ' + videoNext(vt), vt); }
+    var tmp = V.node.tmpDir(); var wav = path.join(tmp, 'audio.wav');
+    function say(t) { if (!JSON_OUT) process.stdout.write(t + '\n'); }
+    try {
+      if (engine === 'whisper') {
+        var bin = V.node.whisperBin(VC); if (!bin) fail('whisper.cpp is not installed. Mac: brew install whisper-cpp · Windows: download whisper-cli from github.com/ggml-org/whisper.cpp/releases and set its path: node solo.js config set video.whisper "C:\\\\…\\\\whisper-cli.exe". Or use --engine elevenlabs / --from <file>.');
+        var mp = V.node.modelPath(DATA, model);
+        var p0 = Promise.resolve();
+        if (lang && lang !== 'en' && !/\.en$/.test(model) && !flags.model) say('Language ' + lang + ': using the multilingual ' + model + ' model' + (fs.existsSync(mp) ? '' : ' (another download, once)'));
+        if (!fs.existsSync(mp)) { say('Downloading the ' + model + ' model (once, ' + (model.indexOf('small') === 0 ? '~490 MB' : model.indexOf('base') === 0 ? '~150 MB' : model.indexOf('tiny') === 0 ? '~80 MB' : 'a few hundred MB or more') + ') into data/models/ …'); p0 = V.node.download(V.node.MODEL_URL(model), mp, function (got, total) { if (!JSON_OUT && process.stdout.isTTY && total) process.stdout.write('\r  ' + Math.round(got / total * 100) + '%   '); }).then(function () { if (!JSON_OUT && process.stdout.isTTY) process.stdout.write('\r'); }); }
+        return p0.then(function () {
+          say('Listening to ' + V.fmt(src.duration) + ' of audio on this computer · about ' + Math.max(1, Math.round(src.duration / 600 + 0.5)) + ' min');
+          V.node.extractAudio(T2, src.path, wav); var r = V.node.whisper({ bin: bin, model: mp, wav: wav, lang: langUsed, outPrefix: path.join(tmp, 'words') }); V.node.rmrf(tmp);
+          return finish(r.words, 'word', r.raw, 'whisper', model, langUsed);
+        }).catch(function (e) { V.node.rmrf(tmp); fail(e.message); });
+      }
+      var key = process.env.ELEVENLABS_API_KEY || secrets().elevenlabs || ''; if (!key) fail('ElevenLabs needs a key: node solo.js video key set elevenlabs <key>  (or set ELEVENLABS_API_KEY). The key stays in data/secrets.json, out of the backup.');
+      var est = src.duration / 3600 * 0.40; var estText = est < 0.005 ? 'less than $0.01' : 'about $' + est.toFixed(2);
+      if (!flags.yes) fail('ElevenLabs costs credits: ' + estText + ' for ' + V.fmt(src.duration) + ' (the audio is sent to them, the video stays here). Run again with --yes to go ahead.');
+      say('Sending ' + V.fmt(src.duration) + ' of audio to ElevenLabs (' + estText + ') …');
+      V.node.extractAudio(T2, src.path, wav);
+      return V.node.elevenlabs({ key: key, wav: wav, lang: lang }).then(function (r) { V.node.rmrf(tmp); return finish(r.words, 'word', r.raw, 'elevenlabs', 'scribe_v1', lang); }).catch(function (e) { V.node.rmrf(tmp); fail(e.message); });
+    } catch (e) { V.node.rmrf(tmp); fail(e.message); }
+  }
+  if (sub === 'cut') {
+    var vc = find(d.videos, pos.join(' '), 'take'); var srcC = vc.sources[0] || {}; var tr = readTranscript(vc); var words = tr ? tr.words : [];
+    var opts = { fps: srcC.fps, duration: srcC.duration }; var ranges, notes = []; var had = vc.edl && vc.edl.length ? vc.edl.length : 0;
+    if (flags.edl) { var ej; try { ej = JSON.parse(fs.readFileSync(path.resolve(String(flags.edl)), 'utf8')); } catch (e) { fail('Could not read ' + flags.edl + ': ' + e.message); } try { ranges = V.fromEdl(Array.isArray(ej) ? ej : ej.edl, srcC.duration); } catch (e) { fail(e.message); } }
+    else if (flags.drop) { if (!words.length) fail('No transcript yet, so there are no words to drop: node solo.js video transcribe ' + vc.id); if (vc.transcript && vc.transcript.granularity === 'cue') fail('This transcript is cue-level (imported captions), so single words cannot be dropped. Use --keep with the cue times from `video show`, or transcribe with --engine whisper.'); var dr = V.drop(String(flags.drop).split(/[,;]+/), words, had ? vc.edl : null); if (!dr.hits) fail('None of those words are in ' + (had ? 'the current cut' : 'the transcript') + '.'); ranges = dr.ranges; notes.push('dropped ' + dr.hits + ' match' + (dr.hits === 1 ? '' : 'es') + (had ? ' inside the current cut' : '')); }
+    else if (flags.keep) { try { ranges = V.parseRanges(String(flags.keep)); } catch (e) { fail(e.message); } }
+    else fail('Usage: video cut <take> --keep "2.42-6.85, 8.10-15.00"   or   --drop "um, uh, you know"   or   --edl cut.json   (silence removal comes in the next release)');
+    var res; try { res = V.snap(ranges, words, opts); } catch (e) { fail(e.message); }
+    if (had && !flags.drop) notes.push('replaced the previous cut (' + had + ' piece' + (had === 1 ? '' : 's') + '); node solo.js revert <id> brings it back (node solo.js log)');
+    note('video cut ' + vc.id + ' (' + res.edl.length + ' piece' + (res.edl.length === 1 ? '' : 's') + ', ' + V.fmt(res.runtime) + (flags.drop ? ', drop ' + String(flags.drop).slice(0, 30) : flags.edl ? ', from an EDL' : '') + ')');
+    vc.edl = res.edl; vc.edlHash = edlHash(res.edl); if (['recorded', 'transcribed', 'rendered'].indexOf(vc.status) >= 0) vc.status = 'cut'; vc.updatedAt = Date.now(); write(fileName('videos'), d);
+    var md3 = ['✓ Cut: ' + res.edl.length + ' piece' + (res.edl.length === 1 ? '' : 's') + ', ' + V.fmt(res.runtime) + ' of ' + V.fmt(srcC.duration) + (words.length ? ' (edges snapped to words, padded)' : '')];
+    res.edl.forEach(function (s, i) { md3.push('  ' + (i + 1) + '. ' + V.fmt(s.start) + '-' + V.fmt(s.end) + (s.quote ? '  "' + s.quote + (s.quote.length >= 80 ? '…' : '') + '"' : '') + (s.reason ? '  (' + s.reason + ')' : '')); });
+    notes.concat(res.notes).forEach(function (n) { md3.push('  · ' + n); });
+    md3.push('', 'Next: node solo.js video render ' + vc.id + ' --preview   (fast, small) · then without --preview for the final');
+    return out(md3, { id: vc.id, edl: res.edl, runtime: res.runtime, notes: notes.concat(res.notes) });
+  }
+  if (sub === 'render') {
+    var vd = find(d.videos, pos.join(' '), 'take'); var T3 = requireFfmpeg(); var srcR = vd.sources[0]; if (!srcR || !fs.existsSync(srcR.path)) fail('The file is not where it was: ' + (srcR && srcR.path) + '. Point at it again: node solo.js video source ' + vd.id + ' <new path>');
+    if (!vd.edl || !vd.edl.length) fail('Nothing to render yet: say what to keep first — node solo.js video cut ' + vd.id + ' --keep ' + keepExample(vd) + ' (or --drop / --edl)');
+    var dirR2 = videoDir(vd.id); fs.mkdirSync(dirR2, { recursive: true }); var lk = V.node.lock(dirR2); if (lk) { fail('A render of this take is already running since ' + localStamp(lk.startedAt) + '. Wait for it. If nothing is rendering (the window was closed), delete the file ' + relData(path.join(dirR2, 'progress.json')) + ' and run this again.'); }
+    V.node.leftovers(dirR2).forEach(V.node.rmrf);   // an interrupted render's pieces
+    var preview = !!flags.preview; var kind = preview ? 'preview' : 'final';
+    var same = (vd.exports || []).filter(function (e) { return e.kind === kind && e.edlHash === vd.edlHash && fs.existsSync(absData(e.file)); }).pop();
+    if (same && !flags.again && !flags.out) fail(path.basename(same.file) + ' is already this cut. Open it: node solo.js video open ' + vd.id + (preview ? ' --preview' : '') + ' · to render it again anyway add --again');
+    var free = V.node.freeGB(dirR2); if (free >= 0 && free < 2) fail('Only ' + free.toFixed(1) + ' GB free on this disk. Make room before rendering.'); if (free >= 0 && free < 15 && !JSON_OUT) process.stdout.write('⚠ ' + free.toFixed(0) + ' GB free on this disk: enough for this render, but keep an eye on it.\n');
+    var n = 1; try { fs.readdirSync(dirR2).forEach(function (f) { var m = f.match(new RegExp('^' + kind + '-(\\d+)\\.mp4$')); if (m && Number(m[1]) >= n) n = Number(m[1]) + 1; }); } catch (e) { /* new */ } var name = kind + '-' + n + '.mp4';
+    var outPath = flags.out ? path.resolve(String(flags.out)) : ''; if (outPath && fs.existsSync(outPath)) fail(outPath + ' exists already; exports are never overwritten.');
+    var style = String(flags.style || vd.captions.style || VC.captions.style || 'sentence'); if (!V.STYLES[style]) fail('Caption style "' + style + '" is not one of: ' + Object.keys(V.STYLES).join(', '));
+    var burn = flags.burn !== undefined ? !!flags.burn && flags.burn !== 'false' : !!vd.captions.burn; var canBurn = V.node.hasFilter(T3.ffmpeg, 'subtitles');
+    var burnNote = burn && !canBurn ? NO_LIBASS : ''; if (burnNote && !JSON_OUT) process.stdout.write('⚠ ' + burnNote + '\n');
+    var tr2 = readTranscript(vd); var pr3 = Object.assign({ hasAudio: true, color: {} }, srcR, V.node.probe(T3, srcR.path));
+    var total = vd.edl.reduce(function (a, s) { return a + s.end - s.start; }, 0); var t0 = Date.now(); var outH = preview ? Math.min(720, pr3.height) : pr3.height;
+    if (!JSON_OUT) process.stdout.write('Rendering ' + V.fmt(total) + ' in ' + vd.edl.length + ' piece' + (vd.edl.length === 1 ? '' : 's') + (preview ? ' (' + outH + 'p preview)' : ' (' + pr3.width + '×' + pr3.height + ' final)') + ' → ' + relData(path.join(dirR2, name)) + '\n');
+    function prog(extra) { V.node.progress(dirR2, Object.assign({ pid: process.pid, startedAt: new Date(t0).toISOString(), kind: kind, total: total, out: relData(path.join(dirR2, name)), finished: false }, extra)); }
+    prog({ done: 0 }); var res2, finalFile, err;
+    try {
+      res2 = V.node.render({ tools: T3, src: srcR.path, probe: pr3, edl: vd.edl, dir: dirR2, preview: preview, burn: burn, style: style, aspect: flags.aspect === '9:16' ? '9:16' : '', words: tr2 ? tr2.words : [], granularity: vd.transcript && vd.transcript.granularity, name: name, onProgress: function (done, tot, i, nseg) {
+        var el = (Date.now() - t0) / 1000; var left = done > 0 && (el >= 10 || i >= 2) ? el / done * (tot - done) : 0; prog({ done: done, piece: i, pieces: nseg });
+        if (!JSON_OUT) process.stdout.write((process.stdout.isTTY ? '\r' : '') + '  piece ' + i + ' of ' + nseg + ' · ' + V.fmt(done) + ' of ' + V.fmt(tot) + (left > 5 ? ' · about ' + Math.max(1, Math.round(left / 60)) + ' min left' : '') + '     ' + (process.stdout.isTTY ? '' : '\n'));
+      } });
+      finalFile = res2.file;
+      if (outPath) { fs.mkdirSync(path.dirname(outPath), { recursive: true }); try { fs.renameSync(res2.file, outPath); } catch (e) { if (e.code !== 'EXDEV') throw e; fs.copyFileSync(res2.file, outPath); fs.unlinkSync(res2.file); } finalFile = outPath; }
+    } catch (e) { err = e; }
+    finally { prog({ done: err ? 0 : total, finished: true, error: err ? err.message : undefined, took: Math.round((Date.now() - t0) / 1000) }); }
+    if (err) fail(err.message);
+    if (!JSON_OUT && process.stdout.isTTY) process.stdout.write('\n');
+    var rel = outPath ? outPath : relData(finalFile); var st = fs.statSync(finalFile);
+    vd.exports = vd.exports || []; vd.exports.push({ file: rel, kind: kind, duration: res2.duration, size: st.size, edlHash: vd.edlHash, captions: res2.burned ? 'burned' : res2.softCaptions ? 'track+srt' : 'none', srt: relData(res2.srt), encoder: res2.encoder, at: Date.now() });
+    if (!preview) vd.status = 'rendered'; vd.updatedAt = Date.now(); note('video render ' + vd.id + ' (' + name + ')'); write(fileName('videos'), d);
+    var notes2 = [burnNote, res2.note].filter(Boolean);
+    return out(['✓ Done: ' + V.fmt(res2.duration) + ', ' + (preview ? outH + 'p preview' : pr3.width + '×' + pr3.height) + ', ' + fmtSize(st.size) + ', ' + Math.round((Date.now() - t0) / 1000) + ' s' + (res2.burned ? ', captions burned in' : res2.softCaptions ? ', captions as a track + ' + relData(res2.srt) : ''), '  ' + rel].concat(res2.note ? ['  ⚠ ' + res2.note] : []).concat(['  Open it: node solo.js video open ' + vd.id + (preview ? ' --preview' : '') + (preview ? ' · happy? node solo.js video render ' + vd.id + ' for the final' : ' · post it: node solo.js video post ' + vd.id + ' --at "tomorrow 09:00"')]), { id: vd.id, file: rel, duration: res2.duration, size: st.size, preview: preview, captions: res2.burned ? 'burned' : res2.softCaptions ? 'track+srt' : 'none', segments: res2.segments, encoder: res2.encoder, took: Math.round((Date.now() - t0) / 1000), note: notes2.join(' ') });
+  }
+  if (sub === 'open') {
+    var vo = find(d.videos, pos.join(' '), 'take'); var ex = latestExport(vo, flags.preview ? 'preview' : 'final') || (vo.exports || []).slice(-1)[0];
+    if (!ex) fail('No export yet: node solo.js video render ' + vo.id + (flags.preview ? ' --preview' : ''));
+    var fp = absData(ex.file); if (!fs.existsSync(fp)) fail('The export is gone: ' + ex.file + '. Render again: node solo.js video render ' + vo.id);
+    var opener = process.platform === 'darwin' ? ['open', [fp]] : process.platform === 'win32' ? ['cmd', ['/c', 'start', '', fp]] : ['xdg-open', [fp]];
+    try { require('child_process').spawn(opener[0], opener[1], { detached: true, stdio: 'ignore' }).unref(); } catch (e) { fail('Could not open it; the file is ' + fp); }
+    return out('✓ Opening ' + ex.file, ex);
+  }
+  if (sub === 'post') {
+    var vp = find(d.videos, pos.join(' '), 'take'); var exF = latestExport(vp, 'final'); if (!exF) fail('No final yet: node solo.js video render ' + vp.id);
+    if (!fs.existsSync(absData(exF.file))) fail('The final is gone: ' + exF.file + '. Render again: node solo.js video render ' + vp.id);
+    if (exF.edlHash !== vp.edlHash && !flags.force) fail(path.basename(exF.file) + ' was rendered before the current cut. Render the final again first: node solo.js video render ' + vp.id + '   (or --force to post it anyway)');
+    var s2 = schedule(); var types = (cfg.social && cfg.social.postTypes) || ['announcement', 'launch', 'update', 'thread', 'teaser']; var link = require('url').pathToFileURL(absData(exF.file)).href;
+    var np = { id: newId('p'), datetime: parseWhen(flags.at), title: flags.title || vp.title, postType: types.indexOf(flags.type) >= 0 ? flags.type : (types.indexOf('update') >= 0 ? 'update' : types[0] || 'update'), format: 'video', project: flags.project || flags.proj || ((cfg.projects || [])[0] || {}).name || 'general', copy: flags.copy || '', video: { title: vp.title, status: 'edited', notes: 'cut from take ' + vp.id + (vp.scriptId ? ', script ' + vp.scriptId : ''), link: link }, links: [{ id: newId('l'), label: 'the cut (' + V.fmt(exF.duration) + ')', url: link, kind: 'video' }], assets: [], prep: [{ text: 'Watch the cut full-screen, sound off and on', done: false, kind: 'video' }, { text: 'Write the copy', done: !!flags.copy, kind: 'content' }], notes: '', status: 'draft', posted: { url: '', postedAt: '', stats: {}, notes: '', screenshotId: '' } };
+    note('video post ' + vp.id + ' → ' + np.id); s2.posts.push(np); write(fileName('social'), s2); vp.postId = np.id; vp.updatedAt = Date.now(); write(fileName('videos'), d);
+    return out(['✓ Post [' + np.id + '] ' + np.title + ' · ' + fmtDT(np.datetime) + ' · video linked (not copied): ' + exF.file, '  Copy: node solo.js social copy ' + np.id + ' "…" · mark posted: node solo.js social posted ' + np.id + ' --url … (the take then reads posted)'], { post: np, video: vp.id });
+  }
+  fail('Unknown video command "' + sub + '". Try: list, add, show, transcribe, cut, render, open, post, source, rm, key');
+}
 /* ---- inspiration --------------------------------------------------------- */
 function inspo() { var d = read('inspiration'); return d && Array.isArray(d.items) ? d : { items: [] }; }
 function parseQuick(text, extra) {
@@ -763,9 +970,24 @@ function saveBackupCfg(b) { var o = { to: b.to || '', lastAt: b.lastAt || '' }; 
 function whenLocal(iso) { if (!iso) return 'never'; var d = new Date(iso); if (isNaN(d)) return iso; var m = Math.round((Date.now() - d.getTime()) / 60000); var ago = m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' day' + (Math.round(m / 1440) === 1 ? '' : 's') + ' ago'; return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) + ' (' + ago + ')'; }
 function expandHome(p) { return path.resolve(String(p).replace(/^~(?=\/|$)/, require('os').homedir())); }
 // Plain copy of data/ into a folder that syncs (iCloud Drive, Dropbox, Google Drive): no git, no log, no safety copies.
+// What never leaves this computer with a backup: the change log, safety copies, keys, the inbox, the whisper
+// model, and every rendered or temporary video file (data/videos/<id>/ keeps only transcript.json and the .srt).
+var BACKUP_IGNORE = ['log.jsonl', '*.backup-*.json', 'exports/', 'identity.json', 'inbox.json', 'secrets.json', 'models/', 'videos/**', '!videos/*/', '!videos/*/transcript.json', '!videos/*/*.srt'];
+function backupSkip(rel) {   // same rule for the folder copy (rel = path inside data/, forward slashes)
+  rel = rel.split(path.sep).join('/');
+  if (/^(\.git|log\.jsonl|exports|models|identity\.json|inbox\.json|secrets\.json)(\/|$)/.test(rel) || /\.(file-)?backup-[\d-]+\.json$/.test(rel)) return true;
+  var m = rel.match(/^videos\/[^/]+\/(.+)$/); if (m) return !/^(transcript\.json|[^/]+\.srt)$/.test(m[1]);
+  return false;
+}
+function ensureIgnore() {   // runs on every backup: an old data repo gets the new lines too
+  var f = path.join(DATA, '.gitignore'); var cur = ''; try { cur = fs.readFileSync(f, 'utf8'); } catch (e) { cur = ''; }
+  var have = cur.split('\n').map(function (l) { return l.trim(); }); var add = BACKUP_IGNORE.filter(function (l) { return have.indexOf(l) < 0; });
+  if (add.length) fs.writeFileSync(f, (cur.trim() ? cur.replace(/\n?$/, '\n') : '') + add.join('\n') + '\n');
+  return add;
+}
 function copyToFolder(dest) {
   fs.mkdirSync(dest, { recursive: true }); var n = 0;
-  fs.cpSync(DATA, dest, { recursive: true, dereference: true, filter: function (src) { var rel = path.relative(DATA, src); if (!rel) return true; if (/^(\.git|log\.jsonl|exports)(\/|$)/.test(rel) || /\.(file-)?backup-[\d-]+\.json$/.test(rel)) return false; try { if (fs.statSync(src).isFile()) n++; } catch (e) { /* skip */ } return true; } });
+  fs.cpSync(DATA, dest, { recursive: true, dereference: true, filter: function (src) { var rel = path.relative(DATA, src); if (!rel) return true; if (backupSkip(rel)) return false; try { if (fs.statSync(src).isFile()) n++; } catch (e) { /* skip */ } return true; } });
   return n;
 }
 function exampleFolder() { var h = require('os').homedir(); return process.platform === 'darwin' ? path.join(h, 'Library', 'Mobile Documents', 'com~apple~CloudDocs', 'Solo Ops backup') : path.join(h, 'Dropbox', 'Solo Ops backup'); }
@@ -800,11 +1022,11 @@ function cmdBackup() {
   githubVisibility(wanted, function (vis) {
     if (vis === 'public' && !flags['allow-public']) fail('Refusing: ' + wanted + ' is a PUBLIC repository. Your data would be visible to everyone. Make it private (gh repo edit --visibility private) or use another remote. (--allow-public overrides, on purpose only.)');
     if (!isRepo) {
-      git(['init', '-q']); fs.writeFileSync(path.join(DATA, '.gitignore'), 'log.jsonl\n*.backup-*.json\nexports/\nidentity.json\ninbox.json\n');
+      git(['init', '-q']);
       try { cp.execFileSync('git', ['-C', DATA, 'config', 'user.name'], { stdio: 'ignore' }); } catch (e) { git(['config', 'user.name', 'Solo Ops']); git(['config', 'user.email', 'solo-ops@localhost']); }
     }
     if (flags.remote) { if (git(['remote', 'get-url', 'origin'], { soft: true })) git(['remote', 'set-url', 'origin', String(flags.remote)]); else git(['remote', 'add', 'origin', String(flags.remote)]); }
-    git(['add', '-A']);
+    ensureIgnore(); git(['add', '-A']);
     var changed = git(['status', '--porcelain'], { soft: true });
     var msg = 'backup ' + new Date().toISOString().slice(0, 16).replace('T', ' ');
     if (changed) git(['commit', '-q', '-m', msg]);
@@ -877,7 +1099,7 @@ function githubVisibility(remote, cb, strict) {
 /* ---- doctor: is the data folder healthy? ---------------------------------- */
 /* ---- guard: the user's content never enters this code repo ----------------- */
 // Paths that hold the user's own content. Staging any of them fails the guard.
-var PRIVATE_PATHS = [/^data\/(?!SCHEMA\.md$)/, /\.(file-)?backup-[\d-]+\.json$/, /^\.claude\/commands\/mine\//, /^\.cursor\/commands\/mine\//, /^solo-ops-backup-.*\.json$/];
+var PRIVATE_PATHS = [/^data\/(?!SCHEMA\.md$)/, /\.(file-)?backup-[\d-]+\.json$/, /^\.claude\/commands\/mine\//, /^\.cursor\/commands\/mine\//, /^solo-ops-backup-.*\.json$/, /\.(mp4|mov|m4v|mkv|webm|wav|m4a|aac)$/i];   // footage and renders are content, never code
 function cmdGuard() {
   var cp = require('child_process');
   if (!fs.existsSync(path.join(ROOT, '.git'))) fail('Not a git repository: nothing to guard.');
@@ -942,7 +1164,7 @@ function cmdGuard() {
 function cmdDoctor() {
   var issues = [], notes = [], files = []; var refs = {}; var browserOnly = 0;
   try { files = fs.readdirSync(DATA).filter(function (f) { return /\.json$/.test(f) && !/\.backup-/.test(f); }); } catch (e) { fail('No data/ folder yet. Run: node solo.js template all'); }
-  var shapes = { social: 'posts', scripts: 'scripts', writing: 'notes', inspiration: 'items', boards: 'boards', workspaces: 'workspaces', activity: 'days', settings: 'theme', prompts: null, backup: null, identity: null, contacts: null, shares: 'shares', inbox: 'items' };
+  var shapes = { social: 'posts', scripts: 'scripts', writing: 'notes', inspiration: 'items', boards: 'boards', workspaces: 'workspaces', activity: 'days', settings: 'theme', prompts: null, backup: null, identity: null, contacts: null, shares: 'shares', inbox: 'items', videos: 'videos', secrets: null };
   files.forEach(function (f) {
     var txt, obj; try { txt = fs.readFileSync(path.join(DATA, f), 'utf8'); obj = JSON.parse(txt); } catch (e) { issues.push(f + ': not valid JSON (' + e.message.split('\n')[0] + ')'); return; }
     if (!obj || typeof obj !== 'object') { issues.push(f + ': not an object'); return; }
@@ -982,10 +1204,35 @@ function cmdDoctor() {
   else if (repo && lastBackup && Date.now() - Date.parse(lastBackup) > WEEK) issues.push('last backup was ' + Math.round((Date.now() - Date.parse(lastBackup)) / 86400000) + ' days ago. Run: node solo.js backup');
   else if (!repo && bfolder && (!bAt || Date.now() - Date.parse(bAt) > WEEK)) issues.push('last copy to ' + bfolder + ' was ' + (bAt ? Math.round((Date.now() - Date.parse(bAt)) / 86400000) + ' days ago' : 'never') + '. Run: node solo.js backup');
   else if (repo || bfolder) notes.push('backup: ' + [repo ? 'private repo, last ' + (lastBackup || 'never') : '', bfolder ? 'folder ' + bfolder + ', last ' + whenLocal(bAt) : ''].filter(Boolean).join(' · '));
+  doctorVideo(files, issues, notes, repo);
   if (!files.length) notes.push('fresh install: data/ has no files yet. Next: ask your agent for /setup, or `node solo.js template all` for the sample sprint, or `node serve.js` and plan in the app');
   if (fs.existsSync(path.join(ROOT, '.git'))) { var hk = ''; try { hk = fs.readFileSync(path.join(ROOT, '.git', 'hooks', 'pre-commit'), 'utf8'); } catch (e) { /* none */ } if (!/solo\.js"? guard/.test(hk)) notes.push('commit guard not installed: `node solo.js guard --install` makes git refuse commits that contain data/ or personal prompts'); }
   out(['# doctor — ' + (issues.length ? issues.length + ' issue' + (issues.length === 1 ? '' : 's') : 'all good'), ''].concat(issues.map(function (i) { return '⚠ ' + i; })).concat(issues.length ? [''] : []).concat(notes.map(function (n) { return '· ' + n; })), { ok: !issues.length, issues: issues, notes: notes, orphans: orphans, missing: missing, browserOnly: browserOnly, repo: repo, lastBackup: lastBackup });
   if (issues.some(function (i) { return i.indexOf('no backup') !== 0; }) && !JSON_OUT) process.exitCode = 2;   // a missing backup is a reminder, not a broken install
+}
+
+// Video: the tools, the model, every take's file and exports, stale locks, big files in the backup repo.
+function doctorVideo(files, issues, notes, repo) {
+  if (!V) return; var vfiles = files.filter(function (f) { return /(^|-)videos\.json$/.test(f); }); var dirs = []; try { dirs = fs.readdirSync(path.join(DATA, 'videos')).filter(function (f) { return f[0] !== '.'; }); } catch (e) { dirs = []; }
+  if (!vfiles.length && !dirs.length) return;
+  var T = V.node.tools(videoCfg()); var VC = videoCfg();
+  if (!T.ffmpeg) issues.push('video: ffmpeg not found. ' + V.node.NEED_FFMPEG); else notes.push('video: ffmpeg ' + T.ffmpeg + (V.node.hasFilter(T.ffmpeg, 'subtitles') ? ', can burn captions' : ', no libass: captions go in as a track + .srt (burned-in ones need another build; `video render --burn` says how)'));
+  var wb = V.node.whisperBin(VC); var mp = V.node.modelPath(DATA, VC.model || 'small.en'); var key = !!(process.env.ELEVENLABS_API_KEY || secrets().elevenlabs);
+  notes.push('video: engines: ' + [wb ? 'whisper (' + (fs.existsSync(mp) ? 'model ' + path.basename(mp) + ' ready' : 'model downloads on first use') + ')' : '', key ? 'elevenlabs (key set)' : '', 'import'].filter(Boolean).join(' · ') + (VC.engine ? ' · default: ' + VC.engine : ' · no default yet (config set video.engine whisper)'));
+  var seen = {}; var size = 0;
+  vfiles.forEach(function (f) { var o = null; try { o = JSON.parse(fs.readFileSync(path.join(DATA, f), 'utf8')); } catch (e) { return; } (o.videos || []).forEach(function (v) {
+    seen[v.id] = 1; var src = (v.sources || [])[0];
+    if (!src || !src.path) issues.push(f + ' [' + v.id + '] has no source file'); else if (!fs.existsSync(src.path)) issues.push(f + ' [' + v.id + '] footage not found: ' + src.path + ' (moved? node solo.js video source ' + v.id + ' <new path>)'); else { try { if (V.node.hashFile(src.path) !== src.hash) issues.push(f + ' [' + v.id + '] the footage changed since it was added (words and cut may not match): node solo.js video source ' + v.id + ' "' + src.path + '"'); } catch (e) { /* unreadable */ } }
+    (v.exports || []).forEach(function (e) { var fp = absData(e.file); if (!fs.existsSync(fp)) notes.push(f + ' [' + v.id + '] export missing on disk: ' + e.file); else { try { size += fs.statSync(fp).size; } catch (x) { /* skip */ } } });
+    if (v.transcript && v.transcript.file && !fs.existsSync(absData(v.transcript.file))) issues.push(f + ' [' + v.id + '] transcript file missing: ' + v.transcript.file + ' (node solo.js video transcribe ' + v.id + ')');
+    var ph = JSON.stringify(v.phrases || []).length; if (ph > 500 * 1024) notes.push(f + ' [' + v.id + '] phrases are ' + Math.round(ph / 1024) + ' KB (a very long take; the page will be slow on it)');
+    var lk = V.node.lock(videoDir(v.id)); if (lk) notes.push(f + ' [' + v.id + '] a render is running since ' + localStamp(lk.startedAt));
+    var lo = V.node.leftovers(videoDir(v.id)); if (lo.length && !lk) notes.push(f + ' [' + v.id + '] ' + lo.length + ' leftover folder(s) from an interrupted render in ' + relData(videoDir(v.id)) + '/ (the next render removes them)');
+    var pf = path.join(videoDir(v.id), 'progress.json'); try { var p = JSON.parse(fs.readFileSync(pf, 'utf8')); if (!p.finished && !lk) notes.push(f + ' [' + v.id + '] a render was interrupted (stale progress.json, safe to delete)'); } catch (e) { /* none */ }
+  }); });
+  var orphans = dirs.filter(function (id) { return !seen[id]; }); if (orphans.length) notes.push('video: ' + orphans.length + ' folder(s) in data/videos/ no take references (safe to delete): ' + orphans.slice(0, 5).join(', '));
+  if (size) notes.push('video: exports ' + (size / 1048576).toFixed(0) + ' MB on disk (never in the backup)');
+  if (repo) { try { var big = require('child_process').execFileSync('git', ['-C', DATA, 'ls-files', '-z'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\0').filter(Boolean).filter(function (f) { try { return fs.statSync(path.join(DATA, f)).size > 50 * 1048576; } catch (e) { return false; } }); if (big.length) issues.push('backup repo tracks ' + big.length + ' file(s) over 50 MB (GitHub refuses over 100 MB): ' + big.join(', ') + ' — git -C data rm --cached <file>, then node solo.js backup'); } catch (e) { /* no git */ } }
 }
 
 /* ---- template / theme / config / serve ----------------------------------- */
@@ -1022,7 +1269,7 @@ function cmdConfig() {
   if (sub === 'set' || sub === 'add' || sub === 'unset' || sub === 'clear') {
     if (!CfgLib) fail('core/config.js not found.');
     var s = read('settings') || { theme: cfg.theme || { mode: 'auto', palette: 'mono' } }; var o = isObj(s.config) ? s.config : {}; var labels = []; var changed = false;
-    function step(op, p, v) { var r; try { r = CfgLib.override(SHIPPED, o, op, p, v, { force: !!flags.force }); } catch (e) { fail(e.message); } o = r.config; if (!r.unchanged) changed = true; labels.push((r.unchanged ? '· ' : '✓ ') + r.label); }
+    function step(op, p, v) { if ((op === 'set' || op === 'add') && /key|secret|token|password/i.test(String(p))) fail('Keys never go in settings.json (it is copied into the backup and into every page). Use: node solo.js video key set elevenlabs <key>'); var r; try { r = CfgLib.override(SHIPPED, o, op, p, v, { force: !!flags.force }); } catch (e) { fail(e.message); } o = r.config; if (!r.unchanged) changed = true; labels.push((r.unchanged ? '· ' : '✓ ') + r.label); }
     if (sub === 'clear') step('clear');
     else if (sub === 'set' && flags.file) {
       var fromFile; try { fromFile = JSON.parse(fs.readFileSync(path.resolve(String(flags.file)), 'utf8')); } catch (e) { fail('Could not read ' + flags.file + ' as JSON.'); }
@@ -1068,6 +1315,10 @@ function cmdHelp() {
     'Inspiration (data/inspiration.json — links, ideas, images; tag with a workspace)', '  inspo list [--ws] [--tag x] [--status new|used|archived]   inspo show <item>', '  inspo add [--file <path>] "https://… or an idea #tag" [--ws <id>] [--tags a,b]   inspo tag <item> +a -b   inspo ws <item> <workspace>', '  inspo use <item> --as task|post|script|note [--ws] [--board]   inspo ai [--into tasks] (prompt to paste into an AI)   inspo archive|rm <item>', '',
     'Prompts (built-ins in core/prompts.js, yours in data/prompts.json)', '  prompts builtin [--mode chat|files]   prompts show <title or /slug>   prompts export [--for claude|cursor|codex|chat] [--out dir]', '  prompts list|add "Title" --text "…"|--file p.md [--cat daily] [--desc "…"]|edit <p> …|rm <p>|restore', '',
     'Studio (data/scripts.json, data/writing.json)', '  scripts list|show <s>|add "Title" [--file x.md]|rm <s>', '  notes list|show <n>|add "Title" [--file x.md]|rm <n>', '',
+    'Video (data/videos.json + data/videos/<id>/ — cut a take by its words; the footage stays where it is, needs ffmpeg)', '  video add "Title" --file ./take.mov [--script s3]   video list|show <v>|open <v> [--preview]|rm <v> [--files]   video source <v> <new path>',
+    '  video transcribe <v> [--engine whisper|elevenlabs] [--lang en] [--from captions.srt] [--yes]   whisper = on this computer; elevenlabs = audio only leaves (needs video key set elevenlabs <key>)',
+    '  video cut <v> --keep "2.4-6.8, 8.1-15.0" | --drop "um, uh" | --edl cut.json     edges snap to words and are padded; logged, revertable',
+    '  video render <v> [--preview] [--burn] [--aspect 9:16] [--style sentence|bold] [--out file]   one encode, captions as a track + .srt (burned with libass)', '  video post <v> [--at <when>] [--type update]   a post with the cut linked, never copied', '',
     'Safety', '  backup setup [--name solo-ops-data] [--no-github]   first time: a PRIVATE GitHub repo via gh, or it tells you the two other ways', '  backup [--remote <private url>] [--to <folder>] [--status]   push data/ to its private repo and/or copy it to a syncing folder; refuses public repos', '  backup --daily [--hour 21] [--dry-run]   run it every evening (launchd / crontab / a schtasks line)', '  guard [--install] [--allow-data]   fail when staged files hold your content; --install = on every commit; --allow-data = your own PRIVATE fork only', '  doctor | health            check every data file, attachments and backup age', '',
     'Setup', '  template [all|board|social|scripts|writing|settings] [--board id] [--force]', '  theme [show|list|set <palette>|mode <auto|light|dark>|font <inter|system|lato|editorial>]', '  config                     the settings in use (solo.config.js + your settings)', '  config set <setting> <value>  your values, kept in data/settings.json: owner "Mara" · name "Pocket Studio" · social.postTypes reel,carousel · boards.runway.title "…"', '  config add <list> a b      add to a list (config unset <setting> · config set --file x.json · config clear)', '  serve [--port 4321]        start the local server (pages write data/ directly)', '',
     'Add --json to any command for machine-readable output. Ids: tasks t…, posts p…, scripts s…, notes n….',
@@ -1355,7 +1606,7 @@ var commands = {
   move: cmdMove, pri: cmdPri, tag: cmdTag, at: whenCmd('at'), due: whenCmd('due'), calendar: cmdCalendar, agenda: cmdCalendar, step: cmdStep, check: checkCmd(true), uncheck: checkCmd(false), note: cmdNote, rm: cmdRm, del: cmdRm,
   share: cmdShare, import: cmdImport,
   social: cmdSocial, post: cmdSocial, posts: cmdSocial,
-  scripts: cmdScripts, script: cmdScripts, notes: cmdNotes,
+  scripts: cmdScripts, script: cmdScripts, notes: cmdNotes, video: cmdVideo, videos: cmdVideo, take: cmdVideo, takes: cmdVideo,
   inspo: cmdInspo, inspiration: cmdInspo, prompts: cmdPrompts, prompt: cmdPrompts, boards: cmdBoards, board: cmdBoards, activity: cmdActivity, log: cmdLog, history: cmdLog, revert: cmdRevert, undo: cmdRevert, workspaces: cmdWorkspaces, workspace: cmdWorkspaces, ws: cmdWorkspaces,
   backup: cmdBackup, doctor: cmdDoctor, health: cmdDoctor, guard: cmdGuard, template: cmdTemplate, theme: cmdTheme, config: cmdConfig, serve: cmdServe
 };

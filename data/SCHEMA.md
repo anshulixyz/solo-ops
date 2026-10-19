@@ -130,6 +130,37 @@ Script text is Markdown with a light convention the viewer understands:
 `# Title`, `## Hook`, `## Script` with numbered beats, `## Inserts` bullets,
 `## Prep` with `- [ ]` checkboxes, `NAME:` dialogue, `(stage directions)`.
 
+## videos.json — takes, cut by their words (`<ws>-videos.json`)
+
+```json
+{
+  "activeId": "v1",
+  "videos": [{
+    "id": "v1", "title": "Why we killed onboarding", "scriptId": "s3", "postId": "",
+    "status": "recorded",             // recorded | transcribed | cut | rendered  (posted = the linked post's status says so)
+    "sources": [{ "id": "a", "path": "/Users/me/Movies/take-3.mov", "size": 2147483648, "duration": 312.4,
+                  "width": 1920, "height": 1080, "fps": 29.97, "rotation": 0, "hdr": false, "hash": "sha1 of first MB + last MB + size" }],
+    "transcript": { "engine": "whisper", "model": "small.en", "lang": "en", "granularity": "word", "words": 1840, "file": "data/videos/v1/transcript.json" },
+    "phrases": [{ "s": 2.52, "e": 5.36, "t": "Ninety percent of what a web agent does is wasted." }],
+    "edl": [{ "start": 2.42, "end": 6.85, "quote": "…", "reason": "" }],   // the cut: pieces kept, in order, edges on word boundaries
+    "edlHash": "…",
+    "captions": { "style": "sentence", "burn": false },
+    "exports": [{ "file": "data/videos/v1/final-1.mp4", "kind": "final", "duration": 61.2, "edlHash": "…", "captions": "track+srt", "srt": "data/videos/v1/final-1.srt", "at": 0 }],
+    "notes": "", "createdAt": 0, "updatedAt": 0
+  }]
+}
+```
+
+The footage is referenced by `path`, never copied; `hash` notices a changed
+file. `phrases` is the packed view (word-level times live in
+`data/videos/<id>/transcript.json` as `{ words: [{ w, s, e }] }`, one shape
+whatever the engine; `granularity: "cue"` for an imported SRT/VTT). An export
+whose `edlHash` differs from the take's was rendered before the current cut.
+`data/videos/<id>/` also holds `progress.json` (the running render, unlogged)
+and the renders `preview-<n>.mp4` / `final-<n>.mp4`, which the backup skips
+(only `transcript.json` and the `.srt` files travel). `data/secrets.json`
+(`video key set`) and `data/models/` (the whisper model) stay out of it too.
+
 ## writing.json — drafts / notes
 
 ```json

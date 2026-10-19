@@ -82,8 +82,18 @@
     /* ---- studio (studio/) ------------------------------------------- */
     studio: {
       scriptTitle: 'Script Viewer',
-      writingTitle: 'Writing Viewer'
+      writingTitle: 'Writing Viewer',
+      videoTitle: 'Video'
     },
+
+    /* ---- video: cut a take by its words, on the local file (core/video.js)
+       engine: '' asks on first use · whisper (local, free) · elevenlabs (the
+       audio, not the video, is sent; key via `video key set`, never here).
+       ffmpeg / whisper: paths when the tools are not on PATH (Windows zips).
+       model: the whisper.cpp model (small.en recommended; base.en is lighter).
+       captions: style sentence | bold; burn needs an ffmpeg with libass,
+       otherwise captions ride along as a track and a .srt file. ---------- */
+    video: { engine: '', ffmpeg: '', whisper: '', model: 'small.en', captions: { style: 'sentence', burn: false } },
 
     /* ---- activity --------------------------------------------------
        Every change (page or CLI) is logged per day in data/activity.json.

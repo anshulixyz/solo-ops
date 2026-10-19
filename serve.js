@@ -38,7 +38,7 @@ function send(res, code, body, type) {
 }
 function json(res, code, obj) { send(res, code, JSON.stringify(obj)); }
 function safeDataFile(name) {
-  if (!/^[a-z0-9_-]+\.json$/i.test(name)) return null;
+  if (!/^[a-z0-9_-]+\.json$/i.test(name) || /^(identity|secrets)\.json$/i.test(name)) return null;   // keys never go over HTTP
   return path.join(DATA, name);
 }
 var LOG = path.join(DATA, 'log.jsonl');
@@ -210,7 +210,9 @@ var server = http.createServer(function (req, res) {
   if (req.method !== 'GET' && req.method !== 'HEAD') return json(res, 405, { error: 'method' });
   var rel = url === '/' ? '/index.html' : url;
   var abs = path.normalize(path.join(ROOT, rel));
-  if (abs.indexOf(ROOT) !== 0) return send(res, 403, 'forbidden', 'text/plain');
+  if (abs !== ROOT && abs.indexOf(ROOT + path.sep) !== 0) return send(res, 403, 'forbidden', 'text/plain');
+  var inside = path.relative(ROOT, abs).split(path.sep).join('/');   // after normalising, so /./data, //data and ..%2F cannot slip past
+  if (/^data(\/|$)/i.test(inside) && !/^data\/(attachments|exports)\/[^/]+$/i.test(inside)) return send(res, 403, 'data files go through /api/data/', 'text/plain');   // never identity.json, secrets.json, log.jsonl or a take's folder by URL
   fs.stat(abs, function (err, st) {
     if (!err && st.isDirectory()) abs = path.join(abs, 'index.html');
     fs.readFile(abs, function (err2, buf) {
