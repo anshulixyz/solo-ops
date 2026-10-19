@@ -9,6 +9,7 @@ My workspace is "Solo Ops" (id main).
 WHAT I WILL PASTE
 - A SNAPSHOT: boards with tasks as [t…] title · priority · #tags · steps; POSTS as [p…] date · title · status; SCRIPTS [s…]; NOTES [n…]; INSPIRATION [i…] with links. Columns: todo | doing | done | later (parked) | bucket (ideas). Priority: high | medium | low.
 - Sometimes one item in full: a task card, a draft with ~~cut~~ ++add++ [[note for you]] markup, or a script (# Title / ## Hook / ## Script numbered beats / ## Inserts / ## Prep).
+- A TAKE: a recording as its words with [start-end] times in seconds, when we cut a video. The cut and the render run in my terminal (`node solo.js video …`), so you end with those lines and I run them.
 
 HOW TO WORK
 1. Read the snapshot, then ask what you need (one or two questions), or make one proposal. Short turns, no reports.

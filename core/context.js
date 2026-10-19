@@ -2,7 +2,7 @@
    core/context.js — things you can hand to an agent, as text. Each one is
    a {{token}} usable inside any prompt and an entry in the Guide's Context
    menu. Global `Context`.
-     recent · shipped · last_task · this · project · doing · inspiration · board
+     recent · shipped · last_task · this · project · doing · inspiration · board · take
    ========================================================================= */
 (function (global) {
   'use strict';
@@ -80,8 +80,31 @@
     posts: { label: 'Upcoming posts', hint: 'next 14 days with copy and prep', get: function () {
       var w = ws(); var end = new Date(Date.now() + 14 * 86400000); var posts = (Store.getJSON(Config.key('social', w.id), []) || []).filter(function (p) { return p.status !== 'posted' && new Date(p.datetime) <= end; }).sort(function (a, b) { return a.datetime.localeCompare(b.datetime); });
       return posts.length ? '# Upcoming posts (' + posts.length + ')\n\n' + posts.map(post).join('\n\n') : '(no posts in the next 14 days)';
+    } },
+    take: { label: 'This take', hint: 'the open or latest take: its words with [start-end] times, the cut, the exports', get: function () {
+      var w = ws(); var d = Store.getJSON(Config.key('videos', w.id), null); var vids = d && Array.isArray(d.videos) ? d.videos : [];
+      if (!vids.length) return '(no takes yet — node solo.js video add "Title" --file ./take.mov)';
+      var v = vids.filter(function (x) { return x.id === d.activeId; })[0] || vids.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); })[0];
+      var src = (v.sources || [])[0] || {}; var tr = v.transcript || null; var ex = (v.exports || []).filter(function (e) { return e.kind === 'final'; }).slice(-1)[0];
+      var L = ['# Take [' + v.id + '] ' + v.title + ' · ' + (v.status || 'recorded') + (src.duration ? ' · ' + tfmt(src.duration) : '') + (src.fps ? ' · ' + src.fps + ' fps' : '') + (src.width ? ' · ' + src.width + '×' + src.height : '') + (tr && tr.words ? ' · ' + tr.words + ' words' : '') + (v.scriptId ? ' · script: ' + v.scriptId : '') + (v.postId ? ' · post: ' + v.postId : ''), ''];
+      if (tr && (v.phrases || []).length) { L.push('## Words ([start-end] in seconds' + (tr.granularity === 'cue' ? ', cue-level: cuts snap to cues' : '') + ')', ''); v.phrases.forEach(function (p) { L.push('[' + ttag(p.s) + '-' + ttag(p.e) + '] ' + p.t); }); L.push(''); }
+      else L.push('(no words yet: node solo.js video transcribe ' + v.id + ')', '');
+      if ((v.edl || []).length) { L.push('## Cut (' + v.edl.length + ' piece' + (v.edl.length === 1 ? '' : 's') + ', ' + tfmt(v.edl.reduce(function (a, s) { return a + s.end - s.start; }, 0)) + ')'); v.edl.forEach(function (s, i) { L.push((i + 1) + '. ' + tfmt(s.start) + '-' + tfmt(s.end) + (s.quote ? '  "' + s.quote + '"' : '') + (s.reason ? '  (' + s.reason + ')' : '')); }); L.push(''); }
+      if (ex) L.push('## Final: ' + ex.file + ' · ' + tfmt(ex.duration) + (ex.edlHash !== v.edlHash ? ' · rendered before the current cut' : ''));
+      return L.join('\n').replace(/\n+$/, '');
     } }
   };
+  // the take's times, as `node solo.js video show` prints them: 0:02.5 and [002.52-005.36]
+  function tfmt(sec) { var s = Math.max(0, Number(sec) || 0); var m = Math.floor(s / 60), r = s - m * 60; var h = Math.floor(m / 60); m -= h * 60; var rs = r.toFixed(1); if (rs === '60.0') { rs = '0.0'; m++; } return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + (r < 10 ? '0' : '') + rs; }
+  function ttag(sec) { var s = Math.max(0, Number(sec) || 0); return s < 100 ? ('00' + s.toFixed(2)).slice(-6) : s.toFixed(2); }
+  // videos.json reaches the browser read-only until the Studio page comes: the file always wins, nothing here changes it
+  function registerTakes() {
+    if (!global.Sync) return; var w = ws(); var key = Config.key('videos', w.id);
+    Sync.register({ file: Config.file('videos', w.id), key: key, label: 'takes', app: 'video', activity: false, isFresh: function () { return Store.get(key) == null; },
+      read: function () { return Store.getJSON(key, null) || { activeId: '', videos: [] }; },
+      apply: function (body) { Store.setJSON(key, { activeId: body.activeId || '', videos: Array.isArray(body.videos) ? body.videos : [] }, { silent: true }); } });
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', registerTakes); else setTimeout(registerTakes, 0); }
   global.Context = {
     names: Object.keys(C),
     get: function (name) { return C[name] ? C[name].get() : ''; },
@@ -89,6 +112,6 @@
     // replace every {{token}} in a prompt
     fill: function (text) { return String(text).replace(/\{\{(\w+)\}\}/g, function (m, k) { if (k === 'snapshot') k = 'project'; return C[k] ? C[k].get() : m; }); },
     // the Context menu, with what is most useful on this page first
-    menu: function () { var pg = page(); var order = pg === 'board' ? ['this', 'last_task', 'board', 'recent', 'doing', 'project', 'posts', 'inspiration_new', 'inspiration'] : pg === 'social' ? ['this', 'posts', 'recent', 'doing', 'project', 'inspiration_new', 'inspiration', 'last_task', 'board'] : pg === 'scripts' || pg === 'writing' ? ['this', 'recent', 'inspiration_new', 'inspiration', 'project', 'last_task', 'doing', 'posts', 'board'] : pg === 'inspo' ? ['inspiration_new', 'inspiration', 'recent', 'project', 'doing', 'posts', 'last_task', 'this', 'board'] : ['recent', 'project', 'inspiration_new', 'doing', 'last_task', 'posts', 'inspiration', 'this', 'board']; order.splice(order.indexOf('recent') + 1, 0, 'shipped'); order.splice(pg === 'calendar' || pg === 'home' ? 0 : order.indexOf('shipped') + 1, 0, 'schedule'); return order.map(function (k) { return { id: k, label: C[k].label, hint: C[k].hint }; }); }
+    menu: function () { var pg = page(); var order = pg === 'board' ? ['this', 'last_task', 'board', 'recent', 'doing', 'project', 'posts', 'inspiration_new', 'inspiration'] : pg === 'social' ? ['this', 'posts', 'recent', 'doing', 'project', 'inspiration_new', 'inspiration', 'last_task', 'board'] : pg === 'scripts' || pg === 'writing' ? ['this', 'recent', 'inspiration_new', 'inspiration', 'project', 'last_task', 'doing', 'posts', 'board'] : pg === 'inspo' ? ['inspiration_new', 'inspiration', 'recent', 'project', 'doing', 'posts', 'last_task', 'this', 'board'] : ['recent', 'project', 'inspiration_new', 'doing', 'last_task', 'posts', 'inspiration', 'this', 'board']; order.splice(order.indexOf('recent') + 1, 0, 'shipped'); order.splice(pg === 'calendar' || pg === 'home' ? 0 : order.indexOf('shipped') + 1, 0, 'schedule'); order.splice(pg === 'scripts' ? 1 : order.length, 0, 'take'); return order.map(function (k) { return { id: k, label: C[k].label, hint: C[k].hint }; }); }
   };
 })(window);

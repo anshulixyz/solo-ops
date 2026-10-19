@@ -157,7 +157,18 @@ reached by URL tricks, keys are refused by `config set`, HDR takes render
 as HEVC, a final older than the cut cannot be posted, exports of the same
 cut are not rendered twice, the log names each step. Still untested on
 this machine: `--burn` (no ffmpeg with libass here). 114 checks.
-Next: slice 2 (Guide prompts, `{{take}}` token), then the page.
+**Slice 2 shipped 2026-10-19, commit (see Done):** two Content prompts,
+*Cut this take* (`/cut-take <take>`: slips, platform question, the cut in
+plain words with the runtime, a yes, then `video cut --edl`, the preview,
+the final only after it was watched; chat mode ends with the terminal
+lines) and *Post this video* (`/ship-video <take>`: two copies in the
+user's voice, `video post`, scheduled); the `{{take}}` context token
+(words with times, the cut, the final) with `videos.json` read into the
+browser so the Ask box carries a take before the page exists; `/standup`
+and `/week` name a waiting take; the bootstrap explains a pasted take;
+test-prompts covers it. Proven on a synthetic take in a scratch data
+folder: the prompt's own commands cut, preview, render and post it.
+Next: slice 3, the page.
 
 ### M3 · Collaborators through agents, no shared app
 An editor or writer installs Solo Ops, points their agent at the same
@@ -191,6 +202,18 @@ QR rendered without a dependency, capture strip and boards usable at
 375px.
 
 ## Minor / issues
+
+- **`prompts export` with no `data/prompts.json` deletes `mine/`
+  (2026-10-19):** in a worktree or fresh clone that carries copied
+  `.claude/commands/mine/` files but no data folder, the export sees no
+  personal prompts and removes every generated file in `mine/` as stale.
+  It should leave `mine/` alone when `data/prompts.json` is absent.
+
+- **`video render` dies with EPIPE when stdout closes (2026-10-19):** the
+  progress line is written to stdout without an error handler, so
+  `node solo.js video render v1 | head -3` throws once `head` exits; the
+  render itself finishes and is recorded. Ignore EPIPE on stdout (or stop
+  printing progress when it is not a TTY).
 
 - **Launch kit docs (hygiene review 2026-10-13):** `docs/launch/SHOTLIST.md`
   names `shoot.sh` / `seed.sh` (the files are `.js`), says shots land in

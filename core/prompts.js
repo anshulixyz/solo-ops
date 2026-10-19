@@ -26,7 +26,7 @@
     ['daily', 'Daily', 'standup · now · wrap up · stuck'],
     ['weekly', 'Weekly', 'plan · close · reality check'],
     ['projects', 'Projects', 'plan · tasks · steps · scope'],
-    ['content', 'Content', 'posts · scripts · drafts · inspiration'],
+    ['content', 'Content', 'posts · scripts · drafts · video takes · inspiration'],
     ['bringin', 'Bring in', 'calendar · what your agent is connected to'],
     ['setup', 'Set up', 'this chat · this folder'],
     ['fix', 'Safety', 'undo · backups']
@@ -79,7 +79,7 @@
     var list = [
       /* ---- daily: the ritual spine ---------------------------------------- */
       { c: 'daily', slug: 'standup', t: 'Daily standup', d: 'Three questions, then the board is updated and you have a plan for today.', pages: ['home', 'board', 'calendar'],
-        p: H + read('today' + ws, 'situation') + '. Run a standup with me: ask (1) what I finished since yesterday, (2) the ONE thing today is about, (3) what is blocking me. Wait for my answers. Then update the board (done / start / note / step as needed), and give me today\'s plan: max 3 items, in order, each with what "done" looks like.' + tail(o, W) },
+        p: H + read('today' + ws, 'situation') + '. Run a standup with me: ask (1) what I finished since yesterday, (2) the ONE thing today is about, (3) what is blocking me. Wait for my answers. Then update the board (done / start / note / step as needed), and give me today\'s plan: max 3 items, in order, each with what "done" looks like. If today shows a Video line, a take is waiting (not transcribed, not cut or not rendered): give its next step a place in the plan or say it waits until tomorrow.' + tail(o, W) },
       { c: 'daily', slug: 'now', t: 'What should I do right now?', d: 'Asks how long you have, picks the single smallest next step that fits, starts it.', pages: ['home', 'board'],
         p: H + read('today' + ws, 'situation') + '. Ask me one question first: how much time do I have right now? Then pick the single smallest next step that fits it and moves the highest-priority Doing task (or the top To Do if nothing is in Doing). Tell me what "done" looks like for it, then start it (`start`).' + tail(o, W) },
       { c: 'daily', slug: 'wrap', t: 'Wrap up the day', d: 'Logs what happened, parks what slipped, sets up tomorrow.', pages: ['home', 'board'],
@@ -91,7 +91,7 @@
 
       /* ---- weekly: two calendar moments and one anxiety moment ------------ */
       { c: 'weekly', slug: 'week', t: 'Review my week', d: 'Five-line summary, then concrete moves you approve one by one.', pages: ['home', 'board', 'social'],
-        p: H + read('week' + ws + ' --json', 'week') + '. Give me: (1) a five-line summary — doing, high and untouched, posts due with open prep, anything overdue, idle time; (2) three concrete moves; (3) after I approve, apply them.' + tail(o, W) },
+        p: H + read('week' + ws + ' --json', 'week') + '. Give me: (1) a five-line summary — doing, high and untouched, posts due with open prep, anything overdue, idle time; (2) three concrete moves; (3) after I approve, apply them. If the week shows a Video line, a take is waiting: say where it stands and whether this week has the half hour to cut it (Cut this take).' + tail(o, W) },
       { c: 'weekly', slug: 'plan-week', t: 'Plan the week', d: 'Monday: what this week is for, Doing set to max 3, posts covered, the rest parked.', pages: ['home'],
         p: H + read('week' + ws + ' --json', 'week') + '. Plan my week: (1) ask me what this week is for, in one sentence; (2) propose what goes in Doing (max 3), what stays in To Do, what moves to Later, and which posts need copy or prep before their date; (3) split anything bigger than a day into steps. Show the plan, apply after I confirm.' + tail(o, W) },
       { c: 'weekly', slug: 'close-week', t: 'Close the week', d: 'Friday: what shipped, what slipped and why, where the gaps were. Nothing changes without a yes.', pages: ['home'],
@@ -134,6 +134,18 @@
         p: H + 'Below is what I saved since my last assessment. For each item: one line on what it is and why I probably saved it, 2–3 tags to add, and what it should become — task (which board), post, script, draft, or keep as reference. Reply with `inspo tag ID +tag +tag` lines for the tags' + (files ? ' (run them)' : '') + ', then a short table of your suggestions. I will pick which become work.\n\n{{inspiration_new}}' + tail(o, R) },
       { c: 'content', slug: 'use-inspo', t: 'Turn inspiration into work', d: 'Each saved link or idea becomes a task, post, script or draft — or is skipped.', pages: ['inspo', 'home'],
         p: H + read('inspo list' + ws, 'inbox') + '. For each inspiration item decide: task (which board), post, script, draft, or skip, in a short table. After I confirm, ' + (files ? 'run `inspo use ID --as task|post|script|note` for each so the link back is kept.' : 'reply with `add` / `social add` / `scripts add` / `notes add` lines for the ones I confirmed.') + tail(o, W) },
+      { c: 'content', slug: 'cut-take', t: 'Cut this take', d: 'Lists the slips, proposes the cut in plain words with the runtime, waits for a yes, then cuts and renders a preview.', pages: ['scripts', 'home'], arg: 'take',
+        p: H + 'Below is a take I recorded, as its words with their times ([start-end], seconds). Cut it with me, in this order. (1) List the verbal slips with their times: fillers (um, uh, you know), false starts, anything I said twice (keep the better one), long pauses. (2) Ask me one question: where it goes — YouTube, LinkedIn, Instagram or TikTok — because that decides the caption style and the aspect. (3) Propose the cut in 4–8 plain sentences: what goes, what stays, the line it opens on, and the runtime that leaves. Then wait for my yes; nothing is cut before it. ' +
+          (files
+            ? 'After the yes: write the EDL (a JSON list of { "start", "end", "quote", "reason" } in seconds, in order) to `data/videos/<take>/cut.json` and run `node solo.js video cut <take> --edl data/videos/<take>/cut.json' + ws + ' --as agent --note "…"`; `--drop "um, uh"` when only fillers go, `--keep "2.4-6.8, 8.1-15.0"` for a plain trim (every edge snaps to a word and is padded; the cut is logged and `revert` undoes it). Then `node solo.js video render <take> --preview' + ws + '` and tell me what to check in it: the opening, each join, the captions. The final — `video render` without --preview — only after I say I watched the preview.'
+            : 'After the yes, end your reply with the lines I run in my terminal (the cut and the render happen there, on my file; the app cannot do this part from your reply): `node solo.js video cut <take> --edl cut.json`, with the EDL right under it in a code block (a JSON list of { "start", "end", "quote", "reason" } in seconds, in order; I save it as cut.json), or `--drop "um, uh"` when only fillers go, or `--keep "2.4-6.8, 8.1-15.0"` for a plain trim; then `node solo.js video render <take> --preview`. Tell me what to check in the preview: the opening, each join, the captions. The final — `video render` without --preview — only after I say I watched the preview.') +
+          '\n\n{{take}}' },
+      { c: 'content', slug: 'ship-video', t: 'Post this video', d: 'Two copies in your voice from the script and the words, then the final is linked into a scheduled post.', pages: ['social', 'scripts'], arg: 'take',
+        p: H + 'Below is a take I cut and rendered. Write the post that goes with it: ' + (files ? 'read the script it came from when it names one (`node solo.js scripts show <id>' + ws + '`) and its words, ' : 'from its words (and the script, if I paste it), ') + 'then give me two copies in my voice — the words I actually say in the take, not marketing — for the platform it goes to (ask if you cannot tell): first line is the hook, then 2–3 plain sentences, under 240 characters, no hashtags, no hype. ' +
+          (files
+            ? 'For the one I pick, run `node solo.js video post <take> --at "tomorrow 09:00" --copy "…"' + ws + ' --as agent --note "…"`: it links the final into a new scheduled post; nothing is copied. No final yet? Say so and stop: it is rendered first (`node solo.js video render <take>' + ws + '`).'
+            : 'For the one I pick, end your reply with the line I run in my terminal: `node solo.js video post <take> --at "tomorrow 09:00" --copy "…"` (it links the final into a new scheduled post; the file is on my computer, so the app cannot do that from your reply). No final yet? Say so first: it is rendered before it is posted.') +
+          '\n\n{{take}}' },
 
       /* ---- bring in: what the agent is connected to, into Solo Ops ---------- */
       { c: 'bringin', slug: 'fill-calendar', t: 'Fill my calendar', d: 'The agent reads the calendar it is connected to and adds this week\'s meetings as tasks with a time. Safe to run every morning.', pages: ['calendar', 'home'], go: 'calendar',
@@ -172,7 +184,8 @@
       'My workspace is "' + o.title + '" (id ' + id + ').\n\n' +
       'WHAT I WILL PASTE\n' +
       '- A SNAPSHOT: boards with tasks as [t…] title · priority · #tags · steps; POSTS as [p…] date · title · status; SCRIPTS [s…]; NOTES [n…]; INSPIRATION [i…] with links. Columns: todo | doing | done | later (parked) | bucket (ideas). Priority: high | medium | low.\n' +
-      '- Sometimes one item in full: a task card, a draft with ~~cut~~ ++add++ [[note for you]] markup, or a script (# Title / ## Hook / ## Script numbered beats / ## Inserts / ## Prep).\n\n' +
+      '- Sometimes one item in full: a task card, a draft with ~~cut~~ ++add++ [[note for you]] markup, or a script (# Title / ## Hook / ## Script numbered beats / ## Inserts / ## Prep).\n' +
+      '- A TAKE: a recording as its words with [start-end] times in seconds, when we cut a video. The cut and the render run in my terminal (`node solo.js video …`), so you end with those lines and I run them.\n\n' +
       'HOW TO WORK\n' +
       '1. Read the snapshot, then ask what you need (one or two questions), or make one proposal. Short turns, no reports.\n' +
       '2. Summaries are five lines: what is in Doing, what is high and untouched, posts due with open prep, anything overdue, idle time.\n' +
@@ -196,7 +209,8 @@
       last_task: 'The task: ' + arg + ' (an id or part of the title). If that is empty, use the task in Doing (`node solo.js list doing' + ws + '`). Read it with `node solo.js show <task>' + ws + '`.',
       this: 'The item: ' + arg + ' (a script s…, note n…, post p… or task t… id, or part of its title). If that is empty, ask me which. Read it with `node solo.js scripts show`, `notes show`, `social show` or `show`, with' + ws + '.',
       inspiration: 'Run `node solo.js inspo list' + ws + '`.',
-      inspiration_new: 'Run `node solo.js inspo list' + ws + ' --status new`.'
+      inspiration_new: 'Run `node solo.js inspo list' + ws + ' --status new`.',
+      take: 'The take: ' + arg + ' (an id v… or part of its title). If that is empty, use the latest take (`node solo.js video list' + ws + '`). Read it with `node solo.js video show <take>' + ws + '`: its words with [start-end] times in seconds, the cut so far and the exports.'
     };
   }
   var MARK = 'generated by `node solo.js prompts export` — edit core/prompts.js or data/prompts.json, not this file';
