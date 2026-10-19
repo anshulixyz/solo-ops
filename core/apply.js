@@ -45,6 +45,7 @@
   function looksCmd(line) {
     if (/^(\$\s*)?(node\s+solo\.js|node\s+marathon\.js|solo|marathon)\s+/.test(line)) return true;
     if (/^(add|done|start|later|bucket|todo|move|pri|tag|step|check|note|rm|del|social|post|scripts|notes|inspo|config)\s/.test(line)) return true;
+    if (/^video\s+(cut|render|transcribe|add|post|show|list|open|rm|source|key)\s/.test(line)) return true;   // "video editing is fun" is prose
     if (/^(at|due)\s/.test(line)) { var toks = line.trim().replace(/\s--\w+(=\S+|\s+\S+)?/g, '').split(/\s+/); /* flags (--until 11:00) do not hide the date */ var last = (toks[toks.length - 1] || '').toLowerCase(); var prev = (toks[toks.length - 2] || '').toLowerCase(); var WD = global.When ? When.WEEKDAY : /^(mon|tue|wed|thu|fri|sat|sun)$/; return toks.length >= 3 && (last === 'clear' || /^\d{4}-\d{2}-\d{2}/.test(last) || /^\+\d+d$/.test(last) || /^(today|tomorrow|now)$/.test(last) || WD.test(last) || (/^\d{1,2}:\d{2}$/.test(last) && (/^\d{4}-\d{2}-\d{2}$/.test(prev) || /^\+\d+d$/.test(prev) || /^(today|tomorrow)$/.test(prev) || WD.test(prev)))); }
     return false;
   }
@@ -251,7 +252,23 @@
           }
         } else if (['week', 'today', 'list', 'show', 'log', 'activity', 'boards', 'workspaces', 'config', 'help', 'share', 'review'].indexOf(cmd) >= 0) {
           /* read-only commands: nothing to apply */
-        } else if (cmd === 'video') skipped.push('video ' + (a.pos[0] || '') + ': this runs in your terminal, not here — copy the line into Terminal in your Solo Ops folder');
+        } else if (cmd === 'video') {
+          // `video cut <take> --keep "…"` / `--drop "…"` writes the cut (the Video page renders it; a reply never renders). Every other video step needs ffmpeg: the terminal, or the page's buttons.
+          var vsub = (a.pos.shift() || '').toLowerCase(); var vid = a.pos.join(' ');
+          if (vsub !== 'cut') skipped.push('video ' + vsub + ': this runs in your terminal or from the Video page\'s buttons, not from a reply' + (vsub === 'render' ? ' — the cut is here; press Render a preview on the Video page' : ''));
+          else if (a.flags.edl) skipped.push('video cut --edl: that names a file on disk; run the line in your terminal, or paste the pieces as --keep "start-end, …"');
+          else if (!global.Video) skipped.push('video cut: open the Video page (it has the cut logic) and paste this there, or run the line in your terminal');
+          else if (global.VideoModel) {
+            if (dry) { var dt = VideoModel.get(vid) || VideoModel.list().filter(function (x) { return x.title.toLowerCase() === vid.toLowerCase(); })[0]; if (!dt) skipped.push('no take matches "' + vid + '"'); else if (a.flags.drop && !VideoModel.hasWords(dt.id)) skipped.push('video cut --drop needs the words: open the Video page with node serve.js running, or run it in the terminal'); else { try { if (a.flags.keep) Video.parseRanges(String(a.flags.keep)); applied.push('cut take: ' + dt.title + ' (' + (a.flags.keep ? 'keep ' + a.flags.keep : 'drop ' + a.flags.drop) + ')'); } catch (e) { skipped.push('video cut: ' + e.message); } } }
+            else { try { var vr = VideoModel.cutFromLine(vid, a.flags); applied.push('cut applied: ' + vr.take.title + ' — ' + vr.edl.length + ' piece' + (vr.edl.length === 1 ? '' : 's') + ', ' + VideoModel.fmt(vr.runtime) + '. Next: Render a preview (the reply cannot render)'); } catch (e) { skipped.push('video cut: ' + e.message); } }
+          } else if (a.flags.drop) skipped.push('video cut --drop needs the words: paste this on the Video page with node serve.js running, or run it in the terminal');
+          else if (!a.flags.keep) skipped.push('video cut needs --keep "start-end, …" or --drop "um, uh"');
+          else {   // core/video.js without the Video page's model (today only the test sandbox; kept so another page could load core/video.js): --keep lands on the sentences
+            var vk = Config.key('videos', c.ws); var vlib = Store.getJSON(vk, null); var vt = vlib && (vlib.videos || []).filter(function (x) { return x.id === vid || (x.title || '').toLowerCase() === vid.toLowerCase(); })[0];
+            if (!vt) skipped.push('no take matches "' + vid + '"');
+            else { try { var vs = vt.sources && vt.sources[0] || {}; var vres = Video.snap(Video.parseRanges(String(a.flags.keep)), (vt.phrases || []).map(function (p) { return { w: p.t, s: p.s, e: p.e }; }), { fps: vs.fps, duration: vs.duration }); if (!dry) { vt.edl = vres.edl; vt.edlHash = Video.edlHash(vres.edl); if (['recorded', 'transcribed', 'rendered'].indexOf(vt.status) >= 0) vt.status = 'cut'; vt.updatedAt = Date.now(); Store.setJSON(vk, vlib); c.touched[Config.file('videos', c.ws)] = 1; if (global.Sync && Sync.note) Sync.note(Config.file('videos', c.ws), 'video cut ' + vt.id + ' (' + vres.edl.length + ' pieces, from a reply)'); } applied.push('cut applied: ' + vt.title + ' — ' + vres.edl.length + ' piece' + (vres.edl.length === 1 ? '' : 's') + ', ' + Video.fmt(vres.runtime) + '. Next: Render a preview on the Video page'); } catch (e) { skipped.push('video cut: ' + e.message); } }
+          }
+        }
         else skipped.push('unknown command: ' + line.slice(0, 60));
       } catch (e) { skipped.push('could not apply: ' + line.slice(0, 60)); }
       i++;

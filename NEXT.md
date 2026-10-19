@@ -171,6 +171,36 @@ folder: the prompt's own commands cut, preview, render and post it.
 Next: slice 3, the page.
 Slice 2 reviewed 2026-10-19 (fresh-eyes developer + product engineer, 28
 findings), fixes in `b1994da`.
+**Slice 3 shipped 2026-10-19, commit `(this commit)`:** the Video page
+(`studio/video.html` + model / view / main, nav "Video", `apps.video`
+switch everywhere a workspace lists its apps, Home chip and Overview
+card, Guide page texts, `{{take}}` reads the open take, Export everything
+carries `videos.json`). Sentences as toggles (click = cut, shift-click a
+run, keyboard), fillers highlighted with *Drop the fillers* and a click to
+spare one, struck words click back in, Undo (⌘Z) and *Keep everything*,
+the next step as a sentence with its button, plain status labels. The
+cut goes through `core/video.js` exactly as the CLI's (`Video.edlHash`
+is now one pure sha1 shared by both sides). serve.js: `/api/video/doctor`
+(the ffmpeg card in the Guide once a take exists, inline on the page),
+`add` (drop the file: `find` looks in Movies/Desktop/Downloads/Documents),
+`transcribe` (three engine cards in the CLI's words, ElevenLabs asks the
+price, import reads the dropped SRT), `render` (detached, 202, 409 while
+one runs, progress polled, the preview plays inline from a Range route),
+`source`, `post`. Two reconcile rules close the page-vs-CLI race: the CLI
+patches a fresh copy of `videos.json` (`patchVideo`) and the page rebuilds
+every write from the file's copy (`Sync` `reconcile` hook) overlaying only
+`edl / edlHash / status`. `core/apply.js` learned `video cut --keep/--drop`
+(never render); `core/test-video-page.js` (42 checks) and test-apply cover
+it; `npm test` green. Verified on a synthetic take in a scratch `SOLO_DATA`
+folder: toggles → EDL on words → preview → final → *Make the post*. Slice
+3 was planned with a page plan reviewed by two agents before building
+(product + tech, 46 findings) and the diff reviewed by two after.
+Not in this slice: *Remember this engine* on the page (`config set
+video.engine` from the terminal does it), several takes per item, a
+Video line on Home's Today strip, the EPIPE and doctor-stale-lock minors.
+Known: the Claude desktop Browser pane cannot fetch through the service
+worker (every page there loads only when the worker is unregistered;
+Chrome and Safari are fine).
 
 ### M3 · Collaborators through agents, no shared app
 An editor or writer installs Solo Ops, points their agent at the same
@@ -205,11 +235,19 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Minor / issues
 
-- **`prompts export` with no `data/prompts.json` deletes `mine/`
-  (2026-10-19):** in a worktree or fresh clone that carries copied
-  `.claude/commands/mine/` files but no data folder, the export sees no
-  personal prompts and removes every generated file in `mine/` as stale.
-  It should leave `mine/` alone when `data/prompts.json` is absent.
+- **Studio pages: the capture strip and the Guide handle overlap (2026-10-19):**
+  on Script Viewer, Writing Viewer and Video the Inspiration capture strip
+  (`.studio-nav + .capture`, `top:8px`) sits over the "… · STUDIO" eyebrow,
+  and once the window scrolls the fixed Guide handle (`top:140px`) covers the
+  first letters of the sidebar's active item. The sidebars also size
+  themselves to `calc(100vh - 62px)` as if the header were 62px, so the
+  window scrolls when it should not. One shared fix in theme.css /
+  script-viewer.css.
+
+- **`doctor` does not know the page's job files (2026-10-19):** serve.js
+  writes `data/videos/<id>/render.json` / `transcribe.json` with the pid of
+  the CLI it spawned; `doctor`'s stale-lock check covers `progress.json`
+  only. Extend it, and have `video rm --files` mention them.
 
 - **`video render` dies with EPIPE when stdout closes (2026-10-19):** the
   progress line is written to stdout without an error handler, so

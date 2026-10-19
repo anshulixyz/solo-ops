@@ -178,7 +178,19 @@ remote keeps the block.
   exports are numbered and never overwritten or deleted by you. Captions
   ride along as a track and a `.srt`; `--burn` burns them when ffmpeg can.
   `video post` links the final into a new post, never copies it. ffmpeg is
-  required; `doctor` says so when it is missing.
+  required; `doctor` says so when it is missing. **The page**
+  (`studio/video.html`, nav "Video") is the same flow for someone who never
+  opens a terminal: the sentences are toggles (click = cut, click again =
+  keep), *Drop the fillers* takes um/uh/you know in one go, *Cut it with my
+  AI* opens the Guide on `/cut-take` with the take in `{{take}}`, and with
+  `node serve.js` running the buttons run `video add | transcribe | render |
+  post` for her and poll the progress. The page writes only `edl`, `edlHash`,
+  `cutAt`, `status`, `updatedAt` and `activeId` of `videos.json` (and removes
+  a take on request); everything else is yours (the CLI's), and the page
+  merges your copy in before every write (`cutAt` says whose cut is newer),
+  so write a take through the CLI while the page is open without fear. A pasted reply's
+  `video cut <take> --keep "…"` / `--drop "…"` lands on the page too (never a
+  render).
 - **Inspiration flow:** the user drops links/ideas/images into the inbox (often
   by pasting into you first). Items arrive with auto tags (kind, site) and,
   when the server was running, the page's title and description in `meta`.

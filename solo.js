@@ -115,10 +115,10 @@ function normBoard(b) { var id = slug(b.id || b.title); if (!id || RESERVED.inde
 /* ---- workspaces: config + data/workspaces.json; primary keeps short file names ---- */
 function normWs(w) {
   if (!w) return null; var id = slug(w.id || w.title); if (!id || RESERVED.indexOf(id) >= 0) return null;
-  var apps = Object.assign({ social: true, scripts: true, writing: true }, w.apps || {});
+  var apps = Object.assign({ social: true, scripts: true, writing: true, video: true }, w.apps || {});
   var boards = (Array.isArray(w.boards) ? w.boards : []).map(normBoard).filter(Boolean);
   if (w.boards === undefined && apps.boards !== false && !boards.length) boards = [normBoard({ id: 'runway', title: 'Launch Runway', sprintLabel: 'Sprint progress' })];
-  return { id: id, title: w.title || id, apps: { social: apps.social !== false, scripts: apps.scripts !== false, writing: apps.writing !== false }, boards: boards };
+  return { id: id, title: w.title || id, apps: { social: apps.social !== false, scripts: apps.scripts !== false, writing: apps.writing !== false, video: apps.video !== false }, boards: boards };
 }
 function configWs() {
   var list = Array.isArray(cfg.workspaces) && cfg.workspaces.length ? cfg.workspaces
@@ -564,7 +564,10 @@ function absData(rel) { return path.isAbsolute(rel) ? rel : /^data\//.test(rel) 
 function fmtSize(b) { b = b || 0; return b < 1048576 ? Math.max(1, Math.round(b / 1024)) + ' KB' : b < 10 * 1048576 ? (b / 1048576).toFixed(1) + ' MB' : b < 1073741824 ? Math.round(b / 1048576) + ' MB' : (b / 1073741824).toFixed(1) + ' GB'; }
 function requireFfmpeg() { if (!V) fail('core/video.js not found.'); var t = V.node.tools(videoCfg()); if (!t.ffmpeg || !t.ffprobe) fail(V.node.NEED_FFMPEG); return t; }
 function secrets() { try { return JSON.parse(fs.readFileSync(path.join(DATA, 'secrets.json'), 'utf8')) || {}; } catch (e) { return {}; } }
-function edlHash(edl) { return require('crypto').createHash('sha1').update(JSON.stringify((edl || []).map(function (s) { return [s.start, s.end]; }))).digest('hex').slice(0, 10); }
+function edlHash(edl) { return V.edlHash(edl); }   // one function for the CLI and the page (core/video.js)
+// Write one take's fields onto a FRESH copy of videos.json: transcribe and render take minutes, and the Video page
+// (or another command) may have written the file meanwhile. fn(freshTake) patches only what this command owns.
+function patchVideo(v, fn) { var d2 = videos(); var fresh = d2.videos.filter(function (x) { return x.id === v.id; })[0]; if (!fresh) { d2.videos.unshift(v); fresh = v; } fn(fresh); fresh.updatedAt = Date.now(); write(fileName('videos'), d2); Object.assign(v, fresh); return fresh; }
 var NO_LIBASS = 'Burned captions need an ffmpeg built with libass, and Homebrew\'s is not. The captions are in the file as a track and next to it as a .srt, which YouTube, LinkedIn and TikTok read when you upload it. For burned-in captions: brew trust homebrew-ffmpeg/ffmpeg && brew tap homebrew-ffmpeg/ffmpeg && brew install homebrew-ffmpeg/ffmpeg/ffmpeg (it compiles, takes a while), or point video.ffmpeg at another ffmpeg: node solo.js config set video.ffmpeg /path/to/ffmpeg';
 function videoStatus(v, s) {   // posted = the linked post says so
   if (v.postId) { var p = (s || schedule()).posts.filter(function (x) { return x.id === v.postId; })[0]; if (p && p.status === 'posted') return 'posted'; }
@@ -631,7 +634,7 @@ function cmdVideo() {
     var Ts = requireFfmpeg(); var abs2 = path.resolve(np); if (!fs.existsSync(abs2)) fail('No such file: ' + np);
     var pr2; try { pr2 = V.node.probe(Ts, abs2); } catch (e) { fail(path.basename(abs2) + ' is not a video or audio file ffmpeg can read.'); } var h2 = V.node.hashFile(abs2); var same = vs.sources[0] && vs.sources[0].hash === h2;
     vs.sources[0] = { id: 'a', path: abs2, size: pr2.size, duration: pr2.duration, width: pr2.width, height: pr2.height, fps: pr2.fps, rotation: pr2.rotation, hdr: pr2.hdr, hasAudio: pr2.hasAudio, hash: h2 };
-    if (!same) { vs.transcript = null; vs.phrases = []; vs.edl = []; vs.edlHash = ''; vs.status = 'recorded'; }
+    if (!same) { vs.transcript = null; vs.phrases = []; vs.edl = []; vs.edlHash = ''; vs.cutAt = Date.now(); vs.status = 'recorded'; }
     note('video source ' + vs.id + (same ? ' (same file)' : ' (different file)')); vs.updatedAt = Date.now(); write(fileName('videos'), d);
     return out('✓ [' + vs.id + '] now points at ' + abs2 + (same ? ' (same recording: the words and the cut are kept)' : ' (a different recording: transcribe it again; the old words and cut were cleared)'), vs);
   }
@@ -649,8 +652,8 @@ function cmdVideo() {
       fs.writeFileSync(tFile, JSON.stringify(t, null, 1) + '\n'); if (raw) fs.writeFileSync(path.join(dir, 'transcript-raw.json'), JSON.stringify(raw) + '\n');
       var changed = cached && cached.words && JSON.stringify(cached.words) !== JSON.stringify(words); var cutNote = '';
       if (changed && vt.edl && vt.edl.length) { vt.edl = []; vt.edlHash = ''; cutNote = '\n  · the words changed, so the earlier cut (made on the old words) was cleared; node solo.js revert <id> brings it back'; }
-      vt.transcript = { engine: eng, model: mdl || '', lang: langUsed || '', granularity: granularity, words: words.length, file: relData(tFile) }; vt.phrases = V.phrases(words); if (vt.status === 'recorded' || (changed && vt.status === 'cut')) vt.status = 'transcribed'; vt.updatedAt = Date.now();
-      note('video transcribe ' + vt.id + ' (' + words.length + ' words, ' + eng + ')'); write(fileName('videos'), d);
+      note('video transcribe ' + vt.id + ' (' + words.length + ' words, ' + eng + ')');
+      patchVideo(vt, function (f) { f.transcript = { engine: eng, model: mdl || '', lang: langUsed || '', granularity: granularity, words: words.length, file: relData(tFile) }; f.phrases = V.phrases(words); if (changed && f.edl && f.edl.length) { f.edl = []; f.edlHash = ''; f.cutAt = Date.now(); } if (f.status === 'recorded' || (changed && f.status === 'cut')) f.status = 'transcribed'; });
       var md2 = ['✓ ' + words.length + ' words from ' + eng + (mdl ? ' ' + mdl : '') + (granularity === 'cue' ? ' (cue-level: cuts will snap to the cues, not to words)' : '') + ' → ' + relData(tFile) + cutNote, '', V.packed(vt.phrases.slice(0, 12)) + (vt.phrases.length > 12 ? '\n… ' + (vt.phrases.length - 12) + ' more: node solo.js video show ' + vt.id : ''), '', 'Next: say what to keep — ' + videoNext(vt)];
       return out(md2, vt);
     }
@@ -661,7 +664,7 @@ function cmdVideo() {
     }
     if (engine === 'whisper' && lang && lang !== 'en' && /\.en$/.test(model) && !flags.model) model = model.replace(/\.en$/, '');   // the .en models are English only
     var langUsed = engine === 'whisper' ? (lang || (/\.en$/.test(model) ? 'en' : 'auto')) : lang;
-    if (cached && cached.source && cached.source.hash === src.hash && cached.engine === engine && (engine !== 'whisper' || cached.model === model) && !flags.force) { vt.transcript = Object.assign(vt.transcript || {}, { engine: cached.engine, model: cached.model, lang: cached.lang || '', granularity: cached.granularity || 'word', words: cached.words.length, file: relData(tFile) }); vt.phrases = V.phrases(cached.words); if (vt.status === 'recorded') vt.status = 'transcribed'; note('video transcribe ' + vt.id + ' (cached)'); write(fileName('videos'), d); return out('✓ Already transcribed with ' + engine + (cached.model ? ' ' + cached.model : '') + ' (cached, the file did not change). --force runs it again.\n\nNext: ' + videoNext(vt), vt); }
+    if (cached && cached.source && cached.source.hash === src.hash && cached.engine === engine && (engine !== 'whisper' || cached.model === model) && !flags.force) { note('video transcribe ' + vt.id + ' (cached)'); patchVideo(vt, function (f) { f.transcript = Object.assign(f.transcript || {}, { engine: cached.engine, model: cached.model, lang: cached.lang || '', granularity: cached.granularity || 'word', words: cached.words.length, file: relData(tFile) }); f.phrases = V.phrases(cached.words); if (f.status === 'recorded') f.status = 'transcribed'; }); return out('✓ Already transcribed with ' + engine + (cached.model ? ' ' + cached.model : '') + ' (cached, the file did not change). --force runs it again.\n\nNext: ' + videoNext(vt), vt); }
     var tmp = V.node.tmpDir(); var wav = path.join(tmp, 'audio.wav');
     function say(t) { if (!JSON_OUT) process.stdout.write(t + '\n'); }
     try {
@@ -695,7 +698,7 @@ function cmdVideo() {
     var res; try { res = V.snap(ranges, words, opts); } catch (e) { fail(e.message); }
     if (had && !flags.drop) notes.push('replaced the previous cut (' + had + ' piece' + (had === 1 ? '' : 's') + '); node solo.js revert <id> brings it back (node solo.js log)');
     note('video cut ' + vc.id + ' (' + res.edl.length + ' piece' + (res.edl.length === 1 ? '' : 's') + ', ' + V.fmt(res.runtime) + (flags.drop ? ', drop ' + String(flags.drop).slice(0, 30) : flags.edl ? ', from an EDL' : '') + ')');
-    vc.edl = res.edl; vc.edlHash = edlHash(res.edl); if (['recorded', 'transcribed', 'rendered'].indexOf(vc.status) >= 0) vc.status = 'cut'; vc.updatedAt = Date.now(); write(fileName('videos'), d);
+    vc.edl = res.edl; vc.edlHash = edlHash(res.edl); vc.cutAt = Date.now(); if (['recorded', 'transcribed', 'rendered'].indexOf(vc.status) >= 0) vc.status = 'cut'; vc.updatedAt = Date.now(); write(fileName('videos'), d);   // cutAt: the cut's own stamp, so the page knows whose cut is newer
     var md3 = ['✓ Cut: ' + res.edl.length + ' piece' + (res.edl.length === 1 ? '' : 's') + ', ' + V.fmt(res.runtime) + ' of ' + V.fmt(srcC.duration) + (words.length ? ' (edges snapped to words, padded)' : '')];
     res.edl.forEach(function (s, i) { md3.push('  ' + (i + 1) + '. ' + V.fmt(s.start) + '-' + V.fmt(s.end) + (s.quote ? '  "' + s.quote + (s.quote.length >= 80 ? '…' : '') + '"' : '') + (s.reason ? '  (' + s.reason + ')' : '')); });
     notes.concat(res.notes).forEach(function (n) { md3.push('  · ' + n); });
@@ -733,8 +736,8 @@ function cmdVideo() {
     if (err) fail(err.message);
     if (!JSON_OUT && process.stdout.isTTY) process.stdout.write('\n');
     var rel = outPath ? outPath : relData(finalFile); var st = fs.statSync(finalFile);
-    vd.exports = vd.exports || []; vd.exports.push({ file: rel, kind: kind, duration: res2.duration, size: st.size, edlHash: vd.edlHash, captions: res2.burned ? 'burned' : res2.softCaptions ? 'track+srt' : 'none', srt: relData(res2.srt), encoder: res2.encoder, aspect: flags.aspect === '9:16' ? '9:16' : '', style: style, at: Date.now() });
-    if (!preview) vd.status = 'rendered'; vd.updatedAt = Date.now(); note('video render ' + vd.id + ' (' + name + ')'); write(fileName('videos'), d);
+    var exportRec = { file: rel, kind: kind, duration: res2.duration, size: st.size, edlHash: vd.edlHash, captions: res2.burned ? 'burned' : res2.softCaptions ? 'track+srt' : 'none', srt: relData(res2.srt), encoder: res2.encoder, aspect: flags.aspect === '9:16' ? '9:16' : '', style: style, at: Date.now() };
+    note('video render ' + vd.id + ' (' + name + ')'); patchVideo(vd, function (f) { f.exports = (f.exports || []).concat([exportRec]); if (!preview && f.edlHash === exportRec.edlHash) f.status = 'rendered'; });   // the cut may have changed on the page while this rendered: then it stays `cut`
     var notes2 = [burnNote, res2.note].filter(Boolean);
     return out(['✓ Done: ' + V.fmt(res2.duration) + ', ' + (preview ? outH + 'p preview' : pr3.width + '×' + pr3.height) + ', ' + fmtSize(st.size) + ', ' + Math.round((Date.now() - t0) / 1000) + ' s' + (res2.burned ? ', captions burned in' : res2.softCaptions ? ', captions as a track + ' + relData(res2.srt) : ''), '  ' + rel].concat(res2.note ? ['  ⚠ ' + res2.note] : []).concat(['  Open it: node solo.js video open ' + vd.id + (preview ? ' --preview' : '') + (preview ? ' · happy? node solo.js video render ' + vd.id + ' for the final' : ' · post it: node solo.js video post ' + vd.id + ' --at "tomorrow 09:00"')]), { id: vd.id, file: rel, duration: res2.duration, size: st.size, preview: preview, captions: res2.burned ? 'burned' : res2.softCaptions ? 'track+srt' : 'none', segments: res2.segments, encoder: res2.encoder, took: Math.round((Date.now() - t0) / 1000), note: notes2.join(' ') });
   }
@@ -752,7 +755,7 @@ function cmdVideo() {
     if (exF.edlHash !== vp.edlHash && !flags.force) fail(path.basename(exF.file) + ' was rendered before the current cut. Render the final again first: node solo.js video render ' + vp.id + '   (or --force to post it anyway)');
     var s2 = schedule(); var types = (cfg.social && cfg.social.postTypes) || ['announcement', 'launch', 'update', 'thread', 'teaser']; var link = require('url').pathToFileURL(absData(exF.file)).href;
     var np = { id: newId('p'), datetime: parseWhen(flags.at), title: flags.title || vp.title, postType: types.indexOf(flags.type) >= 0 ? flags.type : (types.indexOf('update') >= 0 ? 'update' : types[0] || 'update'), format: 'video', project: flags.project || flags.proj || ((cfg.projects || [])[0] || {}).name || 'general', copy: flags.copy || '', video: { title: vp.title, status: 'edited', notes: 'cut from take ' + vp.id + (vp.scriptId ? ', script ' + vp.scriptId : ''), link: link }, links: [{ id: newId('l'), label: 'the cut (' + V.fmt(exF.duration) + ')', url: link, kind: 'video' }], assets: [], prep: [{ text: 'Watch the cut full-screen, sound off and on', done: false, kind: 'video' }, { text: 'Write the copy', done: !!flags.copy, kind: 'content' }], notes: '', status: 'draft', posted: { url: '', postedAt: '', stats: {}, notes: '', screenshotId: '' } };
-    note('video post ' + vp.id + ' → ' + np.id); s2.posts.push(np); write(fileName('social'), s2); vp.postId = np.id; vp.updatedAt = Date.now(); write(fileName('videos'), d);
+    note('video post ' + vp.id + ' → ' + np.id); s2.posts.push(np); write(fileName('social'), s2); patchVideo(vp, function (f) { f.postId = np.id; });
     return out(['✓ Post [' + np.id + '] ' + np.title + ' · ' + fmtDT(np.datetime) + ' · video linked (not copied): ' + exF.file, '  Copy: node solo.js social copy ' + np.id + ' "…" · mark posted: node solo.js social posted ' + np.id + ' --url … (the take then reads posted)'], { post: np, video: vp.id });
   }
   fail('Unknown video command "' + sub + '". Try: list, add, show, transcribe, cut, render, open, post, source, rm, key');
@@ -875,7 +878,8 @@ function exportPrompts() {
   var mine = all.filter(function (x) { return x.custom || x.overridden; });
   var mineDir = path.join(dir, 'mine'); if (mine.length) fs.mkdirSync(mineDir, { recursive: true });
   pristine.concat(mine).forEach(function (x) { var isMine = x.custom || x.overridden; var f = path.join(isMine ? mineDir : dir, x.slug + '.md'); var prev = ''; try { prev = fs.readFileSync(f, 'utf8'); } catch (e) { /* new */ } if (prev && prev.indexOf(P.MARK) < 0) { kept.push(x.slug); return; } fs.writeFileSync(f, P.command(x, o, tool)); written.push((isMine ? 'mine/' : '') + x.slug); });
-  [dir, mineDir].forEach(function (d, isMine) { var names = []; try { names = fs.readdirSync(d); } catch (e) { return; } names.forEach(function (n) { if (!/\.md$/.test(n)) return; var slug = n.slice(0, -3); if ((isMine ? mine : pristine).some(function (x) { return x.slug === slug; })) return; var t = ''; try { t = fs.readFileSync(path.join(d, n), 'utf8'); } catch (e) { return; } if (t.indexOf(P.MARK) >= 0) { fs.unlinkSync(path.join(d, n)); removed.push((isMine ? 'mine/' : '') + slug); } }); });
+  var hasOwn = !!read('prompts');   // no data/prompts.json here (a fresh checkout, a worktree): mine/ belongs to another data folder, leave it alone
+  [dir, mineDir].forEach(function (d, isMine) { if (isMine && !hasOwn) return; var names = []; try { names = fs.readdirSync(d); } catch (e) { return; } names.forEach(function (n) { if (!/\.md$/.test(n)) return; var slug = n.slice(0, -3); if ((isMine ? mine : pristine).some(function (x) { return x.slug === slug; })) return; var t = ''; try { t = fs.readFileSync(path.join(d, n), 'utf8'); } catch (e) { return; } if (t.indexOf(P.MARK) >= 0) { fs.unlinkSync(path.join(d, n)); removed.push((isMine ? 'mine/' : '') + slug); } }); });
   return out(['✓ ' + written.length + ' slash command' + (written.length === 1 ? '' : 's') + ' for ' + tool + ' in ' + rel + '/ (workspace ' + WS_ID + ')', '  ' + written.filter(function (s) { return s.indexOf('mine/') !== 0; }).map(function (s) { return '/' + s; }).join(' ')].concat(written.some(function (s) { return s.indexOf('mine/') === 0; }) ? ['  yours, in ' + rel + '/mine/ (git-ignored): ' + written.filter(function (s) { return s.indexOf('mine/') === 0; }).map(function (s) { return '/' + s.slice(5); }).join(' ')] : []).concat(kept.length ? ['  kept your own: ' + kept.join(', ')] : []).concat(removed.length ? ['  removed stale: ' + removed.join(', ')] : []).concat(tool === 'claude' ? ['Type /standup in Claude Code opened in this folder. Re-run after editing prompts.'] : tool === 'codex' ? ['Codex loads these on start; restart it once.'] : []), { dir: dir, written: written, kept: kept, removed: removed });
 }
 
@@ -919,15 +923,15 @@ function cmdBoards() {
 function cmdWorkspaces() {
   var sub = (pos.shift() || 'list').toLowerCase(); var rt = read('workspaces') || { workspaces: [] }; rt.workspaces = Array.isArray(rt.workspaces) ? rt.workspaces : [];
   if (sub === 'list') return out(['## Workspaces (' + WORKSPACES.length + ')'].concat(WORKSPACES.map(function (w) {
-    var apps = ['boards'].filter(function () { return w.boards.length; }).concat(['social', 'scripts', 'writing'].filter(function (a) { return w.apps[a]; }));
+    var apps = ['boards'].filter(function () { return w.boards.length; }).concat(['social', 'scripts', 'writing', 'video'].filter(function (a) { return w.apps[a]; }));
     return '- [' + w.id + '] ' + w.title + ' · ' + apps.join(', ') + (w.boards.length ? ' · boards: ' + w.boards.map(function (b) { return b.id; }).join(', ') : '') + (w.id === WS_ID ? ' (default)' : '') + (w.id === PRIMARY ? ' · files: short names' : ' · files: ' + w.id + '-*.json');
   })), WORKSPACES);
   if (sub === 'add') {
-    var title = pos.join(' ').trim() || flags.title; if (!title) fail('Usage: workspaces add "Title" [--apps social,scripts,writing] [--boards "Launch,Ops"] [--sample]');
+    var title = pos.join(' ').trim() || flags.title; if (!title) fail('Usage: workspaces add "Title" [--apps social,scripts,writing,video] [--boards "Launch,Ops"] [--sample]');
     var id = slug(title); if (!id || RESERVED.indexOf(id) >= 0 || WORKSPACES.some(function (w) { return w.id === id; })) fail('Pick a different name.');
-    var apps = flags.apps === undefined ? ['boards', 'social', 'scripts', 'writing'] : split(flags.apps);
+    var apps = flags.apps === undefined ? ['boards', 'social', 'scripts', 'writing', 'video'] : split(flags.apps);
     var boards = (flags.boards === undefined ? (apps.indexOf('boards') >= 0 ? ['Board'] : []) : split(flags.boards)).map(function (t) { return { id: slug(t), title: t, sprintLabel: 'Progress', milestones: [], focus: [] }; });
-    var w = { id: id, title: title, apps: { social: apps.indexOf('social') >= 0, scripts: apps.indexOf('scripts') >= 0, writing: apps.indexOf('writing') >= 0 }, boards: boards, createdAt: Date.now() };
+    var w = { id: id, title: title, apps: { social: apps.indexOf('social') >= 0, scripts: apps.indexOf('scripts') >= 0, writing: apps.indexOf('writing') >= 0, video: apps.indexOf('video') >= 0 }, boards: boards, createdAt: Date.now() };
     rt.workspaces.push(w); write('workspaces', rt);
     var sample = !!flags.sample; var now = new Date(); var pre = id + '-';
     boards.forEach(function (b, i) { write(pre + b.id, { projects: [], tasks: sample && i === 0 && T ? T.runway().tasks : [] }, { noActivity: true }); });

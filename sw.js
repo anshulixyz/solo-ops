@@ -16,6 +16,7 @@ var SHELL = ['./', './index.html', './manifest.json', './solo.config.js', './ico
   './social/social-board.html', './social/social-calendar.html', './social/social-styles.css', './social/social-graph.css', './social/social-calendar.css',
   './social/social-assets-store.js', './social/social-image-store.js', './social/social-model.js', './social/social-image.js', './social/social-view.js', './social/social-main.js', './social/social-calendar-view.js', './social/social-calendar-main.js',
   './studio/script-viewer.html', './studio/writing-viewer.html', './studio/script-viewer.css', './studio/writing-viewer.css', './studio/script-viewer.js', './studio/writing-viewer.js',
+  './studio/video.html', './studio/video.css', './studio/video-model.js', './studio/video-view.js', './studio/video-main.js', './core/video.js',
   './inspo/inspiration.html', './inspo/inspo.css', './inspo/inspo-model.js', './inspo/inspo-main.js'];
 
 self.addEventListener('install', function (e) {

@@ -137,7 +137,7 @@ ok(res.applied.length === 33 && res.skipped.length === 4, 'counts: 33 applied, 4
 seed(); var r2 = Apply.run('Sure! Here you go:\n- [ ] Ship it\n- [ ] Tell people (low)\n', { ws: 'main' });
 ok(r2.applied.length === 2 && byTitle('Tell people').pri === 'low', 'plain checklist without fences');
 // 4. an answer with no changes at all
-seed(); var r3 = Apply.run('I think you should focus on the README first. At 10:00 you have a call.', { ws: 'main' });
+seed(); var r3 = Apply.run('I think you should focus on the README first. At 10:00 you have a call.\nvideo editing is the slow part, video cut day is Friday.', { ws: 'main' });
 ok(r3.applied.length === 0 && r3.skipped.length === 0 && Apply.plan('nothing here', { ws: 'main' }).length === 0, 'prose-only answer applies nothing');
 seed(); var r4 = Apply.run('```\nadd "Before"\nscripts add "Tagged"\n```\nHere is the script:\n```markdown\n# Tagged\n## Hook\nGo.\n```\nThen:\n```\nnotes add "After"\n```\n```\n# After\nbody\n```\nadd "Last one"\n', { ws: 'main' });
 ok(mem['marathon.scripts'].scripts[0] && /## Hook\nGo\./.test(mem['marathon.scripts'].scripts[0].text), 'script body found past a prose line and a ```markdown tag');
@@ -150,7 +150,22 @@ seed(); var r6 = Apply.run('```\nscripts add "A"\n```\n- [ ] Between item\n```\n
 ok(byTitle('Between item') && !/real body/.test(mem['marathon.scripts'].scripts[0].text), 'a checklist item between stops the body search');
 seed(); var r7 = Apply.run('```\nadd "Y"\nscripts add "A" --text "inline body"\n```\n```\nadd "Z"\n```\n', { ws: 'main' });
 ok(mem['marathon.scripts'].scripts[0].text === 'inline body' && byTitle('Y') && byTitle('Z') && Apply.segment('scripts add "A" --text "x"\n```\nadd "Q"\n```').length === 2, '--text keeps the body inline and the next block applies');
-seed(); var r8 = Apply.run('```\nnode solo.js video cut v1 --keep "1-2"\nadd "After video"\n```\n', { ws: 'main' });
-ok(byTitle('After video') && (r8.skipped || []).some(function (s) { return /terminal/.test(s); }), 'a pasted video line is skipped with the terminal note, the rest still applies (' + JSON.stringify(r8.skipped) + ')');
+seed(); var r8 = Apply.run('```\nnode solo.js video cut v1 --keep "1-2"\nnode solo.js video render v1 --preview\nadd "After video"\n```\n', { ws: 'main' });
+ok(byTitle('After video') && r8.skipped.length === 2 && r8.skipped.every(function (s) { return /terminal/.test(s); }), 'without core/video.js a pasted video line is skipped with the terminal note, the rest still applies (' + JSON.stringify(r8.skipped) + ')');
+// with core/video.js on the page: --keep writes the cut on the sentences; --drop needs the words (the Video page); render never runs from a reply
+var VW = []; for (var wi = 0; wi < 20; wi++) VW.push({ w: wi === 4 ? 'um,' : 'word' + wi + (wi === 7 ? '.' : ''), s: wi * 0.5, e: wi * 0.5 + 0.3 });
+sb.Video = require(path.join(ROOT, 'core', 'video.js')); var VP = sb.Video.phrases(VW);
+function seedTake() { mem['marathon.videos'] = { activeId: 'v1', videos: [{ id: 'v1', title: 'Demo take', status: 'transcribed', sources: [{ duration: 10, fps: 30 }], transcript: { granularity: 'word', words: 20 }, phrases: VP, edl: [], edlHash: '', exports: [], updatedAt: 1 }] }; }
+seed(); seedTake(); var r9 = Apply.run('```\nvideo cut v1 --keep "0.65-2.1, 4.0-6.0"\nvideo cut v1 --drop "um"\nvideo render v1\nvideo cut v1 --edl cut.json\n```\n', { ws: 'main' });
+var vt9 = mem['marathon.videos'].videos[0];
+ok(r9.applied.length === 1 && /cut applied: Demo take — 1 piece,/.test(r9.applied[0]) && /Render a preview/.test(r9.applied[0]) && vt9.edl.length === 1 && vt9.edl[0].start <= 0.001 && vt9.edl[0].end >= 9.79 && vt9.status === 'cut' && vt9.edlHash === sb.Video.edlHash(vt9.edl) && touched.indexOf('videos.json') >= 0, '--keep on the sentences widens to the two whole sentences (one piece), writes hash and status, points at the preview (' + JSON.stringify(r9.applied) + ')');
+ok(r9.skipped.length === 3 && /needs the words/.test(r9.skipped[0]) && /render/.test(r9.skipped[1]) && /--edl/.test(r9.skipped[2]), '--drop without words, render and --edl are skipped with their reasons (' + JSON.stringify(r9.skipped) + ')');
+var p9 = Apply.plan('video cut v1 --keep "1-2"', { ws: 'main' }); ok(p9.length === 1 && p9[0].ok, 'preview labels a cut line as applicable without writing');
+ok(Apply.run('video cut v1 --keep "9-2"', { ws: 'main' }).skipped[0].indexOf('end must come after') > 0, 'a bad range is refused with the reason');
+// on the Video page (VideoModel present) the model does the cut, with words
+var modelCalls = []; sb.VideoModel = { get: function (id) { return id === 'v1' ? { id: 'v1', title: 'Demo take' } : null; }, list: function () { return []; }, hasWords: function () { return true; }, fmt: sb.Video.fmt, cutFromLine: function (id, fl) { modelCalls.push(id + ' ' + JSON.stringify(fl)); return { take: { title: 'Demo take' }, edl: [{ start: 0, end: 1 }, { start: 2, end: 3 }, { start: 4, end: 5 }], runtime: 3 }; } };
+var r10 = Apply.run('video cut v1 --drop "um, uh"', { ws: 'main' });
+ok(modelCalls.length === 1 && /drop/.test(modelCalls[0]) && /3 pieces, 0:03\.0/.test(r10.applied[0]), 'on the Video page --drop goes through the model with the words (' + r10.applied[0] + ')');
+delete sb.VideoModel; delete sb.Video;
 console.log(fails ? '\n' + fails + ' FAILED' : '\nALL APPLY TESTS PASS');
 process.exit(fails ? 1 : 0);

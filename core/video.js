@@ -42,6 +42,26 @@
     var s = 0; parts.forEach(function (p) { s = s * 60 + num(p); }); return s;
   }
   function normWord(w) { return String(w || '').toLowerCase().replace(/[^a-z0-9']+/g, ''); }
+  // sha1 in plain JS (ASCII/UTF-8 input), so the page and the CLI compute the same edlHash without Node's crypto
+  function sha1(str) {
+    var msg = unescape(encodeURIComponent(String(str))); var ml = msg.length * 8; var words = [];
+    for (var i = 0; i < msg.length; i++) words[i >> 2] |= msg.charCodeAt(i) << (24 - (i % 4) * 8);
+    words[ml >> 5] |= 0x80 << (24 - ml % 32); words[(((ml + 64) >>> 9) << 4) + 15] = ml;
+    var h0 = 0x67452301, h1 = 0xEFCDAB89, h2 = 0x98BADCFE, h3 = 0x10325476, h4 = 0xC3D2E1F0; var w = [];
+    function rotl(x, n) { return (x << n) | (x >>> (32 - n)); }
+    for (var j = 0; j < words.length; j += 16) {
+      var a = h0, b = h1, c = h2, d = h3, e = h4;
+      for (var t = 0; t < 80; t++) {
+        w[t] = t < 16 ? (words[j + t] | 0) : rotl(w[t - 3] ^ w[t - 8] ^ w[t - 14] ^ w[t - 16], 1);
+        var f = t < 20 ? ((b & c) | (~b & d)) + 0x5A827999 : t < 40 ? (b ^ c ^ d) + 0x6ED9EBA1 : t < 60 ? ((b & c) | (b & d) | (c & d)) + 0x8F1BBCDC : (b ^ c ^ d) + 0xCA62C1D6;
+        var tmp = (rotl(a, 5) + f + e + w[t]) | 0; e = d; d = c; c = rotl(b, 30); b = a; a = tmp;
+      }
+      h0 = (h0 + a) | 0; h1 = (h1 + b) | 0; h2 = (h2 + c) | 0; h3 = (h3 + d) | 0; h4 = (h4 + e) | 0;
+    }
+    return [h0, h1, h2, h3, h4].map(function (x) { return ('00000000' + (x >>> 0).toString(16)).slice(-8); }).join('');
+  }
+  // the cut's fingerprint: exports record it, so "rendered before the current cut" is one comparison on both sides
+  function edlHash(edl) { return sha1(JSON.stringify((edl || []).map(function (s) { return [s.start, s.end]; }))).slice(0, 10); }
 
   /* ---- words → phrases (the view the agent reads) -------------------------- */
   // words: [{ w, s, e }] sorted by s. Breaks on silence ≥ gap, after a sentence end once the
@@ -231,7 +251,7 @@
 
   var api = { FILLER_PROMPT: FILLER_PROMPT, DEFAULTS: DEFAULTS, STYLES: STYLES, fmt: fmt, fmtTag: fmtTag, parseTime: parseTime, srtTime: srtTime,
     phrases: phrases, packed: packed, normalizeWords: normalizeWords, parseRanges: parseRanges, snap: snap, drop: drop, fromEdl: fromEdl,
-    chunks: chunks, srt: srt, forceStyle: forceStyle, importTranscript: importTranscript };
+    chunks: chunks, srt: srt, forceStyle: forceStyle, importTranscript: importTranscript, sha1: sha1, edlHash: edlHash };
 
   /* ======================================================================= */
   /* Node only: ffmpeg, engines, render                                        */
@@ -253,7 +273,7 @@
     var ffprobe = ''; if (ffmpeg) { var cand = path.join(path.dirname(ffmpeg), 'ffprobe' + (process.platform === 'win32' ? '.exe' : '')); ffprobe = fs.existsSync(cand) ? cand : which('ffprobe'); }
     return { ffmpeg: ffmpeg, ffprobe: ffprobe };
   };
-  N.NEED_FFMPEG = 'Video needs ffmpeg, a free tool that reads and writes video files. Mac: brew install ffmpeg · Windows: winget install ffmpeg · then run this again. `node solo.js doctor` checks it.';
+  N.NEED_FFMPEG = 'Video needs ffmpeg, a free tool that reads and writes video files. Mac: brew install ffmpeg · Windows: winget install Gyan.FFmpeg · then run this again. `node solo.js doctor` checks it.';
   var filterCache = {};
   N.hasFilter = function (ffmpeg, name) { if (filterCache[ffmpeg + name] !== undefined) return filterCache[ffmpeg + name]; var ok = false; try { ok = new RegExp('\\s' + name + '\\s').test(run(ffmpeg, ['-hide_banner', '-filters'])); } catch (e) { ok = false; } filterCache[ffmpeg + name] = ok; return ok; };
   N.hasEncoder = function (ffmpeg, name) { try { return new RegExp('\\s' + name + '\\s').test(run(ffmpeg, ['-hide_banner', '-encoders'])); } catch (e) { return false; } };

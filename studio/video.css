@@ -1,0 +1,103 @@
+/* studio/video.css — the Video page on top of script-viewer.css (tokens, topbar, sidebar, toast, buttons) */
+.video-workspace { grid-template-columns: minmax(200px, 260px) 1fr; }
+.video-main { overflow-y: auto; min-height: calc(100vh - 62px); max-height: calc(100vh - 62px); padding: 0 0 80px; background: var(--canvas); }
+.video-main > * { max-width: 880px; margin-left: auto; margin-right: auto; }
+.v-pad { padding: 22px 32px 0; }
+
+/* cards: a notice, a choice, a fallback */
+.vcard { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); padding: 14px 16px; margin: 18px 32px 0; font-size: 13.5px; line-height: 1.5; box-shadow: var(--shadow); }
+.vcard.warn { border-color: var(--amber-line, #d9a441); }
+.vcard.quiet { background: var(--panel-2); box-shadow: none; }
+.vcard h3 { margin: 0 0 6px; font-family: var(--serif); font-size: 17px; }
+.vcard p { margin: 4px 0; }
+.vcard .muted, .muted { color: var(--muted); }
+.vcard code, .v-strip code, .v-head code, .v-cmd code { font-family: var(--mono); font-size: 11.5px; background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
+.v-cmd { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.v-cmd code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 6px 9px; border-radius: 7px; }
+.v-cmd .btn { height: 30px; padding: 0 10px; font-size: 12px; flex: none; }
+.v-doors { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+.v-door { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--panel-2); font-size: 12.5px; }
+.v-door b { display: block; margin-bottom: 3px; font-size: 13px; }
+.v-door .btn { margin-top: 8px; }
+.v-term { font-size: 12px; color: var(--muted); margin-top: 8px; }
+@media (max-width: 760px) { .v-doors { grid-template-columns: 1fr; } }
+
+/* the open take */
+.v-head { padding: 24px 32px 0; }
+.v-head h2 { font-family: var(--serif); font-size: 26px; margin: 0 0 6px; line-height: 1.15; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.v-chip { display: inline-block; font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); background: var(--panel); vertical-align: middle; }
+.v-chip.cut, .v-chip.rendered, .v-chip.posted { border-color: var(--accent); color: var(--accent); }
+.v-meta { font-family: var(--mono); font-size: 11.5px; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; }
+.v-file { font-family: var(--mono); font-size: 11px; color: var(--faint); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.v-next { display: flex; align-items: center; gap: 12px; margin: 14px 0 0; padding: 10px 14px; border-radius: 10px; background: var(--accent-soft); font-size: 13.5px; }
+.v-next b { font-weight: 600; }
+.v-next .btn { margin-left: auto; flex: none; }
+
+/* the strip above the sentences: pieces, runtime, undo, fillers */
+.v-strip { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 18px 32px 0; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: var(--shadow); font-size: 13px; }
+.v-strip .rt { font-family: var(--mono); font-size: 12px; }
+.v-strip .rt b { font-size: 14px; color: var(--ink); }
+.v-strip .sp { flex: 1; }
+.v-strip .btn { height: 30px; padding: 0 11px; font-size: 12px; }
+.v-legend { margin: 8px 32px 0; font-size: 12px; color: var(--muted); }
+.v-legend kbd { font-family: var(--mono); font-size: 10.5px; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+
+/* sentences as toggles */
+.v-phrases { padding: 12px 32px 0; }
+.ph { display: flex; gap: 14px; align-items: flex-start; padding: 9px 12px; margin-bottom: 4px; border-radius: 10px; border: 1px solid transparent; cursor: pointer; font-size: 15.5px; line-height: 1.5; transition: background .12s, border-color .12s; }
+.ph:hover, .ph:focus { background: var(--panel); border-color: var(--line); outline: none; }
+.ph:focus-visible { border-color: var(--accent); }
+.ph .t { font-family: var(--mono); font-size: 10.5px; color: var(--faint); padding-top: 5px; white-space: nowrap; width: 112px; flex: none; }
+.ph .x { flex: 1; }
+.ph .st { flex: none; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); padding-top: 5px; width: 34px; text-align: right; }
+.ph.cut { color: var(--faint); }
+.ph.cut .x { text-decoration: line-through; text-decoration-color: var(--accent); text-decoration-thickness: 1.5px; }
+.ph.cut .st { color: var(--accent); }
+.ph mark.filler { background: var(--accent-soft); color: inherit; border-radius: 4px; padding: 0 3px; border-bottom: 2px solid var(--accent); cursor: pointer; }
+.ph mark.filler.spared { background: transparent; border-bottom-style: dotted; }
+.ph s.hole { color: var(--faint); text-decoration-color: var(--accent); cursor: pointer; }
+.ph s.hole:hover { color: var(--ink); }
+.v-more { margin: 6px 32px 0; }
+
+/* renders */
+.v-exports { padding: 22px 32px 0; }
+.v-exports h3 { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin: 0 0 10px; }
+.v-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.v-progress { margin-top: 12px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); font-size: 13px; }
+.v-bar { height: 6px; border-radius: 3px; background: var(--panel-2); margin-top: 8px; overflow: hidden; }
+.v-bar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .4s; }
+.v-player { margin-top: 14px; }
+.v-player video { width: 100%; max-height: 480px; border-radius: 12px; background: #000; box-shadow: var(--shadow-lift); }
+.v-player .cap { font-size: 12.5px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+.v-player .cap b { color: var(--ink); }
+.v-export { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: 13px; padding: 8px 0; border-top: 1px solid var(--line); }
+.v-export .path { font-family: var(--mono); font-size: 11.5px; color: var(--muted); flex: 1; min-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.v-export .stale { color: var(--amber, #b7791f); font-size: 12px; }
+details.v-details { font-size: 12px; color: var(--muted); margin-top: 6px; }
+details.v-details pre { white-space: pre-wrap; font-family: var(--mono); font-size: 11px; background: var(--panel-2); padding: 8px; border-radius: 6px; }
+
+/* engine choices */
+.v-choices { display: grid; gap: 10px; margin-top: 10px; }
+.v-choice { display: flex; gap: 14px; align-items: flex-start; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--panel-2); }
+.v-choice .n { font-family: var(--mono); font-size: 12px; color: var(--faint); padding-top: 2px; }
+.v-choice .body { flex: 1; font-size: 13px; line-height: 1.5; }
+.v-choice .body b { display: block; font-size: 14px; }
+.v-choice .btn { flex: none; margin-top: 2px; }
+
+/* add a take */
+.v-add { margin-top: 10px; }
+.v-drop { border: 1.5px dashed var(--line); border-radius: 10px; padding: 16px; text-align: center; color: var(--muted); font-size: 13px; background: var(--panel-2); transition: border-color .12s; }
+.v-drop.over { border-color: var(--accent); color: var(--ink); }
+.v-add input[type=text] { width: 100%; height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); font-family: var(--mono); font-size: 12.5px; margin-top: 10px; }
+.v-add .v-row { margin-top: 8px; }
+.v-found { margin-top: 8px; font-size: 13px; }
+.v-found code { font-family: var(--mono); font-size: 11.5px; }
+
+/* empty state */
+.v-empty { padding: 48px 32px 0; }
+.v-empty h2 { font-family: var(--serif); font-size: 28px; margin: 0 0 8px; }
+.v-empty p.lead { font-size: 15px; color: var(--muted); margin: 0 0 18px; line-height: 1.5; }
+
+/* the take list */
+.note-item .v-chip { margin-top: 4px; }
+.notes-foot .btn { flex: 1; }

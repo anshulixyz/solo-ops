@@ -13,13 +13,13 @@
   function push(ev) { var r = load(); ev.ts = new Date().toISOString(); r.push(ev); if (r.length > MAX) r = r.slice(r.length - MAX); Store.setJSON(KEY, r, { silent: true }); }
   function kindOf(key) {
     if (/^marathon\.board\./.test(key) && !/\.projects$/.test(key)) return 'task';
-    if (/social/.test(key)) return 'post'; if (/scripts/.test(key)) return 'script'; if (/writing/.test(key)) return 'note'; if (key === 'marathon.inspiration') return 'inspo';
+    if (/social/.test(key)) return 'post'; if (/scripts/.test(key)) return 'script'; if (/writing/.test(key)) return 'note'; if (key === 'marathon.inspiration') return 'inspo'; if (/\.videos$/.test(key)) return 'take';
     return null;
   }
   function items(kind, val) {
     if (!val) return [];
     if (kind === 'task' || kind === 'post') return Array.isArray(val) ? val : [];
-    if (kind === 'script') return (val.scripts || []); if (kind === 'note') return (val.notes || []); if (kind === 'inspo') return (val.items || []);
+    if (kind === 'script') return (val.scripts || []); if (kind === 'note') return (val.notes || []); if (kind === 'inspo') return (val.items || []); if (kind === 'take') return (val.videos || []);
     return [];
   }
   function title(kind, x) { if (kind === 'note') { var m = (x.text || '').match(/^#\s+(.+)/m); return m ? m[1].slice(0, 60) : (x.text || '').split('\n')[0].slice(0, 60) || 'untitled'; } return x.title || x.url || 'untitled'; }
@@ -27,6 +27,7 @@
     if (kind === 'task') return [x.col, x.pri, (x.tags || []).join(','), (x.checklist || []).map(function (c) { return (c.done ? '1' : '0') + c.text; }).join('|'), x.notes, x.desc, x.title, x.at || '', x.until || '', x.due || ''].join('\u0001');
     if (kind === 'post') return [x.datetime, x.status, x.copy, (x.prep || []).map(function (c) { return (c.done ? '1' : '0') + c.text; }).join('|'), x.title, (x.posted || {}).url].join('\u0001');
     if (kind === 'script') return [x.title, x.text].join('\u0001'); if (kind === 'note') return x.text; if (kind === 'inspo') return [x.status, x.title, x.text, (x.tags || []).join(','), x.ws].join('\u0001');
+    if (kind === 'take') return [x.status, x.edlHash || '', (x.exports || []).length, x.postId || '', x.transcript ? x.transcript.words : 0].join('\u0001');
     return '';
   }
   function describe(kind, a, b) {   // a = before, b = after (same id)
@@ -43,14 +44,15 @@
     if (kind === 'post') { if (a.status !== b.status) return 'post ' + b.status + ': ' + b.title; if (a.copy !== b.copy) return 'wrote copy for: ' + b.title; if (a.datetime !== b.datetime) return 'rescheduled: ' + b.title; return 'edited post: ' + b.title; }
     if (kind === 'script') return 'edited script: ' + b.title; if (kind === 'note') return 'edited note: ' + title('note', b);
     if (kind === 'inspo') { if (a.status !== b.status) return 'inspiration ' + b.status + ': ' + title('inspo', b); return 'edited inspiration: ' + title('inspo', b); }
+    if (kind === 'take') { var n = (b.edl || []).length; if ((a.exports || []).length !== (b.exports || []).length) return 'rendered take: ' + b.title; if ((a.edlHash || '') !== (b.edlHash || '')) return (n ? 'cut take (' + n + ' piece' + (n === 1 ? '' : 's') + '): ' : 'cut cleared: ') + b.title; if (!a.transcript && b.transcript) return 'words ready: ' + b.title; if (a.postId !== b.postId) return 'posted take: ' + b.title; return 'edited take: ' + b.title; }
     return 'edited';
   }
   function diff(key, beforeVal, afterVal, source) {
     var kind = kindOf(key); if (!kind) return;
     var A = items(kind, beforeVal), B = items(kind, afterVal); var am = {}, bm = {};
     A.forEach(function (x) { am[x.id] = x; }); B.forEach(function (x) { bm[x.id] = x; });
-    var ws = key.match(/^marathon\.board\.([^.]+)\.([^.]+)$/) ? key.split('.')[2] : (key.match(/^marathon\.([^.]+)\.(social|scripts|writing)$/) ? key.split('.')[1] : Config.PRIMARY);
-    B.forEach(function (b) { var a = am[b.id]; if (!a) push({ kind: kind, id: b.id, key: key, ws: ws, what: (kind === 'task' ? 'added task: ' : kind === 'post' ? 'scheduled post: ' : kind === 'script' ? 'new script: ' : kind === 'note' ? 'new note: ' : 'saved inspiration: ') + title(kind, b), source: source }); else if (sig(kind, a) !== sig(kind, b)) push({ kind: kind, id: b.id, key: key, ws: ws, what: describe(kind, a, b), source: source }); });
+    var ws = key.match(/^marathon\.board\.([^.]+)\.([^.]+)$/) ? key.split('.')[2] : (key.match(/^marathon\.([^.]+)\.(social|scripts|writing|videos)$/) ? key.split('.')[1] : Config.PRIMARY);
+    B.forEach(function (b) { var a = am[b.id]; if (!a) push({ kind: kind, id: b.id, key: key, ws: ws, what: (kind === 'task' ? 'added task: ' : kind === 'post' ? 'scheduled post: ' : kind === 'script' ? 'new script: ' : kind === 'note' ? 'new note: ' : kind === 'take' ? 'new take: ' : 'saved inspiration: ') + title(kind, b), source: source }); else if (sig(kind, a) !== sig(kind, b)) push({ kind: kind, id: b.id, key: key, ws: ws, what: describe(kind, a, b), source: source }); });
     A.forEach(function (a) { if (!bm[a.id]) push({ kind: kind, id: a.id, key: key, ws: ws, what: 'deleted ' + kind + ': ' + title(kind, a), source: source, gone: true }); });
   }
   // page edits: Store change events (non-silent)
@@ -73,6 +75,7 @@
       if (kind === 'post') return '[' + x.id + '] ' + x.title + ' · ' + x.datetime.replace('T', ' ') + ' · ' + x.status + (x.copy ? '\n      copy: ' + x.copy.replace(/\n/g, ' / ').slice(0, 400) : '\n      (no copy yet)') + ((x.prep || []).length ? '\n      prep: ' + x.prep.map(function (c) { return (c.done ? '[x] ' : '[ ] ') + c.text; }).join(' · ') : '') + ((x.assets || []).length ? '\n      images: ' + x.assets.map(function (a) { return a.file || a.name; }).join(', ') : '');
       if (kind === 'script') return '[' + x.id + '] ' + x.title + '\n      ' + (x.text || '').slice(0, 600).replace(/\n/g, '\n      ');
       if (kind === 'note') return '[' + x.id + '] ' + title('note', x) + '\n      ' + (x.text || '').slice(0, 600).replace(/\n/g, '\n      ');
+      if (kind === 'take') return '[' + x.id + '] ' + x.title + ' · ' + x.status + ((x.edl || []).length ? ' · cut: ' + x.edl.length + ' piece' + (x.edl.length === 1 ? '' : 's') : '') + ((x.exports || []).length ? ' · ' + x.exports.length + ' export' + (x.exports.length === 1 ? '' : 's') : '');
       if (kind === 'inspo') return '[' + x.id + '] ' + (x.title || x.url) + (x.url ? ' ' + x.url : '') + (x.text ? '\n      ' + x.text.slice(0, 300) : '') + (x.file ? '\n      image file: ' + x.file : x.image ? '\n      (image in the app)' : '') + (x.tags.length ? '\n      #' + x.tags.join(' #') : '');
       return '';
     },

@@ -143,7 +143,7 @@ Script text is Markdown with a light convention the viewer understands:
     "transcript": { "engine": "whisper", "model": "small.en", "lang": "en", "granularity": "word", "words": 1840, "file": "data/videos/v1/transcript.json" },
     "phrases": [{ "s": 2.52, "e": 5.36, "t": "Ninety percent of what a web agent does is wasted." }],
     "edl": [{ "start": 2.42, "end": 6.85, "quote": "…", "reason": "" }],   // the cut: pieces kept, in order, edges on word boundaries
-    "edlHash": "…",
+    "edlHash": "…", "cutAt": 0,   // the cut's own stamp (ms): the page and the CLI compare it to see whose cut is newer
     "captions": { "style": "sentence", "burn": false },
     "exports": [{ "file": "data/videos/v1/final-1.mp4", "kind": "final", "duration": 61.2, "edlHash": "…", "captions": "track+srt", "srt": "data/videos/v1/final-1.srt", "at": 0 }],
     "notes": "", "createdAt": 0, "updatedAt": 0
@@ -158,7 +158,13 @@ whatever the engine; `granularity: "cue"` for an imported SRT/VTT). An export
 whose `edlHash` differs from the take's was rendered before the current cut.
 `data/videos/<id>/` also holds `progress.json` (the running render, unlogged)
 and the renders `preview-<n>.mp4` / `final-<n>.mp4`, which the backup skips
-(only `transcript.json` and the `.srt` files travel). `data/secrets.json`
+(only `transcript.json` and the `.srt` files travel). When the Video page
+starts a job through `node serve.js`, the folder gains `render.json` /
+`transcribe.json` (pid, started, finished, exit code) and `render.log` /
+`transcribe.log` (the CLI's output), plus `import.<srt|vtt|json>` for a
+transcript dropped on the page: machine state, unlogged, not backed up.
+The page writes only `activeId`, `edl`, `edlHash`, `status` and `updatedAt`;
+the CLI owns the rest and both merge the other's copy before writing. `data/secrets.json`
 (`video key set`) and `data/models/` (the whisper model) stay out of it too.
 
 ## writing.json — drafts / notes

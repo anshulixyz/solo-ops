@@ -15,7 +15,7 @@
   var WS_ACTIVE = 'marathon.workspace';     // last used workspace id (this browser)
   var DEFAULTS = {
     name: 'Solo Ops', eyebrow: 'Solo founder ops',
-    apps: { boards: true, social: true, scripts: true, writing: true },
+    apps: { boards: true, social: true, scripts: true, writing: true, video: true },
     projects: [{ name: 'general', hue: 45 }],
     boards: [{ id: 'runway', title: 'Launch Runway', sprintLabel: 'Sprint progress', milestones: [], focus: [] }],
     workspaces: [],
@@ -167,10 +167,10 @@
   function normWs(w) {
     if (!w) return null;
     var id = slug(w.id || w.title); if (!id || RESERVED.indexOf(id) >= 0) return null;
-    var apps = merge({ social: true, scripts: true, writing: true }, w.apps || {});
+    var apps = merge({ social: true, scripts: true, writing: true, video: true }, w.apps || {});
     var boards = (Array.isArray(w.boards) ? w.boards : []).map(normBoard).filter(Boolean);
     if (w.boards === undefined && apps.boards !== false && !boards.length) boards = [normBoard({ id: 'runway', title: 'Launch Runway', sprintLabel: 'Sprint progress' })];
-    return { id: id, title: w.title || id, apps: { social: apps.social !== false, scripts: apps.scripts !== false, writing: apps.writing !== false }, boards: boards, createdAt: w.createdAt || 0 };
+    return { id: id, title: w.title || id, apps: { social: apps.social !== false, scripts: apps.scripts !== false, writing: apps.writing !== false, video: apps.video !== false }, boards: boards, createdAt: w.createdAt || 0 };
   }
   function path(obj, p) { return String(p).split('.').reduce(function (o, k) { return o == null ? undefined : o[k]; }, obj); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -193,7 +193,7 @@
     return (saved && workspace(saved)) ? saved : PRIMARY;
   }
   function setActiveWs(id) { if (global.Store) Store.set(WS_ACTIVE, id, { silent: true }); }
-  function ws() { return workspace(activeWs()) || { id: activeWs(), title: activeWs(), apps: { social: true, scripts: true, writing: true }, boards: [] }; }
+  function ws() { return workspace(activeWs()) || { id: activeWs(), title: activeWs(), apps: { social: true, scripts: true, writing: true, video: true }, boards: [] }; }
   function addWorkspace(w) {
     var nw = normWs(w); if (!nw) return null;
     if (workspace(nw.id)) return workspace(nw.id);
