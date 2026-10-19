@@ -157,7 +157,7 @@ reached by URL tricks, keys are refused by `config set`, HDR takes render
 as HEVC, a final older than the cut cannot be posted, exports of the same
 cut are not rendered twice, the log names each step. Still untested on
 this machine: `--burn` (no ffmpeg with libass here). 114 checks.
-**Slice 2 shipped 2026-10-19, commit (see Done):** two Content prompts,
+**Slice 2 shipped 2026-10-19, commit `7a9c836`:** two Content prompts,
 *Cut this take* (`/cut-take <take>`: slips, platform question, the cut in
 plain words with the runtime, a yes, then `video cut --edl`, the preview,
 the final only after it was watched; chat mode ends with the terminal
