@@ -143,7 +143,7 @@ render through serve.js. Taken from video-studio: video-use's production
 rules, the packed transcript, the EDL shape, the caption style, the
 machine rules. Not taken: OpenMontage, Remotion, generated video. Media,
 models and the ElevenLabs key never enter git or the backup; the backup
-ignore is applied on every run. **Slice 1 built 2026-10-19 (uncommitted):** `core/video.js`, the `video`
+ignore is applied on every run. **Slice 1 shipped 2026-10-19, commit `37007f7`:** `core/video.js`, the `video`
 CLI group, the `video` settings group, backup ignore on every run +
 folder-copy filter, guard media rule, doctor's video block, the `/data/`
 static fix in serve.js, `today`/`week` Video line, `core/test-video.js`
