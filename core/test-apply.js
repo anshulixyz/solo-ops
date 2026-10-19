@@ -150,5 +150,7 @@ seed(); var r6 = Apply.run('```\nscripts add "A"\n```\n- [ ] Between item\n```\n
 ok(byTitle('Between item') && !/real body/.test(mem['marathon.scripts'].scripts[0].text), 'a checklist item between stops the body search');
 seed(); var r7 = Apply.run('```\nadd "Y"\nscripts add "A" --text "inline body"\n```\n```\nadd "Z"\n```\n', { ws: 'main' });
 ok(mem['marathon.scripts'].scripts[0].text === 'inline body' && byTitle('Y') && byTitle('Z') && Apply.segment('scripts add "A" --text "x"\n```\nadd "Q"\n```').length === 2, '--text keeps the body inline and the next block applies');
+seed(); var r8 = Apply.run('```\nnode solo.js video cut v1 --keep "1-2"\nadd "After video"\n```\n', { ws: 'main' });
+ok(byTitle('After video') && (r8.skipped || []).some(function (s) { return /terminal/.test(s); }), 'a pasted video line is skipped with the terminal note, the rest still applies (' + JSON.stringify(r8.skipped) + ')');
 console.log(fails ? '\n' + fails + ' FAILED' : '\nALL APPLY TESTS PASS');
 process.exit(fails ? 1 : 0);

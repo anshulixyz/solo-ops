@@ -444,9 +444,9 @@ function cmdWeek() {
     md.push('## Studio');
     if (appOn('scripts')) md.push('- ' + sc.scripts.length + ' script' + (sc.scripts.length === 1 ? '' : 's') + (sc.scripts[0] ? ' · latest: ' + latestOf(sc.scripts).title + ' (' + stamp(latestOf(sc.scripts).updatedAt) + ')' : ''));
     if (appOn('writing')) md.push('- ' + n.notes.length + ' note' + (n.notes.length === 1 ? '' : 's') + (n.notes[0] ? ' · latest: ' + titleOf(latestOf(n.notes).text) + ' (' + stamp(latestOf(n.notes).updatedAt) + ')' : ''));
-    var vn2 = videoNudge(); if (vn2) md.push(vn2);
     md.push('');
   }
+  var vn2 = videoNudge(); if (vn2) md.push('## Video', vn2, '');
   out(md, { byDay: dayGroups, overdueDated: wkOverdue, window: { from: now.toISOString(), days: days }, activity: activitySummary(), boards: BOARDS.map(function (b) { return b.id; }), doing: doing, todo: todo, done: done.length, posts: posts, overdue: overdue, prepOpen: prepOpen, scripts: sc.scripts.length, notes: n.notes.length, videos: videos().videos.length, videoNudge: videoNudge() });
 }
 function latestOf(arr) { return arr.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); })[0]; }
@@ -595,7 +595,7 @@ function videoNudge() {
 function cmdVideo() {
   if (!V) fail('core/video.js not found.');
   var sub = (pos.shift() || 'list').toLowerCase(); var d = videos(); var VC = videoCfg();
-  function note(t) { if (!flags.note) flags.note = t; }   // the change log names the step, not just "video"
+  function note(t) { flags.note = flags.note ? t + ' · ' + flags.note : t; }   // the change log names the step, and keeps the agent's note after it
   if (sub === 'key') {   // video key set elevenlabs <key> | --stdin → data/secrets.json (never settings.json, never the backup)
     var service = String(pos[1] || '').toLowerCase(); if ((pos[0] || '') !== 'set' || service !== 'elevenlabs') fail('Usage: video key set elevenlabs <key>   (or --stdin to paste it without leaving it in your shell history). Kept in data/secrets.json, which the backup never includes.');
     var keyVal = flags.stdin ? fs.readFileSync(0, 'utf8').trim() : String(pos[2] || ''); if (!keyVal) fail('No key given. Paste it: echo <key> | node solo.js video key set elevenlabs --stdin');
@@ -620,7 +620,7 @@ function cmdVideo() {
     if (v1.transcript) md.push('## Words (' + v1.transcript.words + ', ' + v1.transcript.engine + (v1.transcript.model ? ' ' + v1.transcript.model : '') + (v1.transcript.granularity === 'cue' ? ', cue-level: cuts snap to cues' : '') + ')', '', V.packed(v1.phrases || []), '');
     else md.push('_No transcript yet: node solo.js video transcribe ' + v1.id + '_', '');
     if (v1.edl && v1.edl.length) { md.push('## Cut (' + v1.edl.length + ' piece' + (v1.edl.length === 1 ? '' : 's') + ', ' + V.fmt(v1.edl.reduce(function (a, s) { return a + s.end - s.start; }, 0)) + ')'); v1.edl.forEach(function (s, i) { md.push((i + 1) + '. ' + V.fmt(s.start) + '-' + V.fmt(s.end) + (s.quote ? '  "' + s.quote + '"' : '') + (s.reason ? '  (' + s.reason + ')' : '')); }); md.push(''); }
-    if (v1.exports && v1.exports.length) { md.push('## Exports'); var lf = latestExport(v1, 'final'), lp = latestExport(v1, 'preview'); v1.exports.forEach(function (e) { var fp = absData(e.file); var there = fs.existsSync(fp); md.push('- ' + e.file + ' · ' + e.kind + ' · ' + V.fmt(e.duration) + (there ? ' · ' + fmtSize(fs.statSync(fp).size) : '  ⚠ file missing') + (e === lf ? '  ← latest final (open / post use this)' : e === lp ? '  ← latest preview' : '') + (e.edlHash !== v1.edlHash ? '  ⚠ rendered before the current cut: node solo.js video render ' + v1.id : '')); }); md.push(''); }
+    if (v1.exports && v1.exports.length) { md.push('## Exports'); var lf = latestExport(v1, 'final'), lp = latestExport(v1, 'preview'); v1.exports.forEach(function (e) { var fp = absData(e.file); var there = fs.existsSync(fp); md.push('- ' + e.file + ' · ' + e.kind + ' · ' + V.fmt(e.duration) + (e.aspect ? ' · ' + e.aspect : '') + (e.style && e.style !== 'sentence' ? ' · ' + e.style + ' captions' : '') + (there ? ' · ' + fmtSize(fs.statSync(fp).size) : '  ⚠ file missing') + (e === lf ? '  ← latest final (open / post use this)' : e === lp ? '  ← latest preview' : '') + (e.edlHash !== v1.edlHash ? '  ⚠ rendered before the current cut: node solo.js video render ' + v1.id : '')); }); md.push(''); }
     if (v1.notes) md.push('## Notes', '', v1.notes, '');
     var nx = videoNext(v1, s1); if (nx) md.push('Next: ' + nx);
     return out(md, v1);
@@ -733,7 +733,7 @@ function cmdVideo() {
     if (err) fail(err.message);
     if (!JSON_OUT && process.stdout.isTTY) process.stdout.write('\n');
     var rel = outPath ? outPath : relData(finalFile); var st = fs.statSync(finalFile);
-    vd.exports = vd.exports || []; vd.exports.push({ file: rel, kind: kind, duration: res2.duration, size: st.size, edlHash: vd.edlHash, captions: res2.burned ? 'burned' : res2.softCaptions ? 'track+srt' : 'none', srt: relData(res2.srt), encoder: res2.encoder, at: Date.now() });
+    vd.exports = vd.exports || []; vd.exports.push({ file: rel, kind: kind, duration: res2.duration, size: st.size, edlHash: vd.edlHash, captions: res2.burned ? 'burned' : res2.softCaptions ? 'track+srt' : 'none', srt: relData(res2.srt), encoder: res2.encoder, aspect: flags.aspect === '9:16' ? '9:16' : '', style: style, at: Date.now() });
     if (!preview) vd.status = 'rendered'; vd.updatedAt = Date.now(); note('video render ' + vd.id + ' (' + name + ')'); write(fileName('videos'), d);
     var notes2 = [burnNote, res2.note].filter(Boolean);
     return out(['✓ Done: ' + V.fmt(res2.duration) + ', ' + (preview ? outH + 'p preview' : pr3.width + '×' + pr3.height) + ', ' + fmtSize(st.size) + ', ' + Math.round((Date.now() - t0) / 1000) + ' s' + (res2.burned ? ', captions burned in' : res2.softCaptions ? ', captions as a track + ' + relData(res2.srt) : ''), '  ' + rel].concat(res2.note ? ['  ⚠ ' + res2.note] : []).concat(['  Open it: node solo.js video open ' + vd.id + (preview ? ' --preview' : '') + (preview ? ' · happy? node solo.js video render ' + vd.id + ' for the final' : ' · post it: node solo.js video post ' + vd.id + ' --at "tomorrow 09:00"')]), { id: vd.id, file: rel, duration: res2.duration, size: st.size, preview: preview, captions: res2.burned ? 'burned' : res2.softCaptions ? 'track+srt' : 'none', segments: res2.segments, encoder: res2.encoder, took: Math.round((Date.now() - t0) / 1000), note: notes2.join(' ') });
@@ -1318,7 +1318,7 @@ function cmdHelp() {
     'Video (data/videos.json + data/videos/<id>/ — cut a take by its words; the footage stays where it is, needs ffmpeg)', '  video add "Title" --file ./take.mov [--script s3]   video list|show <v>|open <v> [--preview]|rm <v> [--files]   video source <v> <new path>',
     '  video transcribe <v> [--engine whisper|elevenlabs] [--lang en] [--from captions.srt] [--yes]   whisper = on this computer; elevenlabs = audio only leaves (needs video key set elevenlabs <key>)',
     '  video cut <v> --keep "2.4-6.8, 8.1-15.0" | --drop "um, uh" | --edl cut.json     edges snap to words and are padded; logged, revertable',
-    '  video render <v> [--preview] [--burn] [--aspect 9:16] [--style sentence|bold] [--out file]   one encode, captions as a track + .srt (burned with libass)', '  video post <v> [--at <when>] [--type update]   a post with the cut linked, never copied', '',
+    '  video render <v> [--preview] [--burn] [--aspect 9:16] [--style sentence|bold] [--out file]   one encode, captions as a track + .srt (burned with libass)', '  video post <v> [--at <when>] [--type update] [--copy "…"]   a post dated then, in draft, with the cut linked, never copied', '',
     'Safety', '  backup setup [--name solo-ops-data] [--no-github]   first time: a PRIVATE GitHub repo via gh, or it tells you the two other ways', '  backup [--remote <private url>] [--to <folder>] [--status]   push data/ to its private repo and/or copy it to a syncing folder; refuses public repos', '  backup --daily [--hour 21] [--dry-run]   run it every evening (launchd / crontab / a schtasks line)', '  guard [--install] [--allow-data]   fail when staged files hold your content; --install = on every commit; --allow-data = your own PRIVATE fork only', '  doctor | health            check every data file, attachments and backup age', '',
     'Setup', '  template [all|board|social|scripts|writing|settings] [--board id] [--force]', '  theme [show|list|set <palette>|mode <auto|light|dark>|font <inter|system|lato|editorial>]', '  config                     the settings in use (solo.config.js + your settings)', '  config set <setting> <value>  your values, kept in data/settings.json: owner "Mara" · name "Pocket Studio" · social.postTypes reel,carousel · boards.runway.title "…"', '  config add <list> a b      add to a list (config unset <setting> · config set --file x.json · config clear)', '  serve [--port 4321]        start the local server (pages write data/ directly)', '',
     'Add --json to any command for machine-readable output. Ids: tasks t…, posts p…, scripts s…, notes n….',

@@ -30,7 +30,7 @@
   function r3(x) { return Math.round(x * 1000) / 1000; }
   function fmt(sec, ms) {   // 0:02.5 · 1:02:03.4 (ms = 3 decimals)
     sec = Math.max(0, sec || 0); var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
-    var ss = ms ? s.toFixed(3) : s.toFixed(1); if (s < 10) ss = '0' + ss;
+    var ss = ms ? s.toFixed(3) : s.toFixed(1); if (parseFloat(ss) >= 60) { ss = ms ? '0.000' : '0.0'; m++; if (m === 60) { m = 0; h++; } } if (parseFloat(ss) < 10) ss = '0' + ss;
     return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + ss;
   }
   function fmtTag(sec) { var s = Math.max(0, sec || 0); return (s < 100 ? ('00' + s.toFixed(2)).slice(-6) : s.toFixed(2)); }   // [002.52-005.36]

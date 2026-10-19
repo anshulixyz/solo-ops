@@ -81,13 +81,14 @@
       var w = ws(); var end = new Date(Date.now() + 14 * 86400000); var posts = (Store.getJSON(Config.key('social', w.id), []) || []).filter(function (p) { return p.status !== 'posted' && new Date(p.datetime) <= end; }).sort(function (a, b) { return a.datetime.localeCompare(b.datetime); });
       return posts.length ? '# Upcoming posts (' + posts.length + ')\n\n' + posts.map(post).join('\n\n') : '(no posts in the next 14 days)';
     } },
-    take: { label: 'This take', hint: 'the open or latest take: its words with [start-end] times, the cut, the exports', get: function () {
+    take: { label: 'This take', hint: 'the take you touched last: its words with [start-end] times, the cut, the exports', get: function () {
       var w = ws(); var d = Store.getJSON(Config.key('videos', w.id), null); var vids = d && Array.isArray(d.videos) ? d.videos : [];
+      if (!d) return '(no take here: start `node serve.js` or link the folder so this page reads data/videos.json, or paste the output of `node solo.js video show <take>`)';
       if (!vids.length) return '(no takes yet — node solo.js video add "Title" --file ./take.mov)';
-      var v = vids.filter(function (x) { return x.id === d.activeId; })[0] || vids.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); })[0];
+      var v = vids.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); })[0];
       var src = (v.sources || [])[0] || {}; var tr = v.transcript || null; var ex = (v.exports || []).filter(function (e) { return e.kind === 'final'; }).slice(-1)[0];
       var L = ['# Take [' + v.id + '] ' + v.title + ' · ' + (v.status || 'recorded') + (src.duration ? ' · ' + tfmt(src.duration) : '') + (src.fps ? ' · ' + src.fps + ' fps' : '') + (src.width ? ' · ' + src.width + '×' + src.height : '') + (tr && tr.words ? ' · ' + tr.words + ' words' : '') + (v.scriptId ? ' · script: ' + v.scriptId : '') + (v.postId ? ' · post: ' + v.postId : ''), ''];
-      if (tr && (v.phrases || []).length) { L.push('## Words ([start-end] in seconds' + (tr.granularity === 'cue' ? ', cue-level: cuts snap to cues' : '') + ')', ''); v.phrases.forEach(function (p) { L.push('[' + ttag(p.s) + '-' + ttag(p.e) + '] ' + p.t); }); L.push(''); }
+      if (tr && (v.phrases || []).length) { L.push('## Words ([start-end] in seconds' + (tr.granularity === 'cue' ? ', cue-level: cuts snap to cues' : '') + ')', ''); v.phrases.slice(0, 200).forEach(function (p) { L.push('[' + ttag(p.s) + '-' + ttag(p.e) + '] ' + p.t); }); if (v.phrases.length > 200) L.push('… ' + (v.phrases.length - 200) + ' more: node solo.js video show ' + v.id); L.push(''); }
       else L.push('(no words yet: node solo.js video transcribe ' + v.id + ')', '');
       if ((v.edl || []).length) { L.push('## Cut (' + v.edl.length + ' piece' + (v.edl.length === 1 ? '' : 's') + ', ' + tfmt(v.edl.reduce(function (a, s) { return a + s.end - s.start; }, 0)) + ')'); v.edl.forEach(function (s, i) { L.push((i + 1) + '. ' + tfmt(s.start) + '-' + tfmt(s.end) + (s.quote ? '  "' + s.quote + '"' : '') + (s.reason ? '  (' + s.reason + ')' : '')); }); L.push(''); }
       if (ex) L.push('## Final: ' + ex.file + ' · ' + tfmt(ex.duration) + (ex.edlHash !== v.edlHash ? ' · rendered before the current cut' : ''));
@@ -95,12 +96,12 @@
     } }
   };
   // the take's times, as `node solo.js video show` prints them: 0:02.5 and [002.52-005.36]
-  function tfmt(sec) { var s = Math.max(0, Number(sec) || 0); var m = Math.floor(s / 60), r = s - m * 60; var h = Math.floor(m / 60); m -= h * 60; var rs = r.toFixed(1); if (rs === '60.0') { rs = '0.0'; m++; } return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + (r < 10 ? '0' : '') + rs; }
+  function tfmt(sec) { var s = Math.max(0, Number(sec) || 0); var m = Math.floor(s / 60), r = s - m * 60; var rs = r.toFixed(1); if (rs === '60.0') { rs = '0.0'; m++; } var h = Math.floor(m / 60); m -= h * 60; if (rs.length < 4) rs = '0' + rs; return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + rs; }
   function ttag(sec) { var s = Math.max(0, Number(sec) || 0); return s < 100 ? ('00' + s.toFixed(2)).slice(-6) : s.toFixed(2); }
-  // videos.json reaches the browser read-only until the Studio page comes: the file always wins, nothing here changes it
+  // videos.json reaches the browser read-only until the Studio page comes: the file always wins, this page never writes it back
   function registerTakes() {
     if (!global.Sync) return; var w = ws(); var key = Config.key('videos', w.id);
-    Sync.register({ file: Config.file('videos', w.id), key: key, label: 'takes', app: 'video', activity: false, isFresh: function () { return Store.get(key) == null; },
+    Sync.register({ file: Config.file('videos', w.id), key: key, label: 'takes', app: 'video', activity: false, readOnly: true, isFresh: function () { return Store.get(key) == null; },
       read: function () { return Store.getJSON(key, null) || { activeId: '', videos: [] }; },
       apply: function (body) { Store.setJSON(key, { activeId: body.activeId || '', videos: Array.isArray(body.videos) ? body.videos : [] }, { silent: true }); } });
   }

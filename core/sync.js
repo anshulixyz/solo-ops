@@ -214,10 +214,11 @@
   // identical content just adopts the file's stamp, sample data yields to
   // the file, and real local content asks the user.
   function pullOne(spec, pushIfNewer) {
-    var writable = mode === 'server' || mode === 'folder';
+    var writable = (mode === 'server' || mode === 'folder') && !spec.readOnly;   // readOnly: the page mirrors the file and never writes it back (takes, until the Video page)
     return readFile(spec.file).then(function (parsed) {
       var local = localStamp(spec.file);
       var hasFile = !!(parsed && parsed.updatedAt);
+      if (spec.readOnly && hasFile) { applyBody(spec, parsed); lastSeen[spec.file + ':stamp'] = parsed.updatedAt; setMeta(spec.file, parsed.updatedAt); return; }
       if (!hasFile) {
         // untouched sample data stays in the browser: the first file is written when the user changes something (or runs `template all`)
         var sample = (spec.isFresh && spec.isFresh()) || (spec.keys || [spec.key]).some(function (k) { return Store.isFresh(k); });

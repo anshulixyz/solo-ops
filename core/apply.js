@@ -251,7 +251,8 @@
           }
         } else if (['week', 'today', 'list', 'show', 'log', 'activity', 'boards', 'workspaces', 'config', 'help', 'share', 'review'].indexOf(cmd) >= 0) {
           /* read-only commands: nothing to apply */
-        } else skipped.push('unknown command: ' + line.slice(0, 60));
+        } else if (cmd === 'video') skipped.push('video ' + (a.pos[0] || '') + ': this runs in your terminal, not here — copy the line into Terminal in your Solo Ops folder');
+        else skipped.push('unknown command: ' + line.slice(0, 60));
       } catch (e) { skipped.push('could not apply: ' + line.slice(0, 60)); }
       i++;
     }
