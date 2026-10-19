@@ -169,6 +169,8 @@ and `/week` name a waiting take; the bootstrap explains a pasted take;
 test-prompts covers it. Proven on a synthetic take in a scratch data
 folder: the prompt's own commands cut, preview, render and post it.
 Next: slice 3, the page.
+Slice 2 reviewed 2026-10-19 (fresh-eyes developer + product engineer, 28
+findings), fixes in `b1994da`.
 
 ### M3 · Collaborators through agents, no shared app
 An editor or writer installs Solo Ops, points their agent at the same
