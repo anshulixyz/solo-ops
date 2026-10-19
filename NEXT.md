@@ -171,7 +171,7 @@ folder: the prompt's own commands cut, preview, render and post it.
 Next: slice 3, the page.
 Slice 2 reviewed 2026-10-19 (fresh-eyes developer + product engineer, 28
 findings), fixes in `b1994da`.
-**Slice 3 shipped 2026-10-19, commit `(this commit)`:** the Video page
+**Slice 3 shipped 2026-10-19, commit `e293b37`:** the Video page
 (`studio/video.html` + model / view / main, nav "Video", `apps.video`
 switch everywhere a workspace lists its apps, Home chip and Overview
 card, Guide page texts, `{{take}}` reads the open take, Export everything
@@ -190,11 +190,14 @@ one runs, progress polled, the preview plays inline from a Range route),
 patches a fresh copy of `videos.json` (`patchVideo`) and the page rebuilds
 every write from the file's copy (`Sync` `reconcile` hook) overlaying only
 `edl / edlHash / status`. `core/apply.js` learned `video cut --keep/--drop`
-(never render); `core/test-video-page.js` (42 checks) and test-apply cover
+(never render); `core/test-video-page.js` (51 checks) and test-apply cover
 it; `npm test` green. Verified on a synthetic take in a scratch `SOLO_DATA`
 folder: toggles → EDL on words → preview → final → *Make the post*. Slice
 3 was planned with a page plan reviewed by two agents before building
-(product + tech, 46 findings) and the diff reviewed by two after.
+(product + tech, 46 findings) and the diff reviewed by two after
+(48 findings: the add route not parsing the CLI's JSON, the race stamp,
+stale job files, hash drift on a cut/keep round trip, CSRF on the new
+routes, all folded in before the commit).
 Not in this slice: *Remember this engine* on the page (`config set
 video.engine` from the terminal does it), several takes per item, a
 Video line on Home's Today strip, the EPIPE and doctor-stale-lock minors.
@@ -356,6 +359,10 @@ QR rendered without a dependency, capture strip and boards usable at
   retake with `docs/screenshots` script when M2 lands.
 
 ## Done
+
+- 2026-10-19 · `prompts export` no longer deletes `.claude/commands/mine/`
+  when `data/prompts.json` is absent (a worktree, a fresh clone): the
+  `mine/` cleanup is skipped without a personal prompts file. `e293b37`.
 
 - 2026-10-15 · Your settings out of the public repo: `solo.config.js` is part of the app, the same for everyone; a person's own values (`owner`, `name`, board titles and milestones, post types, any key) live in `data/settings.json` → `config`, written by `node solo.js config set <setting> <value>` (`add <list> a b`, `unset`, `set --file x.json`, `clear`) and by `config set` lines in a pasted reply (core/apply.js, served or linked pages). One shared library in `core/config.js` (`Config.override` · `check` · `mergeOverrides`) checks every value against the shipped one (comma lists, one list entry by id such as `boards.runway.title`, unknown keys refused with a suggestion), merges them over the file for the pages, the CLI and serve.js, and ignores values of another shape so a hand-edited file cannot blank a page (`doctor` reports them). The browser keeps the last copy as `marathon.config`, reloads once when the file changes (not while typing, never without storage), reconciles after the first pull, and the file's `config` wins every write of settings.json unless the page changed it, so a theme click never drops or rolls back what the CLI wrote. `guard` refuses a staged `solo.config.js` whose `owner` is set and warns on other personal-looking values; `template settings --force` keeps the settings; `/setup` uses `config set`. Reviewed by two agents (technical, usability), findings fixed. `core/test-config.js`.
 
