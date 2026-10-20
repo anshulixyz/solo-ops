@@ -45,7 +45,7 @@
   function looksCmd(line) {
     if (/^(\$\s*)?(node\s+solo\.js|node\s+marathon\.js|solo|marathon)\s+/.test(line)) return true;
     if (/^(add|done|start|later|bucket|todo|move|pri|tag|step|check|note|rm|del|social|post|scripts|notes|inspo|config)\s/.test(line)) return true;
-    if (/^video\s+(cut|render|transcribe|add|post|show|list|open|rm|source|key)\s/.test(line)) return true;   // "video editing is fun" is prose
+    if (/^video\s+(cut|render|transcribe|add|post|show|list|open|rm|source|key|title|rename|word|correct|proxy)\s/.test(line)) return true;   // "video editing is fun" is prose
     if (/^(at|due)\s/.test(line)) { var toks = line.trim().replace(/\s--\w+(=\S+|\s+\S+)?/g, '').split(/\s+/); /* flags (--until 11:00) do not hide the date */ var last = (toks[toks.length - 1] || '').toLowerCase(); var prev = (toks[toks.length - 2] || '').toLowerCase(); var WD = global.When ? When.WEEKDAY : /^(mon|tue|wed|thu|fri|sat|sun)$/; return toks.length >= 3 && (last === 'clear' || /^\d{4}-\d{2}-\d{2}/.test(last) || /^\+\d+d$/.test(last) || /^(today|tomorrow|now)$/.test(last) || WD.test(last) || (/^\d{1,2}:\d{2}$/.test(last) && (/^\d{4}-\d{2}-\d{2}$/.test(prev) || /^\+\d+d$/.test(prev) || /^(today|tomorrow)$/.test(prev) || WD.test(prev)))); }
     return false;
   }
@@ -255,7 +255,16 @@
         } else if (cmd === 'video') {
           // `video cut <take> --keep "…"` / `--drop "…"` writes the cut (the Video page renders it; a reply never renders). Every other video step needs ffmpeg: the terminal, or the page's buttons.
           var vsub = (a.pos.shift() || '').toLowerCase(); var vid = a.pos.join(' ');
-          if (vsub !== 'cut') skipped.push('video ' + vsub + ': this runs in your terminal or from the Video page\'s buttons, not from a reply' + (vsub === 'render' ? ' — the cut is here; press Render a preview on the Video page' : ''));
+          if (vsub === 'title' || vsub === 'rename') {   // video title <take> "New": the take's title
+            var tq = a.pos[0] || ''; var tt = a.pos.slice(1).join(' ') || a.flags.title || ''; var vkT = Config.key('videos', c.ws); var vlT = Store.getJSON(vkT, null); var vtT = vlT && (vlT.videos || []).filter(function (x) { return x.id === tq || (x.title || '').toLowerCase() === tq.toLowerCase(); })[0];
+            if (!vtT) skipped.push('no take matches "' + tq + '"'); else if (!tt.trim()) skipped.push('video title: give the new title'); else { if (!dry) { if (global.VideoModel && VideoModel.rename) VideoModel.rename(vtT, tt); else { vtT.title = tt.trim().slice(0, 120); vtT.renamedAt = Date.now(); vtT.updatedAt = Date.now(); Store.setJSON(vkT, vlT); c.touched[Config.file('videos', c.ws)] = 1; if (global.Sync && Sync.note) Sync.note(Config.file('videos', c.ws), 'video title ' + vtT.id + ': ' + tt); } } applied.push('renamed take: ' + tt.trim()); }
+          }
+          else if (vsub === 'word' || vsub === 'correct') {   // video word <take> <n>[-<m>] "text": only the Video page with the server can write the transcript
+            if (!global.VideoModel || !global.correctWords) skipped.push('video word: open the Video page with node serve.js running and paste this there (it writes the transcript), or run it in the terminal');
+            else if (dry) applied.push('correct word ' + (a.pos[1] || '') + ' → ' + a.pos.slice(2).join(' '));
+            else { try { var pw = global.correctWords(a.pos[0], a.pos[1], a.pos.slice(2).join(' ') || a.flags.text, !!a.flags.all); if (pw && pw.catch) pw.catch(function (e) { if (global.flash) global.flash('video word: ' + (e && e.message || e)); }); applied.push('correcting word ' + (a.pos[1] || '') + ' → ' + a.pos.slice(2).join(' ') + ' (the page shows it when done)'); } catch (e) { skipped.push('video word: ' + e.message); } }
+          }
+          else if (vsub !== 'cut') skipped.push('video ' + vsub + ': this runs in your terminal or from the Video page\'s buttons, not from a reply' + (vsub === 'render' ? ' — the cut is here; press Render a preview on the Video page' : ''));
           else if (a.flags.edl) skipped.push('video cut --edl: that names a file on disk; run the line in your terminal, or paste the pieces as --keep "start-end, …"');
           else if (!global.Video) skipped.push('video cut: open the Video page (it has the cut logic) and paste this there, or run the line in your terminal');
           else if (global.VideoModel) {

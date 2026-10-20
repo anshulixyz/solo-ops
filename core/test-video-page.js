@@ -132,6 +132,11 @@ M.tidy(v, 'fillers'); ok(M.active().edl.length === 3 && !M.active().edl.some(fun
 mem['marathon.videos'].videos[0].edl = []; mem['marathon.videos'].videos[0].edlHash = ''; M.init(); v = M.active(); M.tidy(v); var pageHash = M.active().edlHash;
 var cliT = V.tidy(pwords, [], null, { pause: V.DEFAULTS.pause, duration: 6, fps: 30, fillers: V.FILLERS }); var cliEdl = V.snap(cliT.ranges, pwords, { fps: 30, duration: 6 }).edl;
 ok(V.edlHash(cliEdl) === pageHash, 'Remove fillers and pauses on the page = `video cut --tidy` in the CLI (' + pageHash + ')');
+// the Review list: only the ticked holes go, and the result equals Video.tidy with the same keys (the CLI's path)
+seed(); M.setWords('v1', words); v = M.active(); var tcAll = M.tidyCount(v); var pick = [tcAll.fillerHoles[0].key, tcAll.fillerHoles[2].key];
+var rr = M.tidy(v, 'both', null, pick, true); ok(rr.fillers === 2 && rr.pauses === 0 && M.active().edl.length === 3, 'Review: two ticked fillers go, the third stays (' + JSON.stringify(M.active().edl.map(function (s) { return [s.start, s.end]; })) + ')');
+var tOnly = V.tidy(words, [], null, { pause: V.DEFAULTS.pause, duration: 10, fps: 30, fillers: V.FILLERS, only: pick }); ok(V.edlHash(V.snap(tOnly.ranges, words, { fps: 30, duration: 10 }).edl) === M.active().edlHash, 'a Review subset on the page = Video.tidy with the same keys (hash)');
+ok(M.tidyCount(M.active()).fillers === 1 && M.tidyCount(M.active()).allRetakes.length === 0, 'the unticked filler is still counted; nothing said twice in this take');
 // only leading silence: a trim, not "everything plays"
 var lw = [{ w: 'late', s: 2.5, e: 2.8 }, { w: 'start.', s: 2.9, e: 3.2 }];
 mem['marathon.videos'] = { activeId: 'v1', videos: [{ id: 'v1', title: 'L', status: 'transcribed', sources: [{ duration: 3.3, fps: 30 }], transcript: { granularity: 'word' }, phrases: V.phrases(lw), edl: [], exports: [], updatedAt: 1 }] }; M.init(); M.setWords('v1', lw); v = M.active();

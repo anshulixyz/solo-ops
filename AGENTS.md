@@ -106,7 +106,9 @@ remote keeps the block.
    node solo.js social posted <post> --url … ; social prep <post> "item"
    node solo.js scripts add "Title" --file script.md ; notes add "Title" --file draft.md
    node solo.js video add "Title" --file ./take.mov ; video transcribe <v> --engine whisper ; video show <v>   # words with times: the view you read to pick the cut
-   node solo.js video cut <v> --keep "2.4-6.8, 8.1-15.0" | --drop "um, uh" | --tidy | --drop-silence | --edl cut.json ; video render <v> --preview ; video post <v>
+   node solo.js video cut <v> --keep "2.4-6.8, 8.1-15.0" | --drop "um, uh" | --tidy | --drop-silence | --retakes | --edl cut.json ; video render <v> --preview ; video post <v>
+   node solo.js video word <v> "what it says" "what it should say" [--all] | --undo   # a misheard word: the text changes, the audio and the cut do not (never transcribe again for a typo); <n>[-<m>] word numbers work too
+   node solo.js video proxy <v>   # a 720p copy for the page's player when the browser cannot play the original (iPhone HEVC); never posted
    node solo.js video recordings [--init|--add] ; video watch   # the folder any recorder saves into; what lands there becomes a take (serve.js watches it too)
    node solo.js import list.md           # bulk: "- [ ] item" lines → tasks
    node solo.js inspo list ; inspo add "https://… #tag" --ws <id> ; inspo use <item> --as task|post|script|note
@@ -195,7 +197,12 @@ remote keeps the block.
   `cutAt`, `status`, `updatedAt` and `activeId` of `videos.json` (and removes
   a take on request); everything else is yours (the CLI's), and the page
   merges your copy in before every write (`cutAt` says whose cut is newer),
-  so write a take through the CLI while the page is open without fear. A pasted reply's
+  so write a take through the CLI while the page is open without fear. The
+  page plays the take with the cuts skipped (click a word), corrects words
+  through `video word` (an edits trail in transcript.json, `--undo`), and
+  `video show` prints `[pause 1.3 s]` and `[said twice …]` for runs of words,
+  `{{take}}` the pauses and whole sentences said again, so you see what
+  *Remove fillers and pauses* and `--retakes` would take. A pasted reply's
   `video cut <take> --keep "…"` / `--drop "…"` lands on the page too (never a
   render).
 - **Inspiration flow:** the user drops links/ideas/images into the inbox (often

@@ -135,7 +135,7 @@ node solo.js add "Write the launch post" --proj launch --pri high --tags content
 node solo.js start "Write the launch post" ; done t5 ; move t11 later ; check t5 2
 node solo.js social add "Launch day" --at +3d 9:00 --type launch ; social next ; social posted p4 --url …
 node solo.js scripts add "Teaser" --file teaser.md ; notes list
-node solo.js video add "Take 3" --file ~/Movies/take-3.mov ; video transcribe <take> ; video cut <take> --tidy ; video render <take> --preview
+node solo.js video add "Take 3" --file ~/Movies/take-3.mov ; video transcribe <take> ; video cut <take> --tidy ; video word <take> "on shoe lee" "Anshuli" ; video render <take> --preview
 node solo.js inspo add "https://… worth stealing #launch"
 node solo.js inspo use "worth stealing" --as task
 node solo.js boards add "Business as usual" --from sample
@@ -160,8 +160,9 @@ on your disk, at its quality, by its transcript.
    takes`; `node solo.js video recordings` prints it): it shows up on the
    Video page by itself while the server runs. Or drop the recording on the
    page (it finds it in Movies, Desktop, Downloads or Documents) or paste
-   its path. Nothing is copied. Terminal: `node solo.js video add "Title"
-   --file ./take.mov`. *Set up video on this computer* in the Guide
+   its path. Nothing is copied. Tick *Get the words this way for every new
+   take* once and new takes get their words by themselves. Terminal:
+   `node solo.js video add "Title" --file ./take.mov`. *Set up video on this computer* in the Guide
    (`/setup-video`) has your agent install ffmpeg, the words engine, the
    folder and the recorder in one conversation.
 2. **Get the words.** Three ways, you pick, never a paid one on its own:
@@ -169,14 +170,18 @@ on your disk, at its quality, by its transcript.
    (the audio is sent, the video stays, the price is shown first; the key is
    pasted once into a field on the page and stays in `data/secrets.json`),
    or a transcript you already have (SRT, VTT, JSON).
-3. **Cut.** The transcript is the editor: select words (or a sentence by its
-   time) and press Delete, or the Cut button; select a struck word to put it
-   back. **Remove fillers and pauses** takes um, uh, you know and every
-   pause longer than 0.7 s (`video.pause`) in one click; Undo and Redo are there. Every
-   edge lands on a word, padded; pauses are measured on the audio, not
-   guessed from the words. Or *Cut it with my AI*: your agent reads the
-   words, proposes the cut in plain words, waits for your yes, and the cut
-   lands on the page.
+3. **Cut.** The transcript is the editor and the player follows it: click a
+   word, press Space, and the take plays from there with your cuts skipped; select words
+   (or a sentence) and press Delete, or Cut; select a crossed-out word to
+   put it back. **Remove fillers and pauses** takes um, uh, you know and
+   every pause longer than 0.7 s (`video.pause`) in one click, or *Review
+   first* to untick single ones and see what was said twice; Undo and Redo
+   are there. A misheard word is fixed by selecting it and pressing C (the
+   audio does not change). Every edge lands on a word, padded; pauses are
+   measured on the audio, not guessed from the words. Or *Cut it with my
+   AI*: your agent reads the words, proposes the cut in plain words, waits
+   for your yes, and the cut lands on the page. iPhone footage the browser
+   cannot play gets a 720p copy for the player with one click.
 4. **Render.** A 720p preview first; the final at full quality after you
    watched it. Captions ride along as a track and a `.srt`. One render at a
    time; renders are numbered, never overwritten.

@@ -24,7 +24,7 @@
       postTypes: ['announcement', 'launch', 'update', 'thread', 'teaser'],
       prepKinds: ['content', 'video', 'dev', 'design', 'outreach', 'other'] },
     studio: { scriptTitle: 'Script Viewer', writingTitle: 'Writing Viewer', videoTitle: 'Video' },
-    video: { engine: '', ffmpeg: '', whisper: '', model: 'small.en', captions: { style: 'sentence', burn: false }, pause: 0.7, recordings: '' },
+    video: { engine: '', ffmpeg: '', whisper: '', model: 'small.en', captions: { style: 'sentence', burn: false }, pause: 0.7, recordings: '', auto: '', autoMaxMin: 30 },
     activity: { reminderAfterHours: 24 },
     theme: { mode: 'auto', palette: 'warm' },
     sync: { port: 4321, pollMs: 3000 }
@@ -301,6 +301,9 @@
       if (JSON.stringify(next || {}) === LOADED) return false;
       if (!global.Store || !Store.ok) return false;   // nowhere to keep it (private window): a reload would only loop
       if (next) Store.setJSON(OVR_KEY, next, { silent: true }); else Store.remove(OVR_KEY);
+      // `video` settings (the pause length, the remembered engine, the recordings folder) apply in place: the Video page must not reload under a selection
+      var was = JSON.parse(LOADED || '{}'); var nx = next || {}; var changed = {}; Object.keys(was).concat(Object.keys(nx)).forEach(function (k) { if (JSON.stringify(was[k]) !== JSON.stringify(nx[k])) changed[k] = 1; });
+      if (Object.keys(changed).length && Object.keys(changed).every(function (k) { return k === 'video'; })) { cfg.video = merge(merge(DEFAULTS.video, (global.MARATHON_CONFIG || {}).video || {}), nx.video || {}); LOADED = JSON.stringify(nx); return true; }
       if (typeof location !== 'undefined' && location.reload) (function go() {   // not while someone is typing
         var el = typeof document !== 'undefined' ? document.activeElement : null;
         if (el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable)) return setTimeout(go, 2000);

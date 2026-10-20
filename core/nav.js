@@ -84,6 +84,7 @@
   function registerSW(root) {
     addManifest(root);
     if (!('serviceWorker' in navigator) || location.protocol.indexOf('http') !== 0) return;
+    if (/[?&]nosw=1/.test(location.search)) return;   // ?nosw=1: no worker on this load (debugging a page in an embedded browser that cannot fetch through one)
     var hadController = !!navigator.serviceWorker.controller; var firstInstallAt = 0;
     navigator.serviceWorker.register(root + 'sw.js', { scope: root, updateViaCache: 'none' }).then(function (reg) {
       // look for a newer worker whenever the page is shown again, and every 10 min

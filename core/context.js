@@ -89,7 +89,20 @@
       var v = vids.filter(function (x) { return x.id === d.activeId; })[0] || vids.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); })[0];   // the open take on the Video page, else the latest
       var src = (v.sources || [])[0] || {}; var tr = v.transcript || null; var ex = (v.exports || []).filter(function (e) { return e.kind === 'final'; }).slice(-1)[0];
       var L = ['# Take [' + v.id + '] ' + v.title + ' · ' + (v.status || 'recorded') + (src.duration ? ' · ' + tfmt(src.duration) : '') + (src.fps ? ' · ' + src.fps + ' fps' : '') + (src.width ? ' · ' + src.width + '×' + src.height : '') + (tr && tr.words ? ' · ' + tr.words + ' words' : '') + (v.scriptId ? ' · script: ' + v.scriptId : '') + (v.postId ? ' · post: ' + v.postId : ''), ''];
-      if (tr && (v.phrases || []).length) { L.push('## Words ([start-end] in seconds' + (tr.granularity === 'cue' ? ', cue-level: cuts snap to cues' : '') + ')', ''); v.phrases.slice(0, 200).forEach(function (p) { L.push('[' + ttag(p.s) + '-' + ttag(p.e) + '] ' + p.t); }); if (v.phrases.length > 200) L.push('… ' + (v.phrases.length - 200) + ' more: node solo.js video show ' + v.id); L.push(''); }
+      if (tr && (v.phrases || []).length) {
+        // what tidy up would take, so the agent sees it without running anything: fillers counted in the phrases, pauses between phrases over video.pause, a phrase said twice within 20 s
+        var fillers = ['um', 'uh', 'uhm', 'umm', 'erm', 'hmm', 'you know', 'i mean']; var fc = {}; var ftot = 0; var pauseMin = Number(Config.get('video.pause')) > 0.1 ? Number(Config.get('video.pause')) : 0.7;
+        v.phrases.forEach(function (p) { var low = ' ' + p.t.toLowerCase().replace(/[^a-z' ]+/g, ' ').replace(/\s+/g, ' ') + ' '; fillers.forEach(function (f) { var n = low.split(' ' + f + ' ').length - 1; if (n) { fc[f] = (fc[f] || 0) + n; ftot += n; } }); });
+        if (ftot) L.push('Fillers in the words: ' + ftot + ' (' + Object.keys(fc).map(function (f) { return f + ' ×' + fc[f]; }).join(', ') + ') — `video cut ' + v.id + ' --tidy` takes them with the long pauses; the Video page\'s Remove button does the same.');
+        L.push('## Words ([start-end] in seconds' + (tr.granularity === 'cue' ? ', cue-level: cuts snap to cues' : '') + ')', '');
+        var norm = function (t) { return t.toLowerCase().replace(/[^a-z0-9' ]+/g, ' ').replace(/\s+/g, ' ').trim(); };
+        v.phrases.slice(0, 200).forEach(function (p, i) {
+          if (i && p.s - v.phrases[i - 1].e > pauseMin) L.push('[pause ' + (p.s - v.phrases[i - 1].e).toFixed(1) + ' s]');
+          L.push('[' + ttag(p.s) + '-' + ttag(p.e) + '] ' + p.t);
+          var n = norm(p.t); if (n.split(' ').length >= 3) { var twin = v.phrases.slice(i + 1).filter(function (q) { return q.s - p.e <= 3 && norm(q.t) === n; })[0]; if (twin) L.push('[said again at ' + ttag(twin.s) + ': the later one is the keeper; `video cut ' + v.id + ' --retakes` drops this one]'); }   // whole sentences only here; the Video page and `video show` see runs of words
+        });
+        if (v.phrases.length > 200) L.push('… ' + (v.phrases.length - 200) + ' more: node solo.js video show ' + v.id); L.push('');
+      }
       else L.push('(no words yet: node solo.js video transcribe ' + v.id + ')', '');
       if ((v.edl || []).length) { L.push('## Cut (' + v.edl.length + ' piece' + (v.edl.length === 1 ? '' : 's') + ', ' + tfmt(v.edl.reduce(function (a, s) { return a + s.end - s.start; }, 0)) + ')'); v.edl.forEach(function (s, i) { L.push((i + 1) + '. ' + tfmt(s.start) + '-' + tfmt(s.end) + (s.quote ? '  "' + s.quote + '"' : '') + (s.reason ? '  (' + s.reason + ')' : '')); }); L.push(''); }
       if (ex) L.push('## Final: ' + ex.file + ' · ' + tfmt(ex.duration) + (ex.edlHash !== v.edlHash ? ' · rendered before the current cut' : ''));

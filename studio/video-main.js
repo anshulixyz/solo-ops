@@ -7,8 +7,9 @@
    ========================================================================= */
 'use strict';
 var M = VideoModel, VV = VideoView;
-var ctx = { server: false, ready: false, chat: false, doctor: null, recordings: null, words: false, tidy: null, job: null, left: '', undo: false, redo: false, showAll: false, aspect: Store.get('marathon.video.aspect') || '', showRenderError: false, selection: null, tokens: [], renaming: false, showKey: false, addOpen: false };
-var pollTimer = null; var wordsLoading = {}; var renderStartedAt = 0; var dragging = false; var anchor = -1;
+var ctx = { server: false, ready: false, chat: false, doctor: null, recordings: null, words: false, tidy: null, job: null, left: '', undo: false, redo: false, showAll: false, aspect: Store.get('marathon.video.aspect') || '', showRenderError: false, selection: null, tokens: [], renaming: false, showKey: false, addOpen: false,
+  reviewOpen: false, reviewTicked: {}, reviewCount: null, correcting: null, engine: '', player: { src: 'take', time: 0, playing: false }, playerHidden: Store.get('marathon.video.playerHidden') === '1' };
+var pollTimer = null; var wordsLoading = {}; var renderStartedAt = 0; var dragging = false; var anchor = -1; var moved = false;
 function $(id) { return document.getElementById(id); }
 function esc(s) { return VV.esc(s); }
 function flash(msg, undoable) {   // the toast; undoable = true shows an Undo button in it
@@ -27,7 +28,7 @@ Sync.register({ file: M.FILE, key: M.KEY, label: 'takes', app: 'videos',
   isFresh: function () { var d = Store.getJSON(M.KEY, null); return !d || !(d.videos || []).length; },   // an empty browser never writes an empty file over the CLI's
   read: function () { return M.read(); },
   reconcile: function (fileBody) { return M.reconcile(fileBody); },   // the file is the base of every write; the page overlays only the cut (and a rename)
-  apply: function (body) { var before = M.active(); var hadNone = !before; M.applyFile(body); var now = M.active(); if (now) loadWords(now); if (now && before && now.id !== before.id && !hadNone) { M.setActive(before.id); flash('New take: ' + now.title + ' — at the top of the list'); } clearSelection(); paint(); }   // a take that just arrived opens only when nothing was open
+  apply: function (body) { var before = M.active(); var hadNone = !before; var wordsWere = before && before.transcript ? before.transcript.wordsAt || 0 : -1; M.applyFile(body); var now = M.active(); if (now) loadWords(now); if (now && before && now.id !== before.id && !hadNone) { M.setActive(before.id); flash('New take: ' + now.title + ' — at the top of the list'); } else if (now && (!before || before.id !== now.id)) checkJobs(now); var nowAt = M.active() && M.active().transcript ? M.active().transcript.wordsAt || 0 : -1; if (ctx.correcting && (!M.active() || !before || M.active().id !== before.id || nowAt !== wordsWere)) { ctx.correcting = null; clearSelection(); } paint(); }   // a take that just arrived opens only when nothing was open; it may be getting its words by itself
 });
 Sync.on(function (ev) { if (ev === 'pulled' || ev === 'linked') { ctx.server = isServer(); ctx.ready = true; checkDoctor(false); loadRecordings(); var v = M.active(); if (v) { loadWords(v); checkJobs(v); } paint(); } });
 Store.onChange(function (k) { if (k === M.KEY) paint(); });   // a reply applied in the Guide (core/apply.js) lands here too
@@ -36,20 +37,83 @@ Store.onChange(function (k) { if (k === M.KEY) paint(); });   // a reply applied
 function paint() {
   var v = M.active(); var takes = M.list();
   $('takesList').innerHTML = VV.list(takes, v ? v.id : '');
-  ctx.chat = !!(window.Guide && Guide.mode && Guide.mode() === 'chat');
+  ctx.chat = !!(window.Guide && Guide.mode && Guide.mode() === 'chat'); ctx.engine = String(Config.get('video.auto') || '').toLowerCase();
   ctx.words = !!(v && M.hasWords(v.id)); ctx.tidy = v && ctx.words ? M.tidyCount(v) : null; ctx.undo = !!(v && M.canUndo(v)); ctx.redo = !!(v && M.canRedo(v));
+  if (ctx.reviewOpen && ctx.tidy) ctx.reviewCount = reviewCounts();
   var pathVal = $('addPath') ? $('addPath').value : ''; var foundHtml = $('addFound') ? $('addFound').innerHTML : '';
+  var editing = v && v.transcript && (v.phrases || []).length;
+  $('strip').innerHTML = editing ? VV.strip(v, ctx) : ''; $('review').innerHTML = editing ? VV.review(v, ctx) : '';
+  paintPlayer(v);
   $('main').innerHTML = VV.main(v, ctx);
   if ($('addBox') && (ctx.addOpen || !v)) { $('addBox').style.display = ''; if ($('addPath')) $('addPath').value = pathVal; if ($('addFound')) $('addFound').innerHTML = foundHtml; }
   if (ctx.renaming && $('titleInput')) { $('titleInput').focus(); $('titleInput').select(); }
+  if (ctx.correcting && $('correctInput')) { $('correctInput').focus(); $('correctInput').select(); }
   var cut = $('cutWithAiBtn'); if (cut) cut.disabled = !v;
+  markNow();
+}
+
+/* ---- the player: the take with the cuts skipped (or a render), above the words, never re-created ---- */
+var vid = null; var playerFor = ''; var metaOnce = null; var freeUntil = -1; var following = true; var rafId = null;
+function hasProxy(v) { return !!(v.proxy && v.proxy.file && v.proxy.hash === (M.src(v).hash || '')); }
+function canPlayHere(v) {   // from the codecs `video add` stored: HEVC/HDR needs hardware support, PCM/ALAC audio plays silent, .mkv never; the error event remains the catch-all
+  if (hasProxy(v)) return true; var s = M.src(v); var p = String(s.path || '').toLowerCase();
+  if (/\.mkv$/.test(p)) return false;
+  if (/hevc|h265/.test(s.vcodec || '') && !(window.MediaSource && MediaSource.isTypeSupported('video/mp4; codecs="hvc1.1.6.L93.B0"'))) return false;
+  if (s.hdr) return false;
+  if (s.acodec && !/^(aac|mp3|opus|vorbis|mp4a)/.test(s.acodec)) return false;
+  return true;
+}
+function playerSource(v) { return hasProxy(v) ? '/api/video/' + encodeURIComponent(v.id) + '/proxy.mp4' : '/api/video/' + encodeURIComponent(v.id) + '/source'; }
+var timeMemory = {};   // source url → where she was, for Back to the take
+function paintPlayer(v) {
+  var row = $('playerRow'); var cap = $('playerCap'); var editing = v && v.transcript && (v.phrases || []).length && ctx.server;
+  if (!editing) { row.style.display = 'none'; cap.innerHTML = ''; if (vid) { vid.pause(); } return; }
+  if (!vid) { vid = $('player'); vid.addEventListener('error', function () { if (ctx.player.src === 'take') ctx.player.cannotPlay = true; else flash('That render does not play in this browser'); paintPlayerChrome(M.active()); }); vid.addEventListener('play', function () { ctx.player.playing = true; following = true; loop(); paintPlayerChrome(M.active()); }); vid.addEventListener('pause', function () { ctx.player.playing = false; paintPlayerChrome(M.active()); }); vid.addEventListener('loadedmetadata', function () { ctx.player.duration = vid.duration; paintPlayerChrome(M.active()); }); vid.addEventListener('timeupdate', function () { ctx.player.time = vid.currentTime; var t = $('ptime'); if (t) t.textContent = M.fmt(vid.currentTime); markNow(); skipRule(); }); vid.addEventListener('play', function () { var v2 = M.active(); var ps2 = v2 ? M.pieces(v2) : null; if (ps2 && ctx.player.src === 'take' && vid.currentTime >= freeUntil && Video.nextPlayable(ps2, vid.currentTime) < 0) vid.currentTime = ps2[0].start; }); }
+  var want = ctx.player.src === 'take' ? playerSource(v) : '/api/video/' + encodeURIComponent(v.id) + '/' + ctx.player.src;
+  if (playerFor !== v.id + '|' + want) {
+    if (playerFor) timeMemory[playerFor] = vid.currentTime || 0;
+    playerFor = v.id + '|' + want; ctx.player.cannotPlay = ctx.player.src === 'take' && !canPlayHere(v); vid.pause();
+    if (!ctx.player.cannotPlay) { vid.src = want; vid.load(); var back = timeMemory[playerFor] || 0; if (metaOnce) { vid.removeEventListener('loadedmetadata', metaOnce); metaOnce = null; } if (back) { metaOnce = function () { vid.removeEventListener('loadedmetadata', metaOnce); metaOnce = null; vid.currentTime = back; }; vid.addEventListener('loadedmetadata', metaOnce); } ctx.player.time = back; } else { vid.removeAttribute('src'); ctx.player.time = 0; }
+  }
+  vid.style.display = ctx.player.cannotPlay ? 'none' : '';
+  paintPlayerChrome(v);
+}
+function paintPlayerChrome(v) { if (!v) return; var row = $('playerRow'); var folded = ctx.playerHidden || ctx.reviewOpen; if (row) row.style.display = folded ? 'none' : ''; var side = $('playerSide'); if (side) side.innerHTML = VV.playerSide(v, ctx); var cap = $('playerCap'); if (cap) cap.innerHTML = (folded ? VV.playerBar(v, ctx) : '') + VV.playerCap(v, ctx); }   // the list open: the player folds to its bar so the words stay reachable
+// while the take plays: a hole (a cut) is skipped the moment playback enters it from a piece; a seek INTO a hole plays it to its end (she wanted to hear it)
+function skipRule() {   // on the frame loop and on timeupdate (which survives a hidden tab): a hole worth a jump (> 80 ms) is skipped one frame early; a seek into a hole plays it out
+  var v = M.active(); if (!vid || vid.paused || vid.seeking || !v || ctx.player.src !== 'take') return;
+  var ps = M.pieces(v); if (!ps) return; var fps = Number(M.src(v).fps) || 30; var t = vid.currentTime + 1 / fps;
+  var next = Video.nextPlayable(ps, t); if (next < 0) { if (t < freeUntil) return; vid.pause(); return; }   // past the last piece: stop, unless she asked to hear the trailing cut
+  if (next !== t && t >= freeUntil && next - t > 0.08) vid.currentTime = next;
+}
+function loop() { if (rafId) cancelAnimationFrame(rafId); rafId = null; if (!vid || vid.paused) return; skipRule(); rafId = requestAnimationFrame(loop); }
+function holeEnd(v, t) { var ps = M.pieces(v); if (!ps) return -1; var n = Video.nextPlayable(ps, t); return n === t ? -1 : n < 0 ? M.dur(v) : n; }
+function seekTo(t) {   // a click on a word or a Review row: the playhead moves, the play state does not; into a cut it plays the cut until it ends
+  var v = M.active(); if (!vid || !v || !ctx.server) return;
+  if (ctx.player.src !== 'take') { ctx.player.src = 'take'; paintPlayer(v); }
+  if (ctx.player.cannotPlay) return; if (Math.abs((vid.currentTime || 0) - t) < 0.3 && !vid.paused) return;   // a double-click does not restart a word that is playing
+  freeUntil = holeEnd(v, t); vid.currentTime = t; ctx.player.time = t; var el = $('ptime'); if (el) el.textContent = M.fmt(t); following = true; markNow();
+}
+function playFrom(t) { seekTo(t); if (vid && vid.paused && !ctx.player.cannotPlay && ctx.server) { following = true; vid.play().catch(function () {}); } }   // a Review row: go there and play
+function togglePlay() { var v = M.active(); if (!vid || !v || !ctx.server || ctx.player.cannotPlay) return; if (vid.paused) { following = true; vid.play().catch(function () {}); } else vid.pause(); }
+function togglePlayer() { ctx.playerHidden = !ctx.playerHidden; Store.set('marathon.video.playerHidden', ctx.playerHidden ? '1' : '0', { silent: true }); paintPlayer(M.active()); }
+function watchRender(name) { ctx.player.src = name; var v = M.active(); var ex = (v.exports || []).filter(function (e) { return e.file.replace(/.*\//, '') === name; })[0]; ctx.player.kind = ex ? ex.kind : 'render'; ctx.player.label = ex ? (ex.kind === 'final' ? 'the final' : 'the preview') + ' (' + M.fmt(ex.duration || 0) + ')' : name; ctx.player.stale = !!(ex && ex.edlHash !== v.edlHash); ctx.playerHidden = false; paintPlayer(v); vid.play().catch(function () {}); $('top').scrollIntoView({ block: 'start' }); }
+function watchTake() { ctx.player.src = 'take'; paintPlayer(M.active()); }
+function makeProxy() { var v = M.active(); if (!v) return; api('/api/video/proxy', { id: v.id, ws: Config.activeWs() }).then(function () { flash('Making a copy that plays here…'); ctx.job = Object.assign({}, ctx.job || {}, { proxy: { finished: false } }); paintPlayerChrome(v); startPoll(v.id); }).catch(function (e) { flash(e.message); }); }
+// the word being spoken: an accent underline; the text follows it while playing unless she scrolled herself
+function markNow() {
+  var t = ctx.player.time || 0; var now = null; var els = document.querySelectorAll('#phrases .w');
+  for (var i = 0; i < els.length; i++) { var k = ctx.tokens[+els[i].dataset.i]; var on = !!(k && k.kind === 'word' && ctx.player.src === 'take' && t >= k.s - 0.02 && t < k.e + 0.02); els[i].classList.toggle('now', on); if (on) now = els[i]; }
+  var pn = $('pnow'); if (pn && now) pn.textContent = now.closest('.ph') ? now.closest('.ph').querySelector('.x').textContent.slice(0, 80) : '';
+  if (now && following && !dragging && vid && !vid.paused) { var r = now.getBoundingClientRect(); var pane = $('pane').getBoundingClientRect(); var topH = $('top').getBoundingClientRect().height; if (r.top < pane.top + topH + 10 || r.bottom > pane.bottom - 40) now.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
 }
 
 /* ---- the selection: tokens in DOM order (words, pause pills, or whole sentences without the words) ---- */
 function selStats(a, b) {   // "Put back" only when every selected token is cut; the label counts by kind: "3 words and 1 pause", "1 sentence"
   var n = 0, cut = 0, k = { word: 0, pause: 0, sentence: 0 }; for (var i = a; i <= b; i++) { var t = ctx.tokens[i]; if (!t) continue; n++; if (t.cut) cut++; k[t.kind || 'word']++; }
   var parts = [k.word ? k.word + (k.word === 1 ? ' word' : ' words') : '', k.pause ? k.pause + (k.pause === 1 ? ' pause' : ' pauses') : '', k.sentence ? k.sentence + (k.sentence === 1 ? ' sentence' : ' sentences') : ''].filter(Boolean);
-  return { a: a, b: b, count: n, cut: n > 0 && cut === n, label: parts.join(' and ') };
+  var same = true; var first = ctx.tokens[a]; for (var j = a; j <= b; j++) { var tj = ctx.tokens[j]; if (!tj || tj.kind !== 'word' || !first || tj.ph !== first.ph) same = false; }
+  return { a: a, b: b, count: n, cut: n > 0 && cut === n, label: parts.join(' and '), correctable: n > 0 && same && ctx.server && !!(first && first.wi != null) };
 }
 function selectSentenceOf(i) { var t = ctx.tokens[i]; if (!t || t.ph == null) return; var a = i, b = i; while (a > 0 && ctx.tokens[a - 1].ph === t.ph) a--; while (b < ctx.tokens.length - 1 && ctx.tokens[b + 1].ph === t.ph) b++; selectRange(a, b); }
 function setSelection(a, b) { if (a < 0 || b < 0) { ctx.selection = null; } else { ctx.selection = selStats(Math.min(a, b), Math.max(a, b)); } paintSelection(); }
@@ -57,12 +121,14 @@ function clearSelection() { ctx.selection = null; anchor = -1; }
 function paintSelection() {   // cheap: toggle classes, re-render the strip only
   var sel = ctx.selection; var on = {}; if (sel) for (var k = sel.a; k <= sel.b; k++) on[k] = 1;
   Array.prototype.forEach.call(document.querySelectorAll('#phrases .w'), function (el) { el.classList.toggle('sel', !!on[+el.dataset.i]); });
-  var v = M.active(); var old = document.querySelector('.v-strip'); if (!old || !v) return;
-  var tmp = document.createElement('div'); tmp.innerHTML = VV.main(v, ctx); var fresh = tmp.querySelector('.v-strip'); if (fresh) old.replaceWith(fresh);
+  var v = M.active(); if (!v || !v.transcript) return; $('strip').innerHTML = VV.strip(v, ctx);
 }
-function tokDown(ev, i) { if (ev.button !== 0) return; if (ctx.renaming) saveTitle(); ev.preventDefault(); if (ev.shiftKey && anchor >= 0) { setSelection(anchor, i); return; } anchor = i; dragging = true; setSelection(i, i); }
-function tokEnter(ev, i) { if (!dragging || anchor < 0) return; if (ev.buttons !== undefined && !(ev.buttons & 1)) { dragging = false; return; } setSelection(anchor, i); }
+function tokDown(ev, i) { if (ev.button !== 0) return; if (ctx.renaming) saveTitle(); if (ctx.correcting) cancelCorrect(); ev.preventDefault(); if (ev.shiftKey && anchor >= 0) { setSelection(anchor, i); moved = true; return; } anchor = i; dragging = true; moved = false; setSelection(i, i); }
+function tokEnter(ev, i) { if (!dragging || anchor < 0) return; if (ev.buttons !== undefined && !(ev.buttons & 1)) { dragging = false; return; } if (i !== anchor) moved = true; setSelection(anchor, i); }
+function tokUp(ev, i) { if (ev.button !== 0) return; var t = ctx.tokens[i]; if (dragging && !moved && t) seekTo(t.s); else if (dragging && moved && ctx.selection) { var a = ctx.tokens[ctx.selection.a]; if (a) seekTo(a.s); } dragging = false; }
+function tokDouble(ev, i) { ev.preventDefault(); selectSentenceOf(i); var t = ctx.tokens[ctx.selection ? ctx.selection.a : i]; if (t) seekTo(t.s); }
 document.addEventListener('mouseup', function () { dragging = false; });
+$('pane').addEventListener('wheel', function () { following = false; }, { passive: true }); $('pane').addEventListener('touchmove', function () { following = false; }, { passive: true });
 function selectRange(a, b) { anchor = a; setSelection(a, b); }
 function selectedSpans() {   // consecutive tokens become one span each
   var sel = ctx.selection; if (!sel) return []; var spans = []; var cur = null;
@@ -87,13 +153,54 @@ function moveSelection(delta, extend) {
 }
 
 /* ---- takes ---- */
-function selectTake(id) { if (M.setActive(id)) { ctx.showAll = false; ctx.showRenderError = false; ctx.renaming = false; clearSelection(); var v = M.active(); loadWords(v); checkJobs(v); paint(); } }
+function selectTake(id) { if (M.setActive(id)) { ctx.showAll = false; ctx.showRenderError = false; ctx.renaming = false; ctx.reviewOpen = false; ctx.correcting = null; ctx.player = { src: 'take', time: 0, playing: false }; freeUntil = -1; clearSelection(); var v = M.active(); loadWords(v); checkJobs(v); paint(); } }
 function loadWords(v) {   // the words with their times from data/videos/<id>/transcript.json: server or linked folder; elsewhere the sentences stand in
   if (!v || !v.transcript || M.hasWords(v.id) || wordsLoading[v.id]) return;
+  if (!isServer() && !(Sync.readTakeFile)) return;
   var p = isServer() ? api('/api/video/' + encodeURIComponent(v.id) + '/transcript.json') : Sync.readTakeFile ? Sync.readTakeFile(v.id, 'transcript.json') : Promise.resolve(null);
   wordsLoading[v.id] = true;
   p.then(function (t) { if (t && Array.isArray(t.words) && t.words.length) { M.setWords(v.id, t.words, t.silences); paint(); } }).catch(function () { /* the sentences stand in */ }).then(function () { wordsLoading[v.id] = false; });
 }
+/* ---- Review first: tick what goes, see the count, then remove ---- */
+function toggleReview() { ctx.reviewOpen = !ctx.reviewOpen; if (ctx.reviewOpen) ctx.reviewTicked = {}; paint(); }
+function reviewTick(el) { ctx.reviewTicked[el.dataset.key] = el.checked; ctx.reviewCount = reviewCounts(); paint(); }
+function reviewKeys() { var tc = ctx.tidy; if (!tc) return []; var on = []; (tc.fillerHoles || []).concat(tc.pauseHoles || []).forEach(function (h) { if (ctx.reviewTicked[h.key] !== false) on.push(h.key); }); (tc.allRetakes || []).forEach(function (r) { var k = 'r:' + r.s.toFixed(2); if (ctx.reviewTicked[k] === true) on.push(k); }); return on; }
+function reviewCounts() { var keys = reviewKeys(); return { fillers: keys.filter(function (k) { return k.indexOf('f:') === 0; }).length, pauses: keys.filter(function (k) { return k.indexOf('p:') === 0; }).length, retakes: keys.filter(function (k) { return k.indexOf('r:') === 0; }).length }; }
+function removeTicked() { var v = M.active(); if (!v) return; var keys = reviewKeys(); if (!keys.length) return; try { var r = M.tidy(v, 'both', null, keys, true); flash('Removed ' + [r.fillers ? r.fillers + ' filler' + (r.fillers === 1 ? '' : 's') : '', r.pauses ? r.pauses + ' pause' + (r.pauses === 1 ? '' : 's') : '', r.retakes ? r.retakes + ' said twice' : ''].filter(Boolean).join(' and '), true); } catch (e) { flash(e.message); } ctx.reviewOpen = false; clearSelection(); paint(); }
+function setPauseMin(val) { var n = Number(val); if (!(n >= 0.2 && n <= 5)) return flash('Between 0.2 and 5 seconds'); setVideoSetting('video.pause', String(n)); paint(); }
+function setEngine(eng) { setVideoSetting('video.auto', eng || ''); if (eng) setVideoSetting('video.engine', eng); flash(eng === 'elevenlabs' ? 'New takes go to ElevenLabs by themselves (your credits)' : eng ? 'New takes get their words by themselves' : 'The page asks each time again'); paint(); }
+// a video.* setting from the page: the same path the Reply tab uses (Config.override → settings.json); `video` settings apply in place, no reload
+function setVideoSetting(pathKey, value) {
+  var shipped = window.MARATHON_CONFIG || {}; var cur = Config.overrides() || {};
+  try { var r = Config.override(shipped, cur, 'set', pathKey, value); Store.set('marathon.config.dirty', '1', { silent: true }); if (Object.keys(r.config).length) Store.setJSON(Config.OVR_KEY, r.config); else Store.set(Config.OVR_KEY, 'null'); Config.setOverrides(r.config); if (window.Sync && Sync.note) Sync.note('settings.json', pathKey + ' set from the Video page'); } catch (e) { flash(e.message); }
+}
+/* ---- Correct: retype what was said; the audio and the cut do not change ---- */
+function startCorrect() {
+  var v = M.active(); var sel = ctx.selection; if (!v || !sel || !sel.correctable) return;
+  var W = M.wordsFor(v); var from = ctx.tokens[sel.a].wi, to = ctx.tokens[sel.b].wi; var text = W.slice(from, to + 1).map(function (w) { return w.w; }).join(' ');
+  var others = from === to ? W.filter(function (w, k) { return k !== from && Video.normWord(w.w) === Video.normWord(W[from].w); }).length : 0;
+  ctx.correcting = { from: from, to: to, text: text, others: others }; paint();
+}
+function correctKey(ev) { if (ev.key === 'Enter') { ev.preventDefault(); saveCorrect(); } if (ev.key === 'Escape') { ev.preventDefault(); cancelCorrect(); } ev.stopPropagation(); }
+function cancelCorrect() { ctx.correcting = null; paint(); }
+function saveCorrect() {
+  var v = M.active(); var c = ctx.correcting; var el = $('correctInput'); if (!v || !c || !el) return; var text = el.value.trim();
+  if (!text) return flash('Type the word you heard. To take it out, press Delete.');
+  var W = M.wordsFor(v); var oldLast = W[c.to] ? W[c.to].w : ''; var punct = (oldLast.match(/[.,!?]+$/) || [''])[0]; if (punct && !/[.,!?]$/.test(text)) text += punct;   // the sentence end stays unless she typed her own
+  var all = !!($('correctAll') && $('correctAll').checked); ctx.correcting = null;
+  correctWords(v.id, c.from + '-' + c.to, text, all, W.slice(c.from, c.to + 1).map(function (w) { return w.w; }).join(' ')).then(function () { flashUndoWord('Corrected: ' + text); }).catch(function (e) { flash(e.message); });
+}
+function flashUndoWord(msg) { var t = $('toast'); if (!t) return; t.innerHTML = esc(msg) + ' <button type="button" onclick="undoWord()">Undo</button>'; t.classList.add('show'); t.classList.add('with-undo'); clearTimeout(flash._t); flash._t = setTimeout(function () { t.classList.remove('show'); }, 6000); }
+function undoWord() { var v = M.active(); if (!v) return; api('/api/video/word', { id: v.id, undo: true, ws: Config.activeWs() }).then(function (r) { M.setWords(v.id, r.words || [], r.silences); return Sync.pullAll(false); }).then(function () { clearSelection(); paint(); flash('The word is back as it was'); }).catch(function (e) { flash(e.message); }); }
+// the same path a pasted `video word` line takes (core/apply.js calls it): the server writes the transcript, the page re-pulls the words
+function correctWords(id, range, text, all, expect) {
+  if (!isServer()) return Promise.reject(new Error('Fixing a word needs the server (the card at the top).'));
+  var m = String(range).match(/^(\d+)(?:-(\d+))?$/); var said = m ? '' : String(range || '').trim(); if (!m && !said) return Promise.reject(new Error('which words?'));   // word numbers, or the words as they are said
+  var v = M.get(id) || M.list().filter(function (x) { return x.title.toLowerCase() === String(id).toLowerCase(); })[0]; if (!v) return Promise.reject(new Error('no take matches "' + id + '"'));
+  var body = { id: v.id, text: text, all: !!all, ws: Config.activeWs() }; if (m) { body.from = +m[1]; body.to = m[2] !== undefined ? +m[2] : +m[1]; } else body.said = said.slice(0, 200); if (expect) body.expect = expect;
+  return api('/api/video/word', body).then(function (r) { if (r && Array.isArray(r.words)) M.setWords(v.id, r.words, r.silences); return Sync.pullAll(false); }).then(function () { clearSelection(); paint(); });   // the words come back with the answer: no wait for the poll
+}
+window.correctWords = correctWords;
 function removeNoise() { var v = M.active(); if (!v) return; try { var r = M.tidy(v); var parts = [r.fillers ? r.fillers + ' filler' + (r.fillers === 1 ? '' : 's') : '', r.pauses ? r.pauses + ' pause' + (r.pauses === 1 ? '' : 's') : ''].filter(Boolean); flash('Removed ' + parts.join(' and '), true); } catch (e) { flash(e.message); } clearSelection(); paint(); }
 function keepEverything() { var v = M.active(); if (v && M.keepEverything(v)) flash('Everything plays again', true); clearSelection(); paint(); }
 function undoCut() { var v = M.active(); if (v && M.undo(v)) flash('Undone'); clearSelection(); paint(); }
@@ -131,7 +238,7 @@ function openRecordings() { api('/api/video/recordings', { open: true }).then(fu
 function addWaiting() { api('/api/video/recordings', { add: true }).then(function (r) { flash('Added ' + (r.added || []).length + ' take' + ((r.added || []).length === 1 ? '' : 's')); return Sync.pullAll(false); }).then(function () { loadRecordings(); paint(); }).catch(function (e) { flash(e.message); }); }
 function checkJobs(v) {   // on open: is something running for this take (a render or a transcription started earlier)?
   if (!isServer() || !v) return;
-  api('/api/video/' + encodeURIComponent(v.id) + '/status').then(function (st) { ctx.job = st; if (st && ((st.render && !st.render.finished) || (st.renderJob && !st.renderJob.finished) || (st.transcribe && !st.transcribe.finished))) startPoll(v.id); paint(); }).catch(function () { /* none */ });
+  api('/api/video/' + encodeURIComponent(v.id) + '/status').then(function (st) { ctx.job = st; if (st && ((st.render && !st.render.finished) || (st.renderJob && !st.renderJob.finished) || (st.transcribe && !st.transcribe.finished) || (st.proxy && !st.proxy.finished))) startPoll(v.id); paint(); }).catch(function () { /* none */ });
 }
 function startPoll(id) {
   stopPoll(); var t0 = Date.now(); var seenDone = false; var lastSt = '';
@@ -141,11 +248,17 @@ function startPoll(id) {
       var sig = JSON.stringify(st); var changed = sig !== lastSt; lastSt = sig;
       ctx.job = st; var pr = st.render;
       if (pr && !pr.finished && pr.total && pr.done > 0) { var el = (Date.now() - Date.parse(pr.startedAt || t0)) / 1000; var left = el / pr.done * (pr.total - pr.done); ctx.left = left > 50 ? Math.max(1, Math.round(left / 60)) + ' min' : left > 5 ? Math.round(left) + ' s' : ''; } else ctx.left = '';
-      var rendering = (pr && !pr.finished) || (st.renderJob && !st.renderJob.finished); var transcribing = st.transcribe && !st.transcribe.finished;
-      if (!rendering && !transcribing && !seenDone) {
-        seenDone = true; stopPoll(); var failed = (st.renderJob && st.renderJob.finished && st.renderJob.code !== 0 && Date.parse(st.renderJob.endedAt || 0) > renderStartedAt - 1000) || (st.transcribe && st.transcribe.finished && st.transcribe.code !== 0);
+      var rendering = (pr && !pr.finished) || (st.renderJob && !st.renderJob.finished); var transcribing = st.transcribe && !st.transcribe.finished; var proxying = st.proxy && !st.proxy.finished;
+      if (!rendering && !transcribing && !proxying && !seenDone) {
+        seenDone = true; stopPoll(); var failed = (st.renderJob && st.renderJob.finished && st.renderJob.code !== 0 && Date.parse(st.renderJob.endedAt || 0) > renderStartedAt - 1000) || (st.transcribe && st.transcribe.finished && st.transcribe.code !== 0) || (st.proxy && st.proxy.finished && st.proxy.code !== 0);
         ctx.showRenderError = !!(st.renderJob && st.renderJob.finished && st.renderJob.code !== 0 && Date.parse(st.renderJob.endedAt || 0) >= renderStartedAt - 1000);
-        Sync.pullAll(false).then(function () { var nv = M.active(); if (nv) loadWords(nv); paint(); if (!failed) flash(st.transcribe && Date.parse(st.transcribe.endedAt || 0) > t0 - 1000 ? 'The words are in' : 'Done: the render is below'); else flash('It did not finish; the reason is on the page'); });
+        Sync.pullAll(false).then(function () {
+          var nv = M.active(); if (nv) loadWords(nv); paint();
+          if (failed) return flash('It did not finish; the reason is on the page');
+          if (st.transcribe && Date.parse(st.transcribe.endedAt || 0) > t0 - 1000) return flash('The words are in');
+          if (st.proxy && Date.parse(st.proxy.endedAt || 0) > t0 - 1000) { ctx.player.cannotPlay = false; playerFor = ''; paintPlayer(nv); return flash('The copy plays here now'); }
+          var latest = nv && (nv.exports || []).slice(-1)[0]; if (latest) { watchRender(latest.file.replace(/.*\//, '')); flash('Done: the ' + (latest.kind === 'final' ? 'final' : 'preview') + ' is playing above'); }
+        });
       }
       if (changed) paint();   // not every tick: a re-render drops the selection and anything typed
     }).catch(function () { /* keep polling */ });
@@ -178,7 +291,7 @@ function addTake() {
   var p = ($('addPath') && $('addPath').value || '').trim(); if (!p) return flash('Where is the recording? Drop it above or paste its path.');
   if (!isServer()) return flash('Without the server, your agent adds it: the button below');
   var btn = document.querySelector('#addBox .btn.primary'); if (btn) { btn.disabled = true; btn.textContent = 'Reading the file…'; }
-  api('/api/video/add', { path: p, ws: Config.activeWs() }).then(function (r) { flash(r.existing ? 'Already a take: ' + r.title : 'Added: ' + r.title + '. Next: get the words.'); $('addPath').value = ''; $('addFound').textContent = ''; ctx.addOpen = false; return Sync.pullAll(false).then(function () { if (r.id && M.get(r.id)) M.setActive(r.id); paint(); }); })
+  api('/api/video/add', { path: p, ws: Config.activeWs() }).then(function (r) { flash(r.existing ? 'Already a take: ' + r.title : r.wordsStarted ? 'Added: ' + r.title + '. Getting the words…' : 'Added: ' + r.title + '. Next: get the words.'); $('addPath').value = ''; $('addFound').textContent = ''; ctx.addOpen = false; return Sync.pullAll(false).then(function () { if (r.id && M.get(r.id)) { M.setActive(r.id); if (r.wordsStarted) checkJobs(M.active()); } paint(); }); })
     .catch(function (e) { flash(e.message); if (btn) { btn.disabled = false; btn.textContent = 'Add this recording'; } });
 }
 function pointAgain() {
@@ -238,12 +351,15 @@ function init() {
   var v = M.active(); if (v) loadWords(v);
   paint();
   document.addEventListener('keydown', function (e) {
-    var inField = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName) || (document.activeElement && document.activeElement.isContentEditable); if (inField) return;
+    var ae = document.activeElement || {}; var inField = /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) || ae.isContentEditable; if (inField) return;
+    if (document.body.classList.contains('guide-open') && e.key === 'Escape') return;   // the Guide closes itself
     var mod = e.metaKey || e.ctrlKey;
     if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redoCut(); else undoCut(); return; }
-    if (e.key === 'Delete' || e.key === 'Backspace' || e.key === 'Enter') { if (ctx.selection && ctx.selection.count) { e.preventDefault(); actOnSelection(); } return; }   // nothing selected: nothing happens
+    if (e.key === ' ') { if (ae.tagName === 'VIDEO') return; e.preventDefault(); if (ae.tagName === 'BUTTON') ae.blur(); togglePlay(); return; }   // never re-click a focused button
+    if (e.key === 'Delete' || e.key === 'Backspace' || e.key === 'Enter') { if (ctx.selection && ctx.selection.count) { e.preventDefault(); if (ae.tagName === 'BUTTON') ae.blur(); actOnSelection(); } return; }   // nothing selected: nothing happens
+    if (e.key === 'c' || e.key === 'C') { if (!mod && ctx.selection && ctx.selection.correctable) { e.preventDefault(); startCorrect(); } return; }
     if (e.key === 'Escape') { if (ctx.selection) { clearSelection(); paintSelection(); } return; }
-    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { if (!ctx.tokens.length) return; e.preventDefault(); moveSelection(e.key === 'ArrowRight' ? 1 : -1, e.shiftKey); }
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { if (!ctx.tokens.length) return; e.preventDefault(); if (ctx.selection) moveSelection(e.key === 'ArrowRight' ? 1 : -1, e.shiftKey); else if (vid && ctx.server) seekTo(Math.max(0, (vid.currentTime || 0) + (e.key === 'ArrowRight' ? 1 : -1))); }
   });
 }
 document.addEventListener('DOMContentLoaded', init);

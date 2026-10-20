@@ -93,6 +93,23 @@ function meta(html, url) {
    GET  /api/video/<id>/<name>                  preview-n.mp4 / final-n.mp4 (Range → 206), their .srt, transcript.json
    The id must be a take in a videos.json of this folder; names are whitelisted; nothing else under data/videos/ is reachable. */
 var VideoLib = null; try { VideoLib = require(path.join(ROOT, 'core', 'video.js')); } catch (e) { VideoLib = null; }
+// the video settings as they are now (settings.json changes while the server runs: the remembered engine, the pause, the folder)
+var liveCfgCache = { at: 0, v: null };
+function videoCfg() {
+  if (Date.now() - liveCfgCache.at < 3000 && liveCfgCache.v) return liveCfgCache.v;
+  var v = Object.assign({ engine: '', model: 'small.en', pause: 0.7, recordings: '', captions: { style: 'sentence', burn: false } }, cfg.video || {});
+  try { var own = JSON.parse(fs.readFileSync(path.join(DATA, 'settings.json'), 'utf8')).config; if (own && own.video && typeof own.video === 'object') Object.keys(own.video).forEach(function (k) { if (own.video[k] !== undefined && own.video[k] !== null) v[k] = own.video[k]; }); } catch (e) { /* as shipped */ }
+  liveCfgCache = { at: Date.now(), v: v }; return v;
+}
+// a take just arrived: when an engine is remembered and usable, the words follow by themselves (ElevenLabs only with the standing yes that is the setting)
+function autoWords(takeId) {
+  var vc = videoCfg(); var eng = String(vc.auto || '').toLowerCase(); if (!/^(whisper|elevenlabs)$/.test(eng) || !VideoLib) return false;   // video.auto is the standing yes; video.engine alone only skips the question
+  var doc = videoDoctor(); if (eng === 'whisper' && !doc.whisper) return false; if (eng === 'elevenlabs' && !doc.elevenlabsKey) return false;
+  var t = findTake(takeId); if (!t || t.take.transcript) return false; var dir = takeDir(t.id); var tj = jobState(dir, 'transcribe'); if (tj && !tj.finished) return false;
+  var durS = Number(t.take.sources && t.take.sources[0] && t.take.sources[0].duration) || 0; if (durS > (Number(vc.autoMaxMin) || 30) * 60) return false;   // a two-hour screen recording is not what she meant: the card asks
+  var est = eng === 'elevenlabs' ? (durS / 3600 * 0.40 < 0.005 ? 'less than $0.01' : 'about $' + (durS / 3600 * 0.40).toFixed(2)) : '';
+  soloJob('transcribe', dir, ['video', 'transcribe', t.id, '--engine', eng].concat(eng === 'elevenlabs' ? ['--yes'] : []).concat(soloArgs(t.ws)), { engine: eng, auto: true, est: est }); return true;
+}
 var SOLO = path.join(ROOT, 'solo.js');
 function readBody(req, res, limit, cb) {   // JSON bodies only: a plain-text POST from another site never reaches a route (no preflight is granted here)
   if (!/^application\/json/i.test(String(req.headers['content-type'] || ''))) { req.resume(); return json(res, 415, { error: 'send JSON (Content-Type: application/json)' }); }
@@ -120,15 +137,7 @@ function soloRun(args, timeout, opts) {
   return { code: r.status, out: out || { error: String(r.stderr || r.stdout || 'solo.js failed').trim().slice(0, 400) } };
 }
 // the CLI detached for the long jobs; stdout+stderr land in <dir>/<job>.log, <dir>/<job>.json carries pid/finished for the page
-function soloJob(job, dir, args, extra) {
-  fs.mkdirSync(dir, { recursive: true }); var log = path.join(dir, job + '.log'); var fd = fs.openSync(log, 'w');
-  var child = require('child_process').spawn(process.execPath, [SOLO].concat(args), { cwd: ROOT, env: soloEnv(), detached: true, stdio: ['ignore', fd, fd] });
-  fs.closeSync(fd); var meta = Object.assign({ pid: child.pid, startedAt: new Date().toISOString(), finished: false }, extra || {}); var mf = path.join(dir, job + '.json');
-  fs.writeFileSync(mf, JSON.stringify(meta) + '\n');
-  child.on('exit', function (code) { meta.finished = true; meta.code = code; meta.endedAt = new Date().toISOString(); try { fs.writeFileSync(mf, JSON.stringify(meta) + '\n'); } catch (e) { /* gone */ } });
-  child.on('error', function (e) { meta.finished = true; meta.code = 1; meta.error = e.message; try { fs.writeFileSync(mf, JSON.stringify(meta) + '\n'); } catch (e2) { /* gone */ } });
-  child.unref(); return meta;
-}
+function soloJob(job, dir, args, extra) { return VideoLib.node.job(job, dir, [SOLO].concat(args), extra, soloEnv()); }   // the same detached job `video watch` uses (core/video.js)
 function alive(pid) { try { process.kill(pid, 0); return true; } catch (e) { return false; } }
 function jobState(dir, job) {   // the job file plus the last lines of its log; null when the job never ran
   var mf = path.join(dir, job + '.json'); var m = null; try { m = JSON.parse(fs.readFileSync(mf, 'utf8')); } catch (e) { return null; }
@@ -160,7 +169,7 @@ function localOnly(req) {   // the browser on this computer, not a page from els
 }
 /* the recordings folder: polled while the server runs; what lands there becomes a take */
 var recState = { timer: null, dir: '', busy: false, queue: [], lastAdded: null };
-function recordingsDir() { return VideoLib && VideoLib.node ? VideoLib.node.recordingsDir(cfg.video || {}) : ''; }
+function recordingsDir() { return VideoLib && VideoLib.node ? VideoLib.node.recordingsDir(videoCfg()) : ''; }
 function knownTakes() { var ids = {}, paths = {}; try { fs.readdirSync(DATA).filter(function (n) { return /^([a-z0-9-]+-)?videos\.json$/.test(n); }).forEach(function (n) { JSON.parse(fs.readFileSync(path.join(DATA, n), 'utf8')).videos.forEach(function (x) { ids[x.id] = 1; (x.sources || []).forEach(function (s) { if (s.path) paths[s.path] = 1; }); }); }); } catch (e) { /* none */ } return { ids: ids, paths: paths }; }
 // one state in memory while the server runs, saved after every change; reloaded when the CLI (`video recordings --add | --forget`) wrote the file meanwhile
 function recMtime() { try { return fs.statSync(path.join(DATA, 'recordings.json')).mtimeMs; } catch (e) { return 0; } }
@@ -190,7 +199,7 @@ function watchRecordings() {
     var st = recST(); var k = knownTakes(); var now = Date.now(); var before = JSON.stringify(st.files);
     Object.keys(st.files).forEach(function (p) { var f = st.files[p]; if (f.takeId && !k.ids[f.takeId]) { if (now - (f.at || 0) < 20000) { delete f.takeId; delete f.at; } else if (!f.skipped) f.skipped = 'removed'; } });   // gone within 20 s: a page write raced it (reconcile reads the file right before each write), add again; gone later: she removed it, leave it out
     var ready = VideoLib.node.scanRecordings(dir, st, now); if (JSON.stringify(st.files) !== before) recSaveNow();
-    ready.forEach(function (f) { addRecording(f.path, function (v) { VideoLib.node.recResult(recST(), f.path, v ? v.id : null, Date.now(), !!(v && v.existing)); recSaveNow(); if (v && !v.existing) recState.lastAdded = { id: v.id, title: v.title, at: Date.now() }; }); });
+    ready.forEach(function (f) { addRecording(f.path, function (v) { VideoLib.node.recResult(recST(), f.path, v ? v.id : null, Date.now(), !!(v && v.existing)); recSaveNow(); if (v && !v.existing) { recState.lastAdded = { id: v.id, title: v.title, at: Date.now() }; autoWords(v.id); } }); });
   }, 4000);
   recState.timer.unref();
 }
@@ -205,7 +214,7 @@ function videoApi(req, res, url) {
       if (b.open) { if (!fs.existsSync(rdir)) fs.mkdirSync(rdir, { recursive: true }); var opener = process.platform === 'darwin' ? ['open', [rdir]] : process.platform === 'win32' ? ['explorer', [rdir]] : ['xdg-open', [rdir]]; try { require('child_process').spawn(opener[0], opener[1], { detached: true, stdio: 'ignore' }).unref(); } catch (e) { return json(res, 500, { error: 'could not open the folder' }); } return json(res, 200, { ok: true, folder: rdir }); }
       if (b.add) {   // the files already there when the watcher started: add them now, one after the other
         var list = recordingsWaiting(rdir); if (!list.length) return json(res, 200, { added: [] }); var added = []; var left = list.length;
-        list.forEach(function (n) { var p = path.join(rdir, n); var f = recST().files[p]; if (f) delete f.pending; addRecording(p, function (v) { VideoLib.node.recResult(recST(), p, v ? v.id : null, Date.now(), !!(v && v.existing)); recSaveNow(); if (v && !v.existing) added.push({ id: v.id, title: v.title }); if (--left === 0) json(res, 200, { added: added }); }); });
+        list.forEach(function (n) { var p = path.join(rdir, n); var f = recST().files[p]; if (f) delete f.pending; addRecording(p, function (v) { VideoLib.node.recResult(recST(), p, v ? v.id : null, Date.now(), !!(v && v.existing)); recSaveNow(); if (v && !v.existing) { added.push({ id: v.id, title: v.title }); autoWords(v.id); } if (--left === 0) json(res, 200, { added: added }); }); });
         return;
       }
       return json(res, 400, { error: 'create, open or add' });
@@ -234,7 +243,7 @@ function videoApi(req, res, url) {
       return json(res, 200, { name: name, found: hits });
     });
   }
-  if (url === '/api/video/add' || url === '/api/video/transcribe' || url === '/api/video/render' || url === '/api/video/source' || url === '/api/video/post' || url === '/api/video/title') {
+  if (url === '/api/video/add' || url === '/api/video/transcribe' || url === '/api/video/render' || url === '/api/video/source' || url === '/api/video/post' || url === '/api/video/title' || url === '/api/video/word' || url === '/api/video/proxy') {
     if (req.method !== 'POST') return json(res, 405, { error: 'method' });
     return readBody(req, res, 25 * 1048576, function (err, b) {
       if (err) return json(res, 400, { error: err.message });
@@ -245,7 +254,7 @@ function videoApi(req, res, url) {
         if (!path.isAbsolute(p)) return json(res, 400, { error: 'Give the whole path, from the top: /Users/you/Movies/take.mov (Mac) or C:\\Users\\you\\Videos\\take.mp4 (Windows). Finder: right-click the file, hold ⌥ (Option), "Copy … as Pathname".' });
         if (!fs.existsSync(p)) return json(res, 404, { error: 'No file at ' + p + '. Check the folder and the name (it has to match exactly, with the ending like .mov or .mp4).' });
         var args = ['video', 'add'].concat(b.title ? [String(b.title).slice(0, 120)] : []).concat(['--file', p]).concat(soloArgs(ws));
-        var r = soloRun(args, 30000); return json(res, r.code === 0 ? 200 : 400, r.out);
+        var r = soloRun(args, 30000); if (r.code === 0 && r.out && r.out.id && !r.out.existing) r.out.wordsStarted = autoWords(r.out.id); return json(res, r.code === 0 ? 200 : 400, r.out);
       }
       var t = findTake(b.id); if (!t) return json(res, 404, { error: 'no take with id ' + String(b.id || '').slice(0, 20) });
       if (t.ws !== ws) ws = t.ws;   // the take decides which workspace file is written
@@ -255,7 +264,17 @@ function videoApi(req, res, url) {
         if (!np || !path.isAbsolute(np)) return json(res, 400, { error: 'Give the whole path to the recording.' }); if (!fs.existsSync(np)) return json(res, 404, { error: 'No file at ' + np });
         var rs = soloRun(['video', 'source', t.id, np].concat(soloArgs(ws)), 30000); return json(res, rs.code === 0 ? 200 : 400, rs.out);
       }
-      if (url === '/api/video/title') { var nt = String(b.title || '').trim().slice(0, 120); if (!nt) return json(res, 400, { error: 'a title is needed' }); var rt = soloRun(['video', 'title', t.id, nt].concat(soloArgs(ws)), 20000); return json(res, rt.code === 0 ? 200 : 400, rt.out); }
+      if (url === '/api/video/proxy') {   // a copy that plays here: detached like a render, the page polls status.proxy
+        var pj = jobState(dir, 'proxy'); if (pj && !pj.finished) return json(res, 409, { error: 'The copy is being made already.', job: pj });
+        var pm = soloJob('proxy', dir, ['video', 'proxy', t.id].concat(soloArgs(ws))); return json(res, 202, { job: 'proxy', id: t.id, startedAt: pm.startedAt });
+      }
+      if (url === '/api/video/word') {   // correct the words from..to (or undo the last correction): the audio and the cut stay; transcript.json and the phrases change
+        if (b.undo) { var ru = soloRun(['video', 'word', t.id, '--undo'].concat(soloArgs(ws)), 20000); return json(res, ru.code === 0 ? 200 : 400, ru.out); }
+        var said = b.from === undefined && typeof b.said === 'string' ? b.said.trim().slice(0, 200) : ''; var fromW = parseInt(b.from, 10), toW = b.to === undefined ? fromW : parseInt(b.to, 10); if (!said && !(fromW >= 0 && toW >= fromW)) return json(res, 400, { error: 'which words?' });
+        var textW = String(b.text || '').trim().slice(0, 400); if (!textW) return json(res, 400, { error: 'type the words as they should read' });
+        var rw = soloRun(['video', 'word', t.id, said || (fromW + '-' + toW), '--text=' + textW].concat(b.all ? ['--all'] : []).concat(b.expect !== undefined ? ['--expect', String(b.expect).slice(0, 400)] : []).concat(soloArgs(ws)), 20000); return json(res, rw.code === 0 ? 200 : rw.out && /moved/.test(rw.out.error || '') ? 409 : 400, rw.out);
+      }
+      if (url === '/api/video/title') { var nt = String(b.title || '').trim().slice(0, 120); if (!nt) return json(res, 400, { error: 'a title is needed' }); var rt = soloRun(['video', 'title', t.id, '--title=' + nt].concat(soloArgs(ws)), 20000); return json(res, rt.code === 0 ? 200 : 400, rt.out); }
       if (url === '/api/video/post') {   // a draft post with the final linked, never copied (fast, no ffmpeg)
         var pargs = ['video', 'post', t.id].concat(b.at ? ['--at', String(b.at).slice(0, 40)] : []).concat(soloArgs(ws));
         var rp = soloRun(pargs, 20000); return json(res, rp.code === 0 ? 200 : 400, rp.out);
@@ -288,15 +307,26 @@ function videoApi(req, res, url) {
   var mm = url.match(/^\/api\/video\/([^/]+)\/([^/]+)$/); if (!mm) return json(res, 404, { error: 'no such video route' });
   if (req.method !== 'GET' && req.method !== 'HEAD') return json(res, 405, { error: 'method' });
   var tk = findTake(mm[1]); if (!tk) return json(res, 404, { error: 'no such take' }); var d2 = takeDir(tk.id); var name = mm[2];
-  if (name === 'status') { var pr = null; try { pr = JSON.parse(fs.readFileSync(path.join(d2, 'progress.json'), 'utf8')); if (!pr.finished && !alive(pr.pid)) { pr.finished = true; pr.lost = true; } } catch (e) { pr = null; } return json(res, 200, { id: tk.id, render: pr, renderJob: jobState(d2, 'render'), transcribe: jobState(d2, 'transcribe'), updatedAt: tk.take.updatedAt || 0 }); }
+  if (name === 'status') { var pr = null; try { pr = JSON.parse(fs.readFileSync(path.join(d2, 'progress.json'), 'utf8')); if (!pr.finished && !alive(pr.pid)) { pr.finished = true; pr.lost = true; } } catch (e) { pr = null; } return json(res, 200, { id: tk.id, render: pr, renderJob: jobState(d2, 'render'), transcribe: jobState(d2, 'transcribe'), proxy: jobState(d2, 'proxy'), updatedAt: tk.take.updatedAt || 0 }); }
   if (name === 'progress') { var pg = null; try { pg = JSON.parse(fs.readFileSync(path.join(d2, 'progress.json'), 'utf8')); } catch (e) { pg = null; } return json(res, 200, pg || { none: true }); }
+  if (name === 'source') {   // the take's own file, so the page can play it: the path never leaves this side
+    var sp = tk.take.sources && tk.take.sources[0] && tk.take.sources[0].path; var sst; try { sst = sp ? fs.statSync(sp) : null; } catch (e) { sst = null; }
+    if (!sst) return json(res, 404, { error: 'the recording is not where it was' });
+    var ext = path.extname(sp).toLowerCase(); var stype = { '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.mov': 'video/mp4', '.webm': 'video/webm' }[ext];   // .mov is the same container as .mp4 to a browser; .mkv never plays: the copy does
+    if (!stype) return json(res, 415, { error: 'this container does not play in a browser; make the copy' });
+    return streamFile(req, res, sp, sst, stype);
+  }
   if (name === 'transcript.json') {   // the words only: the file also carries the footage's absolute path, which stays on this side
     var tr = null; try { tr = JSON.parse(fs.readFileSync(path.join(d2, 'transcript.json'), 'utf8')); } catch (e) { return json(res, 404, { error: 'no transcript yet' }); }
     return json(res, 200, { id: tk.id, engine: tr.engine || '', granularity: tr.granularity || 'word', words: Array.isArray(tr.words) ? tr.words : [], silences: Array.isArray(tr.silences) ? tr.silences : null });
   }
-  var type = /^(preview|final)-\d+\.mp4$/.test(name) ? 'video/mp4' : /^(preview|final)-\d+\.srt$/.test(name) ? 'text/plain; charset=utf-8' : '';
+  var type = /^(preview|final)-\d+\.mp4$/.test(name) || name === 'proxy.mp4' ? 'video/mp4' : /^(preview|final)-\d+\.srt$/.test(name) ? 'text/plain; charset=utf-8' : '';
   if (!type) return json(res, 404, { error: 'not a file this route serves' });
   var file = path.join(d2, name); var st; try { st = fs.statSync(file); } catch (e) { return json(res, 404, { error: 'no such export' }); }
+  return streamFile(req, res, file, st, type);
+}
+// a media file with Range (206 + Content-Range) so <video> can seek; HEAD answers the headers only
+function streamFile(req, res, file, st, type) {
   var size = st.size; var head = { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-store', 'Last-Modified': st.mtime.toUTCString() };
   var range = req.headers.range; var start = 0, end = size - 1, code = 200;
   if (range && /,/.test(String(range))) range = '';   // several ranges at once: answer the whole file
@@ -316,7 +346,7 @@ var server = http.createServer(function (req, res) {
   var url; try { url = decodeURIComponent(req.url.split('?')[0]); } catch (e) { return send(res, 400, 'bad url', 'text/plain'); }
 
   if (url === '/api/ping') return json(res, 200, { marathon: true, version: 1, data: 'data/', log: true, folder: ROOT });
-  if (req.method !== 'GET' && req.method !== 'HEAD' && url.indexOf('/api/') === 0 && !localOnly(req)) return json(res, 403, { error: 'writes are accepted from this computer only' });   // Host must be localhost and Origin, when sent, this server
+  if (url.indexOf('/api/') === 0 && !localOnly(req)) return json(res, 403, { error: 'this computer only' });   // Host must be localhost and Origin, when sent, this server: a page elsewhere cannot read the data or the footage through DNS rebinding
 
   // link metadata for inspiration items (title, description) — fetched here so the browser is not blocked by CORS
   if (url === '/api/meta') {

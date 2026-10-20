@@ -199,28 +199,31 @@
   // is this span playing? (every bit of it inside the pieces)
   function playing(v, s, e) { var ps = pieces(v); if (!ps) return true; var mid = (s + e) / 2; return ps.some(function (p) { return mid > p.start && mid < p.end; }); }   // by the midpoint, like keptFlags: a frame-edge nibble is not a cut
   function rename(v, title) { var t = get(v.id); title = String(title || '').trim().slice(0, 120); if (!t || !title || title === t.title) return false; t.title = title; t.renamedAt = Date.now(); t.updatedAt = Date.now(); persist('video title ' + t.id + ': ' + title); return true; }
+  function autoMaxMin() { var n = Number(Config.get('video.autoMaxMin')); return n > 0 ? n : 30; }
   function pauseMin() { var c = global.Config && Config.get ? Config.get('video.pause') : 0; return Number(c) > 0.1 ? Number(c) : V.DEFAULTS.pause; }
   // what tidy up would take right now: the long pauses and the fillers inside what plays
   // what "Remove fillers and pauses" would take right now, through the same Video.tidy the CLI's --tidy runs
-  function tidyOpts(v, which, custom) { return { pause: pauseMin(), duration: dur(v), fps: num(src(v).fps), cue: cueLevel(v), fillers: which === 'pauses' ? false : fillerList(custom) }; }
-  function tidyCount(v, which, custom) {
-    if (!v || !hasWords(v.id)) return { fillers: 0, pauses: 0, holes: [], pauseHoles: [], fillerHoles: [] };
-    var t = V.tidy(wordsCache[v.id], null, v.edl, tidyOpts(v, which, custom)); if (which === 'fillers') { t.pauseHoles = []; t.pauseHits = 0; t.holes = t.fillerHoles; }
+  // which: 'both' | 'fillers' | 'pauses' | 'retakes'; custom: a filler list; only: the hole keys ticked in the Review list; retakes: include the first try of something said twice
+  function tidyOpts(v, which, custom, only, withRetakes) { return { pause: which === 'retakes' ? 1e9 : pauseMin(), duration: dur(v), fps: num(src(v).fps), cue: cueLevel(v), fillers: which === 'pauses' || which === 'retakes' ? false : fillerList(custom), retakes: which === 'retakes' || !!withRetakes, only: only || null }; }
+  function tidyCount(v, which, custom, only, withRetakes) {
+    if (!v || !hasWords(v.id)) return { fillers: 0, pauses: 0, retakes: 0, holes: [], pauseHoles: [], fillerHoles: [], retakeHoles: [], allPauses: [] };
+    var t = V.tidy(wordsCache[v.id], null, v.edl, tidyOpts(v, which, custom, only, withRetakes)); if (which === 'fillers') { t.pauseHoles = []; t.pauseHits = 0; t.holes = t.fillerHoles; }
     var ps = pieces(v); var all = V.pauses(wordsCache[v.id], null, tidyOpts(v)).map(function (h) { return { s: h.s, e: h.e, gs: h.gs, ge: h.ge, open: t.pauseHoles.some(function (o) { return Math.abs(o.gs - h.gs) < 0.01; }), gone: V.coveredBy(ps, h.gs, h.ge) < 0.02 }; });   // every long pause, open (still long) or shortened, for the pills
-    return { fillers: t.fillerHits, pauses: t.pauseHits, holes: t.holes, pauseHoles: t.pauseHoles, fillerHoles: t.fillerHoles, allPauses: all };   // t.holes: merged, a pause next to a filler is one hole
+    var rt = V.retakes(wordsCache[v.id]).filter(function (r) { return playing(v, r.s, r.e); });   // every "said twice" still playing, for the underline and the Review list
+    return { fillers: t.fillerHits, pauses: t.pauseHits, retakes: t.retakeHits, holes: t.holes, pauseHoles: t.pauseHoles, fillerHoles: t.fillerHoles, retakeHoles: t.retakeHoles, allPauses: all, allRetakes: rt };   // t.holes: merged, a pause next to a filler is one hole
   }
-  function tidy(v, which, custom) {   // which: 'both' (default) | 'fillers' | 'pauses'; custom: a filler list from a reply; one step, one Undo
+  function tidy(v, which, custom, only, withRetakes) {   // one step, one Undo
     if (!hasWords(v.id)) throw new Error('Removing fillers and pauses needs the words with their times: start node serve.js and open this page there.');
-    var c = tidyCount(v, which, custom); if (!c.holes.length) throw new Error('Nothing to remove' + (which === 'fillers' ? ': no fillers' : which === 'pauses' ? ': no long pauses' : '') + ' in what plays.');
+    var c = tidyCount(v, which, custom, only, withRetakes); if (!c.holes.length) throw new Error('Nothing to remove' + (which === 'fillers' ? ': no fillers' : which === 'pauses' ? ': no long pauses' : which === 'retakes' ? ': nothing said twice' : '') + ' in what plays.');
     var res = snapTo(v, markFixed(V.cutOut(pieces(v), c.holes, dur(v)), v.edl));
-    setEdl(v, res.edl, 'removed ' + [c.fillers ? c.fillers + ' filler' + (c.fillers === 1 ? '' : 's') : '', c.pauses ? c.pauses + ' pause' + (c.pauses === 1 ? '' : 's') : ''].filter(Boolean).join(', '), res.notes); return { fillers: c.fillers, pauses: c.pauses };
+    setEdl(v, res.edl, 'removed ' + [c.fillers ? c.fillers + ' filler' + (c.fillers === 1 ? '' : 's') : '', c.pauses ? c.pauses + ' pause' + (c.pauses === 1 ? '' : 's') : '', c.retakes ? c.retakes + ' first ' + (c.retakes === 1 ? 'try' : 'tries') : ''].filter(Boolean).join(', '), res.notes); return { fillers: c.fillers, pauses: c.pauses, retakes: c.retakes };
   }
   function remove(v) { var t = get(v.id); if (!t) return false; removed[t.id] = 1; lib.videos = lib.videos.filter(function (x) { return x.id !== t.id; }); if (lib.activeId === t.id) lib.activeId = lib.videos[0] ? lib.videos[0].id : ''; persist('video rm ' + t.id + ' ' + t.title); return true; }
   // a reply's `video cut <id> --keep "…"` / `--drop "…"` (core/apply.js on this page)
   function cutFromLine(id, flags) {
     var t = get(id) || lib.videos.filter(function (x) { return x.title.toLowerCase() === String(id).toLowerCase(); })[0]; if (!t) throw new Error('no take matches "' + id + '"');
     var res;
-    if (flags.tidy || flags['drop-silence']) { if (!hasWords(t.id)) throw new Error('removing fillers and pauses needs the words; open the Video page with node serve.js running'); var tr2 = tidy(t, flags.tidy ? 'both' : 'pauses', typeof flags.tidy === 'string' ? flags.tidy.split(/[,;]+/) : null); res = { edl: get(t.id).edl, runtime: runtime(get(t.id)) }; res.tidied = tr2; }
+    if (flags.tidy || flags['drop-silence'] || flags.retakes) { if (!hasWords(t.id)) throw new Error('removing fillers and pauses needs the words; open the Video page with node serve.js running'); var tr2 = tidy(t, flags.retakes && !flags.tidy && !flags['drop-silence'] ? 'retakes' : flags.tidy ? 'both' : 'pauses', typeof flags.tidy === 'string' ? flags.tidy.split(/[,;]+/) : null, null, !!flags.retakes); res = { edl: get(t.id).edl, runtime: runtime(get(t.id)) }; res.tidied = tr2; }
     else if (flags.drop) { var custom = String(flags.drop).split(/[,;]+/); if (!hasWords(t.id)) throw new Error('dropping words needs the transcript; open the Video page with node serve.js running'); var d = V.drop(custom, wordsCache[t.id], pieces(t), { duration: dur(t) }); if (!d.hits) throw new Error('none of those words are in what plays'); res = snapTo(t, d.ranges); setEdl(t, res.edl, 'dropped ' + d.hits + ' (from a reply)', res.notes); }
     else if (flags.keep) { res = snapTo(t, V.parseRanges(String(flags.keep))); setEdl(t, res.edl, 'from a reply' + (flags.note ? ': ' + String(flags.note).slice(0, 60) : ''), res.notes); }
     else throw new Error('video cut needs --keep "…", --drop "…", --tidy or --drop-silence');
@@ -261,6 +264,6 @@
 
   global.VideoModel = { KEY: KEY, FILE: FILE, FILLERS: FILLERS, init: init, lib: function () { return lib; }, list: list, get: get, active: active, setActive: setActive, src: src,
     normalize: normalize, applyFile: applyFile, reconcile: reconcile, read: read, setWords: setWords, hasWords: hasWords, wordsFor: wordsFor, cueLevel: cueLevel,
-    keptFlags: keptFlags, holes: holes, runtime: runtime, pieces: pieces, toggle: toggle, sentenceSpans: sentenceSpans, fillers: fillers, fillerList: fillerList, dropFillers: dropFillers, keepEverything: keepEverything, setEdl: setEdl, canUndo: canUndo, canRedo: canRedo, undo: undo, redo: redo, cutSpan: cutSpan, keepSpan: keepSpan, cutSpans: cutSpans, keepSpans: keepSpans, playing: playing, rename: rename, tidy: tidy, tidyCount: tidyCount, pauseMin: pauseMin, remove: remove, cutFromLine: cutFromLine,
+    keptFlags: keptFlags, holes: holes, runtime: runtime, pieces: pieces, toggle: toggle, sentenceSpans: sentenceSpans, fillers: fillers, fillerList: fillerList, dropFillers: dropFillers, keepEverything: keepEverything, setEdl: setEdl, canUndo: canUndo, canRedo: canRedo, undo: undo, redo: redo, cutSpan: cutSpan, keepSpan: keepSpan, cutSpans: cutSpans, keepSpans: keepSpans, playing: playing, rename: rename, tidy: tidy, tidyCount: tidyCount, pauseMin: pauseMin, autoMaxMin: autoMaxMin, remove: remove, cutFromLine: cutFromLine,
     fmt: fmt, tag: tag, size: size, latestExport: latestExport, statusOf: statusOf, statusLabel: statusLabel, nextStep: nextStep, copyText: copyText, terminal: terminal, dur: dur };
 })(typeof window !== 'undefined' ? window : this);

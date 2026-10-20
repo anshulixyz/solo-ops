@@ -34,8 +34,39 @@
 .v-next b { font-weight: 600; }
 .v-next .btn { margin-left: auto; flex: none; }
 
+/* the top block sticks as one: the strip, the Review list, the player */
+.v-top { position: sticky; top: 0; z-index: 5; background: var(--canvas); padding-bottom: 6px; }
+.v-pr { display: flex; gap: 14px; align-items: stretch; margin: 10px 32px 0; }
+.v-pr video { width: 320px; max-width: 48%; height: 180px; border-radius: 10px; background: #000; box-shadow: var(--shadow-lift); flex: none; }
+.v-pside { display: flex; flex-direction: column; gap: 6px; justify-content: center; min-width: 0; }
+.v-pwhat { font-size: 13px; color: var(--muted); }
+.v-ptime { font-family: var(--mono); font-size: 13px; }
+.v-ptime b { font-size: 18px; color: var(--ink); }
+.v-pcap { margin: 8px 32px 0; font-size: 12.5px; line-height: 1.5; }
+.v-pcap.warn { padding: 8px 12px; border: 1px solid var(--amber-line, #d9a441); border-radius: 9px; background: var(--panel); }
+.v-pbar { display: flex; align-items: center; gap: 10px; margin: 8px 32px 0; padding: 6px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); font-size: 13px; }
+.v-pbar b { font-family: var(--mono); }
+.v-pnow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.w.now { box-shadow: inset 0 -3px 0 var(--accent); }
+.w.twice { text-decoration: underline dashed; text-decoration-color: var(--amber, #b7791f); text-underline-offset: 3px; }
+.v-correct { display: inline-flex; gap: 6px; align-items: center; vertical-align: middle; }
+.v-correct input[type=text] { font: inherit; font-size: 15px; min-width: 180px; padding: 2px 8px; border: 1px solid var(--accent); border-radius: 6px; background: var(--panel); color: var(--ink); }
+.v-correct label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.v-review { margin: 8px 32px 0; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); font-size: 13px; }
+.v-rbody { max-height: 30vh; overflow-y: auto; padding: 6px 12px; }
+.v-rgroup > summary { cursor: pointer; padding: 6px 0; }
+.v-rrow { display: flex; gap: 8px; align-items: center; padding: 3px 0; cursor: default; }
+.v-rrow .t { font-family: var(--mono); font-size: 11px; color: var(--faint); border: 0; background: none; cursor: pointer; padding: 0; width: 52px; text-align: right; flex: none; }
+.v-rrow .t:hover { color: var(--accent); }
+.v-rrow > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.v-rfoot { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--line); background: var(--panel-2); border-radius: 0 0 10px 10px; }
+.v-rfoot > label { white-space: nowrap; }
+.v-rfoot input[type=number] { width: 56px; font: inherit; font-size: 12px; padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
+.v-rfoot .sp { flex: 1; }
+.v-always { display: block; font-size: 12px; color: var(--muted); margin-top: 6px; }
+
 /* the strip above the sentences: pieces, runtime, undo, fillers */
-.v-strip { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 18px 32px 0; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: var(--shadow); font-size: 13px; }
+.v-strip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 18px 32px 0; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: var(--shadow); font-size: 13px; }
 .v-strip .rt { font-family: var(--mono); font-size: 12px; }
 .v-strip .rt b { font-size: 14px; color: var(--ink); }
 .v-strip .sp { flex: 1; }
@@ -44,7 +75,8 @@
 .v-legend kbd { font-family: var(--mono); font-size: 10.5px; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
 
 /* the transcript: words as selectable tokens; cut ones struck; a long pause as a pill */
-.v-phrases { padding: 12px 32px 0; user-select: none; -webkit-user-select: none; }
+.v-phrases { padding: 6px 32px 0; user-select: none; -webkit-user-select: none; }
+.v-strip .guide-link { font-size: 12.5px; }
 .ph { display: flex; gap: 14px; align-items: flex-start; padding: 7px 12px; margin-bottom: 2px; border-radius: 10px; font-size: 15.5px; line-height: 1.6; }
 .ph .t { font-family: var(--mono); font-size: 10.5px; color: var(--faint); padding: 5px 6px 0 0; white-space: nowrap; width: 58px; flex: none; text-align: right; border: 0; background: none; cursor: pointer; }
 .ph .t:hover { color: var(--accent); }

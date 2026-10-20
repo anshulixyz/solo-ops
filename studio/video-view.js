@@ -96,15 +96,17 @@
     var s = M.src(v); var doc = ctx.doctor || {}; var est = (s.duration || 0) / 3600 * 0.40; var price = est < 0.005 ? 'less than $0.01' : 'about $' + est.toFixed(2);
     if (ctx.job && ctx.job.transcribe && !ctx.job.transcribe.finished) {
       var dl = doc.model === false && doc.whisper ? ' First time: downloading the model once (490 MB), a few minutes.' : '';
-      return '<div class="vcard"><h3>Getting the words…</h3><p>' + esc(ctx.job.transcribe.engine === 'elevenlabs' ? 'The audio is with ElevenLabs; the words come back in a minute.' : 'On this computer, about a minute for a 10-minute take.' + dl) + ' You can leave this page; it carries on.</p><div class="v-bar"><i style="width:40%"></i></div></div>';
+      return '<div class="vcard"><h3>Getting the words…</h3><p>' + esc(ctx.job.transcribe.engine === 'elevenlabs' ? 'The audio is with ElevenLabs' + (ctx.job.transcribe.est ? ' (' + ctx.job.transcribe.est + ')' : '') + '; the words come back in a minute.' : 'On this computer, about a minute for a 10-minute take.' + dl) + ' You can leave this page; it carries on.</p><div class="v-bar"><i style="width:40%"></i></div>' + (ctx.job.transcribe.auto ? '<p class="muted" style="font-size:12.5px;margin:8px 0 0">Started by itself, as you asked. <button type="button" class="guide-link" onclick="setEngine(\'\')">Ask me each time instead</button></p>' : '') + '</div>';
     }
     var failed = ctx.job && ctx.job.transcribe && ctx.job.transcribe.finished && ctx.job.transcribe.code !== 0 && v.status === 'recorded';
     if (s.hasAudio === false) return '<div class="vcard"><h3>No audio track</h3><p>Nothing to transcribe. You can still trim it from the terminal:</p>' + cmd('node solo.js video cut ' + v.id + ' --keep "0-' + fmt(s.duration) + '"') + '</div>';
     var one = '<div class="v-choice"><span class="n">1</span><div class="body"><b>On this computer</b>Free · nothing leaves your ' + (mac() ? 'Mac' : 'computer') + ' · about a minute per 10 minutes.' +
-      (doc.whisper === false ? ' <span class="muted">Needs one install first.</span><div class="v-row" style="margin-top:6px"><button type="button" class="btn small" onclick="copyText(' + attr(JSON.stringify(SETUP_SENTENCE)) + ', \'Copied — paste it into Claude Code or Cursor\')">Ask my agent to install it</button></div>' : doc.model === false ? ' <span class="muted">First time: downloads a 490 MB model once.</span>' : '') + '</div>' +
+      (doc.whisper === false ? ' <span class="muted">Needs one install first.</span><div class="v-row" style="margin-top:6px"><button type="button" class="btn small" onclick="copyText(' + attr(JSON.stringify(SETUP_SENTENCE)) + ', \'Copied — paste it into Claude Code or Cursor\')">Ask my agent to install it</button></div>' : doc.model === false ? ' <span class="muted">First time: downloads a 490 MB model once.</span>' : '') +
+      (ctx.server && doc.whisper === true ? '<label class="v-always"><input type="checkbox" onchange="setEngine(this.checked ? \'whisper\' : \'\')"' + (ctx.engine === 'whisper' ? ' checked' : '') + '> Get the words this way for every new take, without asking</label>' : '') + '</div>' +
       (ctx.server ? '<button type="button" class="btn primary" onclick="transcribe(\'whisper\')"' + (doc.whisper === false ? ' disabled title="Install whisper.cpp first"' : '') + '>Get the words here</button>' : '') + '</div>';
     var two = '<div class="v-choice"><span class="n">2</span><div class="body"><b>ElevenLabs</b>The audio is sent to them, the video stays here · ' + esc(price) + ' for this take · the words come back and are kept only in <code>' + esc('data/videos/' + v.id + '/') + '</code>.' +
-      (ctx.server && doc.elevenlabsKey === false ? '<p class="muted" style="margin:6px 0 4px">Needs your key first.</p>' + keyField() + '<div class="v-row" style="margin-top:8px"><button type="button" class="btn small" onclick="copyText(' + attr(JSON.stringify(ELEVEN_SENTENCE)) + ', \'Copied — paste it into Claude Code or Cursor\')">Ask my agent to set it up</button></div>' : ctx.server && doc.elevenlabsKey ? ' <span class="muted">Key saved · <button type="button" class="guide-link" onclick="replaceKey()">Replace</button></span>' + (ctx.showKey ? keyField() : '') : '') + '</div>' +
+      (ctx.server && doc.elevenlabsKey === false ? '<p class="muted" style="margin:6px 0 4px">Needs your key first.</p>' + keyField() + '<div class="v-row" style="margin-top:8px"><button type="button" class="btn small" onclick="copyText(' + attr(JSON.stringify(ELEVEN_SENTENCE)) + ', \'Copied — paste it into Claude Code or Cursor\')">Ask my agent to set it up</button></div>' : ctx.server && doc.elevenlabsKey ? ' <span class="muted">Key saved · <button type="button" class="guide-link" onclick="replaceKey()">Replace</button></span>' + (ctx.showKey ? keyField() : '') : '') +
+      (ctx.server && doc.elevenlabsKey ? '<label class="v-always"><input type="checkbox" onchange="setEngine(this.checked ? \'elevenlabs\' : \'\')"' + (ctx.engine === 'elevenlabs' ? ' checked' : '') + '> Send every new take to ElevenLabs without asking · about $0.40 per hour of audio from your ElevenLabs credits · a take over ' + esc(String(M.autoMaxMin())) + ' minutes waits for you · untick to stop</label>' : '') + '</div>' +
       (ctx.server ? '<button type="button" class="btn" onclick="transcribe(\'elevenlabs\')"' + (doc.elevenlabsKey === false ? ' disabled title="Save the key first"' : '') + '>Send the audio</button>' : '') + '</div>';
     var three = '<div class="v-choice"><span class="n">3</span><div class="body"><b>I already have a transcript</b>An SRT, VTT or JSON from YouTube, Descript or another tool (Descript: File → Export → Subtitles). Cuts then land on whole captions, not words, and fillers cannot be removed; to cut single words, pick 1.</div>' +
       (ctx.server ? '<button type="button" class="btn" onclick="document.getElementById(\'importFile\').click()">Choose the file</button>' : '') + '</div>';
@@ -113,24 +115,66 @@
       (ctx.server ? '' : '<div class="v-term">Without the server, pick one and run its line (the card at the top says how):' + cmd(M.terminal(v, 'whisper')) + cmd(M.terminal(v, 'elevenlabs')) + cmd(M.terminal(v, 'import')) + '</div>') + '</div>';
   }
   function strip(v, ctx) {
-    var n = (v.edl || []).length; var rt = M.runtime(v); var total = M.dur(v); var tc = ctx.tidy || { fillers: 0, pauses: 0 };
+    var n = (v.edl || []).length; var rt = M.runtime(v); var total = M.dur(v); var tc = ctx.tidy || { fillers: 0, pauses: 0, retakes: 0, allRetakes: [] };
     var parts = [tc.fillers ? tc.fillers + ' filler' + (tc.fillers === 1 ? '' : 's') : '', tc.pauses ? tc.pauses + ' pause' + (tc.pauses === 1 ? '' : 's') : ''].filter(Boolean);
     var removeBtn = !ctx.words ? '<button type="button" class="btn" disabled title="Needs the words with their times: start node serve.js for that.">Remove fillers and pauses</button>'
       : parts.length ? '<button type="button" class="btn" onclick="removeNoise()" title="um, uh, you know, I mean… and pauses longer than ' + esc(String(M.pauseMin())) + ' s. Highlighted words are what goes. Undo takes it back.">Remove ' + esc(parts.join(' and ')) + '</button>'
       : '<button type="button" class="btn" disabled title="No fillers and no long pauses left in what plays.">Remove fillers and pauses</button>';
+    var twice = (tc.allRetakes || []).length;
+    var review = ctx.words && (parts.length || twice) ? '<button type="button" class="guide-link" onclick="toggleReview()">' + (ctx.reviewOpen ? 'Close the list' : 'Review first' + (twice ? ' · ' + twice + ' said twice' : '')) + '</button>' : '';
+    if (ctx.reviewOpen) removeBtn = '';   // the list's own button is the action while it is open
     var sel = ctx.selection || null;
-    var act = sel && sel.count ? '<span class="v-act"><button type="button" class="btn primary" onclick="actOnSelection()">' + (sel.cut ? 'Put back ' : 'Cut ') + esc(sel.label) + '</button><span class="muted">or press Delete</span></span>' : '';
-    return '<div class="v-strip"><span class="rt">' + (n ? '<b>' + esc(fmt(rt)) + '</b> of ' + esc(fmt(total)) : '<b>' + esc(fmt(total)) + '</b>') + '</span>' + act + '<span class="sp"></span>' +
-      removeBtn + '<button type="button" class="btn ghost" onclick="undoCut()"' + (ctx.undo ? '' : ' disabled') + ' title="⌘Z">Undo</button><button type="button" class="btn ghost" onclick="redoCut()"' + (ctx.redo ? '' : ' disabled') + ' title="⇧⌘Z">Redo</button>' +
+    var act = sel && sel.count ? '<span class="v-act"><button type="button" class="btn primary" onclick="actOnSelection()">' + (sel.cut ? 'Put back ' : 'Cut ') + esc(sel.label) + '</button>' + (sel.correctable ? '<button type="button" class="btn ghost" onclick="startCorrect()" title="Retype what was said (C). The audio and the cut do not change; Undo in the toast takes it back.">Correct</button>' : '') + '<span class="muted">or press Delete</span></span>' : '';
+    var keys = 'Space plays and pauses · ←/→ step a second, or move the selection · Delete cuts, Enter puts back · C corrects · ⌘Z / ⇧⌘Z · Esc clears';
+    return '<div class="v-strip"><span class="rt" title="' + attr(keys) + '">' + (n ? '<b>' + esc(fmt(rt)) + '</b> of ' + esc(fmt(total)) : '<b>' + esc(fmt(total)) + '</b>') + '</span>' + act + '<span class="sp"></span>' +
+      removeBtn + review + '<button type="button" class="btn ghost" onclick="undoCut()"' + (ctx.undo ? '' : ' disabled') + ' title="⌘Z">Undo</button><button type="button" class="btn ghost" onclick="redoCut()"' + (ctx.redo ? '' : ' disabled') + ' title="⇧⌘Z">Redo</button>' +
       (n ? '<button type="button" class="btn ghost" onclick="keepEverything()" title="Everything plays again; Undo brings the cut back.">Start over</button>' : '') + '</div>' +
-      '<div class="v-legend">' + (ctx.words ? 'Select words and press Delete (or Cut) to take them out · select a crossed-out word to put it back · double-click selects the sentence · Esc clears · highlighted words are what Remove fillers takes.' : 'Select a sentence and press Delete (or Cut) to take it out · select a crossed-out sentence to put it back · Esc clears' + (ctx.server ? '' : ' · word by word needs the server') + '.') + '</div>';
+      (ctx.reviewOpen ? '' : '<div class="v-legend">' + (ctx.words ? 'Click a word to go there, Space plays · select words and press Delete to take them out (a crossed-out word: put it back) · double-click selects the sentence · a misheard word: select it, press C.' : 'Select a sentence and press Delete to take it out · a crossed-out sentence: put it back' + (ctx.server ? '' : ' · word by word needs the server') + '.') + '</div>');
+  }
+  // the list before Remove: every filler, pause and "said twice" as one row with a checkbox; collapsed groups with counts; capped height
+  function review(v, ctx) {
+    var tc = ctx.tidy; if (!ctx.reviewOpen || !tc) return '';
+    var W = M.wordsFor(v); var ticked = ctx.reviewTicked || {};
+    function around(s, e) { var i = -1; W.forEach(function (w, k) { if (i < 0 && w.s >= s - 0.011) i = k; }); if (i < 0) return ''; var j = i; while (j < W.length && W[j].e <= e + 0.011) j++; var pre = W.slice(Math.max(0, i - 3), i).map(function (w) { return w.w; }).join(' '); var mid = W.slice(i, j).map(function (w) { return w.w; }).join(' '); var post = W.slice(j, j + 3).map(function (w) { return w.w; }).join(' '); return '<span class="muted">…' + esc(pre) + '</span> <b>' + esc(mid) + '</b> <span class="muted">' + esc(post) + '…</span>'; }
+    function row(key, s, html) { var on = ticked[key] !== false && !(key.indexOf('r:') === 0 && ticked[key] !== true); return '<label class="v-rrow"><input type="checkbox" data-key="' + attr(key) + '"' + (on ? ' checked' : '') + ' onchange="reviewTick(this)"><button type="button" class="t" onclick="playFrom(' + s + ')" title="Play from here">' + esc(fmt(s)) + '</button><span>' + html + '</span></label>'; }
+    var fills = (tc.fillerHoles || []).map(function (h) { return row(h.key, h.s, around(h.s, h.e)); });
+    var pauses = (tc.pauseHoles || []).map(function (h) { return row(h.key, h.gs, around(Math.max(0, h.gs - 0.01), h.gs) + ' <span class="w pause" style="cursor:default">' + esc((h.ge - h.gs).toFixed(1) + ' s') + '</span>'); });
+    var twice = (tc.allRetakes || []).map(function (r) { return row('r:' + r.s.toFixed(2), r.s, '“' + esc(r.text.length > 60 ? r.text.slice(0, 60) + '…' : r.text) + '” <span class="muted">· said again at ' + esc(fmt(r.again.s)) + '</span>'); });
+    var fcount = {}; (tc.fillerHoles || []).forEach(function (h) { var t = W.filter(function (w) { return w.s >= h.s - 0.011 && w.e <= h.e + 0.011; }).map(function (w) { return w.w.toLowerCase().replace(/[^a-z']/g, ''); }).join(' '); fcount[t] = (fcount[t] || 0) + 1; });
+    function group(title, rows, open, sub) { if (!rows.length) return ''; return '<details class="v-rgroup"' + (open ? ' open' : '') + '><summary><b>' + esc(title) + ' (' + rows.length + ')</b>' + (sub ? ' <span class="muted">· ' + esc(sub) + '</span>' : '') + '</summary>' + rows.join('') + '</details>'; }
+    var c = ctx.reviewCount || { fillers: 0, pauses: 0, retakes: 0 }; var lab = [c.fillers ? c.fillers + ' filler' + (c.fillers === 1 ? '' : 's') : '', c.pauses ? c.pauses + ' pause' + (c.pauses === 1 ? '' : 's') : '', c.retakes ? c.retakes + ' said twice' : ''].filter(Boolean);
+    return '<div class="v-review"><div class="v-rbody">' +
+      group('Fillers', fills, fills.length <= 12, Object.keys(fcount).map(function (k) { return k + ' ×' + fcount[k]; }).join(', ')) + group('Pauses', pauses, pauses.length <= 12, 'longer than ' + M.pauseMin() + ' s') + group('Said twice', twice, true, 'the later one stays; tick a row to take the first try out') +
+      '</div><div class="v-rfoot"><label class="muted">A pause counts from <input type="number" step="0.1" min="0.2" max="5" value="' + attr(String(M.pauseMin())) + '" onchange="setPauseMin(this.value)"> s (for every take)</label><span class="sp"></span><button type="button" class="btn primary" onclick="removeTicked()"' + (lab.length ? '' : ' disabled') + '>' + (lab.length ? 'Remove ' + esc(lab.join(' and ')) : 'Nothing ticked') + '</button><button type="button" class="btn ghost" onclick="toggleReview()">Close</button></div></div>';
+  }
+  // beside and under the player: what plays, the time, Watch / Back to the take, Hide
+  function playerSide(v, ctx) {
+    var p = ctx.player || {}; var srcLabel = p.src === 'take' ? 'The take, with your cuts skipped' : 'Watching ' + esc(p.label || 'a render');
+    return '<div class="v-pwhat">' + srcLabel + '</div><div class="v-ptime"><b id="ptime">' + esc(fmt(p.time || 0)) + '</b> <span class="muted">of ' + esc(fmt(p.src === 'take' ? M.dur(v) : (p.duration || 0))) + '</span></div>' +
+      '<div class="v-row">' + (p.src !== 'take' ? '<button type="button" class="btn small" onclick="watchTake()">Back to the take</button>' : '') + '<button type="button" class="btn small ghost" onclick="togglePlayer()">' + (ctx.playerHidden ? 'Show the video' : 'Hide the video') + '</button></div>';
+  }
+  function playerCap(v, ctx) {
+    var p = ctx.player || {};
+    if (p.cannotPlay) { var pj = ctx.job && ctx.job.proxy; var making = pj && !pj.finished; return '<div class="v-pcap warn">This browser cannot play this recording as it is. ' + (making ? 'Making a copy that plays here… a few minutes; you can keep editing.' : ctx.server ? '<button type="button" class="btn small" onclick="makeProxy()">Make a copy that plays here (720p, a few minutes)</button> or render a preview and the cut plays here.' : 'Render a preview and the cut plays here.') + '</div>'; }
+    if (ctx.playerHidden || ctx.reviewOpen) return '';
+    if (p.src === 'take') return '<div class="v-pcap muted">Cuts sound a little rough here; the render is clean.</div>';
+    return '<div class="v-pcap">' + (p.stale ? '<b>This ' + esc(p.kind || 'render') + ' is from an older cut.</b> Render again to see the current one.' : p.kind === 'preview' ? '<b>Check the opening, each join, and the captions.</b> Happy? Render the final.' : '<b>The final.</b> Captions ride along as a track and a .srt next to it.') + '</div>';
+  }
+  function playerBar(v, ctx) {   // the collapsed player: one line
+    var p = ctx.player || {}; return '<div class="v-pbar"><button type="button" class="btn small" onclick="togglePlay()">' + (p.playing ? '❚❚' : '▶') + '</button><b id="ptime">' + esc(fmt(p.time || 0)) + '</b><span class="muted v-pnow" id="pnow">' + esc(p.nowText || (p.src === 'take' ? v.title : p.label) || '') + '</span><span class="sp"></span>' + (ctx.reviewOpen ? '<span class="muted">The video is back when the list closes</span>' : '<button type="button" class="btn small ghost" onclick="togglePlayer()">Show the video</button>') + '</div>';
   }
   // the transcript as tokens: words (and long pauses as pills), each selectable; cut ones struck. ctx.tokens is built in DOM order for the selection
   function phrases(v, ctx) {
     var tokens = []; var out = '<div class="v-phrases" id="phrases">';
     var W = ctx.words ? M.wordsFor(v) : null; var tc = ctx.tidy || { pauseHoles: [], fillerHoles: [], allPauses: [] }; var sel = ctx.selection; var selOn = {}; if (sel) for (var k = sel.a; k <= sel.b; k++) selOn[k] = 1;
     var kindOf = { pause: 'pause', sentence: 'sentence' };
-    function tok(cls, s, e, text, title, cutOverride, ph) { var i = tokens.length; var cut = cutOverride != null ? cutOverride : !M.playing(v, s, e); tokens.push({ i: i, s: s, e: e, cut: cut, kind: kindOf[cls] || 'word', ph: ph }); return '<span class="w ' + cls + (cut ? ' cut' : '') + (selOn[i] ? ' sel' : '') + '" data-i="' + i + '"' + (title ? ' title="' + attr(title) + '"' : '') + ' onmousedown="tokDown(event,' + i + ')" onmouseenter="tokEnter(event,' + i + ')" ondblclick="selectSentenceOf(' + i + ')">' + esc(text) + '</span>'; }
+    var RT = (tc.allRetakes || []); var corr = ctx.correcting;
+    function tok(cls, s, e, text, title, cutOverride, ph, wi) {
+      var i = tokens.length; var cut = cutOverride != null ? cutOverride : !M.playing(v, s, e); var twice = cls === '' && RT.some(function (r) { return s >= r.s - 0.011 && e <= r.e + 0.011; });
+      tokens.push({ i: i, s: s, e: e, cut: cut, kind: kindOf[cls] || 'word', ph: ph, wi: wi });
+      if (corr && wi != null && wi >= corr.from && wi <= corr.to) return wi === corr.from ? '<span class="v-correct" onmousedown="event.stopPropagation()"><input type="text" id="correctInput" value="' + attr(corr.text) + '" autocomplete="off" spellcheck="false" onkeydown="correctKey(event)">' + (corr.others ? '<label><input type="checkbox" id="correctAll"> also the ' + corr.others + ' other' + (corr.others === 1 ? '' : 's') + '</label>' : '') + '<button type="button" class="btn small primary" onclick="saveCorrect()">Save</button><button type="button" class="btn small ghost" onclick="cancelCorrect()">Cancel</button></span>' : '';
+      return '<span class="w ' + cls + (cut ? ' cut' : '') + (selOn[i] ? ' sel' : '') + (twice ? ' twice' : '') + '" data-i="' + i + '"' + (title ? ' title="' + attr(title) + '"' : twice ? ' title="Said twice. The later one stays; Review first → Said twice takes this one out."' : '') + ' onmousedown="tokDown(event,' + i + ')" onmouseenter="tokEnter(event,' + i + ')" onmouseup="tokUp(event,' + i + ')" ondblclick="tokDouble(event,' + i + ')">' + esc(text) + '</span>';
+    }
     // a long pause (open or already shortened) between two words becomes a pill after the word it follows: its length, crossed out once shortened
     function pill(a, b, ph) { if (!a || !b) return ''; var h = (tc.allPauses || []).filter(function (x) { return Math.abs(x.gs - a.e) < 0.06 && Math.abs(x.ge - b.s) < 0.06; })[0]; if (!h) return ''; return ' ' + tok('pause', h.s, h.e, (h.ge - h.gs).toFixed(1) + ' s', h.open ? 'A pause. Remove fillers and pauses shortens it; or select it and press Delete.' : 'A pause, shortened to a beat. Select it and press Delete to bring it back.', !h.open, ph); }
     var lim = ctx.showAll ? v.phrases.length : Math.min(v.phrases.length, 200);
@@ -140,8 +184,8 @@
       if (byPhrase) {
         var words = byPhrase[i]; var nextFirst = byPhrase[i + 1] ? byPhrase[i + 1][0] : null;
         html = words.map(function (w, j) {
-          var f = (tc.fillerHoles || []).some(function (h) { return w.s >= h.s - 0.011 && w.e <= h.e + 0.011; });
-          return tok(f ? 'filler' : '', w.s, w.e, w.w, f ? 'A filler: Remove fillers takes it' : '', null, i) + (j < words.length - 1 ? pill(w, words[j + 1], i) : '');
+          var f = (tc.fillerHoles || []).some(function (h) { return w.s >= h.s - 0.011 && w.e <= h.e + 0.011; }) && !(ctx.reviewTicked && ctx.reviewTicked[(tc.fillerHoles.filter(function (h) { return w.s >= h.s - 0.011 && w.e <= h.e + 0.011; })[0] || {}).key] === false);
+          return tok(f ? 'filler' : '', w.s, w.e, w.w, f ? 'A filler: Remove fillers takes it' : '', null, i, W.indexOf(w)) + (j < words.length - 1 ? pill(w, words[j + 1], i) : '');
         }).join(' ') + (words.length ? pill(words[words.length - 1], nextFirst, i) : '');
         if (!words.length) html = tok('', p.s, p.e, p.t, '', null, i);
       } else html = tok('sentence', p.s, p.e, p.t, '', null, i);
@@ -167,15 +211,10 @@
         '<label class="muted" style="font-size:12px;margin-left:6px"><input type="checkbox" id="aspect916" onchange="rememberAspect(this)"' + (ctx.aspect === '9:16' ? ' checked' : '') + '> 9:16 for Instagram / TikTok</label></div>';
       if (job.renderJob && job.renderJob.finished && job.renderJob.code !== 0 && ctx.showRenderError) out += '<div class="vcard warn" style="margin:10px 0 0"><p><b>The render did not finish.</b> ' + esc(job.renderJob.tail || 'No reason was given.') + '</p></div>';
     }
-    var latest = fin && (!pre || (fin.at || 0) >= (pre.at || 0)) ? fin : pre;
-    if (latest && ctx.server) {
-      var stale = latest.edlHash !== v.edlHash; var name = latest.file.replace(/.*\//, '');
-      out += '<div class="v-player"><video controls preload="metadata" src="/api/video/' + attr(v.id) + '/' + attr(name) + '"></video><div class="cap">' + (stale ? '<b>This ' + esc(latest.kind) + ' is from an older cut.</b> Render again to see the current one. ' : latest.kind === 'preview' ? '<b>Check the opening, each join, and the captions.</b> Happy? Render the final. ' : '<b>The final.</b> Captions ride along as a track and a .srt next to it. ') + '</div></div>';
-    }
     (v.exports || []).slice().reverse().slice(0, 6).forEach(function (e) {
       var nm = e.file.replace(/.*\//, ''); var stale = e.edlHash !== v.edlHash;
       out += '<div class="v-export"><span>' + esc(e.kind === 'final' ? 'Final' : 'Preview') + ' · ' + esc(fmt(e.duration || 0)) + (e.size ? ' · ' + esc(M.size(e.size)) : '') + (e.aspect ? ' · ' + esc(e.aspect) : '') + '</span><span class="path" title="' + attr(e.file) + '">' + esc(e.file) + '</span>' + (stale ? '<span class="stale">from an older cut</span>' : '') +
-        '<button type="button" class="btn small" onclick="copyText(' + attr(JSON.stringify(e.file)) + ', \'Copied the path (inside your Solo Ops folder)\')">Copy path</button>' + (ctx.server && e.srt ? '<a class="btn small" href="/api/video/' + attr(v.id) + '/' + attr(nm.replace(/\.mp4$/, '.srt')) + '" target="_blank" rel="noopener">.srt</a>' : '') + '</div>';
+        (ctx.server ? '<button type="button" class="btn small" onclick="watchRender(' + attr(JSON.stringify(nm)) + ')">Watch</button>' : '') + '<button type="button" class="btn small" onclick="copyText(' + attr(JSON.stringify(e.file)) + ', \'Copied the path (inside your Solo Ops folder)\')">Copy path</button>' + (ctx.server && e.srt ? '<a class="btn small" href="/api/video/' + attr(v.id) + '/' + attr(nm.replace(/\.mp4$/, '.srt')) + '" target="_blank" rel="noopener">.srt</a>' : '') + '</div>';
     });
     if (fin && !v.postId && ctx.server) out += '<div class="v-row" style="margin-top:12px"><button type="button" class="btn primary" onclick="makePost()">Make the post</button><span class="muted" style="font-size:12.5px">A draft on the schedule (tomorrow 09:00, move it there) with the final linked, never copied. “Post this video” in the Guide writes two captions in your voice.</span></div>';
     return out + '</div>';
@@ -187,8 +226,8 @@
     if (!v) return out + empty(ctx);
     out += (ctx.addOpen ? recordCard(ctx) : '') + addBox(ctx, !!ctx.addOpen) + head(v, ctx);
     if (!v.transcript || !(v.phrases || []).length) return out + engineCard(v, ctx);
-    out += strip(v, ctx) + phrases(v, ctx) + exportsSection(v, ctx);
+    out += (ctx.server ? '' : '<p class="v-legend" style="margin-top:14px">The player needs the server (the card at the top).</p>') + phrases(v, ctx) + exportsSection(v, ctx);
     return out;
   }
-  global.VideoView = { esc: esc, list: list, main: main, doors: doors, cmd: cmd, SETUP_SENTENCE: SETUP_SENTENCE };
+  global.VideoView = { esc: esc, list: list, main: main, strip: strip, review: review, playerSide: playerSide, playerCap: playerCap, playerBar: playerBar, doors: doors, cmd: cmd, SETUP_SENTENCE: SETUP_SENTENCE };
 })(window);

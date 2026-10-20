@@ -80,7 +80,8 @@
   }
   function packed(list, opts) {   // opts.pauses: holes from pauses(); a long one between two phrases prints as its own line, so an agent sees what "tidy up" would shorten
     var H = (opts && opts.pauses) || []; var L = [];
-    (list || []).forEach(function (p, i) { if (i) { var prev = list[i - 1]; H.forEach(function (h) { if (h.gs >= prev.e - 0.05 && h.ge <= p.s + 0.05) L.push('[pause ' + (h.ge - h.gs).toFixed(1) + ' s]'); }); } L.push('[' + fmtTag(p.s) + '-' + fmtTag(p.e) + '] ' + p.t); });
+    var R = (opts && opts.retakes) || [];
+    (list || []).forEach(function (p, i) { if (i) { var prev = list[i - 1]; H.forEach(function (h) { if (h.gs >= prev.e - 0.05 && h.ge <= p.s + 0.05) L.push('[pause ' + (h.ge - h.gs).toFixed(1) + ' s]'); }); } L.push('[' + fmtTag(p.s) + '-' + fmtTag(p.e) + '] ' + p.t); R.forEach(function (r) { if (r.s >= p.s - 0.05 && r.s < p.e) L.push('[said twice at ' + fmtTag(r.s) + ': "' + r.text + '" — the later one at ' + fmtTag(r.again.s) + ' is the keeper]'); }); });
     return L.join('\n');
   }
 
@@ -238,9 +239,58 @@
     var W = trimToSilences(words, silences); if (!(opts.duration > 0)) opts.duration = W.length ? W[W.length - 1].e : 0;
     var open = pauses(W, null, opts).filter(function (h) { return coveredBy(ps, h.gs, h.ge) > beat + (opts.fps ? 2 / opts.fps : 0.07) + 0.02; });   // already shortened ones do not count again
     var fh = []; if (opts.fillers !== false && !opts.cue) { try { fh = drop(opts.fillers && opts.fillers.length ? opts.fillers : FILLERS, W, ps, opts).holes; } catch (e) { fh = []; } }
+    if (opts.retakes) retakes(W, opts).forEach(function (r) { if (!ps || ps.some(function (k) { return r.s < k.end && r.e > k.start; })) fh.push({ s: r.s, e: r.e, retake: true }); });   // --retakes: the first of each pair goes too
+    open.forEach(function (h) { h.key = 'p:' + h.gs.toFixed(2); }); fh.forEach(function (h) { h.key = (h.retake ? 'r:' : 'f:') + h.s.toFixed(2); });
+    if (opts.only) { var keep = {}; (opts.only || []).forEach(function (k) { keep[k] = 1; }); open = open.filter(function (h) { return keep[h.key]; }); fh = fh.filter(function (h) { return keep[h.key]; }); }   // the Review list: only the ticked ones
     var holes = open.concat(fh).sort(function (a, b) { return a.s - b.s; }); var merged = [];
     holes.forEach(function (h) { var last = merged[merged.length - 1]; if (last && h.s - last.e < opts.island && !W.some(function (w) { var mid = (w.s + w.e) / 2; return mid > last.e && mid < h.s; })) { last.e = Math.max(last.e, h.e); last.ge = Math.max(last.ge || last.e, h.ge || h.e); } else merged.push({ s: h.s, e: h.e, gs: h.gs, ge: h.ge }); });   // a pause next to a filler: one hole, one join, no sliver between them
-    return { ranges: merged.length ? cutOut(ps, merged, opts.duration) : [], holes: merged, pauseHoles: open, fillerHoles: fh, pauseHits: open.length, fillerHits: fh.length };
+    return { ranges: merged.length ? cutOut(ps, merged, opts.duration) : [], holes: merged, pauseHoles: open, fillerHoles: fh.filter(function (h) { return !h.retake; }), retakeHoles: fh.filter(function (h) { return h.retake; }), pauseHits: open.length, fillerHits: fh.filter(function (h) { return !h.retake; }).length, retakeHits: fh.filter(function (h) { return h.retake; }).length };
+  }
+
+  // Said twice: the same run of words spoken again within `window` seconds (she repeated because the first try went
+  // wrong). The FIRST occurrence is the retake. Fillers are ignored for the match. → [{ s, e, text, again: { s, e } }]
+  // A retake restarts right away: the same run of words (3+, one of them a real word of 5+ letters, or 4+ any) spoken
+  // again starting within `window` seconds (3) of where the first try stopped. The FIRST occurrence is the retake, and the
+  // hole runs from its first word to the start of the second try (the half-word and the "uh" in between go with it).
+  // Fillers are ignored for the match; overlapping runs ("no no no") are not retakes. → [{ s, e, text, again: { s, e } }]
+  function retakes(words, opts) {
+    opts = Object.assign({ window: 3, minWords: 3, maxWords: 12 }, opts || {}); var fill = {}; FILLERS.forEach(function (f) { if (f.indexOf(' ') < 0) fill[f] = 1; });
+    var W = (words || []).map(function (w, i) { return { i: i, n: normWord(w.w), s: w.s, e: w.e, w: w.w }; }).filter(function (x) { return x.n && !fill[x.n]; });
+    var firstAt = {}; W.forEach(function (x, k) { if (firstAt[x.n] === undefined) firstAt[x.n] = k; });   // a run can only repeat where its first word repeats
+    var out = []; var taken = {};
+    for (var i = 0; i < W.length; i++) {
+      if (taken[i]) continue; var best = null;
+      for (var j = i + opts.minWords; j < W.length && W[j].s - W[i].e <= opts.window + 12; j++) {   // candidate second starts: same first word, not overlapping, not too far
+        if (W[j].n !== W[i].n || W[j].s < W[i].e) continue; var len = 0;
+        while (len < opts.maxWords && i + len < j && j + len < W.length && W[i + len].n === W[j + len].n) len++;
+        if (len < opts.minWords || len > j - i) continue; if (W[j].s - W[i + len - 1].e > opts.window) continue;
+        var solid = len >= 4 || W.slice(i, i + len).some(function (x) { return x.n.length >= 5; }); if (!solid) continue;   // three words need a real one among them ("and then we" is speech, "so we killed" is a retake)
+        if (!best || len > best.len) best = { j: j, len: len };
+      }
+      if (!best) continue;
+      var endFirst = W[best.j].s;   // the hole runs to where the second try starts, so a filler or a gap between the tries goes with the first one; snap keeps the edge off the keeper's first word
+      out.push({ s: W[i].s, e: r3(endFirst), text: W.slice(i, i + best.len).map(function (x) { return x.w; }).join(' '), again: { s: W[best.j].s, e: W[best.j + best.len - 1].e } });
+      for (var k = i; k < best.j; k++) taken[k] = 1;
+    }
+    return out.sort(function (a, b) { return a.s - b.s; });
+  }
+  // Correct the words from..to (inclusive indexes) to `text`: the audio and the cut are untouched, the new words share the
+  // run's span by their length. all: every other word that reads the same as the old single word changes too. → new words array
+  function correct(words, from, to, text, all, cue) {
+    var W = (words || []).slice(); to = to == null ? from : to; if (!(from >= 0 && to >= from && to < W.length)) throw new Error('Those words are not in the transcript');
+    var parts = cue ? [String(text || '').trim()] : String(text || '').trim().split(/\s+/).filter(Boolean); if (!parts.length || !parts[0]) throw new Error('Type the words as they should read');
+    var oldPunct = (String(W[to].w).match(/[.,!?;:]+$/) || [''])[0]; if (oldPunct && !/[.,!?;:]$/.test(parts[parts.length - 1])) parts[parts.length - 1] += oldPunct;   // the sentence end stays unless the new text brings its own
+    var s = W[from].s, e = W[to].e, span = Math.max(0.02, e - s); if (parts.length * 0.03 > span) throw new Error(parts.length + ' words do not fit in ' + span.toFixed(2) + ' s of speech; select more words'); var total = parts.reduce(function (a, p) { return a + p.length; }, 0) || 1;
+    var fresh = []; var t = s; parts.forEach(function (p, k) { var d = k === parts.length - 1 ? e - t : span * p.length / total; fresh.push({ w: p, s: r3(t), e: r3(k === parts.length - 1 ? e : t + d) }); t = t + d; });
+    var out = W.slice(0, from).concat(fresh, W.slice(to + 1));
+    if (all && from === to && parts.length === 1 && !cue) { var was = normWord(W[from].w); var core = parts[0].replace(/[.,!?;:]+$/, ''); out = out.map(function (w) { if (normWord(w.w) !== was || w === fresh[0]) return w; var p2 = (String(w.w).match(/[.,!?;:]+$/) || [''])[0]; return Object.assign({}, w, { w: core + p2 }); }); }   // each hit keeps its own punctuation
+    return normalizeWords(out);
+  }
+  // Where should the player be at time t? t itself when it plays; the start of the next piece when it sits in a cut; -1 past the last piece.
+  function nextPlayable(pieces, t) {
+    if (!pieces || !pieces.length) return t; var ps = pieces.slice().sort(function (a, b) { return a.start - b.start; });
+    for (var i = 0; i < ps.length; i++) { if (t >= ps[i].start - 1e-3 && t < ps[i].end) return t; if (t < ps[i].start) return ps[i].start; }
+    return -1;
   }
 
   // The agent's EDL: numbers, in order, inside the take. → ranges for snap()
@@ -315,7 +365,7 @@
   }
 
   var api = { FILLER_PROMPT: FILLER_PROMPT, FILLERS: FILLERS, DEFAULTS: DEFAULTS, STYLES: STYLES, fmt: fmt, fmtTag: fmtTag, parseTime: parseTime, srtTime: srtTime,
-    phrases: phrases, packed: packed, normalizeWords: normalizeWords, parseRanges: parseRanges, snap: snap, drop: drop, pauses: pauses, trimToSilences: trimToSilences, cutOut: cutOut, coveredBy: coveredBy, tidy: tidy, fromEdl: fromEdl,
+    phrases: phrases, packed: packed, normalizeWords: normalizeWords, normWord: normWord, parseRanges: parseRanges, snap: snap, drop: drop, pauses: pauses, trimToSilences: trimToSilences, cutOut: cutOut, coveredBy: coveredBy, tidy: tidy, retakes: retakes, correct: correct, nextPlayable: nextPlayable, fromEdl: fromEdl,
     chunks: chunks, srt: srt, forceStyle: forceStyle, importTranscript: importTranscript, sha1: sha1, edlHash: edlHash };
 
   /* ======================================================================= */
@@ -498,6 +548,34 @@
   };
   // a recorder's file name as a title: "Screen Recording 2026-10-20 at 10.31.22.mov" → "Recording 2026-10-20 10.31"
   N.titleFromFile = function (name) { var t = String(name).replace(/\.[^.]+$/, '').replace(/^Screen Recording /i, 'Recording ').replace(/ at (\d{1,2})\.(\d{2})\.(\d{2})$/, ' $1.$2').trim(); return t || 'Recording'; };
+
+  // A copy that plays in any browser: 720p H.264 + AAC, the same length as the take, only for the page's player (never posted, never backed up).
+  // iPhone footage is HEVC/HDR and most browsers cannot play it. → { file, took }
+  N.proxy = function (opts) {   // { tools, src, probe, dir, onProgress }
+    var T = opts.tools, P = opts.probe; fs.mkdirSync(opts.dir, { recursive: true }); var out = path.join(opts.dir, 'proxy.mp4'); var tmp = path.join(opts.dir, '.proxy-' + Date.now() + '.mp4');
+    var vt = process.platform === 'darwin' && N.hasEncoder(T.ffmpeg, 'h264_videotoolbox');
+    var args = ['-nostdin', '-hide_banner', '-y', '-loglevel', 'error', '-progress', 'pipe:1', '-nostats', '-i', path.resolve(opts.src), '-map', '0:v:0'];
+    if (P.hasAudio) args.push('-map', '0:a:0', '-c:a', 'aac', '-b:a', '128k', '-ac', '2');
+    args.push('-vf', (P.height > 720 ? 'scale=-2:720,' : '') + 'scale=trunc(iw/2)*2:trunc(ih/2)*2' + (P.hdr ? ',zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p' : ''), '-pix_fmt', 'yuv420p', '-movflags', '+faststart');
+    if (vt) args.push('-c:v', 'h264_videotoolbox', '-b:v', '3M'); else args.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', '24');
+    args.push(tmp); var t0 = Date.now();
+    var r = cp.spawnSync(T.ffmpeg, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
+    if (r.status !== 0 && P.hdr) { args = args.map(function (a) { return a.replace(/,zscale=t=linear[^']*format=yuv420p/, ''); }); r = cp.spawnSync(T.ffmpeg, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] }); }   // no zscale in this ffmpeg: a flat copy is still a copy that plays
+    if (r.status !== 0) { try { fs.unlinkSync(tmp); } catch (e) { /* none */ } throw new Error('ffmpeg could not make the copy: ' + String(r.stderr || '').trim().split('\n').slice(-2).join(' ')); }
+    fs.renameSync(tmp, out); return { file: out, took: Math.round((Date.now() - t0) / 1000) };
+  };
+
+  // A long CLI job detached from the caller (serve.js's buttons, `video watch`): <dir>/<job>.log holds the output,
+  // <dir>/<job>.json { pid, startedAt, finished, code, ...extra } what the page polls. → the meta
+  N.job = function (job, dir, soloArgs, extra, env) {
+    fs.mkdirSync(dir, { recursive: true }); var log = path.join(dir, job + '.log'); var fd = fs.openSync(log, 'w');
+    var child = cp.spawn(process.execPath, soloArgs, { cwd: path.dirname(soloArgs[0]), env: env || process.env, detached: true, stdio: ['ignore', fd, fd] });
+    fs.closeSync(fd); var meta = Object.assign({ pid: child.pid, startedAt: new Date().toISOString(), finished: false }, extra || {}); var mf = path.join(dir, job + '.json');
+    fs.writeFileSync(mf, JSON.stringify(meta) + '\n');
+    child.on('exit', function (code) { meta.finished = true; meta.code = code; meta.endedAt = new Date().toISOString(); try { fs.writeFileSync(mf, JSON.stringify(meta) + '\n'); } catch (e) { /* gone */ } });
+    child.on('error', function (e) { meta.finished = true; meta.code = 1; meta.error = e.message; try { fs.writeFileSync(mf, JSON.stringify(meta) + '\n'); } catch (e2) { /* gone */ } });
+    child.unref(); return meta;
+  };
 
   // one render at a time per take: progress.json is the lock while its pid is alive and it is not finished
   N.lock = function (dir) { var f = path.join(dir, 'progress.json'); try { var p = JSON.parse(fs.readFileSync(f, 'utf8')); if (p.finished) return null; if (Date.now() - Date.parse(p.startedAt || 0) > 86400000) return null; try { process.kill(p.pid, 0); return p; } catch (e) { return null; } } catch (e) { return null; } };

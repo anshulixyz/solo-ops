@@ -78,6 +78,20 @@ ok(t4.holes.length === 3 && e4.length === 2 && !e4.some(function (s) { return s.
 var sw = V.trimToSilences([{ w: 'so', s: 1.0, e: 3.5 }, { w: 'then', s: 3.5, e: 3.9 }], [{ s: 1.3, e: 3.2 }]);
 ok(sw[0].s === 3.2 && sw[0].e === 3.5, 'a word running over a whole silence is cut to its shorter side (' + JSON.stringify(sw) + ')');
 ok(V.pauses(sw, null, { duration: 4 }).some(function (h) { return h.gs <= 1.0 && h.ge >= 3.2; }), 'and the silence it hid becomes a pause');
+// said twice: the same run of words again within the window; the first is the retake; fillers do not break the match; a run 30 s later is not one
+var rw = [['so', 0, 0.3], ['we', 0.4, 0.6], ['killed', 0.7, 1.1], ['the', 1.2, 1.3], ['flow', 1.4, 1.8], ['um', 2.0, 2.2], ['so', 2.5, 2.8], ['we', 2.9, 3.1], ['killed', 3.2, 3.6], ['the', 3.7, 3.8], ['flow', 3.9, 4.3], ['and', 4.5, 4.7], ['no', 5, 5.2], ['no', 5.3, 5.5], ['no', 5.6, 5.8], ['we', 40, 40.2], ['killed', 40.3, 40.7], ['the', 40.8, 40.9], ['flow', 41, 41.4]].map(function (a) { return { w: a[0], s: a[1], e: a[2] }; });
+var rt = V.retakes(rw); ok(rt.length === 1 && rt[0].s === 0 && rt[0].e >= 1.8 && rt[0].e <= 2.5 && rt[0].text === 'so we killed the flow' && rt[0].again.s === 2.5, 'retakes: the first "so we killed the flow" is flagged up to the second try, the one 40 s later is not, "no no no" is not (' + JSON.stringify(rt) + ')');
+var rwLate = rw.slice(0, 5).concat([{ w: 'so', s: 6.0, e: 6.3 }, { w: 'we', s: 6.4, e: 6.6 }, { w: 'killed', s: 6.7, e: 7.1 }, { w: 'the', s: 7.2, e: 7.3 }, { w: 'flow', s: 7.4, e: 7.8 }]);
+ok(V.retakes(rwLate).length === 0, 'the same run 4 s later is not a retake (a retake restarts within 3 s)');
+ok(V.retakes([{ w: 'and', s: 0, e: 0.2 }, { w: 'then', s: 0.3, e: 0.5 }, { w: 'we', s: 0.6, e: 0.8 }, { w: 'and', s: 1.0, e: 1.2 }, { w: 'then', s: 1.3, e: 1.5 }, { w: 'we', s: 1.6, e: 1.8 }]).length === 0, 'three short common words are not enough on their own');
+var tR = V.tidy(rw, null, null, { pause: 1e9, duration: 42, fps: 30, fillers: false, retakes: true }); ok(tR.retakeHits === 1 && tR.holes.length === 1 && tR.holes[0].s === 0, '--retakes through tidy takes the first try only');
+// correct: one word to three shares the span by length; three to one; all
+var cw = [{ w: 'we', s: 0, e: 0.3 }, { w: 'killd', s: 0.4, e: 1.0 }, { w: 'it', s: 1.1, e: 1.3 }, { w: 'killd', s: 2, e: 2.5 }];
+var c13 = V.correct(cw, 1, 1, 'did not need'); ok(c13.length === 6 && c13[1].s === 0.4 && c13[3].e === 1.0 && c13[1].w === 'did' && c13[3].w === 'need' && c13[2].s > c13[1].s && c13[3].s > c13[2].s, 'one word → three: the span is shared (' + JSON.stringify(c13.slice(1, 4)) + ')');
+var c31 = V.correct(cw, 0, 2, 'wekilledit'); ok(c31.length === 2 && c31[0].s === 0 && c31[0].e === 1.3, 'three words → one keeps the whole span');
+ok(V.correct(cw, 1, 1, 'killed', true).filter(function (w) { return w.w === 'killed'; }).length === 2, 'all: the same misheard word elsewhere changes too');
+var threwC = ''; try { V.correct(cw, 9, 9, 'x'); } catch (e) { threwC = e.message; } ok(/not in the transcript/.test(threwC), 'an index outside the words is refused');
+ok(V.nextPlayable([{ start: 0, end: 1 }, { start: 2, end: 3 }], 1.5) === 2 && V.nextPlayable([{ start: 0, end: 1 }], 1.2) === -1 && V.nextPlayable([{ start: 0, end: 1 }], 0.5) === 0.5 && V.nextPlayable(null, 7) === 7, 'nextPlayable: inside a piece stays, in a hole jumps to the next piece, past the end is -1');
 // the recordings folder: stable twice, untouched 5 s, pending when there at the first look, queued while an add runs, backoff on failure
 var rdir = fs.mkdtempSync(path.join(os.tmpdir(), 'solo-rec-')); var rf = path.join(rdir, 'Screen Recording 2026-10-20 at 10.31.22.mov'); fs.writeFileSync(rf, Buffer.alloc(70000, 1));
 var rst = { files: {}, firstLook: true }; V.node.scanRecordings(rdir, rst, Date.now()); rst.firstLook = false;
@@ -131,6 +145,19 @@ try {
   solo(['video', 'cut', id2, '--keep', '0-10']); var tidyCli = solo(['video', 'cut', id2, '--tidy']);
   var tw = V.trimToSilences(trJ.words, trJ.silences); var tPure = V.tidy(tw, [], null, { pause: 0.7, duration: 10, fps: 30, fillers: V.FILLERS }); var pureEdl = V.snap(tPure.ranges, tw, { fps: 30, duration: 10 }).edl;
   ok(tidyCli.code === 0 && V.edlHash(tidyCli.out.edl) === V.edlHash(pureEdl), '--tidy on the CLI = Video.tidy + snap (what the page runs): same EDL, same hash (' + V.edlHash(tidyCli.out.edl) + ')');
+  // correct a word through the CLI: the words and phrases change, the cut does not
+  var before2 = JSON.parse(fs.readFileSync(path.join(data, 'videos.json'), 'utf8')).videos.filter(function (v) { return v.id === id2; })[0];
+  var cw2 = solo(['video', 'word', id2, '4', 'hmm', '--all']); ok(cw2.code === 0 && cw2.out.changed === 1, 'video word corrects a word (' + (cw2.stderr || '').trim() + ')');
+  var after2 = JSON.parse(fs.readFileSync(path.join(data, 'videos.json'), 'utf8')).videos.filter(function (v) { return v.id === id2; })[0]; var trc = JSON.parse(fs.readFileSync(path.join(data, 'videos', id2, 'transcript.json'), 'utf8'));
+  var w4before = JSON.parse(fs.readFileSync(path.join(data, 'videos', id2, 'transcript.json'), 'utf8')).words[4];
+  ok(trc.words[4].w === 'hmm,' && trc.words[4].s === w4before.s && trc.words[4].e === w4before.e && trc.edits.length === 1, 'transcript.json carries the correction (the comma stays) with the old times and an edits trail');
+  var cu = solo(['video', 'word', id2, '--undo']); var trc2 = JSON.parse(fs.readFileSync(path.join(data, 'videos', id2, 'transcript.json'), 'utf8')); ok(cu.code === 0 && trc2.words[4].w === 'um,' && trc2.edits.length === 0, 'video word --undo brings the old word back');
+  var ct = solo(['video', 'word', id2, 'you know', 'you see']); var trc3 = JSON.parse(fs.readFileSync(path.join(data, 'videos', id2, 'transcript.json'), 'utf8')); ok(ct.code === 0 && ct.out.from === 12 && trc3.words[12].w === 'you' && trc3.words[13].w === 'see' && trc3.edits.length === 1, 'video word finds a run by its text');
+  var ct2 = solo(['video', 'word', id2, 'not in there', 'x']); ok(ct2.code !== 0 && /not in the words/.test((ct2.out && ct2.out.error) || ''), 'a text that is not said is refused');
+  solo(['video', 'word', id2, '--undo']);
+  var cx = solo(['video', 'word', id2, '4', 'hmm', '--expect', 'something else']); ok(cx.code !== 0 && /moved/.test((cx.out && cx.out.error) || ''), 'a correction with a stale expectation is refused');
+  ok(/hmm/.test(after2.phrases[0].t) && after2.edlHash === before2.edlHash && after2.transcript.wordsAt > 0, 'the phrases follow, the cut and its hash stay, wordsAt is stamped');
+  var cr = solo(['video', 'cut', id2, '--retakes']); ok(cr.code !== 0 && /nothing said twice/.test((cr.out && cr.out.error) || ''), '--retakes with nothing repeated says so');
   solo(['video', 'rm', id2]);
   var bad = solo(['video', 'cut', id, '--keep', '5-50']); ok(bad.code === 0 && bad.out.edl[0].end <= 10 && bad.out.notes.some(function (n) { return /past the end/.test(n); }), 'a range past the end is clipped to the take and says so');
   var edlFile = path.join(tmp, 'cut.json'); fs.writeFileSync(edlFile, JSON.stringify([{ start: 1, end: 2, reason: 'HOOK' }, { start: 4, end: 5, reason: 'CTA' }]));

@@ -198,6 +198,38 @@ folder: toggles → EDL on words → preview → final → *Make the post*. Slic
 (48 findings: the add route not parsing the CLI's JSON, the race stamp,
 stale job files, hash drift on a cut/keep round trip, CSRF on the new
 routes, all folded in before the commit).
+**Slice 5 shipped 2026-10-20, commit `(slice 5 commit)`: the player follows
+the text.** After a research pass over Descript, Riverside, Opus, Veed,
+CapCut, Premiere and the open-source editors (auto-editor, LosslessCut,
+Kdenlive, Open-Script-Editor, Rescript, CutScript; notes in the side-session
+folder, `video-gap-analysis.md`): one player in the sticky top block, the
+take with the cuts skipped (click a word to play from there, Space, a seek
+into a cut plays it out, the spoken word marked, the text follows unless
+she scrolled), or a render through *Watch*; a 720p copy (`video proxy`) when
+the browser cannot play the original (decided from the stored codecs;
+iPhone HEVC/HDR, PCM audio, .mkv); *Correct* (C) retypes a misheard word
+through `video word` (an edits trail, `--undo`, `--expect`, the EDL quotes
+follow, a cut edge inside the run is refused, cue-level kept whole);
+*Review first* lists fillers, pauses and "said twice" (a run of words
+repeated within 3 s, `Video.retakes`) with checkboxes, the pause length as a
+live setting (`video.*` settings apply in place, no reload), *Remove
+ticked* = `Video.tidy` with `only` (hash parity tested); `video.auto` is
+the one standing yes for words on arrival (serve.js and `video watch
+--transcribe`, capped by `video.autoMaxMin`, the ElevenLabs estimate in
+the card, an off-switch on the card); every `/api/` call is Host/Origin
+checked (GET too: the footage stream); `video cut` writes through
+`patchVideo`; the `{{take}}` token carries pauses, the filler count and
+`[said again at …]`; reply verbs `video title`, `video word`; `?nosw=1`
+skips the service worker for debugging in embedded browsers. Plan and diff
+each reviewed by two agents; from the diff reviews: `video watch
+--transcribe` never falls back to `video.engine` (money only on the
+standing yes), a seek into the trailing cut plays it out, a retake hole
+runs to the second try, `--all` undo restores every place, `video word
+<take> "what it says" "what it should say"` (the agent never sees word
+numbers), the list open folds the player to its bar and hides the strip's
+Remove. Left for slice 6: tests for the skip rule, the word route (409),
+`autoWords` (standing yes, cap) and `/api/video/key`; memoise `tidyCount`
+(retakes run on every paint); audio-only takes; a 409 on `/api/data` PUT.
 **Slice 4 shipped 2026-10-20, commit `1e5ca53`: easy mode.**
 The owner's direction: trim the umms and pauses, edit the transcript as
 text like Descript, record with Recordly and have the recordings land in
