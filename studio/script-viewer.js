@@ -20,6 +20,7 @@ const EXAMPLE = MARATHON_TEMPLATES.SCRIPT;
 
 /** @type {{ activeId: string, scripts: { id: string, title: string, text: string, createdAt: number, updatedAt: number }[] }} */
 let library = { activeId: '', scripts: [] };
+let wantedOpen = '';   // ?open=<id> waiting for the file
 let listTimer;
 let fresh = false;
 
@@ -590,6 +591,7 @@ function registerSync() {
       const activeBefore = getActive();
       library = incoming;
       if (activeBefore && library.scripts.some((s) => s.id === activeBefore.id)) library.activeId = activeBefore.id;
+      if (wantedOpen && library.scripts.some((s) => s.id === wantedOpen)) { library.activeId = wantedOpen; wantedOpen = ''; }
       persistLibrary({ silent: true });   // the browser copy must follow the file, or a reload brings the old library back
       const s = getActive();
       $('#scriptInput').value = s ? s.text : '';
@@ -623,7 +625,7 @@ function init() {
   Config.applyDOM();
   library = loadLibrary();
   const wanted = window.Story && Story.openParam ? Story.openParam() : '';   // ?open=<id>: a link from another page
-  if (wanted && library.scripts.some((s) => s.id === wanted)) library.activeId = wanted;
+  if (wanted && library.scripts.some((s) => s.id === wanted)) library.activeId = wanted; else if (wanted) wantedOpen = wanted;   // not in the browser copy yet: after the first pull
   persistLibrary({ silent: true });
   if (fresh) Store.markFresh(KEY);
   if (window.Story && Story.onWrite) Story.onWrite(() => updatePreview({ skipSave: true }));

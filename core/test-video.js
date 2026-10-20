@@ -56,6 +56,12 @@ var srtText = V.srt([{ start: 0.45, end: 2.4, offset: 0, duration: 1.95 }, { sta
 var times = []; srtText.replace(/(\d\d:\d\d:\d\d,\d{3}) --> (\d\d:\d\d:\d\d,\d{3})/g, function (_, a, b) { times.push([V.parseTime(a), V.parseTime(b)]); });
 ok(times.length >= 2 && times.every(function (t, i) { return t[1] > t[0] && (!i || t[0] >= times[i - 1][1] - 1e-6); }), 'captions are monotonic on the output timeline');
 ok(times.every(function (t) { return t[1] <= 3.95 + 1e-6; }), 'no caption runs past the total');
+// the page reads the same .srt back: cues in order, CRLF tolerated, tags stripped, nothing for nothing
+var cuesBack = V.srtCues(srtText); ok(cuesBack.length === times.length && cuesBack.every(function (c, i) { return Math.abs(c.s - times[i][0]) < 1e-6 && Math.abs(c.e - times[i][1]) < 1e-6 && c.t.length > 0; }), 'srtCues round-trips the .srt the renders write (' + cuesBack.length + ' cues)');
+ok(V.srtCues(srtText.replace(/\n/g, '\r\n').replace(cuesBack[0].t, '<b>' + cuesBack[0].t + '</b>'))[0].t === cuesBack[0].t, 'CRLF and tags are tolerated');
+ok(V.srtCues('').length === 0 && V.srtCues(null).length === 0 && V.srtCues('garbage').length === 0, 'no cues for nothing, never a throw');
+var cq = [{ s: 0, e: 1, t: 'a' }, { s: 1.5, e: 2, t: 'b' }, { s: 2, e: 3, t: 'c' }];
+ok(V.cueAt(cq, 0.5) === 0 && V.cueAt(cq, 1.2) === -1 && V.cueAt(cq, 2, 1) === 2 && V.cueAt(cq, 2.5, 0) === 2 && V.cueAt(cq, 3) === -1 && V.cueAt([], 1) === -1, 'cueAt: inside, in a gap, at a boundary, with and without a hint, at the end');
 ok(/word8/.test(srtText) && !/word14/.test(srtText) && !/word6/.test(srtText), 'captions carry only the kept words');
 var bold = V.srt([{ start: 0, end: 10, offset: 0, duration: 10 }], words, 'bold'); ok(/WORD0 WORD1\n/.test(bold), 'bold style: two uppercase words per caption');
 var imp = V.importTranscript('1\n00:00:01,000 --> 00:00:02,500\nHello there\n\n2\n00:00:03,000 --> 00:00:04,000\n<i>Second</i> cue\n', 'srt');

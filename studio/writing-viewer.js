@@ -21,6 +21,7 @@ const history = { stack: [], index: -1, max: 80, locking: false };
 
 /** @type {{ activeId: string, notes: { id: string, text: string, createdAt: number, updatedAt: number }[] }} */
 let library = { activeId: '', notes: [] };
+let wantedOpen = '';   // ?open=<id> waiting for the file
 
 let listRenderTimer;
 
@@ -747,6 +748,7 @@ function registerSync() {
       const before = getActiveNote();
       library = incoming;
       if (before && library.notes.some((n) => n.id === before.id)) library.activeId = before.id;
+      if (wantedOpen && library.notes.some((n) => n.id === wantedOpen)) { library.activeId = wantedOpen; wantedOpen = ''; }
       persistLibrary({ silent: true });   // the browser copy must follow the file, or a reload brings the old notes back
       const n = getActiveNote();
       const ta = $('#writingInput');
@@ -781,7 +783,7 @@ function init() {
   Config.applyDOM();
   library = loadLibrary();
   const wanted = window.Story && Story.openParam ? Story.openParam() : '';   // ?open=<id>: a link from another page
-  if (wanted && library.notes.some((n) => n.id === wanted)) library.activeId = wanted;
+  if (wanted && library.notes.some((n) => n.id === wanted)) library.activeId = wanted; else if (wanted) wantedOpen = wanted;   // not in the browser copy yet: after the first pull
   persistLibrary({ silent: true });
   if (fresh) Store.markFresh(LIBRARY_KEY);
   if (window.Story && Story.onWrite) Story.onWrite(() => refreshPreview());

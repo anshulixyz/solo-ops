@@ -51,6 +51,25 @@ ok(M.keptFlags(v).join() === 'false,true' && v.edl.every(function (s) { return s
 ok(M.canUndo(v) && M.undo(v) && M.keptFlags(M.active()).join() === 'true,true' && M.active().edl.length === 4, 'undo brings the previous cut back');
 ok(/undo$/.test(notes[notes.length - 1]), 'undo is logged too');
 M.keepEverything(M.active()); ok(M.active().edl.length === 0, 'Keep everything clears the cut');
+// Keep only this (the trim): everything outside goes, the hash matches the CLI's --keep on a clean take, one Undo, an inner cut stays and can still be put back
+seed(); M.setWords('v1', words); v = M.active();
+var ko = M.keepOnly(v, words[4].s, words[12].e, 'kept only'); v = M.active();
+ok(ko && !ko.same && ko.was === 10 && ko.kept > 0 && ko.kept < 10 && v.edl.length === 1, 'keepOnly cuts before and after in one step (kept ' + ko.kept + ' of ' + ko.was + ')');
+var cli = V.snap(V.parseRanges(words[4].s + '-' + words[12].e), words, { fps: 30, duration: 10 }); ok(V.edlHash(cli.edl) === v.edlHash, 'the page\'s trim and `video cut --keep "' + words[4].s + '-' + words[12].e + '"` give the same hash (' + v.edlHash + ')');
+ok(M.canUndo(v) && M.undo(v) && M.active().edl.length === 0 && !M.canUndo(M.active()), 'one Undo brings everything back');
+var ko0 = M.keepOnly(M.active(), 0, 10); ok(ko0 && ko0.same, 'keeping the whole take is a no-op, not a cut');
+seed(); M.setWords('v1', words); v = M.active(); M.cutSpans(v, [{ s: words[8].s, e: words[8].e }], 'cut w8'); v = M.active(); var h8 = v.edlHash;
+M.keepOnly(v, words[4].s, words[12].e, 'kept only'); v = M.active(); ok(v.edl.length === 2 && !M.playing(v, words[8].s, words[8].e) && M.playing(v, words[5].s, words[5].e), 'an earlier cut inside the kept part stays cut');
+M.keepSpans(v, [{ s: words[8].s, e: words[8].e }], 'put back w8'); v = M.active(); ok(M.playing(v, words[8].s, words[8].e) && v.edl.length === 1 && !M.playing(v, words[1].s, words[1].e), 'and can still be put back on its own; the trim stays');
+var cc = M.captionCues(M.active()); ok(cc.length > 1 && cc.every(function (c) { return c.t && c.e > c.s; }) && cc[0].t.split(' ').length <= 5, 'captionCues chunks the words like the renders\' .srt (' + cc.length + ' cues)');
+// a sentence with a breath inside (a 0.4 s gap: sentenceSpans splits there, phrases does not) still round-trips cut → keep when another cut sits elsewhere
+(function () {
+  var gw = []; for (var i = 0; i < 16; i++) { var s0 = i * 0.5 + (i > 3 ? 0.4 : 0); gw.push({ w: 'w' + i + (i === 7 ? '.' : '') + (i === 15 ? '.' : ''), s: s0, e: s0 + 0.3 }); }
+  mem['marathon.videos'] = { activeId: 'v1', videos: [{ id: 'v1', title: 'Gap take', status: 'transcribed', sources: [{ id: 'a', path: '/tmp/g.mp4', duration: 12, fps: 30 }], phrases: V.phrases(gw), edl: [], edlHash: '', exports: [] }] };
+  M.init(); M.setWords('v1', gw); var g = M.active(); M.cutSpans(g, [{ s: gw[12].s, e: gw[12].e }], 'cut w12'); g = M.active(); var hGap = g.edlHash;
+  M.toggle(g, 0); g = M.active(); ok(!M.playing(g, gw[1].s, gw[1].e), 'the gapped first sentence is cut');
+  M.toggle(g, 0); g = M.active(); ok(g.edlHash === hGap && M.playing(g, gw[5].s, gw[5].e), 'and put back whole: the breath inside comes back too, the hash is back (' + g.edlHash + ' vs ' + hGap + ')');
+})();
 // a cut and a keep of the same sentence give back the same EDL and hash (untouched edges are not re-padded)
 seed(); M.setWords('v1', words); v = M.active(); M.dropFillers(v); var h1 = M.active().edlHash; M.toggle(M.active(), 1); M.toggle(M.active(), 1);
 ok(M.active().edlHash === h1, 'cut then keep the same sentence: the hash is back to what it was (' + M.active().edlHash + ' vs ' + h1 + ')');

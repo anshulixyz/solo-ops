@@ -240,6 +240,23 @@ the machine-only files, the Home chip counts by status, `help` up to date,
 provider errors in plain words, the missing-words card, the stale-server
 card, `--title=`/`--at=`/`--expect=` from the routes, `Sec-Fetch-Site`
 in the Host check, `recordings.json` out of the backup.
+**Captions in the player and the trim, 2026-10-20, commit `(captions commit)`.**
+The player carries a caption band (the same chunks the renders' `.srt`
+holds, from the words; a render plays with its own `.srt`, so an older cut
+captions right), Captions on/off and Bigger/Smaller remembered per browser,
+the fold for the session only (a click on Hide used to hide the player from
+every take forever), and a one-line placeholder where the player will be.
+*Keep only this* (K) trims to the selection through `cutSpans` with two
+spans in one step; the hash equals `--keep a-b` on a clean take; an earlier
+cut inside stays and can still be put back, which needed one memo entry
+per hole in `cutSpans` (a keep after a trim could never restore an inner
+cut before). `Video.srtCues` / `Video.cueAt` are pure and tested. Also: a deep link
+(`?open=`, `?id=`) is applied after the first pull when the browser had no
+copy yet, and a page with a sync stamp but no copy now takes the file
+(core/sync.js), which a half-cleared site data had turned into an empty
+page. Left:
+burned-in captions need an ffmpeg with subtitle filters (the owner's has
+none); a `<track>` from the `.srt` for Safari's native captions.
 **One story shipped 2026-10-20, commit `3b4c394`.** A draft, its
 script, the takes and the posts as one chain, with no new file or id: the
 downstream item keeps the upstream id (`script.noteId`, `take.scriptId`,

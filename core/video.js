@@ -341,6 +341,23 @@
   }
 
   /* ---- imports: other tools' transcripts → { words, granularity } ----------- */
+  // the cues of an SRT/VTT as [{ s, e, t }] (seconds, text with tags stripped): never throws, [] for nothing. The renders' .srt and an imported one both come through here
+  function srtBlocks(text) {
+    var cues = []; var re = /(\d{1,2}:\d{2}:\d{2}[.,]\d{1,3}|\d{1,2}:\d{2}[.,]\d{1,3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[.,]\d{1,3}|\d{1,2}:\d{2}[.,]\d{1,3})/;
+    String(text || '').replace(/\r/g, '').split(/\n\n+/).forEach(function (block) {
+      var ls = block.split('\n'); var ti = -1; ls.forEach(function (l, i) { if (ti < 0 && re.test(l)) ti = i; }); if (ti < 0) return;
+      var m = ls[ti].match(re); var body = ls.slice(ti + 1).join(' ').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(); if (!body) return;
+      cues.push({ s: parseTime(m[1]), e: parseTime(m[2]), t: body });
+    });
+    return cues;
+  }
+  // the cue spoken at t (an index into cues, -1 between cues); hint = the last answer, tried first so a frame loop costs nothing
+  function cueAt(cues, t, hint) {
+    if (!cues || !cues.length) return -1; var i = hint >= 0 && hint < cues.length ? hint : 0;
+    if (t >= cues[i].s && t < cues[i].e) return i; if (i + 1 < cues.length && t >= cues[i + 1].s && t < cues[i + 1].e) return i + 1;
+    for (var j = 0; j < cues.length; j++) if (t >= cues[j].s && t < cues[j].e) return j;
+    return -1;
+  }
   function importTranscript(text, kind) {
     kind = String(kind || '').toLowerCase().replace(/^\./, '');
     if (kind === 'json') {
@@ -352,12 +369,7 @@
       throw new Error('Unknown JSON transcript shape: expected { words: [{ w, s, e }] }, whisper.cpp or ElevenLabs output');
     }
     if (kind === 'srt' || kind === 'vtt') {
-      var cues = []; var re = /(\d{1,2}:\d{2}:\d{2}[.,]\d{1,3}|\d{1,2}:\d{2}[.,]\d{1,3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[.,]\d{1,3}|\d{1,2}:\d{2}[.,]\d{1,3})/;
-      String(text).replace(/\r/g, '').split(/\n\n+/).forEach(function (block) {
-        var ls = block.split('\n'); var ti = -1; ls.forEach(function (l, i) { if (ti < 0 && re.test(l)) ti = i; }); if (ti < 0) return;
-        var m = ls[ti].match(re); var body = ls.slice(ti + 1).join(' ').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(); if (!body) return;
-        cues.push({ w: body, s: parseTime(m[1]), e: parseTime(m[2]) });
-      });
+      var cues = srtBlocks(text).map(function (c) { return { w: c.t, s: c.s, e: c.e }; });
       if (!cues.length) throw new Error('No cues found in the ' + kind.toUpperCase());
       return { words: normalizeWords(cues), granularity: 'cue', engine: 'import' };
     }
@@ -366,7 +378,7 @@
 
   var api = { FILLER_PROMPT: FILLER_PROMPT, FILLERS: FILLERS, DEFAULTS: DEFAULTS, STYLES: STYLES, fmt: fmt, fmtTag: fmtTag, parseTime: parseTime, srtTime: srtTime,
     phrases: phrases, packed: packed, normalizeWords: normalizeWords, normWord: normWord, parseRanges: parseRanges, snap: snap, drop: drop, pauses: pauses, trimToSilences: trimToSilences, cutOut: cutOut, coveredBy: coveredBy, tidy: tidy, retakes: retakes, correct: correct, nextPlayable: nextPlayable, fromEdl: fromEdl,
-    chunks: chunks, srt: srt, forceStyle: forceStyle, importTranscript: importTranscript, sha1: sha1, edlHash: edlHash };
+    chunks: chunks, srt: srt, srtCues: srtBlocks, cueAt: cueAt, forceStyle: forceStyle, importTranscript: importTranscript, sha1: sha1, edlHash: edlHash };
 
   /* ======================================================================= */
   /* Node only: ffmpeg, engines, render                                        */

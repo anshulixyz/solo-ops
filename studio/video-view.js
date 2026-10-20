@@ -82,7 +82,7 @@
     var btn = next.action === 'preview' ? '<button type="button" class="btn primary" onclick="startRender(true)">Render a preview</button>' : next.action === 'final' ? '<button type="button" class="btn primary" onclick="startRender(false)">Render the final</button>' : next.action === 'post' ? '<button type="button" class="btn primary" onclick="makePost()">Make the post</button>' : next.action === 'post-open' ? '<a class="btn" href="../social/social-board.html?ws=' + attr(encodeURIComponent(Config.activeWs())) + '">Open the schedule</a>' : '';
     if (!ctx.server && /^(preview|final|post)$/.test(next.action)) btn = '';
     var title = ctx.renaming ? '<input type="text" id="titleInput" class="v-title-input" value="' + attr(v.title) + '" maxlength="120" autocomplete="off" onkeydown="titleKey(event)" onblur="saveTitle()">' : '<span class="v-title" title="Click to rename" onclick="startRename()">' + esc(v.title) + '</span>';
-    var story = window.Story && Story.html ? Story.html('take', v.id, { takePost: next.action === 'post' ? '' : '<span class="muted">the post comes after the final</span>' }) : '';   // draft → script → this take → post; "Make the post" is the button above
+    var story = window.Story && Story.html ? Story.html('take', v.id, { takePost: next.action === 'post' ? '' : /^(cut|rendered)$/.test(v.status) ? '<span class="muted">the post comes after the final</span>' : '' }) : '';   // draft → script → this take → post; "Make the post" is the button above
     return '<div class="v-head"><h2>' + title + ' <span class="v-chip ' + attr(st) + '">' + esc(M.statusLabel(st)) + '</span></h2>' + story +
       '<div class="v-meta">' + (s.duration ? '<span>' + esc(fmt(s.duration)) + '</span>' : '') + (s.width ? '<span>' + esc(s.width + '×' + s.height) + '</span>' : '') + (s.fps ? '<span>' + esc(s.fps + ' fps') + '</span>' : '') + (s.size ? '<span>' + esc(M.size(s.size)) + '</span>' : '') + (s.hdr ? '<span>HDR</span>' : '') + (v.transcript && v.transcript.words ? '<span>' + esc(Number(v.transcript.words)) + ' words</span>' : '') + '</div>' +
       (s.path ? '<div class="v-file" title="' + attr(s.path) + '">' + esc(s.path) + '</div>' : '') +
@@ -132,12 +132,14 @@
     var review = ctx.words && (parts.length || twice) ? '<button type="button" class="guide-link" onclick="toggleReview()">' + (ctx.reviewOpen ? 'Close the list' : 'Review first' + (twice ? ' · ' + twice + ' said twice' : '')) + '</button>' : '';
     if (ctx.reviewOpen) removeBtn = '';   // the list's own button is the action while it is open
     var sel = ctx.selection || null;
-    var act = sel && sel.count ? '<span class="v-act"><button type="button" class="btn primary" onclick="actOnSelection()">' + (sel.cut ? 'Put back ' : 'Cut ') + esc(sel.label) + '</button>' + (sel.correctable ? '<button type="button" class="btn ghost" onclick="startCorrect()" title="Retype what was said (C). The audio and the cut do not change; Undo in the toast takes it back.">Correct</button>' : '') + '<span class="muted">or press Delete</span></span>' : '';
-    var keys = 'Space plays and pauses · ←/→ step a second, or move the selection · Delete cuts, Enter puts back · C corrects · ⌘Z / ⇧⌘Z · Esc clears';
-    return '<div class="v-strip"><span class="rt" title="' + attr(keys) + '">' + (n ? '<b>' + esc(fmt(rt)) + '</b> of ' + esc(fmt(total)) : '<b>' + esc(fmt(total)) + '</b>') + '</span>' + act + '<span class="sp"></span>' +
+    var act = sel && sel.count ? '<span class="v-act"><button type="button" class="btn primary" onclick="actOnSelection()">' + (sel.cut ? 'Put back ' : 'Cut ') + esc(sel.label) + '</button>' + (sel.keepable ? '<button type="button" class="btn ghost" onclick="keepOnly()" title="Everything before and after goes. Undo brings it back (K)">Keep only this</button>' : '') + (sel.correctable ? '<button type="button" class="btn ghost" onclick="startCorrect()" title="Retype what was said (C). The audio and the cut do not change; Undo in the toast takes it back.">Correct</button>' : '') + '<span class="muted">or press Delete</span></span>' : '';
+    var keys = 'Space plays and pauses · ←/→ step a second, or move the selection · Delete cuts, Enter puts back, K keeps only the selection · C corrects · ⌘Z / ⇧⌘Z · Esc clears';
+    var selRow = act || '<span class="muted v-hint">' + (ctx.words ? 'Select words: Delete takes them out, K keeps only them, C corrects · a crossed-out word: select it to put it back' : 'Select a sentence: Delete takes it out · a crossed-out sentence: select it to put it back' + (ctx.server ? '' : ' · word by word needs the server')) + '</span>';
+    return '<div class="v-strip"><span class="rt" title="' + attr(keys) + '">' + (n ? '<b>' + esc(fmt(rt)) + '</b> of ' + esc(fmt(total)) : '<b>' + esc(fmt(total)) + '</b>') + '</span><span class="sp"></span>' +
       removeBtn + review + '<button type="button" class="btn ghost" onclick="undoCut()"' + (ctx.undo ? '' : ' disabled') + ' title="⌘Z">Undo</button><button type="button" class="btn ghost" onclick="redoCut()"' + (ctx.redo ? '' : ' disabled') + ' title="⇧⌘Z">Redo</button>' +
-      (n ? '<button type="button" class="btn ghost" onclick="keepEverything()" title="Everything plays again; Undo brings the cut back.">Start over</button>' : '') + '</div>' +
-      (ctx.reviewOpen ? '' : '<div class="v-legend">' + (ctx.words ? 'Click a word to go there, Space plays · select words and press Delete to take them out (a crossed-out word: put it back) · double-click selects the sentence · a misheard word: select it, press C.' : 'Select a sentence and press Delete to take it out · a crossed-out sentence: put it back' + (ctx.server ? '' : ' · word by word needs the server') + '.') + '</div>');
+      (n ? '<button type="button" class="btn ghost" onclick="keepEverything()" title="Everything plays again; Undo brings the cut back.">Start over</button>' : '') +
+      '<div class="v-selrow">' + selRow + '</div></div>' +   // the second row is always there, so a selection never pushes the words down
+      (ctx.reviewOpen ? '' : '<div class="v-legend">' + (ctx.words ? 'Click a word to go there, Space plays · double-click selects the sentence · there is no bar to drag: you trim by selecting words, and the grey pause chips count as words.' : 'Click a sentence to go there, Space plays.') + '</div>');
   }
   // the list before Remove: every filler, pause and "said twice" as one row with a checkbox; collapsed groups with counts; capped height
   function review(v, ctx) {
@@ -159,7 +161,7 @@
   function playerSide(v, ctx) {
     var p = ctx.player || {}; var srcLabel = p.src === 'take' ? 'The take, with your cuts skipped' : 'Watching ' + esc(p.label || 'a render');
     return '<div class="v-pwhat">' + srcLabel + '</div><div class="v-ptime"><b id="ptime">' + esc(fmt(p.time || 0)) + '</b> <span class="muted">of ' + esc(fmt(p.src === 'take' ? M.dur(v) : (p.duration || 0))) + '</span></div>' +
-      '<div class="v-row">' + (p.src !== 'take' ? '<button type="button" class="btn small" onclick="watchTake()">Back to the take</button>' : '') + '<button type="button" class="btn small ghost" onclick="togglePlayer()">' + (ctx.playerHidden ? 'Show the video' : 'Hide the video') + '</button></div>';
+      '<div class="v-row">' + (p.src !== 'take' ? '<button type="button" class="btn small" onclick="watchTake()">Back to the take</button>' : '') + '<label class="v-ck" title="The captions, as the final will carry them"><input type="checkbox" onchange="toggleCaptions()"' + (ctx.captions ? ' checked' : '') + '> Captions</label><button type="button" class="btn small ghost" onclick="togglePlayerSize()">' + (ctx.playerBig ? 'Smaller' : 'Bigger') + '</button><button type="button" class="btn small ghost" onclick="togglePlayer()">' + (ctx.playerHidden ? 'Show the video' : 'Hide the video') + '</button></div>';
   }
   function playerCap(v, ctx) {
     var p = ctx.player || {};
@@ -167,6 +169,9 @@
     if (ctx.playerHidden || ctx.reviewOpen) return '';
     if (p.src === 'take') return '<div class="v-pcap muted">Cuts sound a little rough here; the render is clean.</div>';
     return '<div class="v-pcap">' + (p.stale ? '<b>This ' + esc(p.kind || 'render') + ' is from an older cut.</b> Render again to see the current one.' : p.kind === 'preview' ? '<b>Check the opening, each join, and the captions.</b> Happy? Render the final.' : '<b>The final.</b> Captions ride along as a track and a .srt next to it.') + '</div>';
+  }
+  function playerPlaceholder(v, ctx) {   // where the player will be, so nobody wonders whether a video ever shows here
+    return '<div class="v-pbar muted">' + (ctx.server ? 'The video plays here, with your cuts skipped, once the take has its words.' : 'The video plays here once <code>node serve.js</code> runs (the card at the top).') + '</div>';
   }
   function playerBar(v, ctx) {   // the collapsed player: one line
     var p = ctx.player || {}; return '<div class="v-pbar"><button type="button" class="btn small" onclick="togglePlay()">' + (p.playing ? '❚❚' : '▶') + '</button><b id="ptime">' + esc(fmt(p.time || 0)) + '</b><span class="muted v-pnow" id="pnow">' + esc(p.nowText || (p.src === 'take' ? v.title : p.label) || '') + '</span><span class="sp"></span>' + (ctx.reviewOpen ? '<span class="muted">The video is back when the list closes</span>' : '<button type="button" class="btn small ghost" onclick="togglePlayer()">Show the video</button>') + '</div>';
@@ -237,8 +242,8 @@
     out += (ctx.addOpen ? recordCard(ctx) : '') + addBox(ctx, !!ctx.addOpen) + head(v, ctx);
     if (!v.transcript || !(v.phrases || []).length) return out + engineCard(v, ctx);
     if (ctx.wordsGone && ctx.wordsGone[v.id]) return out + '<div class="vcard warn"><p><b>The words file is gone</b> (<code>' + esc('data/videos/' + v.id + '/transcript.json') + '</code>), so only the sentences are left. Get the words again:</p></div>' + engineCard(v, ctx);
-    out += (ctx.server ? '' : '<p class="v-legend" style="margin-top:14px">The player needs the server (the card at the top).</p>') + phrases(v, ctx) + exportsSection(v, ctx);
+    out += phrases(v, ctx) + exportsSection(v, ctx);
     return out;
   }
-  global.VideoView = { esc: esc, list: list, main: main, strip: strip, review: review, playerSide: playerSide, playerCap: playerCap, playerBar: playerBar, doors: doors, cmd: cmd, SETUP_SENTENCE: SETUP_SENTENCE };
+  global.VideoView = { esc: esc, list: list, main: main, strip: strip, review: review, playerSide: playerSide, playerCap: playerCap, playerBar: playerBar, playerPlaceholder: playerPlaceholder, doors: doors, cmd: cmd, SETUP_SENTENCE: SETUP_SENTENCE };
 })(window);

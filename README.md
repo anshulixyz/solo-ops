@@ -177,7 +177,12 @@ on your disk, at its quality, by its transcript.
    put it back. **Remove fillers and pauses** takes um, uh, you know and
    every pause longer than 0.7 s (`video.pause`) in one click, or *Review
    first* to untick single ones and see what was said twice; Undo and Redo
-   are there. A misheard word is fixed by selecting it and pressing C (the
+   are there. **Keep only this** (K) is the trim: select the part you want
+   and everything before and after goes. The player shows the captions as
+   the final will carry them (a Captions box, Bigger); there is no bar to
+   drag: you trim by selecting words, and the grey pause chips count as
+   words. A misheard word is
+   fixed by selecting it and pressing C (the
    audio does not change). Every edge lands on a word, padded; pauses are
    measured on the audio, not guessed from the words. Or *Cut it with my
    AI*: your agent reads the words, proposes the cut in plain words, waits

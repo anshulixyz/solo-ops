@@ -8,7 +8,7 @@
 'use strict';
 var M = VideoModel, VV = VideoView;
 var ctx = { server: false, ready: false, chat: false, doctor: null, recordings: null, words: false, tidy: null, job: null, left: '', undo: false, redo: false, showAll: false, aspect: Store.get('marathon.video.aspect') || '', showRenderError: false, selection: null, tokens: [], renaming: false, showKey: false, addOpen: false,
-  reviewOpen: false, reviewTicked: {}, reviewCount: null, wordsGone: {}, oldServer: false, keyCard: false, pendingScript: '', correcting: null, engine: '', player: { src: 'take', time: 0, playing: false }, playerHidden: Store.get('marathon.video.playerHidden') === '1' };
+  reviewOpen: false, reviewTicked: {}, reviewCount: null, wordsGone: {}, oldServer: false, keyCard: false, pendingScript: '', correcting: null, engine: '', player: { src: 'take', time: 0, playing: false }, playerHidden: false, captions: Store.get('marathon.video.captions') !== '0', playerBig: Store.get('marathon.video.playerBig') === '1' };   // the fold lasts a session; captions and the size are remembered
 var pollTimer = null; var wordsLoading = {}; var renderStartedAt = 0; var dragging = false; var anchor = -1; var moved = false;
 function $(id) { return document.getElementById(id); }
 function esc(s) { return VV.esc(s); }
@@ -30,7 +30,7 @@ Sync.register({ file: M.FILE, key: M.KEY, label: 'takes', app: 'videos',
   reconcile: function (fileBody) { return M.reconcile(fileBody); },   // the file is the base of every write; the page overlays only the cut (and a rename)
   apply: function (body) { var before = M.active(); var hadNone = !before; var wordsWere = before && before.transcript ? before.transcript.wordsAt || 0 : -1; M.applyFile(body); var now = M.active(); if (now) loadWords(now); if (now && before && now.id !== before.id && !hadNone) { M.setActive(before.id); flash('New take: ' + now.title + ' — at the top of the list'); } else if (now && (!before || before.id !== now.id)) checkJobs(now); var nowAt = M.active() && M.active().transcript ? M.active().transcript.wordsAt || 0 : -1; if (ctx.correcting && (!M.active() || !before || M.active().id !== before.id || nowAt !== wordsWere)) { ctx.correcting = null; clearSelection(); } paint(); }   // a take that just arrived opens only when nothing was open; it may be getting its words by itself
 });
-Sync.on(function (ev) { if (ev === 'pulled' || ev === 'linked') { ctx.server = isServer(); ctx.ready = true; checkDoctor(false); loadRecordings(); var v = M.active(); if (v) { loadWords(v); checkJobs(v); } paint(); } });
+Sync.on(function (ev) { if (ev === 'pulled' || ev === 'linked') { if (ctx.wantedTake && M.get(ctx.wantedTake)) { M.setActive(ctx.wantedTake); ctx.wantedTake = ''; clearSelection(); } ctx.server = isServer(); ctx.ready = true; checkDoctor(false); loadRecordings(); var v = M.active(); if (v) { loadWords(v); checkJobs(v); } paint(); } });
 Store.onChange(function (k) { if (k === M.KEY) paint(); });   // a reply applied in the Guide (core/apply.js) lands here too
 
 /* ---- paint ---- */
@@ -53,7 +53,7 @@ function paint() {
 }
 
 /* ---- the player: the take with the cuts skipped (or a render), above the words, never re-created ---- */
-var vid = null; var playerFor = ''; var metaOnce = null; var freeUntil = -1; var following = true; var rafId = null;
+var vid = null; var playerFor = ''; var metaOnce = null; var cues = []; var cueIdx = -1; var cueKey = ''; var freeUntil = -1; var following = true; var rafId = null;
 function hasProxy(v) { return !!(v.proxy && v.proxy.file && v.proxy.hash === (M.src(v).hash || '')); }
 function canPlayHere(v) {   // from the codecs `video add` stored: HEVC/HDR needs hardware support, PCM/ALAC audio plays silent, .mkv never; the error event remains the catch-all
   if (hasProxy(v)) return true; var s = M.src(v); var p = String(s.path || '').toLowerCase();
@@ -67,15 +67,17 @@ function playerSource(v) { return hasProxy(v) ? '/api/video/' + encodeURICompone
 var timeMemory = {};   // source url → where she was, for Back to the take
 function paintPlayer(v) {
   var row = $('playerRow'); var cap = $('playerCap'); var editing = v && v.transcript && (v.phrases || []).length && ctx.server;
-  if (!editing) { row.style.display = 'none'; cap.innerHTML = ''; if (vid) { vid.pause(); } return; }
-  if (!vid) { vid = $('player'); vid.addEventListener('error', function () { if (ctx.player.src === 'take') ctx.player.cannotPlay = true; else flash('That render does not play in this browser'); paintPlayerChrome(M.active()); }); vid.addEventListener('play', function () { ctx.player.playing = true; following = true; loop(); paintPlayerChrome(M.active()); }); vid.addEventListener('pause', function () { ctx.player.playing = false; paintPlayerChrome(M.active()); }); vid.addEventListener('loadedmetadata', function () { ctx.player.duration = vid.duration; paintPlayerChrome(M.active()); }); vid.addEventListener('timeupdate', function () { ctx.player.time = vid.currentTime; var t = $('ptime'); if (t) t.textContent = M.fmt(vid.currentTime); markNow(); skipRule(); }); vid.addEventListener('play', function () { var v2 = M.active(); var ps2 = v2 ? M.pieces(v2) : null; if (ps2 && ctx.player.src === 'take' && vid.currentTime >= freeUntil && Video.nextPlayable(ps2, vid.currentTime) < 0) vid.currentTime = ps2[0].start; }); }
+  if (!editing) { row.style.display = 'none'; cap.innerHTML = v ? VV.playerPlaceholder(v, ctx) : ''; if (vid) { vid.pause(); } return; }
+  row.classList.toggle('big', !!ctx.playerBig);
+  if (!vid) { vid = $('player'); vid.addEventListener('error', function () { if (ctx.player.src === 'take') ctx.player.cannotPlay = true; else flash('That render does not play in this browser'); paintPlayerChrome(M.active()); }); vid.addEventListener('play', function () { ctx.player.playing = true; following = true; loop(); paintPlayerChrome(M.active()); }); vid.addEventListener('pause', function () { ctx.player.playing = false; paintPlayerChrome(M.active()); }); vid.addEventListener('loadedmetadata', function () { ctx.player.duration = vid.duration; paintPlayerChrome(M.active()); }); vid.addEventListener('seeked', function () { paintCaption(); }); vid.addEventListener('timeupdate', function () { ctx.player.time = vid.currentTime; var t = $('ptime'); if (t) t.textContent = M.fmt(vid.currentTime); paintCaption(); markNow(); skipRule(); }); vid.addEventListener('play', function () { var v2 = M.active(); var ps2 = v2 ? M.pieces(v2) : null; if (ps2 && ctx.player.src === 'take' && vid.currentTime >= freeUntil && Video.nextPlayable(ps2, vid.currentTime) < 0) vid.currentTime = ps2[0].start; }); }
   var want = ctx.player.src === 'take' ? playerSource(v) : '/api/video/' + encodeURIComponent(v.id) + '/' + ctx.player.src;
   if (playerFor !== v.id + '|' + want) {
     if (playerFor) timeMemory[playerFor] = vid.currentTime || 0;
     playerFor = v.id + '|' + want; ctx.player.cannotPlay = ctx.player.src === 'take' && !canPlayHere(v); vid.pause();
     if (!ctx.player.cannotPlay) { vid.src = want; vid.load(); var back = timeMemory[playerFor] || 0; if (metaOnce) { vid.removeEventListener('loadedmetadata', metaOnce); metaOnce = null; } if (back) { metaOnce = function () { vid.removeEventListener('loadedmetadata', metaOnce); metaOnce = null; vid.currentTime = back; }; vid.addEventListener('loadedmetadata', metaOnce); } ctx.player.time = back; } else { vid.removeAttribute('src'); ctx.player.time = 0; }
   }
-  vid.style.display = ctx.player.cannotPlay ? 'none' : '';
+  vid.style.display = ctx.player.cannotPlay ? 'none' : ''; var cb = $('captionBox'); if (cb && ctx.player.cannotPlay) cb.style.display = 'none';
+  var ck = v.id + ':' + ctx.player.src + ':' + (M.hasWords(v.id) ? 'w' : 'p') + ':' + ((v.captions && v.captions.style) || 'sentence'); if (ck !== cueKey) { cueKey = ck; loadCues(); }   // the captions follow what plays: the take's chunks, or the render's own .srt
   paintPlayerChrome(v);
 }
 function paintPlayerChrome(v) { if (!v) return; var row = $('playerRow'); var folded = ctx.playerHidden || ctx.reviewOpen; if (row) row.style.display = folded ? 'none' : ''; var side = $('playerSide'); if (side) side.innerHTML = VV.playerSide(v, ctx); var cap = $('playerCap'); if (cap) cap.innerHTML = (folded ? VV.playerBar(v, ctx) : '') + VV.playerCap(v, ctx); }   // the list open: the player folds to its bar so the words stay reachable
@@ -86,7 +88,23 @@ function skipRule() {   // on the frame loop and on timeupdate (which survives a
   var next = Video.nextPlayable(ps, t); if (next < 0) { if (t < freeUntil) return; vid.pause(); return; }   // past the last piece: stop, unless she asked to hear the trailing cut
   if (next !== t && t >= freeUntil && next - t > 0.08) vid.currentTime = next;
 }
-function loop() { if (rafId) cancelAnimationFrame(rafId); rafId = null; if (!vid || vid.paused) return; skipRule(); rafId = requestAnimationFrame(loop); }
+function loop() { if (rafId) cancelAnimationFrame(rafId); rafId = null; if (!vid || vid.paused) return; skipRule(); paintCaption(); rafId = requestAnimationFrame(loop); }
+/* captions in the player: the take's own chunks (the same the renders write), a render's .srt on its own time axis; written only when the cue changes */
+function loadCues() {
+  var v = M.active(); cues = []; cueIdx = -1; if (!v) return paintCaption();
+  if (ctx.player.src === 'take') { cues = M.captionCues(v); return paintCaption(); }
+  var ex = (v.exports || []).filter(function (e) { return e.file.replace(/.*\//, '') === ctx.player.src; })[0]; var srt = ex && ex.srt ? ex.srt.replace(/.*\//, '') : ''; var key = cueKey;
+  if (!srt || !/^(preview|final)-\d+\.srt$/.test(srt)) return paintCaption();
+  fetch('/api/video/' + encodeURIComponent(v.id) + '/' + srt, { cache: 'no-store' }).then(function (r) { return r.ok ? r.text() : ''; }).then(function (t) { if (cueKey !== key) return; cues = Video.srtCues(t); cueIdx = -1; paintCaption(); }).catch(function () { /* no captions for this render */ });   // the key, not just the name: another take's render with the same name must not get these cues
+}
+function paintCaption() {
+  var box = $('captionBox'), el = $('caption'); if (!box || !el) return;
+  var i = ctx.captions && vid && cues.length && !ctx.player.cannotPlay ? Video.cueAt(cues, vid.currentTime || 0, cueIdx) : -1;
+  if (i === cueIdx && (i >= 0 ? box.style.display !== 'none' : box.style.display === 'none')) return;
+  cueIdx = i; if (i < 0) { box.style.display = 'none'; el.textContent = ''; } else { el.textContent = cues[i].t; box.style.display = ''; }
+}
+function toggleCaptions() { ctx.captions = !ctx.captions; Store.set('marathon.video.captions', ctx.captions ? '1' : '0', { silent: true }); cueIdx = -2; paintCaption(); paintPlayerChrome(M.active()); }
+function togglePlayerSize() { ctx.playerBig = !ctx.playerBig; Store.set('marathon.video.playerBig', ctx.playerBig ? '1' : '0', { silent: true }); paintPlayer(M.active()); }
 function holeEnd(v, t) { var ps = M.pieces(v); if (!ps) return -1; var n = Video.nextPlayable(ps, t); return n === t ? -1 : n < 0 ? M.dur(v) : n; }
 function seekTo(t) {   // a click on a word or a Review row: the playhead moves, the play state does not; into a cut it plays the cut until it ends
   var v = M.active(); if (!vid || !v || !ctx.server) return;
@@ -96,7 +114,7 @@ function seekTo(t) {   // a click on a word or a Review row: the playhead moves,
 }
 function playFrom(t) { seekTo(t); if (vid && vid.paused && !ctx.player.cannotPlay && ctx.server) { following = true; vid.play().catch(function () {}); } }   // a Review row: go there and play
 function togglePlay() { var v = M.active(); if (!vid || !v || !ctx.server || ctx.player.cannotPlay) return; if (vid.paused) { following = true; vid.play().catch(function () {}); } else vid.pause(); }
-function togglePlayer() { ctx.playerHidden = !ctx.playerHidden; Store.set('marathon.video.playerHidden', ctx.playerHidden ? '1' : '0', { silent: true }); paintPlayer(M.active()); }
+function togglePlayer() { ctx.playerHidden = !ctx.playerHidden; paintPlayer(M.active()); }   // for this session only: a fold must never hide the player from every take forever
 function watchRender(name) { ctx.player.src = name; var v = M.active(); var ex = (v.exports || []).filter(function (e) { return e.file.replace(/.*\//, '') === name; })[0]; ctx.player.kind = ex ? ex.kind : 'render'; ctx.player.label = ex ? (ex.kind === 'final' ? 'the final' : 'the preview') + ' (' + M.fmt(ex.duration || 0) + ')' : name; ctx.player.stale = !!(ex && ex.edlHash !== v.edlHash); ctx.playerHidden = false; paintPlayer(v); vid.play().catch(function () {}); $('top').scrollIntoView({ block: 'start' }); }
 function watchTake() { ctx.player.src = 'take'; paintPlayer(M.active()); }
 function makeProxy() { var v = M.active(); if (!v) return; api('/api/video/proxy', { id: v.id, ws: Config.activeWs() }).then(function () { flash('Making a copy that plays here…'); ctx.job = Object.assign({}, ctx.job || {}, { proxy: { finished: false } }); paintPlayerChrome(v); startPoll(v.id); }).catch(function (e) { flash(e.message); }); }
@@ -104,7 +122,7 @@ function makeProxy() { var v = M.active(); if (!v) return; api('/api/video/proxy
 function markNow() {
   var t = ctx.player.time || 0; var now = null; var els = document.querySelectorAll('#phrases .w');
   for (var i = 0; i < els.length; i++) { var k = ctx.tokens[+els[i].dataset.i]; var on = !!(k && k.kind === 'word' && ctx.player.src === 'take' && t >= k.s - 0.02 && t < k.e + 0.02); els[i].classList.toggle('now', on); if (on) now = els[i]; }
-  var pn = $('pnow'); if (pn && now) pn.textContent = now.closest('.ph') ? now.closest('.ph').querySelector('.x').textContent.slice(0, 80) : '';
+  var pn = $('pnow'); var ci = cues.length ? Video.cueAt(cues, t, cueIdx) : -1; ctx.player.nowText = ci >= 0 ? cues[ci].t.slice(0, 80) : ''; if (pn) { if (ci >= 0) pn.textContent = cues[ci].t.slice(0, 80); else if (now) pn.textContent = now.closest('.ph') ? now.closest('.ph').querySelector('.x').textContent.slice(0, 80) : ''; }   // the folded bar captions too
   if (now && following && !dragging && vid && !vid.paused) { var r = now.getBoundingClientRect(); var pane = $('pane').getBoundingClientRect(); var topH = $('top').getBoundingClientRect().height; if (r.top < pane.top + topH + 10 || r.bottom > pane.bottom - 40) now.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
 }
 
@@ -113,9 +131,9 @@ function selStats(a, b) {   // "Put back" only when every selected token is cut;
   var n = 0, cut = 0, k = { word: 0, pause: 0, sentence: 0 }; for (var i = a; i <= b; i++) { var t = ctx.tokens[i]; if (!t) continue; n++; if (t.cut) cut++; k[t.kind || 'word']++; }
   var parts = [k.word ? k.word + (k.word === 1 ? ' word' : ' words') : '', k.pause ? k.pause + (k.pause === 1 ? ' pause' : ' pauses') : '', k.sentence ? k.sentence + (k.sentence === 1 ? ' sentence' : ' sentences') : ''].filter(Boolean);
   var same = true; var first = ctx.tokens[a]; for (var j = a; j <= b; j++) { var tj = ctx.tokens[j]; if (!tj || tj.kind !== 'word' || !first || tj.ph !== first.ph) same = false; }
-  return { a: a, b: b, count: n, cut: n > 0 && cut === n, label: parts.join(' and '), correctable: n > 0 && same && ctx.server && !!(first && first.wi != null) };
+  return { a: a, b: b, count: n, cut: n > 0 && cut === n, label: parts.join(' and '), correctable: n > 0 && same && ctx.server && !!(first && first.wi != null), keepable: (k.word > 1 || k.sentence > 0) && cut < n };   // keepable: more than a word, with something still playing
 }
-function selectSentenceOf(i) { var t = ctx.tokens[i]; if (!t || t.ph == null) return; var a = i, b = i; while (a > 0 && ctx.tokens[a - 1].ph === t.ph) a--; while (b < ctx.tokens.length - 1 && ctx.tokens[b + 1].ph === t.ph) b++; selectRange(a, b); }
+function selectSentenceOf(i) { var t = ctx.tokens[i]; if (!t || t.ph == null) return; var a = i, b = i; while (a > 0 && ctx.tokens[a - 1].ph === t.ph) a--; while (b < ctx.tokens.length - 1 && ctx.tokens[b + 1].ph === t.ph) b++; while (b > a && ctx.tokens[b].kind === 'pause') b--; selectRange(a, b); }   // the pause after the sentence is not the sentence (a trim ends on the last word)
 function setSelection(a, b) { if (a < 0 || b < 0) { ctx.selection = null; } else { ctx.selection = selStats(Math.min(a, b), Math.max(a, b)); } paintSelection(); }
 function clearSelection() { ctx.selection = null; anchor = -1; }
 function paintSelection() {   // cheap: toggle classes, re-render the strip only
@@ -135,6 +153,12 @@ function selectedSpans() {   // consecutive tokens become one span each
   for (var i = sel.a; i <= sel.b; i++) { var t = ctx.tokens[i]; if (!t) continue; if (cur && t.s <= cur.e + 0.35) cur.e = Math.max(cur.e, t.e); else { cur = { s: t.s, e: t.e }; spans.push(cur); } }
   return spans;
 }
+function keepOnly() {   // the trim: everything before and after the selection goes; what is inside stays as it is
+  var v = M.active(); var sel = ctx.selection; if (!v || !sel || !sel.keepable) return;
+  var spans = selectedSpans(); if (!spans.length) return; var s = Math.min.apply(null, spans.map(function (x) { return x.s; })), e = Math.max.apply(null, spans.map(function (x) { return x.e; }));
+  try { var r = M.keepOnly(v, s, e, 'kept only ' + sel.label); if (!r || r.same) { flash('That is already everything that plays'); return; } flash('Kept ' + M.fmt(r.kept) + ' of ' + M.fmt(r.was), true); } catch (err) { flash(err.message); return; }
+  clearSelection(); paint();
+}
 function actOnSelection() {
   var v = M.active(); var sel = ctx.selection; if (!v || !sel || !sel.count) return;
   var spans = selectedSpans(); var what = sel.label;
@@ -153,7 +177,7 @@ function moveSelection(delta, extend) {
 }
 
 /* ---- takes ---- */
-function selectTake(id) { if (M.setActive(id)) { ctx.showAll = false; ctx.showRenderError = false; ctx.renaming = false; ctx.reviewOpen = false; ctx.correcting = null; ctx.player = { src: 'take', time: 0, playing: false }; freeUntil = -1; clearSelection(); var v = M.active(); loadWords(v); checkJobs(v); paint(); } }
+function selectTake(id) { ctx.wantedTake = ''; if (M.setActive(id)) { ctx.showAll = false; ctx.showRenderError = false; ctx.renaming = false; ctx.reviewOpen = false; ctx.correcting = null; ctx.player = { src: 'take', time: 0, playing: false }; freeUntil = -1; clearSelection(); var v = M.active(); loadWords(v); checkJobs(v); paint(); } }
 function loadWords(v) {   // the words with their times from data/videos/<id>/transcript.json: server or linked folder; elsewhere the sentences stand in
   if (!v || !v.transcript || M.hasWords(v.id) || wordsLoading[v.id]) return;
   if (!isServer() && !(Sync.readTakeFile)) return;
@@ -334,7 +358,7 @@ function makePost() {
 /* ---- init ---- */
 function init() {
   Config.applyDOM();
-  if (window.Story) { var wantedTake = Story.openParam('open'); if (wantedTake && M.get(wantedTake)) M.setActive(wantedTake); if (Story.openParam('add')) { ctx.addOpen = true; ctx.pendingScript = Story.openParam('script') || ''; } if (Story.clearQuery) Story.clearQuery(['open', 'add', 'script']); if (Story.onWrite) Story.onWrite(function () { paint(); }); }   // ?open=<take> and ?add=1&script=<id> come from the story line on another page
+  if (window.Story) { var wantedTake = Story.openParam('open'); if (wantedTake) { if (M.get(wantedTake)) M.setActive(wantedTake); else ctx.wantedTake = wantedTake; } if (Story.openParam('add')) { ctx.addOpen = true; ctx.pendingScript = Story.openParam('script') || ''; } if (Story.clearQuery) Story.clearQuery(['open', 'add', 'script']); if (Story.onWrite) Story.onWrite(function () { paint(); }); }   // ?open=<take> and ?add=1&script=<id> come from the story line on another page
   Palette.init({ root: '../' });
   Palette.register([
     { label: 'Add a recording', hint: 'video', keywords: 'new take record', run: openAdd },
@@ -362,6 +386,7 @@ function init() {
     if (e.key === ' ') { if (ae.tagName === 'VIDEO') return; e.preventDefault(); if (ae.tagName === 'BUTTON') ae.blur(); togglePlay(); return; }   // never re-click a focused button
     if (e.key === 'Delete' || e.key === 'Backspace' || e.key === 'Enter') { if (ctx.selection && ctx.selection.count) { e.preventDefault(); if (ae.tagName === 'BUTTON') ae.blur(); actOnSelection(); } return; }   // nothing selected: nothing happens
     if (e.key === 'c' || e.key === 'C') { if (!mod && ctx.selection && ctx.selection.correctable) { e.preventDefault(); startCorrect(); } return; }
+    if (e.key === 'k' || e.key === 'K') { if (!mod && ctx.selection && ctx.selection.keepable) { e.preventDefault(); if (ae.tagName === 'BUTTON') ae.blur(); keepOnly(); } return; }   // nothing selected: nothing (not play/pause)
     if (e.key === 'Escape') { if (ctx.selection) { clearSelection(); paintSelection(); } return; }
     if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { if (!ctx.tokens.length) return; e.preventDefault(); if (ctx.selection) moveSelection(e.key === 'ArrowRight' ? 1 : -1, e.shiftKey); else if (vid && ctx.server) seekTo(Math.max(0, (vid.currentTime || 0) + (e.key === 'ArrowRight' ? 1 : -1))); }
   });
