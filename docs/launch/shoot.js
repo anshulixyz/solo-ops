@@ -107,7 +107,13 @@ var SHOTS = [
   { id: '50-recent-restore', base: BUILT, go: 'index.html', ls: BUILT_LS, profile: 'p50', before: ['done', 'Set up the waitlist form', '--as', 'agent', '--note', 'you said it shipped in our chat'], do: 'wait:3500;;click:.restore summary;;wait:300;;js:document.querySelector("#logCard").scrollIntoView({block:"center"})', budget: 12000 },
   { id: '52-about', base: BUILT, go: 'about.html', ls: BUILT_LS, h: 1300 },
   { id: '53-about-coming', base: BUILT, go: 'about.html', ls: BUILT_LS, h: 1300, do: "wait:800;;js:(function(){var h=Array.prototype.filter.call(document.querySelectorAll('h2'),function(x){return /What is coming/.test(x.textContent)})[0]; if(h) window.scrollTo(0, h.getBoundingClientRect().top + window.scrollY - 24);})()" },
-  { id: '51-guide-backup-ok', base: BUILT, go: 'index.html?guide=settings', ls: BUILT_LS }
+  { id: '51-guide-backup-ok', base: BUILT, go: 'index.html?guide=settings', ls: BUILT_LS },
+  // README: the Guide on Ask over the built Home, and the Video page on the demo take (TAKE = its id; headless Chrome paints no
+  // video frame, so TAKE_POSTER, the take's first frame exported with ffmpeg, stands in as the poster; the seed's take is synthetic,
+  // and its scratch path is shown as ~/Movies/pocket-studio/demo-take-2.mp4, the one cosmetic replacement in these shots)
+  { id: '47-guide-ask', base: BUILT, go: 'index.html?guide=ask', ls: CHAT_LS, do: 'wait:2500' },
+  { id: '48-video', base: BUILT, go: 'studio/video.html?ws=main' + (process.env.TAKE ? '&open=' + process.env.TAKE : ''), ls: Object.assign({}, BUILT_LS, { 'marathon.video.captions': '1', 'marathon.video.playerBig': '0' }), h: 1100, budget: 12000,
+    do: 'wait:3500;;' + "js:(function(){var i=ctx.tokens.findIndex(function(t){return t.kind==='word'&&t.ph===5});if(i>=0)selectSentenceOf(i)})();;wait:300;;" + (process.env.TAKE_POSTER ? "js:(function(){var v=document.getElementById('player');if(!v)return;v.pause();v.setAttribute('poster'," + JSON.stringify(process.env.TAKE_POSTER) + ");v.removeAttribute('src');v.load();var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);var n;while((n=w.nextNode()))if(n.nodeValue.indexOf('/demo-take-2.mp4')>-1)n.nodeValue='~/Movies/pocket-studio/demo-take-2.mp4';})();;wait:800" : 'wait:1') }
 ];
 
 function frameUrl(s) {

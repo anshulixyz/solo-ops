@@ -362,6 +362,8 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Minor / issues
 
+- **Guide next-best-move vs Home (seen 2026-10-20 on the sample project):** the Guide's NEXT card says "No posts scheduled. Keep the cadence going." while Home on the same page counts 5 posts this week (drafts and ready posts with a date). The move should count posts with a date in the window, or say "none ready" instead of "none scheduled". Two clocks on the Video page can also read as a bug to a careful eye: the strip's "0:48.5 of 0:52.0" (the cut's runtime) next to the player's "0:00.0 of 0:52.0" (the playhead); label the first "cut 0:48.5".
+
 - **Video: after a decode error the black frame stays (2026-10-20):** the
   player's `error` listener sets `cannotPlay` and repaints the chrome, but
   only `paintPlayer` hides the `<video>`, so the empty frame sits above the

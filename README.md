@@ -17,7 +17,7 @@ already use (ChatGPT, Claude, Claude Code, Cursor) and never type a task
 twice. Everything stays local: one folder on your computer, plain files,
 no account. Solo Ops never calls an AI for you.
 
-<p align="center"><img src="docs/screenshots/home.png" width="900" alt="Home: Mara's workspaces, today across every project, Share today, Start / Done on any task"></p>
+<p align="center"><img src="docs/screenshots/home.png" width="900" alt="Home: your workspaces, today across every project, Share today and a quick Add"></p>
 
 <table><tr>
 <td><img src="docs/screenshots/guide.png" alt="The Guide: Ask your AI in plain words, with the context attached"></td>
@@ -29,7 +29,8 @@ no account. Solo Ops never calls an AI for you.
 <td><img src="docs/screenshots/social.png" alt="Social schedule"></td>
 <td><img src="docs/screenshots/scripts.png" alt="Script viewer"></td>
 </tr><tr>
-<td colspan="2"><img src="docs/screenshots/inspiration.png" alt="Inspiration inbox: the capture strip on every page, tags, Use as task / post / script"></td>
+<td><img src="docs/screenshots/video.png" alt="Video: cut a recording by its transcript. Select words, press Delete, play it back with the cuts skipped."></td>
+<td><img src="docs/screenshots/inspiration.png" alt="Inspiration inbox: the capture strip on every page, tags, Use as task / post / script"></td>
 </tr></table>
 
 ```
