@@ -268,6 +268,7 @@ body {
   flex-shrink: 0;
 }
 .notes-head-label {
+  padding-left: 32px;   /* clear of the Guide handle (core/theme.css .guide-handle, 30 px at the left edge, top 140 px) on the three studio pages */
   font-family: var(--mono);
   font-size: 10px;
   letter-spacing: .12em;
