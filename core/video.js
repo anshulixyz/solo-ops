@@ -460,7 +460,7 @@
       head += '--' + boundary + CR + 'Content-Disposition: form-data; name="file"; filename="audio.wav"' + CR + 'Content-Type: audio/wav' + CR + CR;
       var body = Buffer.concat([Buffer.from(head), fs.readFileSync(opts.wav), Buffer.from(CR + '--' + boundary + '--' + CR)]);
       var req = https.request({ host: 'api.elevenlabs.io', path: '/v1/speech-to-text', method: 'POST', headers: { 'xi-api-key': opts.key, 'Content-Type': 'multipart/form-data; boundary=' + boundary, 'Content-Length': body.length } }, function (res) {
-        var chunks = []; res.on('data', function (c) { chunks.push(c); }); res.on('end', function () { var txt = Buffer.concat(chunks).toString('utf8'); if (res.statusCode !== 200) return reject(new Error('ElevenLabs answered ' + res.statusCode + ': ' + txt.slice(0, 200))); try { var t = importTranscript(txt, 'json'); resolve({ words: t.words, raw: JSON.parse(txt) }); } catch (e) { reject(e); } });
+        var chunks = []; res.on('data', function (c) { chunks.push(c); }); res.on('end', function () { var txt = Buffer.concat(chunks).toString('utf8'); if (res.statusCode !== 200) return reject(new Error(res.statusCode === 401 || res.statusCode === 403 ? 'ElevenLabs did not accept the key. Replace it on the Video page (option 2) or: node solo.js video key set elevenlabs --stdin' : res.statusCode === 402 || res.statusCode === 429 ? 'ElevenLabs refused the audio (' + res.statusCode + '): out of credits or too many requests. Check your plan at elevenlabs.io and try again.' : 'ElevenLabs answered ' + res.statusCode + ': ' + txt.slice(0, 200))); try { var t = importTranscript(txt, 'json'); resolve({ words: t.words, raw: JSON.parse(txt) }); } catch (e) { reject(e); } });
       });
       req.on('error', reject); req.end(body);
     });

@@ -229,7 +229,17 @@ runs to the second try, `--all` undo restores every place, `video word
 numbers), the list open folds the player to its bar and hides the strip's
 Remove. Left for slice 6: tests for the skip rule, the word route (409),
 `autoWords` (standing yes, cap) and `/api/video/key`; memoise `tidyCount`
-(retakes run on every paint); audio-only takes; a 409 on `/api/data` PUT.
+(retakes run on every paint); audio-only takes; a 409 on `/api/data` PUT;
+stream the ElevenLabs upload instead of holding the WAV in memory (a
+3-hour manual `--yes` is ~700 MB); say in SCHEMA that `import.srt` travels
+with the backup (harmless text). Two branch-wide reviews before main
+(compatibility/data/security, main-readiness/UX) found no leak and no
+unlogged write; their fixes are in: `video recordings` before the first
+take, doctor's tool lines before the first take and no false warnings on
+the machine-only files, the Home chip counts by status, `help` up to date,
+provider errors in plain words, the missing-words card, the stale-server
+card, `--title=`/`--at=`/`--expect=` from the routes, `Sec-Fetch-Site`
+in the Host check, `recordings.json` out of the backup.
 **Slice 4 shipped 2026-10-20, commit `1e5ca53`: easy mode.**
 The owner's direction: trim the umms and pauses, edit the transcript as
 text like Descript, record with Recordly and have the recordings land in

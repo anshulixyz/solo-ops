@@ -619,7 +619,7 @@ function cmdVideo() {
     note('video add ' + v.id + ' ' + title); d.videos.unshift(v); if (!flags['no-open']) d.activeId = v.id; write(fileName('videos'), d);   // --no-open: the watcher adds without switching the open take
     return out(['✓ Added take [' + v.id + '] ' + v.title + (pos.length || flags.title ? '' : '   (title from the file name; rename with --title)'), '  ' + abs, '  ' + V.fmt(pr.duration) + ' · ' + pr.width + '×' + pr.height + ' · ' + pr.fps + ' fps · ' + fmtSize(pr.size) + (pr.hdr ? ' · HDR' : '') + (pr.rotation ? ' · rotated ' + pr.rotation + '°' : '') + (pr.hasAudio ? '' : ' · no audio track (no words to transcribe; --keep trims still work)'), '  The file stays where it is; nothing was copied.', '  Next: ' + videoNext(v)], v);
   }
-  if (!read(fileName('videos'))) fail('No takes yet. Add one: node solo.js video add --file ./take.mov');
+  if (!read(fileName('videos')) && sub !== 'recordings' && sub !== 'watch') fail('No takes yet. Add one: node solo.js video add --file ./take.mov   (or save a recording in the folder: node solo.js video recordings)');
   if (sub === 'show') {
     var v1 = find(d.videos, pos.join(' '), 'take'); var src1 = v1.sources[0] || {}; var s1 = schedule();
     var md = ['# ' + v1.title, '', '- id: ' + v1.id + ' · status: ' + videoStatus(v1, s1) + (v1.scriptId ? ' · script: ' + v1.scriptId : '') + (v1.postId ? ' · post: ' + v1.postId : ''), '- file: ' + src1.path + (fs.existsSync(src1.path || '') ? '' : '  ⚠ not found (moved? node solo.js video source ' + v1.id + ' <new path>)'), '- ' + V.fmt(src1.duration) + ' · ' + src1.width + '×' + src1.height + ' · ' + src1.fps + ' fps · ' + fmtSize(src1.size) + (src1.hdr ? ' · HDR' : '') + (src1.hasAudio === false ? ' · no audio track' : ''), ''];
@@ -1055,10 +1055,10 @@ function expandHome(p) { return path.resolve(String(p).replace(/^~(?=\/|$)/, req
 // Plain copy of data/ into a folder that syncs (iCloud Drive, Dropbox, Google Drive): no git, no log, no safety copies.
 // What never leaves this computer with a backup: the change log, safety copies, keys, the inbox, the whisper
 // model, and every rendered or temporary video file (data/videos/<id>/ keeps only transcript.json and the .srt).
-var BACKUP_IGNORE = ['log.jsonl', '*.backup-*.json', 'exports/', 'identity.json', 'inbox.json', 'secrets.json', 'models/', 'videos/**', '!videos/*/', '!videos/*/transcript.json', '!videos/*/*.srt'];
+var BACKUP_IGNORE = ['log.jsonl', '*.backup-*.json', 'exports/', 'identity.json', 'inbox.json', 'secrets.json', 'recordings.json', 'models/', 'videos/**', '!videos/*/', '!videos/*/transcript.json', '!videos/*/*.srt'];
 function backupSkip(rel) {   // same rule for the folder copy (rel = path inside data/, forward slashes)
   rel = rel.split(path.sep).join('/');
-  if (/^(\.git|log\.jsonl|exports|models|identity\.json|inbox\.json|secrets\.json)(\/|$)/.test(rel) || /\.(file-)?backup-[\d-]+\.json$/.test(rel)) return true;
+  if (/^(\.git|log\.jsonl|exports|models|identity\.json|inbox\.json|secrets\.json|recordings\.json)(\/|$)/.test(rel) || /\.(file-)?backup-[\d-]+\.json$/.test(rel)) return true;
   var m = rel.match(/^videos\/[^/]+\/(.+)$/); if (m) return !/^(transcript\.json|[^/]+\.srt)$/.test(m[1]);
   return false;
 }
@@ -1247,15 +1247,17 @@ function cmdGuard() {
 function cmdDoctor() {
   var issues = [], notes = [], files = []; var refs = {}; var browserOnly = 0;
   try { files = fs.readdirSync(DATA).filter(function (f) { return /\.json$/.test(f) && !/\.backup-/.test(f); }); } catch (e) { fail('No data/ folder yet. Run: node solo.js template all'); }
-  var shapes = { social: 'posts', scripts: 'scripts', writing: 'notes', inspiration: 'items', boards: 'boards', workspaces: 'workspaces', activity: 'days', settings: 'theme', prompts: null, backup: null, identity: null, contacts: null, shares: 'shares', inbox: 'items', videos: 'videos', secrets: null, recordings: 'files' };
+  var shapes = { social: 'posts', scripts: 'scripts', writing: 'notes', inspiration: 'items', boards: 'boards', workspaces: 'workspaces', activity: 'days', settings: 'theme', prompts: null, backup: null, identity: null, contacts: null, shares: 'shares', inbox: 'items', videos: 'videos', secrets: null, recordings: 'recordings' };
   files.forEach(function (f) {
     var txt, obj; try { txt = fs.readFileSync(path.join(DATA, f), 'utf8'); obj = JSON.parse(txt); } catch (e) { issues.push(f + ': not valid JSON (' + e.message.split('\n')[0] + ')'); return; }
     if (!obj || typeof obj !== 'object') { issues.push(f + ': not an object'); return; }
-    if (!obj.updatedAt) issues.push(f + ': no updatedAt (sync cannot tell which side is newer)'); else if (isNaN(Date.parse(obj.updatedAt))) issues.push(f + ': updatedAt is not an ISO date');
     var base = f.replace(/\.json$/, ''); var kind = Object.keys(shapes).filter(function (k) { return base === k || base.slice(-k.length - 1) === '-' + k; })[0];
+    var machineOnly = ['secrets', 'recordings', 'backup', 'identity'].indexOf(kind) >= 0;   // never synced, so no stamp to check
+    if (!obj.updatedAt) { if (!machineOnly) issues.push(f + ': no updatedAt (sync cannot tell which side is newer)'); } else if (isNaN(Date.parse(obj.updatedAt))) issues.push(f + ': updatedAt is not an ISO date');
     var arrKey = kind ? shapes[kind] : 'tasks';
     if (kind === 'settings') { if (!obj.theme) issues.push(f + ': no theme'); var cp = CfgLib ? CfgLib.check(SHIPPED, obj.config) : []; cp.forEach(function (m) { issues.push(f + ': ' + m + ' (fix: node solo.js config set …; the page ignores it meanwhile)'); }); if (isObj(obj.config) && Object.keys(obj.config).length && !cp.length) notes.push(f + ': your settings: ' + Object.keys(obj.config).join(', ')); }
     else if (kind === 'activity') { if (!obj.days || typeof obj.days !== 'object') issues.push(f + ': no days map'); }
+    else if (kind === 'recordings') { if (!obj.files || typeof obj.files !== 'object' || Array.isArray(obj.files)) issues.push(f + ': no files map (node solo.js video recordings --init rewrites it)'); }
     else if (arrKey) {
       var arr = obj[arrKey]; if (!Array.isArray(arr)) { issues.push(f + ': expected an array "' + arrKey + '"'); return; }
       var seen = {}; arr.forEach(function (x, i) { if (!x || typeof x !== 'object') { issues.push(f + ': ' + arrKey + '[' + i + '] is not an object'); return; } if (x.id == null) issues.push(f + ': ' + arrKey + '[' + i + '] has no id'); else if (seen[x.id]) issues.push(f + ': duplicate id ' + x.id); seen[x.id] = 1;
@@ -1297,7 +1299,7 @@ function cmdDoctor() {
 // Video: the tools, the model, every take's file and exports, stale locks, big files in the backup repo.
 function doctorVideo(files, issues, notes, repo) {
   if (!V) return; var vfiles = files.filter(function (f) { return /(^|-)videos\.json$/.test(f); }); var dirs = []; try { dirs = fs.readdirSync(path.join(DATA, 'videos')).filter(function (f) { return f[0] !== '.'; }); } catch (e) { dirs = []; }
-  if (!vfiles.length && !dirs.length) return;
+  if (!vfiles.length && !dirs.length && cfg.apps && cfg.apps.video === false) return;   // the app is off and was never used: nothing to say; otherwise the tools are worth a line before the first take
   var T = V.node.tools(videoCfg()); var VC = videoCfg();
   if (!T.ffmpeg) issues.push('video: ffmpeg not found. ' + V.node.NEED_FFMPEG); else notes.push('video: ffmpeg ' + T.ffmpeg + (V.node.hasFilter(T.ffmpeg, 'subtitles') ? ', can burn captions' : ', no libass: captions go in as a track + .srt (burned-in ones need another build; `video render --burn` says how)'));
   var wb = V.node.whisperBin(VC); var mp = V.node.modelPath(DATA, VC.model || 'small.en'); var key = !!(process.env.ELEVENLABS_API_KEY || secrets().elevenlabs);
@@ -1400,8 +1402,11 @@ function cmdHelp() {
     'Prompts (built-ins in core/prompts.js, yours in data/prompts.json)', '  prompts builtin [--mode chat|files]   prompts show <title or /slug>   prompts export [--for claude|cursor|codex|chat] [--out dir]', '  prompts list|add "Title" --text "…"|--file p.md [--cat daily] [--desc "…"]|edit <p> …|rm <p>|restore', '',
     'Studio (data/scripts.json, data/writing.json)', '  scripts list|show <s>|add "Title" [--file x.md]|rm <s>', '  notes list|show <n>|add "Title" [--file x.md]|rm <n>', '',
     'Video (data/videos.json + data/videos/<id>/ — cut a take by its words; the footage stays where it is, needs ffmpeg)', '  video add "Title" --file ./take.mov [--script s3]   video list|show <v>|open <v> [--preview]|rm <v> [--files]   video source <v> <new path>',
-    '  video transcribe <v> [--engine whisper|elevenlabs] [--lang en] [--from captions.srt] [--yes]   whisper = on this computer; elevenlabs = audio only leaves (needs video key set elevenlabs <key>)',
-    '  video cut <v> --keep "2.4-6.8, 8.1-15.0" | --drop "um, uh" | --edl cut.json     edges snap to words and are padded; logged, revertable',
+    '  video transcribe <v> [--engine whisper|elevenlabs] [--lang en] [--from captions.srt] [--yes]   whisper = on this computer; elevenlabs = audio only leaves (needs video key set elevenlabs --stdin)',
+    '  video cut <v> --keep "2.4-6.8, 8.1-15.0" | --drop "um, uh" | --tidy | --drop-silence [--min-pause 0.7] | --retakes | --edl cut.json     edges snap to words and are padded; logged, revertable',
+    '  video word <v> "what it says" "what it should say" [--all] | <n>[-<m>] "text" | --undo   a misheard word: the text changes, the audio and the cut do not',
+    '  video title <v> "New title"   video proxy <v> (a 720p copy for the page\'s player)   video key set elevenlabs --stdin',
+    '  video recordings [--init|--add|--forget <path>]   video watch [--transcribe [engine]]   the folder any recorder saves into; what lands there becomes a take (serve.js watches it too)',
     '  video render <v> [--preview] [--burn] [--aspect 9:16] [--style sentence|bold] [--out file]   one encode, captions as a track + .srt (burned with libass)', '  video post <v> [--at <when>] [--type update] [--copy "…"]   a post dated then, in draft, with the cut linked, never copied', '',
     'Safety', '  backup setup [--name solo-ops-data] [--no-github]   first time: a PRIVATE GitHub repo via gh, or it tells you the two other ways', '  backup [--remote <private url>] [--to <folder>] [--status]   push data/ to its private repo and/or copy it to a syncing folder; refuses public repos', '  backup --daily [--hour 21] [--dry-run]   run it every evening (launchd / crontab / a schtasks line)', '  guard [--install] [--allow-data]   fail when staged files hold your content; --install = on every commit; --allow-data = your own PRIVATE fork only', '  doctor | health            check every data file, attachments and backup age', '',
     'Setup', '  template [all|board|social|scripts|writing|settings] [--board id] [--force]', '  theme [show|list|set <palette>|mode <auto|light|dark>|font <inter|system|lato|editorial>]', '  config                     the settings in use (solo.config.js + your settings)', '  config set <setting> <value>  your values, kept in data/settings.json: owner "Mara" · name "Pocket Studio" · social.postTypes reel,carousel · boards.runway.title "…"', '  config add <list> a b      add to a list (config unset <setting> · config set --file x.json · config clear)', '  serve [--port 4321]        start the local server (pages write data/ directly)', '',

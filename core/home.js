@@ -64,8 +64,9 @@
   // "1 take without words yet" · "2 takes waiting to be cut" · "1 cut waiting to be rendered": the step the most recent waiting take is at
   function takeWaiting(takes) {
     var w = (takes || []).filter(function (v) { return ['recorded', 'transcribed', 'cut'].indexOf(v.status || 'recorded') >= 0; }).sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
-    if (!w.length) return ''; var st = w[0].status || 'recorded'; var n = w.length, pl = n === 1 ? '' : 's';
-    return st === 'recorded' ? n + ' take' + pl + ' without words yet' : st === 'transcribed' ? n + ' take' + pl + ' waiting to be cut' : n + ' cut' + pl + ' waiting to be rendered';
+    if (!w.length) return ''; var by = {}; w.forEach(function (v) { var st = v.status || 'recorded'; by[st] = (by[st] || 0) + 1; });
+    var part = function (n, one, many) { return n ? n + ' ' + (n === 1 ? one : many) : ''; };
+    return [part(by.recorded, 'take without words yet', 'takes without words yet'), part(by.transcribed, 'take to cut', 'takes to cut'), part(by.cut, 'cut to render', 'cuts to render')].filter(Boolean).join(' · ');
   }
   function latest(arr) { return arr.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); })[0]; }
   function noteTitle(text) { var m = (text || '').match(/^#\s+(.+)/m); return m ? m[1].trim().slice(0, 50) : (text || '').split('\n')[0].slice(0, 50) || 'Untitled'; }

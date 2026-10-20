@@ -194,7 +194,7 @@ remote keeps the block.
   ElevenLabs key into `data/secrets.json`. Every step the page cannot do
   itself shows *Copy for my agent* first and the terminal line under "Do it
   yourself"; `/setup-video` is the one-conversation install. The page writes only `edl`, `edlHash`,
-  `cutAt`, `status`, `updatedAt` and `activeId` of `videos.json` (and removes
+  `cutAt`, `title`, `renamedAt`, `status`, `updatedAt` and `activeId` of `videos.json` (and removes
   a take on request); everything else is yours (the CLI's), and the page
   merges your copy in before every write (`cutAt` says whose cut is newer),
   so write a take through the CLI while the page is open without fear. The

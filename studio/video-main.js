@@ -8,7 +8,7 @@
 'use strict';
 var M = VideoModel, VV = VideoView;
 var ctx = { server: false, ready: false, chat: false, doctor: null, recordings: null, words: false, tidy: null, job: null, left: '', undo: false, redo: false, showAll: false, aspect: Store.get('marathon.video.aspect') || '', showRenderError: false, selection: null, tokens: [], renaming: false, showKey: false, addOpen: false,
-  reviewOpen: false, reviewTicked: {}, reviewCount: null, correcting: null, engine: '', player: { src: 'take', time: 0, playing: false }, playerHidden: Store.get('marathon.video.playerHidden') === '1' };
+  reviewOpen: false, reviewTicked: {}, reviewCount: null, wordsGone: {}, oldServer: false, correcting: null, engine: '', player: { src: 'take', time: 0, playing: false }, playerHidden: Store.get('marathon.video.playerHidden') === '1' };
 var pollTimer = null; var wordsLoading = {}; var renderStartedAt = 0; var dragging = false; var anchor = -1; var moved = false;
 function $(id) { return document.getElementById(id); }
 function esc(s) { return VV.esc(s); }
@@ -159,7 +159,7 @@ function loadWords(v) {   // the words with their times from data/videos/<id>/tr
   if (!isServer() && !(Sync.readTakeFile)) return;
   var p = isServer() ? api('/api/video/' + encodeURIComponent(v.id) + '/transcript.json') : Sync.readTakeFile ? Sync.readTakeFile(v.id, 'transcript.json') : Promise.resolve(null);
   wordsLoading[v.id] = true;
-  p.then(function (t) { if (t && Array.isArray(t.words) && t.words.length) { M.setWords(v.id, t.words, t.silences); paint(); } }).catch(function () { /* the sentences stand in */ }).then(function () { wordsLoading[v.id] = false; });
+  p.then(function (t) { if (t && Array.isArray(t.words) && t.words.length) { delete ctx.wordsGone[v.id]; M.setWords(v.id, t.words, t.silences); paint(); } }).catch(function (e) { if (e && e.status === 404 && isServer()) { ctx.wordsGone[v.id] = true; paint(); } }).then(function () { wordsLoading[v.id] = false; });   // 404 with the server: the file is gone, say so (elsewhere the sentences stand in)
 }
 /* ---- Review first: tick what goes, see the count, then remove ---- */
 function toggleReview() { ctx.reviewOpen = !ctx.reviewOpen; if (ctx.reviewOpen) ctx.reviewTicked = {}; paint(); }
@@ -231,7 +231,7 @@ function cutWithAI() { var v = M.active(); if (!v) return flash('Add a take firs
 function checkDoctor(force, say) {
   if (!isServer()) { ctx.doctor = null; return; }
   if (!force && ctx.doctor && Date.now() - ctx.doctor.at < 300000) return;
-  api('/api/video/doctor' + (force ? '?fresh=1' : '')).then(function (d) { d.at = Date.now(); ctx.doctor = d; paint(); if (say) flash(d.ffmpeg ? 'ffmpeg found' : 'Still no ffmpeg'); }).catch(function () { ctx.doctor = null; });
+  api('/api/video/doctor' + (force ? '?fresh=1' : '')).then(function (d) { d.at = Date.now(); ctx.doctor = d; ctx.oldServer = false; paint(); if (say) flash(d.ffmpeg ? 'ffmpeg found' : 'Still no ffmpeg'); }).catch(function (e) { ctx.doctor = null; if (e && e.status === 404) { ctx.oldServer = true; paint(); } });   // 404: a node serve.js from before the Video page is still running
 }
 function loadRecordings() { if (!isServer()) { ctx.recordings = null; return; } api('/api/video/recordings').then(function (r) { ctx.recordings = r; paint(); }).catch(function () { ctx.recordings = null; }); }
 function openRecordings() { api('/api/video/recordings', { open: true }).then(function () { flash('Opened the folder'); loadRecordings(); }).catch(function (e) { flash(e.message); }); }

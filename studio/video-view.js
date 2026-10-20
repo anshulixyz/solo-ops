@@ -117,7 +117,7 @@
   function strip(v, ctx) {
     var n = (v.edl || []).length; var rt = M.runtime(v); var total = M.dur(v); var tc = ctx.tidy || { fillers: 0, pauses: 0, retakes: 0, allRetakes: [] };
     var parts = [tc.fillers ? tc.fillers + ' filler' + (tc.fillers === 1 ? '' : 's') : '', tc.pauses ? tc.pauses + ' pause' + (tc.pauses === 1 ? '' : 's') : ''].filter(Boolean);
-    var removeBtn = !ctx.words ? '<button type="button" class="btn" disabled title="Needs the words with their times: start node serve.js for that.">Remove fillers and pauses</button>'
+    var removeBtn = !ctx.words ? '<button type="button" class="btn" disabled title="' + (ctx.server ? 'Needs the words with their times: get the words first.' : 'Needs the words with their times: start node serve.js for that.') + '">Remove fillers and pauses</button>'
       : parts.length ? '<button type="button" class="btn" onclick="removeNoise()" title="um, uh, you know, I mean… and pauses longer than ' + esc(String(M.pauseMin())) + ' s. Highlighted words are what goes. Undo takes it back.">Remove ' + esc(parts.join(' and ')) + '</button>'
       : '<button type="button" class="btn" disabled title="No fillers and no long pauses left in what plays.">Remove fillers and pauses</button>';
     var twice = (tc.allRetakes || []).length;
@@ -221,11 +221,13 @@
   }
   function main(v, ctx) {
     var out = '';
+    if (ctx.server && ctx.oldServer) out += '<div class="vcard warn"><h3>The server that is running is older than this page</h3><p>It was started before Video existed, so its buttons answer "not found". In the terminal where <code>node serve.js</code> runs, press Ctrl-C and run it again; then reload this page.</p></div>';
     if (ctx.server && ctx.doctor && ctx.doctor.ffmpeg === false) out += ffmpegCard(ctx.doctor);
     if (!ctx.server && ctx.ready) out += noServerCard(ctx.chat);
     if (!v) return out + empty(ctx);
     out += (ctx.addOpen ? recordCard(ctx) : '') + addBox(ctx, !!ctx.addOpen) + head(v, ctx);
     if (!v.transcript || !(v.phrases || []).length) return out + engineCard(v, ctx);
+    if (ctx.wordsGone && ctx.wordsGone[v.id]) return out + '<div class="vcard warn"><p><b>The words file is gone</b> (<code>' + esc('data/videos/' + v.id + '/transcript.json') + '</code>), so only the sentences are left. Get the words again:</p></div>' + engineCard(v, ctx);
     out += (ctx.server ? '' : '<p class="v-legend" style="margin-top:14px">The player needs the server (the card at the top).</p>') + phrases(v, ctx) + exportsSection(v, ctx);
     return out;
   }

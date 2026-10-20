@@ -164,7 +164,8 @@ function videoDoctor() {
   doctorCache = { at: Date.now(), v: v }; return v;
 }
 function localOnly(req) {   // the browser on this computer, not a page from elsewhere: Host is localhost and Origin (when sent) is this server
-  var host = String(req.headers.host || ''); var origin = String(req.headers.origin || '');
+  var host = String(req.headers.host || ''); var origin = String(req.headers.origin || ''); var site = String(req.headers['sec-fetch-site'] || '');
+  if (site && site !== 'same-origin' && site !== 'none') return false;   // a <video src> or <img> on another site sends no Origin but does say cross-site
   return /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(host) && (!origin || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin));
 }
 /* the recordings folder: polled while the server runs; what lands there becomes a take */
@@ -184,7 +185,7 @@ function addRecording(p, cb) {
   recState.queue.push({ p: p, cb: cb }); if (recState.busy) return; recState.busy = true;
   (function next() {
     var job = recState.queue.shift(); if (!job) { recState.busy = false; return; }
-    var child = require('child_process').spawn(process.execPath, [SOLO, 'video', 'add', VideoLib.node.titleFromFile(path.basename(job.p)), '--file', job.p, '--no-open', '--note', 'arrived in the recordings folder', '--json', '--as', 'cli'], { cwd: ROOT, env: soloEnv(), stdio: ['ignore', 'pipe', 'ignore'] });
+    var child = require('child_process').spawn(process.execPath, [SOLO, 'video', 'add', '--title=' + VideoLib.node.titleFromFile(path.basename(job.p)), '--file', job.p, '--no-open', '--note', 'arrived in the recordings folder', '--json', '--as', 'ui'], { cwd: ROOT, env: soloEnv(), stdio: ['ignore', 'pipe', 'ignore'] });
     var buf = ''; child.stdout.on('data', function (c) { buf += c; }); var done = false;
     function finish(code) { if (done) return; done = true; var o = null; try { o = JSON.parse(buf.slice(buf.search(/[\[{]/))); } catch (e) { o = null; } job.cb(code === 0 && o && o.id ? o : null); setImmediate(next); }
     child.on('exit', finish); child.on('error', function () { finish(1); }); setTimeout(function () { if (!done) { try { child.kill(); } catch (e) { /* gone */ } finish(1); } }, 60000);
@@ -253,7 +254,7 @@ function videoApi(req, res, url) {
         if (p.indexOf('~/') === 0) p = path.join(require('os').homedir(), p.slice(2));
         if (!path.isAbsolute(p)) return json(res, 400, { error: 'Give the whole path, from the top: /Users/you/Movies/take.mov (Mac) or C:\\Users\\you\\Videos\\take.mp4 (Windows). Finder: right-click the file, hold ⌥ (Option), "Copy … as Pathname".' });
         if (!fs.existsSync(p)) return json(res, 404, { error: 'No file at ' + p + '. Check the folder and the name (it has to match exactly, with the ending like .mov or .mp4).' });
-        var args = ['video', 'add'].concat(b.title ? [String(b.title).slice(0, 120)] : []).concat(['--file', p]).concat(soloArgs(ws));
+        var args = ['video', 'add'].concat(b.title ? ['--title=' + String(b.title).slice(0, 120)] : []).concat(['--file', p]).concat(soloArgs(ws));
         var r = soloRun(args, 30000); if (r.code === 0 && r.out && r.out.id && !r.out.existing) r.out.wordsStarted = autoWords(r.out.id); return json(res, r.code === 0 ? 200 : 400, r.out);
       }
       var t = findTake(b.id); if (!t) return json(res, 404, { error: 'no take with id ' + String(b.id || '').slice(0, 20) });
@@ -270,13 +271,13 @@ function videoApi(req, res, url) {
       }
       if (url === '/api/video/word') {   // correct the words from..to (or undo the last correction): the audio and the cut stay; transcript.json and the phrases change
         if (b.undo) { var ru = soloRun(['video', 'word', t.id, '--undo'].concat(soloArgs(ws)), 20000); return json(res, ru.code === 0 ? 200 : 400, ru.out); }
-        var said = b.from === undefined && typeof b.said === 'string' ? b.said.trim().slice(0, 200) : ''; var fromW = parseInt(b.from, 10), toW = b.to === undefined ? fromW : parseInt(b.to, 10); if (!said && !(fromW >= 0 && toW >= fromW)) return json(res, 400, { error: 'which words?' });
+        var said = b.from === undefined && typeof b.said === 'string' ? b.said.trim().slice(0, 200) : ''; if (/^-/.test(said)) return json(res, 400, { error: 'which words?' });   // a positional that looks like a flag never reaches the CLI var fromW = parseInt(b.from, 10), toW = b.to === undefined ? fromW : parseInt(b.to, 10); if (!said && !(fromW >= 0 && toW >= fromW)) return json(res, 400, { error: 'which words?' });
         var textW = String(b.text || '').trim().slice(0, 400); if (!textW) return json(res, 400, { error: 'type the words as they should read' });
-        var rw = soloRun(['video', 'word', t.id, said || (fromW + '-' + toW), '--text=' + textW].concat(b.all ? ['--all'] : []).concat(b.expect !== undefined ? ['--expect', String(b.expect).slice(0, 400)] : []).concat(soloArgs(ws)), 20000); return json(res, rw.code === 0 ? 200 : rw.out && /moved/.test(rw.out.error || '') ? 409 : 400, rw.out);
+        var rw = soloRun(['video', 'word', t.id, said || (fromW + '-' + toW), '--text=' + textW].concat(b.all ? ['--all'] : []).concat(b.expect !== undefined ? ['--expect=' + String(b.expect).slice(0, 400)] : []).concat(soloArgs(ws)), 20000); return json(res, rw.code === 0 ? 200 : rw.out && /moved/.test(rw.out.error || '') ? 409 : 400, rw.out);
       }
       if (url === '/api/video/title') { var nt = String(b.title || '').trim().slice(0, 120); if (!nt) return json(res, 400, { error: 'a title is needed' }); var rt = soloRun(['video', 'title', t.id, '--title=' + nt].concat(soloArgs(ws)), 20000); return json(res, rt.code === 0 ? 200 : 400, rt.out); }
       if (url === '/api/video/post') {   // a draft post with the final linked, never copied (fast, no ffmpeg)
-        var pargs = ['video', 'post', t.id].concat(b.at ? ['--at', String(b.at).slice(0, 40)] : []).concat(soloArgs(ws));
+        var pargs = ['video', 'post', t.id].concat(b.at ? ['--at=' + String(b.at).slice(0, 40)] : []).concat(soloArgs(ws));
         var rp = soloRun(pargs, 20000); return json(res, rp.code === 0 ? 200 : 400, rp.out);
       }
       if (url === '/api/video/transcribe') {
@@ -345,7 +346,7 @@ function streamFile(req, res, file, st, type) {
 var server = http.createServer(function (req, res) {
   var url; try { url = decodeURIComponent(req.url.split('?')[0]); } catch (e) { return send(res, 400, 'bad url', 'text/plain'); }
 
-  if (url === '/api/ping') return json(res, 200, { marathon: true, version: 1, data: 'data/', log: true, folder: ROOT });
+  if (url === '/api/ping') return json(res, 200, { marathon: true, version: 1, data: 'data/', log: true, folder: ROOT, video: true });
   if (url.indexOf('/api/') === 0 && !localOnly(req)) return json(res, 403, { error: 'this computer only' });   // Host must be localhost and Origin, when sent, this server: a page elsewhere cannot read the data or the footage through DNS rebinding
 
   // link metadata for inspiration items (title, description) — fetched here so the browser is not blocked by CORS
