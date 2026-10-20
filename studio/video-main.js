@@ -67,7 +67,7 @@ function playerSource(v) { return hasProxy(v) ? '/api/video/' + encodeURICompone
 var timeMemory = {};   // source url → where she was, for Back to the take
 function paintPlayer(v) {
   var row = $('playerRow'); var cap = $('playerCap'); var editing = v && v.transcript && (v.phrases || []).length && ctx.server;
-  if (!editing) { row.style.display = 'none'; cap.innerHTML = v ? VV.playerPlaceholder(v, ctx) : ''; if (vid) { vid.pause(); } return; }
+  if (!editing) { row.style.display = 'none'; cap.innerHTML = v ? VV.playerPlaceholder(v, ctx) : ''; if (vid) { vid.pause(); } var tp = $('top'); if (tp) { tp.classList.remove('big', 'tight'); tp.style.removeProperty('--v-room'); } return; }   // no player: the block is the plain 42vh one
   row.classList.toggle('big', !!ctx.playerBig);
   if (!vid) { vid = $('player'); vid.addEventListener('error', function () { if (ctx.player.src === 'take') ctx.player.cannotPlay = true; else flash('That render does not play in this browser'); paintPlayerChrome(M.active()); }); vid.addEventListener('play', function () { ctx.player.playing = true; following = true; loop(); paintPlayerChrome(M.active()); }); vid.addEventListener('pause', function () { ctx.player.playing = false; paintPlayerChrome(M.active()); }); vid.addEventListener('loadedmetadata', function () { ctx.player.duration = vid.duration; paintPlayerChrome(M.active()); }); vid.addEventListener('seeked', function () { paintCaption(); }); vid.addEventListener('timeupdate', function () { ctx.player.time = vid.currentTime; var t = $('ptime'); if (t) t.textContent = M.fmt(vid.currentTime); paintCaption(); markNow(); skipRule(); }); vid.addEventListener('play', function () { var v2 = M.active(); var ps2 = v2 ? M.pieces(v2) : null; if (ps2 && ctx.player.src === 'take' && vid.currentTime >= freeUntil && Video.nextPlayable(ps2, vid.currentTime) < 0) vid.currentTime = ps2[0].start; }); }
   var want = ctx.player.src === 'take' ? playerSource(v) : '/api/video/' + encodeURIComponent(v.id) + '/' + ctx.player.src;
@@ -80,7 +80,17 @@ function paintPlayer(v) {
   var ck = v.id + ':' + ctx.player.src + ':' + (M.hasWords(v.id) ? 'w' : 'p') + ':' + ((v.captions && v.captions.style) || 'sentence'); if (ck !== cueKey) { cueKey = ck; loadCues(); }   // the captions follow what plays: the take's chunks, or the render's own .srt
   paintPlayerChrome(v);
 }
-function paintPlayerChrome(v) { if (!v) return; var row = $('playerRow'); var folded = ctx.playerHidden || ctx.reviewOpen; if (row) row.style.display = folded ? 'none' : ''; var pb = $('playBtn'); if (pb) pb.style.display = ctx.player.playing || ctx.player.cannotPlay || !ctx.server ? 'none' : ''; var side = $('playerSide'); if (side) side.innerHTML = VV.playerSide(v, ctx); var cap = $('playerCap'); if (cap) cap.innerHTML = (folded ? VV.playerBar(v, ctx) : '') + VV.playerCap(v, ctx); }   // the list open: the player folds to its bar so the words stay reachable
+function paintPlayerChrome(v) { if (!v) return; var row = $('playerRow'); var folded = ctx.playerHidden || ctx.reviewOpen; if (row) row.style.display = folded ? 'none' : ''; var pb = $('playBtn'); if (pb) pb.style.display = ctx.player.playing || ctx.player.cannotPlay || !ctx.server ? 'none' : ''; var side = $('playerSide'); if (side) side.innerHTML = VV.playerSide(v, ctx); var cap = $('playerCap'); if (cap) cap.innerHTML = (folded ? VV.playerBar(v, ctx) : '') + VV.playerCap(v, ctx); var top = $('top'); if (top) top.classList.toggle('big', !!ctx.playerBig && !folded && !!row && row.style.display !== 'none'); fitPlayer(); }   // the list open: the player folds to its bar so the words stay reachable; .big (half the window) only while the big player shows
+// the sticky block is capped (42vh, half the window for Bigger); the player takes what the strip and the lines around it leave, so the whole frame, its caption band and the play button stay in view at any window height. Measured, not assumed: the strip wraps to more rows in a narrow window
+function fitPlayer() {
+  var top = $('top'); var row = $('playerRow'); if (!top || !row || row.style.display === 'none' || !vid || vid.style.display === 'none') return;
+  top.classList.remove('tight'); top.style.removeProperty('--v-room');   // measure at the full size first; the CSS falls back to its own heights
+  var over = top.scrollHeight - top.clientHeight; if (over <= 0) return;
+  var h = row.offsetHeight; if (!h) return;   // the row: the frame, or the side column when that is taller
+  if (h - over < 120) { top.classList.add('tight'); over = top.scrollHeight - top.clientHeight; if (over <= 0) return; }   // at the floor the help lines go first; only then does the block scroll
+  top.style.setProperty('--v-room', Math.max(120, Math.floor(h - over)) + 'px');   // never under 120px: below that the block scrolls rather than the player vanishing
+}
+var fitTimer = 0; function fitSoon() { clearTimeout(fitTimer); fitTimer = setTimeout(function () { fitTimer = 0; fitPlayer(); }, 120); }   // one measurement once the window stops moving (a timer, not a frame: a frame can wait while nothing paints)
 // while the take plays: a hole (a cut) is skipped the moment playback enters it from a piece; a seek INTO a hole plays it to its end (she wanted to hear it)
 function skipRule() {   // on the frame loop and on timeupdate (which survives a hidden tab): a hole worth a jump (> 80 ms) is skipped one frame early; a seek into a hole plays it out
   var v = M.active(); if (!vid || vid.paused || vid.seeking || !v || ctx.player.src !== 'take') return;
@@ -376,6 +386,8 @@ function init() {
     { label: 'Go to script viewer', hint: 'nav', run: function () { location.href = 'script-viewer.html?ws=' + encodeURIComponent(Config.activeWs()); } }
   ]);
   ctx.server = isServer(); ctx.ready = Sync.ready();
+  window.addEventListener('resize', fitSoon);   // the room the block leaves changes with the window
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitSoon);   // the strip can rewrap when the webfonts land
   var v = M.active(); if (v) loadWords(v);
   paint();
   document.addEventListener('keydown', function (e) {

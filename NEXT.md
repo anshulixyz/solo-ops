@@ -362,6 +362,12 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Minor / issues
 
+- **Video: after a decode error the black frame stays (2026-10-20):** the
+  player's `error` listener sets `cannotPlay` and repaints the chrome, but
+  only `paintPlayer` hides the `<video>`, so the empty frame sits above the
+  "cannot play this recording" card until the next full paint. Found in
+  review, not fixed.
+
 - **Studio pages: the capture strip and the Guide handle overlap (2026-10-19):**
   on Script Viewer, Writing Viewer and Video the Inspiration capture strip
   (`.studio-nav + .capture`, `top:8px`) sits over the "… · STUDIO" eyebrow,
@@ -483,6 +489,17 @@ QR rendered without a dependency, capture strip and boards usable at
   retake with `docs/screenshots` script when M2 lands.
 
 ## Done
+
+- 2026-10-20 · Video: with Bigger on, in a window around 900 px tall, the
+  bottom of the player, its caption band and the round play button were cut
+  off: the sticky top block (capped at 42vh so the words stay reachable)
+  had more in it than fit, and scrolled inside itself. Now the player
+  shrinks to the room the block leaves after the strip, the help line above
+  it and the hint under it, measured on the page (`fitPlayer` in
+  `video-main.js` → `--v-room`), width following at 16:9, and the big
+  player's button and captions scale with it; Bigger may take half the
+  window, never more. Below a 120 px frame the help line and the hint go
+  first, and only then does the block scroll as before. `a95800f`.
 
 - 2026-10-19 · `prompts export` no longer deletes `.claude/commands/mine/`
   when `data/prompts.json` is absent (a worktree, a fresh clone): the

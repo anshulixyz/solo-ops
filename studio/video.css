@@ -37,16 +37,19 @@
 
 /* the top block sticks as one: the strip, the Review list, the player */
 .v-top { position: sticky; top: 0; z-index: 5; background: var(--canvas); padding-bottom: 6px; max-height: 42vh; overflow-y: auto; }   /* never most of the window: the words stay reachable */
-.v-pr { display: flex; gap: 14px; align-items: stretch; margin: 10px 32px 0; }
-.v-pwrap { position: relative; flex: none; width: 320px; max-width: 48%; }
-.v-pr video { display: block; cursor: pointer; width: 100%; height: 180px; border-radius: 10px; background: #000; box-shadow: var(--shadow-lift); }
-.v-pr.big .v-pwrap { width: min(560px, calc(36vh * 16 / 9)); max-width: 68%; }
-.v-pr.big video { height: min(315px, 36vh); }   /* bigger, never most of a laptop screen: the words stay reachable */
+.v-top.big { max-height: 50vh; }   /* Bigger (and the player showing): up to half the window, never more */
+/* the player takes what the block leaves after the strip: --v-room (set by fitPlayer in video-main.js from the real heights, any window) caps the frame, so the whole picture, its caption band and the play button stay in view; the width follows the height at 16:9. .tight: the frame is at its 120px floor, so the help line and the hint under the player go before the block scrolls */
+.v-top.tight .v-legend, .v-top.tight .v-pcap.muted { display: none; }
+.v-pr { display: flex; gap: 14px; align-items: stretch; margin: 10px 32px 0; --v-ph: min(180px, var(--v-room, 180px)); }
+.v-pwrap { position: relative; flex: none; width: calc(var(--v-ph) * 16 / 9); max-width: 48%; }
+.v-pr video { display: block; cursor: pointer; width: 100%; height: var(--v-ph); border-radius: 10px; background: #000; box-shadow: var(--shadow-lift); }
+.v-pr.big { --v-ph: min(315px, 36vh, var(--v-room, 315px)); --v-btn: clamp(44px, calc(var(--v-ph) * 56 / 315), 56px); }   /* bigger, never most of a laptop screen: the words stay reachable; the button and the captions scale with the frame */
+.v-pr.big .v-pwrap { max-width: 68%; }
 .v-playbtn { position: absolute; left: 10px; bottom: 10px; width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .92); color: #111; font-size: 16px; padding-left: 3px; cursor: pointer; box-shadow: 0 2px 10px rgba(0, 0, 0, .35); display: flex; align-items: center; justify-content: center; }
 .v-playbtn:hover { background: #fff; }
-.v-pr.big .v-playbtn { width: 56px; height: 56px; font-size: 20px; left: 14px; bottom: 14px; }
+.v-pr.big .v-playbtn { width: var(--v-btn); height: var(--v-btn); font-size: 20px; left: 14px; bottom: 14px; }
 .v-caption { position: absolute; left: 62px; right: 8px; bottom: 10px; text-align: center; pointer-events: none; font-family: var(--sans, Inter, sans-serif); font-size: 13px; line-height: 1.35; max-height: 4.1em; overflow: hidden; }   /* two lines of chunks; a long imported sentence gets a third */
-.v-pr.big .v-caption { font-size: 17px; bottom: 14px; left: 82px; }
+.v-pr.big .v-caption { font-size: clamp(13px, calc(var(--v-ph) * 17 / 315), 17px); bottom: 14px; left: calc(var(--v-btn) + 26px); }
 .v-caption span { display: inline; color: #fff; background: rgba(0, 0, 0, .72); padding: 2px 7px; border-radius: 3px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .v-pside { display: flex; flex-direction: column; gap: 6px; justify-content: center; min-width: 0; }
 .v-pwhat { font-size: 13px; color: var(--muted); }
