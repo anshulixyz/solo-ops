@@ -36,7 +36,7 @@ Store.onChange(function (k) { if (k === M.KEY) paint(); });   // a reply applied
 /* ---- paint ---- */
 function paint() {
   var v = M.active(); var takes = M.list();
-  $('takesList').innerHTML = VV.list(takes, v ? v.id : '');
+  $('takesList').innerHTML = VV.list(takes, v ? v.id : ''); var slot = $('storySlot'); if (slot) slot.innerHTML = v && window.Story && Story.taskLine ? Story.taskLine('take', v.id) : '';   // "Task: …" with its pills, or "Connect with a task…", in the toolbar
   ctx.chat = !!(window.Guide && Guide.mode && Guide.mode() === 'chat'); ctx.engine = String(Config.get('video.auto') || '').toLowerCase();
   ctx.words = !!(v && M.hasWords(v.id)); ctx.tidy = v && ctx.words ? M.tidyCount(v) : null; ctx.undo = !!(v && M.canUndo(v)); ctx.redo = !!(v && M.canRedo(v));
   if (ctx.reviewOpen && ctx.tidy) ctx.reviewCount = reviewCounts();
