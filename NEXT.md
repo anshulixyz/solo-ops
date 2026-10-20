@@ -257,7 +257,7 @@ copy yet, and a page with a sync stamp but no copy now takes the file
 page. Left:
 burned-in captions need an ffmpeg with subtitle filters (the owner's has
 none); a `<track>` from the `.srt` for Safari's native captions.
-**A task carries its pieces, 2026-10-20, commit `(task hub commit)`.** The
+**A task carries its pieces, 2026-10-20, commit `9ced6cc`.** The
 owner found the story chain "too naive" and asked for the simplest unit:
 the task card. A task may hold `noteId`, `scriptId`, `takeId`, `postId`;
 `core/story.js` has the kind `task` first (data from every board of the
