@@ -21,6 +21,7 @@
 .v-door .btn { margin-top: 8px; }
 .v-term { font-size: 12px; color: var(--muted); margin-top: 8px; }
 @media (max-width: 760px) { .v-doors { grid-template-columns: 1fr; } }
+@media (max-width: 720px) { .v-act .muted { display: none; } }
 
 /* the open take */
 .v-head { padding: 24px 32px 0; }
@@ -34,7 +35,7 @@
 .v-next .btn { margin-left: auto; flex: none; }
 
 /* the strip above the sentences: pieces, runtime, undo, fillers */
-.v-strip { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 18px 32px 0; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: var(--shadow); font-size: 13px; }
+.v-strip { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 18px 32px 0; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: var(--shadow); font-size: 13px; }
 .v-strip .rt { font-family: var(--mono); font-size: 12px; }
 .v-strip .rt b { font-size: 14px; color: var(--ink); }
 .v-strip .sp { flex: 1; }
@@ -42,22 +43,35 @@
 .v-legend { margin: 8px 32px 0; font-size: 12px; color: var(--muted); }
 .v-legend kbd { font-family: var(--mono); font-size: 10.5px; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
 
-/* sentences as toggles */
-.v-phrases { padding: 12px 32px 0; }
-.ph { display: flex; gap: 14px; align-items: flex-start; padding: 9px 12px; margin-bottom: 4px; border-radius: 10px; border: 1px solid transparent; cursor: pointer; font-size: 15.5px; line-height: 1.5; transition: background .12s, border-color .12s; }
-.ph:hover, .ph:focus { background: var(--panel); border-color: var(--line); outline: none; }
-.ph:focus-visible { border-color: var(--accent); }
-.ph .t { font-family: var(--mono); font-size: 10.5px; color: var(--faint); padding-top: 5px; white-space: nowrap; width: 112px; flex: none; }
+/* the transcript: words as selectable tokens; cut ones struck; a long pause as a pill */
+.v-phrases { padding: 12px 32px 0; user-select: none; -webkit-user-select: none; }
+.ph { display: flex; gap: 14px; align-items: flex-start; padding: 7px 12px; margin-bottom: 2px; border-radius: 10px; font-size: 15.5px; line-height: 1.6; }
+.ph .t { font-family: var(--mono); font-size: 10.5px; color: var(--faint); padding: 5px 6px 0 0; white-space: nowrap; width: 58px; flex: none; text-align: right; border: 0; background: none; cursor: pointer; }
+.ph .t:hover { color: var(--accent); }
 .ph .x { flex: 1; }
-.ph .st { flex: none; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); padding-top: 5px; width: 34px; text-align: right; }
-.ph.cut { color: var(--faint); }
-.ph.cut .x { text-decoration: line-through; text-decoration-color: var(--accent); text-decoration-thickness: 1.5px; }
-.ph.cut .st { color: var(--accent); }
-.ph mark.filler { background: var(--accent-soft); color: inherit; border-radius: 4px; padding: 0 3px; border-bottom: 2px solid var(--accent); cursor: pointer; }
-.ph mark.filler.spared { background: transparent; border-bottom-style: dotted; }
-.ph s.hole { color: var(--faint); text-decoration-color: var(--accent); cursor: pointer; }
-.ph s.hole:hover { color: var(--ink); }
+.w { display: inline; padding: 1px 2px; margin: 0 -2px; border-radius: 4px; cursor: text; }
+.w.filler { background: var(--accent-soft); box-shadow: inset 0 -2px 0 var(--accent); }
+.w.cut { color: var(--faint); text-decoration: line-through; text-decoration-color: var(--accent); text-decoration-thickness: 1.5px; background: none; box-shadow: none; }
+.w.sel { background: var(--ink); color: var(--canvas); text-decoration-color: var(--canvas); box-shadow: none; }
+.w.pause { display: inline-block; font-family: var(--mono); font-size: 10.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; margin: 0 2px; line-height: 18px; vertical-align: 2px; cursor: pointer; }
+.w.pause.cut { text-decoration: line-through; border-style: dashed; }
+.w.pause.sel { background: var(--ink); color: var(--canvas); border-color: var(--ink); }
+.v-act { display: inline-flex; align-items: center; gap: 8px; }
+.v-act .muted { font-size: 12px; }
+.v-strip .rt { flex: none; }
 .v-more { margin: 6px 32px 0; }
+.v-title { cursor: text; border-bottom: 1px dashed transparent; }
+.v-title:hover { border-bottom-color: var(--line); }
+.v-title-input { font: inherit; font-family: var(--serif); font-size: 26px; border: 0; border-bottom: 1px solid var(--accent); background: transparent; color: var(--ink); outline: none; min-width: 60%; }
+.v-key { margin-top: 6px; }
+.v-key label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.v-key input { flex: 1; min-width: 200px; height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); font-family: var(--mono); font-size: 12.5px; }
+.v-door.main { background: var(--accent-soft); border-color: transparent; }
+.v-door.main .btn { margin-top: 8px; }
+.v-door > span { display: block; font-size: 12.5px; color: var(--muted); }
+.v-doors { display: block; }
+.toast.with-undo { pointer-events: auto; }
+.toast button { margin-left: 10px; height: 24px; padding: 0 9px; border-radius: 6px; border: 1px solid rgba(255,255,255,.3); background: transparent; color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
 
 /* renders */
 .v-exports { padding: 22px 32px 0; }

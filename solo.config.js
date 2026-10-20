@@ -93,7 +93,7 @@
        model: the whisper.cpp model (small.en recommended; base.en is lighter).
        captions: style sentence | bold; burn needs an ffmpeg with libass,
        otherwise captions ride along as a track and a .srt file. ---------- */
-    video: { engine: '', ffmpeg: '', whisper: '', model: 'small.en', captions: { style: 'sentence', burn: false } },
+    video: { engine: '', ffmpeg: '', whisper: '', model: 'small.en', captions: { style: 'sentence', burn: false }, pause: 0.7, recordings: '' },   // pause: a silence longer than this (s) is shortened by "tidy up"; recordings: the folder new recordings are picked up from (default ~/Movies/Solo Ops takes)
 
     /* ---- activity --------------------------------------------------
        Every change (page or CLI) is logged per day in data/activity.json.

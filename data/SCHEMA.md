@@ -153,7 +153,9 @@ Script text is Markdown with a light convention the viewer understands:
 
 The footage is referenced by `path`, never copied; `hash` notices a changed
 file. `phrases` is the packed view (word-level times live in
-`data/videos/<id>/transcript.json` as `{ words: [{ w, s, e }] }`, one shape
+`data/videos/<id>/transcript.json` as `{ words: [{ w, s, e }], silences: [{ s, e }] }`
+(the silences measured on the audio by ffmpeg; the words are trimmed to them
+so a pause is a real gap between words), one shape
 whatever the engine; `granularity: "cue"` for an imported SRT/VTT). An export
 whose `edlHash` differs from the take's was rendered before the current cut.
 `data/videos/<id>/` also holds `progress.json` (the running render, unlogged)
@@ -163,8 +165,26 @@ starts a job through `node serve.js`, the folder gains `render.json` /
 `transcribe.json` (pid, started, finished, exit code) and `render.log` /
 `transcribe.log` (the CLI's output), plus `import.<srt|vtt|json>` for a
 transcript dropped on the page: machine state, unlogged, not backed up.
-The page writes only `activeId`, `edl`, `edlHash`, `status` and `updatedAt`;
-the CLI owns the rest and both merge the other's copy before writing. `data/secrets.json`
+The page writes only `activeId`, `edl`, `edlHash`, `cutAt`, `status`, `title`
+(`renamedAt`) and `updatedAt`; the CLI owns the rest and both merge the
+other's copy before writing.
+
+## recordings.json — the recordings folder's memory
+
+```json
+{ "files": { "/Users/me/Movies/Solo Ops takes/take-3.mov": { "size": 0, "mtime": 0, "stable": 2, "tries": 0, "takeId": "v1", "at": 0, "pending": false, "skipped": "" } } }
+```
+
+Written by `node serve.js` (which polls the folder while it runs) and
+`node solo.js video watch`. A path listed with a `takeId` is never added
+twice; one with `skipped` stays out (a take removed later, or a file that
+would not probe after five tries); `pending` marks files that were already
+there when the watcher started (they wait for *Add them* on the Video page
+or `video recordings --add`); `queued` while an add runs. Files under 64 KB,
+dotfiles and audio-only files are ignored; entries for files gone from the
+folder for a week are dropped. `video recordings --forget <path>` lets a
+file in again (the server reloads the file when the CLI wrote it). Machine
+state: unlogged, not backed up. `data/secrets.json`
 (`video key set`) and `data/models/` (the whisper model) stay out of it too.
 
 ## writing.json — drafts / notes

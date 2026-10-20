@@ -198,9 +198,55 @@ folder: toggles → EDL on words → preview → final → *Make the post*. Slic
 (48 findings: the add route not parsing the CLI's JSON, the race stamp,
 stale job files, hash drift on a cut/keep round trip, CSRF on the new
 routes, all folded in before the commit).
-Not in this slice: *Remember this engine* on the page (`config set
-video.engine` from the terminal does it), several takes per item, a
-Video line on Home's Today strip, the EPIPE and doctor-stale-lock minors.
+**Slice 4 shipped 2026-10-20, commit `(slice 4 commit)`: easy mode.**
+The owner's direction: trim the umms and pauses, edit the transcript as
+text like Descript, record with Recordly and have the recordings land in
+the editor, ElevenLabs easy for the agent, agent-first everywhere,
+cleanup over complication. One editing rule on the screen now: a click
+selects (a word, a pause pill, a sentence by its time); the action is
+**Cut N words / Put back N words** (the button, or Delete), nothing
+happens on a click alone; **Remove 12 fillers, 5 pauses** is one button
+with live counts; Undo, Redo (⌘Z / ⇧⌘Z), Start over; the title renames
+on click; every toast that cut something carries Undo. Pauses are
+measured on the audio (ffmpeg silencedetect during transcribe, backfilled
+on first use; whisper's word times are trimmed to them) and shown as
+pills with their length, struck once shortened to a 0.25 s beat.
+`Video.tidy` is one function for the page's button and the CLI's
+`video cut --tidy` / `--drop-silence`, so both give the same EDL and
+hash; a cut remembers what it removed so a keep restores it exactly.
+Recording: `~/Movies/Solo Ops takes` (`video.recordings`), polled by
+serve.js and `video watch` with state in `data/recordings.json` (stable
+twice, probe-gated with a backoff, pre-existing files wait for *Add
+them*, a removed take stays removed, `video add` dedupes by path/hash);
+the Record card has *Open the folder*. ElevenLabs: a key field on the
+engine card → `POST /api/video/key` → `video key set --stdin`; never in
+a log, a response or the chat. Agent first: every fallback shows *Copy
+for my agent* as the primary door, the terminal line under "Do it
+yourself"; `/setup-video` (Guide → Settings, also a slash command)
+installs ffmpeg, whisper, the folder and the recorder in one
+conversation, with the Homebrew-password warning up front. Writes to
+`/api/` are accepted from this computer only (Host and Origin checks),
+JSON bodies only, capped. Settings `video.pause`, `video.recordings`.
+Reviewed before building (product + tech, 45 findings: audio-measured
+pauses, dedupe, persisted watcher state, the one-rule editing model,
+key-field hygiene) and after (tech: a frame-grid edge entering the
+neighbouring word, a sliver between a pause and a filler, the page not
+trimming its words to the silences; product: the Guide text teaching the
+old gesture, counts by kind, the pill at the end of the sentence it
+follows). `core/test-video-page.js` 68 checks, `core/test-video.js` 143
+(a clip with a real silence, the watcher's pure rules, the edge cases
+above); the key route and the live watcher were exercised by hand on the
+scratch server, not in `npm test` (a server test is a follow-up).
+Not in this slice: a recording button in the page (Recordly has no API),
+*Remember this engine* on the page (`config set video.engine` from the
+terminal does it), several takes per item, a Video line on Home's Today
+strip, the EPIPE and doctor-stale-lock minors, a 409 on `/api/data` PUT
+when the file moved underneath (the watcher's two-minute re-add rule
+covers the one case that matters today), server tests for the key and
+recordings routes, `video add` for audio-only files (the folder watch
+takes video files only; `--drop` on an uncut take keeps the tail to the
+end of the take while a page cut drops wordless tails: two verbs, two
+rules, both logged).
 Known: the Claude desktop Browser pane cannot fetch through the service
 worker (every page there loads only when the worker is unregistered;
 Chrome and Safari are fine).

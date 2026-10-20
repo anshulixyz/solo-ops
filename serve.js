@@ -112,9 +112,9 @@ function findTake(id) {
 function takeDir(id) { return path.join(DATA, 'videos', id); }
 function soloArgs(ws) { return ['--json', '--as', 'ui'].concat(ws ? ['--ws', ws] : []); }
 function soloEnv() { return Object.assign({}, process.env, { SOLO_DATA: DATA }); }
-// the CLI, synchronously, for the quick commands (add: one ffprobe). → { code, out }
-function soloRun(args, timeout) {
-  var r = require('child_process').spawnSync(process.execPath, [SOLO].concat(args), { cwd: ROOT, encoding: 'utf8', env: soloEnv(), timeout: timeout || 20000, maxBuffer: 8 * 1048576 });
+// the CLI, synchronously, for the quick commands (add: one ffprobe). → { code, out }. opts.input feeds stdin (a key, never on argv)
+function soloRun(args, timeout, opts) {
+  var r = require('child_process').spawnSync(process.execPath, [SOLO].concat(args), Object.assign({ cwd: ROOT, encoding: 'utf8', env: soloEnv(), timeout: timeout || 20000, maxBuffer: 8 * 1048576 }, opts || {}));
   var out = null; try { var so = String(r.stdout || '').trim(); var si = so.search(/[\[{]/); out = si >= 0 ? JSON.parse(so.slice(si)) : null; } catch (e) { out = null; }   // --json output is one pretty-printed object
   if (r.error && r.error.code === 'ETIMEDOUT') return { code: 1, out: { error: 'solo.js took more than ' + Math.round((timeout || 20000) / 1000) + ' s and was stopped' } };
   return { code: r.status, out: out || { error: String(r.stderr || r.stdout || 'solo.js failed').trim().slice(0, 400) } };
@@ -151,9 +151,77 @@ function videoDoctor() {
     try { fs.readdirSync(DATA).filter(function (n) { return /^([a-z0-9-]+-)?videos\.json$/.test(n); }).forEach(function (n) { JSON.parse(fs.readFileSync(path.join(DATA, n), 'utf8')).videos.forEach(function (x) { var p = x && x.sources && x.sources[0] && x.sources[0].path; if (p && !fs.existsSync(p)) v.moved.push(x.id); }); }); } catch (e) { /* none */ }
   }
   v.install = process.platform === 'darwin' ? 'brew install ffmpeg' : process.platform === 'win32' ? 'winget install Gyan.FFmpeg' : 'sudo apt install ffmpeg';
+  var rd = recordingsDir(); v.recordings = { path: rd, exists: !!rd && fs.existsSync(rd), watching: !!recState.timer }; v.recordly = process.platform === 'darwin' ? (fs.existsSync('/Applications/Recordly.app') || fs.existsSync(path.join(require('os').homedir(), 'Applications', 'Recordly.app'))) : null;
   doctorCache = { at: Date.now(), v: v }; return v;
 }
+function localOnly(req) {   // the browser on this computer, not a page from elsewhere: Host is localhost and Origin (when sent) is this server
+  var host = String(req.headers.host || ''); var origin = String(req.headers.origin || '');
+  return /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(host) && (!origin || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin));
+}
+/* the recordings folder: polled while the server runs; what lands there becomes a take */
+var recState = { timer: null, dir: '', busy: false, queue: [], lastAdded: null };
+function recordingsDir() { return VideoLib && VideoLib.node ? VideoLib.node.recordingsDir(cfg.video || {}) : ''; }
+function knownTakes() { var ids = {}, paths = {}; try { fs.readdirSync(DATA).filter(function (n) { return /^([a-z0-9-]+-)?videos\.json$/.test(n); }).forEach(function (n) { JSON.parse(fs.readFileSync(path.join(DATA, n), 'utf8')).videos.forEach(function (x) { ids[x.id] = 1; (x.sources || []).forEach(function (s) { if (s.path) paths[s.path] = 1; }); }); }); } catch (e) { /* none */ } return { ids: ids, paths: paths }; }
+// one state in memory while the server runs, saved after every change; reloaded when the CLI (`video recordings --add | --forget`) wrote the file meanwhile
+function recMtime() { try { return fs.statSync(path.join(DATA, 'recordings.json')).mtimeMs; } catch (e) { return 0; } }
+function recST() { var m = recMtime(); if (!recState.st || (m && m !== recState.stMtime)) { recState.st = VideoLib.node.recLoad(DATA); recState.stMtime = m; } return recState.st; }
+function recSaveNow() { try { VideoLib.node.recSave(DATA, recST()); recState.stMtime = recMtime(); } catch (e) { /* read-only data folder */ } }
+function recordingsWaiting(dir) {   // files in the folder that are not takes yet (not added, not skipped): the ones "Add them" takes
+  var st = recST(); var k = knownTakes(); var names = []; try { names = fs.readdirSync(dir).filter(function (n) { return n[0] !== '.' && VideoLib.node.MEDIA_RE.test(n) && !/\.(part|tmp|download|crdownload|icloud)$/i.test(n); }); } catch (e) { names = []; }
+  return names.filter(function (n) { var p = path.join(dir, n); var f = st.files[p]; var m = 0; try { m = fs.statSync(p).mtimeMs; } catch (e) { return false; } return !k.paths[p] && !(f && (f.skipped || f.takeId || f.queued)) && (f && f.pending || Date.now() - m > 5000); });   // not one still being written
+}
+// add one file as a take, asynchronously, one at a time (an AirDrop of twenty clips must not block the server). cb(take | null)
+function addRecording(p, cb) {
+  recState.queue.push({ p: p, cb: cb }); if (recState.busy) return; recState.busy = true;
+  (function next() {
+    var job = recState.queue.shift(); if (!job) { recState.busy = false; return; }
+    var child = require('child_process').spawn(process.execPath, [SOLO, 'video', 'add', VideoLib.node.titleFromFile(path.basename(job.p)), '--file', job.p, '--no-open', '--note', 'arrived in the recordings folder', '--json', '--as', 'cli'], { cwd: ROOT, env: soloEnv(), stdio: ['ignore', 'pipe', 'ignore'] });
+    var buf = ''; child.stdout.on('data', function (c) { buf += c; }); var done = false;
+    function finish(code) { if (done) return; done = true; var o = null; try { o = JSON.parse(buf.slice(buf.search(/[\[{]/))); } catch (e) { o = null; } job.cb(code === 0 && o && o.id ? o : null); setImmediate(next); }
+    child.on('exit', finish); child.on('error', function () { finish(1); }); setTimeout(function () { if (!done) { try { child.kill(); } catch (e) { /* gone */ } finish(1); } }, 60000);
+  })();
+}
+function watchRecordings() {
+  var dir = recordingsDir(); if (!dir || !VideoLib) return; recState.dir = dir;
+  if (recState.timer) clearInterval(recState.timer);
+  var st0 = recST(); if (fs.existsSync(dir)) { st0.firstLook = true; VideoLib.node.scanRecordings(dir, st0); st0.firstLook = false; recSaveNow(); }   // what is there already waits for a yes
+  recState.timer = setInterval(function () {
+    if (!fs.existsSync(dir)) return;
+    var st = recST(); var k = knownTakes(); var now = Date.now(); var before = JSON.stringify(st.files);
+    Object.keys(st.files).forEach(function (p) { var f = st.files[p]; if (f.takeId && !k.ids[f.takeId]) { if (now - (f.at || 0) < 20000) { delete f.takeId; delete f.at; } else if (!f.skipped) f.skipped = 'removed'; } });   // gone within 20 s: a page write raced it (reconcile reads the file right before each write), add again; gone later: she removed it, leave it out
+    var ready = VideoLib.node.scanRecordings(dir, st, now); if (JSON.stringify(st.files) !== before) recSaveNow();
+    ready.forEach(function (f) { addRecording(f.path, function (v) { VideoLib.node.recResult(recST(), f.path, v ? v.id : null, Date.now(), !!(v && v.existing)); recSaveNow(); if (v && !v.existing) recState.lastAdded = { id: v.id, title: v.title, at: Date.now() }; }); });
+  }, 4000);
+  recState.timer.unref();
+}
 function videoApi(req, res, url) {
+  if (url === '/api/video/recordings') {   // GET: the folder and what waits in it · POST { create } | { open } | { add: true } (the files already there)
+    var rdir = recordingsDir(); if (!rdir) return json(res, 500, { error: 'core/video.js missing' });
+    if (req.method === 'GET') return json(res, 200, { folder: rdir, exists: fs.existsSync(rdir), waiting: fs.existsSync(rdir) ? recordingsWaiting(rdir) : [], lastAdded: recState.lastAdded || null, home: require('os').homedir() });
+    if (req.method !== 'POST') return json(res, 405, { error: 'method' });
+    return readBody(req, res, 4096, function (err, b) {
+      if (err) return json(res, 400, { error: err.message });
+      if (b.create) { fs.mkdirSync(rdir, { recursive: true }); watchRecordings(); return json(res, 200, { ok: true, folder: rdir }); }
+      if (b.open) { if (!fs.existsSync(rdir)) fs.mkdirSync(rdir, { recursive: true }); var opener = process.platform === 'darwin' ? ['open', [rdir]] : process.platform === 'win32' ? ['explorer', [rdir]] : ['xdg-open', [rdir]]; try { require('child_process').spawn(opener[0], opener[1], { detached: true, stdio: 'ignore' }).unref(); } catch (e) { return json(res, 500, { error: 'could not open the folder' }); } return json(res, 200, { ok: true, folder: rdir }); }
+      if (b.add) {   // the files already there when the watcher started: add them now, one after the other
+        var list = recordingsWaiting(rdir); if (!list.length) return json(res, 200, { added: [] }); var added = []; var left = list.length;
+        list.forEach(function (n) { var p = path.join(rdir, n); var f = recST().files[p]; if (f) delete f.pending; addRecording(p, function (v) { VideoLib.node.recResult(recST(), p, v ? v.id : null, Date.now(), !!(v && v.existing)); recSaveNow(); if (v && !v.existing) added.push({ id: v.id, title: v.title }); if (--left === 0) json(res, 200, { added: added }); }); });
+        return;
+      }
+      return json(res, 400, { error: 'create, open or add' });
+    });
+  }
+  if (url === '/api/video/key') {   // the key goes to the CLI's stdin and into data/secrets.json; it is never logged, never answered back, never accepted from another site
+    if (req.method !== 'POST') return json(res, 405, { error: 'method' });
+    if (!localOnly(req)) return json(res, 403, { error: 'only from this computer' });
+    return readBody(req, res, 4096, function (err, b) {
+      if (err) return json(res, 400, { error: err.message });
+      var service = String(b.service || '').toLowerCase(); if (service !== 'elevenlabs') return json(res, 400, { error: 'unknown service' });
+      var key = String(b.key || '').trim(); if (!/^[\x21-\x7e]{8,256}$/.test(key)) return json(res, 400, { error: 'that does not look like a key' });
+      var r = soloRun(['video', 'key', 'set', service, '--stdin', '--json', '--as', 'ui'], 20000, { input: key + '\n' }); doctorCache.at = 0;
+      return json(res, r.code === 0 ? 200 : 400, r.code === 0 ? { ok: true, service: service } : { error: (r.out && r.out.error) || 'could not save the key' });
+    });
+  }
   if (url === '/api/video/doctor') { if (req.method !== 'GET') return json(res, 405, { error: 'method' }); if (/[?&]fresh=1/.test(req.url)) doctorCache.at = 0; return json(res, 200, videoDoctor()); }   // ?fresh=1 = Check again
   if (url === '/api/video/find') {   // a dropped file: the browser gives its name and size, not its folder; look where recordings usually land
     if (req.method !== 'POST') return json(res, 405, { error: 'method' });
@@ -166,7 +234,7 @@ function videoApi(req, res, url) {
       return json(res, 200, { name: name, found: hits });
     });
   }
-  if (url === '/api/video/add' || url === '/api/video/transcribe' || url === '/api/video/render' || url === '/api/video/source' || url === '/api/video/post') {
+  if (url === '/api/video/add' || url === '/api/video/transcribe' || url === '/api/video/render' || url === '/api/video/source' || url === '/api/video/post' || url === '/api/video/title') {
     if (req.method !== 'POST') return json(res, 405, { error: 'method' });
     return readBody(req, res, 25 * 1048576, function (err, b) {
       if (err) return json(res, 400, { error: err.message });
@@ -187,6 +255,7 @@ function videoApi(req, res, url) {
         if (!np || !path.isAbsolute(np)) return json(res, 400, { error: 'Give the whole path to the recording.' }); if (!fs.existsSync(np)) return json(res, 404, { error: 'No file at ' + np });
         var rs = soloRun(['video', 'source', t.id, np].concat(soloArgs(ws)), 30000); return json(res, rs.code === 0 ? 200 : 400, rs.out);
       }
+      if (url === '/api/video/title') { var nt = String(b.title || '').trim().slice(0, 120); if (!nt) return json(res, 400, { error: 'a title is needed' }); var rt = soloRun(['video', 'title', t.id, nt].concat(soloArgs(ws)), 20000); return json(res, rt.code === 0 ? 200 : 400, rt.out); }
       if (url === '/api/video/post') {   // a draft post with the final linked, never copied (fast, no ffmpeg)
         var pargs = ['video', 'post', t.id].concat(b.at ? ['--at', String(b.at).slice(0, 40)] : []).concat(soloArgs(ws));
         var rp = soloRun(pargs, 20000); return json(res, rp.code === 0 ? 200 : 400, rp.out);
@@ -223,7 +292,7 @@ function videoApi(req, res, url) {
   if (name === 'progress') { var pg = null; try { pg = JSON.parse(fs.readFileSync(path.join(d2, 'progress.json'), 'utf8')); } catch (e) { pg = null; } return json(res, 200, pg || { none: true }); }
   if (name === 'transcript.json') {   // the words only: the file also carries the footage's absolute path, which stays on this side
     var tr = null; try { tr = JSON.parse(fs.readFileSync(path.join(d2, 'transcript.json'), 'utf8')); } catch (e) { return json(res, 404, { error: 'no transcript yet' }); }
-    return json(res, 200, { id: tk.id, engine: tr.engine || '', granularity: tr.granularity || 'word', words: Array.isArray(tr.words) ? tr.words : [] });
+    return json(res, 200, { id: tk.id, engine: tr.engine || '', granularity: tr.granularity || 'word', words: Array.isArray(tr.words) ? tr.words : [], silences: Array.isArray(tr.silences) ? tr.silences : null });
   }
   var type = /^(preview|final)-\d+\.mp4$/.test(name) ? 'video/mp4' : /^(preview|final)-\d+\.srt$/.test(name) ? 'text/plain; charset=utf-8' : '';
   if (!type) return json(res, 404, { error: 'not a file this route serves' });
@@ -247,6 +316,7 @@ var server = http.createServer(function (req, res) {
   var url; try { url = decodeURIComponent(req.url.split('?')[0]); } catch (e) { return send(res, 400, 'bad url', 'text/plain'); }
 
   if (url === '/api/ping') return json(res, 200, { marathon: true, version: 1, data: 'data/', log: true, folder: ROOT });
+  if (req.method !== 'GET' && req.method !== 'HEAD' && url.indexOf('/api/') === 0 && !localOnly(req)) return json(res, 403, { error: 'writes are accepted from this computer only' });   // Host must be localhost and Origin, when sent, this server
 
   // link metadata for inspiration items (title, description) — fetched here so the browser is not blocked by CORS
   if (url === '/api/meta') {
@@ -392,4 +462,5 @@ server.on('error', function (e) {
 });
 server.listen(PORT, '127.0.0.1', function () {
   console.log('Solo Ops → http://localhost:' + PORT + '   (writes data/*.json · Ctrl-C to stop)');
+  try { watchRecordings(); if (recState.dir && fs.existsSync(recState.dir)) console.log('Recordings folder → ' + recState.dir + '   (a file saved there becomes a take)'); } catch (e) { /* no video module */ }
 });

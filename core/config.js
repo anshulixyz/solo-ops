@@ -24,7 +24,7 @@
       postTypes: ['announcement', 'launch', 'update', 'thread', 'teaser'],
       prepKinds: ['content', 'video', 'dev', 'design', 'outreach', 'other'] },
     studio: { scriptTitle: 'Script Viewer', writingTitle: 'Writing Viewer', videoTitle: 'Video' },
-    video: { engine: '', ffmpeg: '', whisper: '', model: 'small.en', captions: { style: 'sentence', burn: false } },
+    video: { engine: '', ffmpeg: '', whisper: '', model: 'small.en', captions: { style: 'sentence', burn: false }, pause: 0.7, recordings: '' },
     activity: { reminderAfterHours: 24 },
     theme: { mode: 'auto', palette: 'warm' },
     sync: { port: 4321, pollMs: 3000 }

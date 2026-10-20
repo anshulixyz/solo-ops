@@ -56,13 +56,8 @@ seed(); M.setWords('v1', words); v = M.active(); M.dropFillers(v); var h1 = M.ac
 ok(M.active().edlHash === h1, 'cut then keep the same sentence: the hash is back to what it was (' + M.active().edlHash + ' vs ' + h1 + ')');
 var w0 = writes; var r0 = M.toggle(M.active(), 0); M.toggle(M.active(), 0); ok(M.active().edlHash === h1, 'and for the first sentence too');
 seed([{ start: 0, end: 3.8 }]); mem['marathon.videos'].videos[0].status = 'rendered'; M.init(); M.keepEverything(M.active()); ok(M.active().status === 'transcribed', 'emptying the cut on a rendered take goes back to Words ready');
-seed(); M.setWords('v1', words); v = M.active(); var fl2 = M.fillers(v); M.spare(v, fl2.holes[0]); ok(M.fillers(v).hits === 2, 'a spared filler is not counted on the button'); M.spare(v, fl2.holes[0]);   // and back (spares live per take for the session)
 ok(M.undo({ id: 'gone' }) === false, 'undo on a take that is gone is a no-op');
 
-// spare one filler before the drop, put one back after
-seed(); M.setWords('v1', words); v = M.active(); var fl = M.fillers(v); ok(M.spare(v, fl.holes[1]) === true && M.isSpared('v1', fl.holes[1]), 'a clicked filler is spared');
-ok(M.dropFillers(v) === 2 && M.active().edl.some(function (s) { return s.start < 4.5 && s.end > 4.8; }), 'the drop skips the spared one (Uh stays inside a piece)');
-v = M.active(); var hh = M.holes(v, 0)[0]; M.restore(v, hh); ok(M.holes(M.active(), 0).length === 0 && M.active().edl.every(function (s) { return !inside(s.start, words) && !inside(s.end, words); }), 'clicking a struck word puts it back, edges still on words');
 // a cut made here seconds ago survives an older file copy arriving (its write is still on the way)
 seed(); v = M.active(); M.toggle(v, 1); var mineEdl = M.active().edlHash; M.applyFile({ activeId: 'v1', videos: [Object.assign({}, mem['marathon.videos'].videos[0], { edl: [], edlHash: '', cutAt: 0, status: 'transcribed', updatedAt: 900 })] });
 ok(M.active().edlHash === mineEdl && M.active().status === 'cut', 'applyFile keeps a newer local cut over an older file copy of the take');
@@ -103,12 +98,51 @@ M.applyFile({ activeId: 'v2', videos: [fileCopy.videos[1]] }); M.applyFile(fileC
 // copy text and next step
 seed(); v = M.active(); var txt = M.copyText(v);
 ok(/^# Take \[v1\] Test take · transcribed · 0:10\.0 · 30 fps · 640×360 · 20 words/.test(txt) && /\[000\.00-003\.80\] word0/.test(txt) && /video cut v1 --keep/.test(txt) && /Guide → Reply/.test(txt), 'copy text carries the header, the [start-end] lines and the reply legend');
-ok(M.nextStep(v).text.indexOf('Click a sentence') >= 0, 'next step for a transcribed take names the toggles');
+ok(M.nextStep(v).text.indexOf('select the words') >= 0, 'next step for a transcribed take says select and Delete');
 mem['marathon.videos'].videos[0].status = 'recorded'; M.init(); ok(M.nextStep(M.active()).action === 'transcribe', 'next step for a new take is the words');
 seed([{ start: 0, end: 3.8 }]); ok(M.nextStep(M.active()).action === 'preview', 'next step for a cut take is a preview');
 mem['marathon.videos'].videos[0].exports = [{ kind: 'preview', edlHash: cliHash([{ start: 0, end: 3.8 }]) }]; M.init(); ok(M.nextStep(M.active()).action === 'final', 'after a preview of this cut, the final');
 ok(M.terminal(M.active(), 'preview') === 'node solo.js video render v1 --preview', 'terminal line for the primary workspace carries no --ws');
 ok(M.statusLabel('recorded') === 'No words yet' && M.statusLabel('cut') === 'Cut', 'plain status labels');
+
+// slice 4: spans, tidy up, redo
+seed(); M.setWords('v1', words); v = M.active();
+M.cutSpan(v, words[2].s, words[3].e); v = M.active();
+ok(v.edl.length === 2 && !v.edl.some(function (s) { return s.start < words[3].e && s.end > words[2].s; }) && v.edl.every(function (s) { return !inside(s.start, words) && !inside(s.end, words); }), 'cutSpan takes two words out, edges on words (' + JSON.stringify(v.edl.map(function (s) { return [s.start, s.end]; })) + ')');
+var hBefore = v.edlHash; M.keepSpan(v, words[2].s, words[2].e); ok(M.playing(M.active(), words[2].s, words[2].e) && !M.playing(M.active(), words[3].s, words[3].e), 'putting back one of two cut words brings back that one only');
+M.keepSpan(M.active(), words[3].s, words[3].e); ok(M.active().edl.length === 0, 'then the other: everything plays again (cleared cut)');
+ok(M.canRedo(M.active()) === false && M.undo(M.active()) && M.undo(M.active()) && M.active().edlHash === hBefore && M.canRedo(M.active()) && M.redo(M.active()) && M.redo(M.active()) && M.active().edl.length === 0, 'two undos then two redos walk the states');
+M.undo(M.active()); M.cutSpan(M.active(), words[0].s, words[0].e); ok(!M.canRedo(M.active()), 'a new cut clears redo');
+seed(); M.setWords('v1', words); v = M.active(); M.cutSpans(v, [{ s: words[1].s, e: words[1].e }, { s: words[5].s, e: words[6].e }]); v = M.active();
+ok(v.edl.length === 3 && !M.playing(v, words[1].s, words[1].e) && !M.playing(v, words[5].s, words[6].e) && M.playing(v, words[2].s, words[4].e) && M.canUndo(v) && M.undo(v) && M.active().edl.length === 0, 'cutSpans takes two separate spans in one undoable step; playing() answers per span');
+ok(M.rename(M.active(), 'Better title') && M.active().title === 'Better title' && M.active().renamedAt > 0 && /video title v1/.test(notes[notes.length - 1]), 'rename is logged and stamped');
+M.applyFile({ activeId: 'v1', videos: [Object.assign({}, mem['marathon.videos'].videos[0], { title: 'Test take', renamedAt: 0 })] }); ok(M.active().title === 'Better title', 'a rename here survives an older file copy');
+// tidy up: pauses + fillers in one step; the synthetic words have 0.2 s gaps, so pauses need a low threshold
+seed(); M.setWords('v1', words); v = M.active(); var tc = M.tidyCount(v); ok(tc.fillers === 3 && tc.pauses === 0, 'tidyCount: 3 fillers, no pause over 0.7 s');
+var tr = M.tidy(v); ok(tr.fillers === 3 && tr.pauses === 0 && M.active().edl.length === 4 && M.canUndo(M.active()), 'tidy up drops the fillers in one undoable step');
+ok(M.tidyCount(M.active()).fillers === 0, 'nothing left to tidy');
+var threwT = ''; try { M.tidy(M.active()); } catch (e) { threwT = e.message; } ok(/Nothing to remove/.test(threwT), 'tidy with nothing to do says so');
+var pwords = [{ w: 'so', s: 1.0, e: 1.3 }, { w: 'um', s: 1.4, e: 1.6 }, { w: 'then', s: 3.0, e: 3.3 }, { w: 'go.', s: 3.4, e: 3.7 }];
+mem['marathon.videos'] = { activeId: 'v1', videos: [{ id: 'v1', title: 'P', status: 'transcribed', sources: [{ duration: 6, fps: 30 }], transcript: { granularity: 'word' }, phrases: V.phrases(pwords), edl: [], exports: [], updatedAt: 1 }] }; M.init(); M.setWords('v1', pwords); v = M.active();
+var tc2 = M.tidyCount(v); ok(tc2.fillers === 1 && tc2.pauses === 3, 'tidyCount on a take with a 1.4 s gap, leading and trailing silence: 1 filler, 3 pauses');
+var tr2 = M.tidy(v, 'pauses'); v = M.active(); ok(tr2.pauses === 3 && tr2.fillers === 0 && v.edl.length === 2 && v.edl.some(function (s) { return s.start < 1.4 && s.end > 1.6; }), 'pauses only: the um stays, three silences shrink (' + JSON.stringify(v.edl.map(function (s) { return [s.start, s.end]; })) + ')');
+ok(M.tidyCount(v).pauses === 0 && M.tidyCount(v).fillers === 1, 'after the shortening the pauses no longer count, the filler still does');
+M.tidy(v, 'fillers'); ok(M.active().edl.length === 3 && !M.active().edl.some(function (s) { return s.start < 1.6 && s.end > 1.4; }), 'then fillers only takes the um');
+// the page's tidy and the CLI's --tidy are one function: same EDL, same hash (the CLI path runs in core/test-video.js; here the pure call)
+mem['marathon.videos'].videos[0].edl = []; mem['marathon.videos'].videos[0].edlHash = ''; M.init(); v = M.active(); M.tidy(v); var pageHash = M.active().edlHash;
+var cliT = V.tidy(pwords, [], null, { pause: V.DEFAULTS.pause, duration: 6, fps: 30, fillers: V.FILLERS }); var cliEdl = V.snap(cliT.ranges, pwords, { fps: 30, duration: 6 }).edl;
+ok(V.edlHash(cliEdl) === pageHash, 'Remove fillers and pauses on the page = `video cut --tidy` in the CLI (' + pageHash + ')');
+// only leading silence: a trim, not "everything plays"
+var lw = [{ w: 'late', s: 2.5, e: 2.8 }, { w: 'start.', s: 2.9, e: 3.2 }];
+mem['marathon.videos'] = { activeId: 'v1', videos: [{ id: 'v1', title: 'L', status: 'transcribed', sources: [{ duration: 3.3, fps: 30 }], transcript: { granularity: 'word' }, phrases: V.phrases(lw), edl: [], exports: [], updatedAt: 1 }] }; M.init(); M.setWords('v1', lw); v = M.active();
+M.tidy(v); ok(M.active().edl.length === 1 && M.active().edl[0].start > 2 && M.active().status === 'cut', 'a take with only dead air at the front ends up trimmed, not cleared (' + JSON.stringify(M.active().edl) + ')');
+// words glued to silence (whisper) arrive with the measured silences and are trimmed on the page too
+var glued = [{ w: 'so', s: 1.0, e: 2.5 }, { w: 'then', s: 2.5, e: 3.2 }]; M.setWords('v1', glued, [{ s: 1.35, e: 2.45 }]);
+ok(M.wordsFor(M.active())[0].e === 1.35, 'setWords trims a glued word to the silence');
+// an outside cut (the CLI) invalidates Undo
+seed(); M.setWords('v1', words); v = M.active(); M.cutSpan(v, words[0].s, words[0].e); ok(M.canUndo(M.active()), 'undo available after a page cut');
+M.applyFile({ activeId: 'v1', videos: [Object.assign({}, mem['marathon.videos'].videos[0], { edl: [{ start: 5, end: 9 }], edlHash: 'cli', cutAt: Date.now() + 5000 })] });
+ok(!M.canUndo(M.active()) && M.active().edlHash === 'cli', 'a newer cut from the CLI wins and clears the page\'s Undo');
 
 console.log(fails ? '\n' + fails + ' FAILED of ' + checks : '\nALL VIDEO PAGE TESTS PASS (' + checks + ')');
 process.exit(fails ? 1 : 0);

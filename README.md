@@ -135,7 +135,7 @@ node solo.js add "Write the launch post" --proj launch --pri high --tags content
 node solo.js start "Write the launch post" ; done t5 ; move t11 later ; check t5 2
 node solo.js social add "Launch day" --at +3d 9:00 --type launch ; social next ; social posted p4 --url …
 node solo.js scripts add "Teaser" --file teaser.md ; notes list
-node solo.js video add "Take 3" --file ~/Movies/take-3.mov ; video transcribe <take> ; video cut <take> --drop "um, uh" ; video render <take> --preview
+node solo.js video add "Take 3" --file ~/Movies/take-3.mov ; video transcribe <take> ; video cut <take> --tidy ; video render <take> --preview
 node solo.js inspo add "https://… worth stealing #launch"
 node solo.js inspo use "worth stealing" --as task
 node solo.js boards add "Business as usual" --from sample
@@ -155,18 +155,28 @@ The promise: **the footage never moves, only its words do.** Descript makes
 you upload a take and cuts a lowered-quality proxy; Solo Ops cuts the file
 on your disk, at its quality, by its transcript.
 
-1. **Add a take.** On the Video page drop the recording (the page finds it in
-   Movies (Videos on Windows), Desktop, Downloads or Documents) or paste its path. Nothing is
-   copied. Terminal: `node solo.js video add "Title" --file ./take.mov`.
+1. **Record, or add a take.** Record with any app (Recordly, QuickTime, your
+   phone) and save the file into the recordings folder (`~/Movies/Solo Ops
+   takes`; `node solo.js video recordings` prints it): it shows up on the
+   Video page by itself while the server runs. Or drop the recording on the
+   page (it finds it in Movies, Desktop, Downloads or Documents) or paste
+   its path. Nothing is copied. Terminal: `node solo.js video add "Title"
+   --file ./take.mov`. *Set up video on this computer* in the Guide
+   (`/setup-video`) has your agent install ffmpeg, the words engine, the
+   folder and the recorder in one conversation.
 2. **Get the words.** Three ways, you pick, never a paid one on its own:
    on this computer (whisper.cpp, free, nothing leaves the machine), ElevenLabs
-   (the audio is sent, the video stays, the price is shown first), or a
-   transcript you already have (SRT, VTT, JSON).
-3. **Cut.** The sentences are toggles: click one to cut it, click again to
-   keep it; *Drop the fillers* takes um, uh, you know in one go, and a
-   highlighted filler can be kept with a click. Every edge lands on a word,
-   padded. Or *Cut it with my AI*: your agent reads the words, proposes the
-   cut in plain words, waits for your yes, and the cut lands on the page.
+   (the audio is sent, the video stays, the price is shown first; the key is
+   pasted once into a field on the page and stays in `data/secrets.json`),
+   or a transcript you already have (SRT, VTT, JSON).
+3. **Cut.** The transcript is the editor: select words (or a sentence by its
+   time) and press Delete, or the Cut button; select a struck word to put it
+   back. **Remove fillers and pauses** takes um, uh, you know and every
+   pause longer than 0.7 s (`video.pause`) in one click; Undo and Redo are there. Every
+   edge lands on a word, padded; pauses are measured on the audio, not
+   guessed from the words. Or *Cut it with my AI*: your agent reads the
+   words, proposes the cut in plain words, waits for your yes, and the cut
+   lands on the page.
 4. **Render.** A 720p preview first; the final at full quality after you
    watched it. Captions ride along as a track and a `.srt`. One render at a
    time; renders are numbered, never overwritten.

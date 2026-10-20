@@ -106,7 +106,8 @@ remote keeps the block.
    node solo.js social posted <post> --url … ; social prep <post> "item"
    node solo.js scripts add "Title" --file script.md ; notes add "Title" --file draft.md
    node solo.js video add "Title" --file ./take.mov ; video transcribe <v> --engine whisper ; video show <v>   # words with times: the view you read to pick the cut
-   node solo.js video cut <v> --keep "2.4-6.8, 8.1-15.0" | --drop "um, uh" | --edl cut.json ; video render <v> --preview ; video post <v>
+   node solo.js video cut <v> --keep "2.4-6.8, 8.1-15.0" | --drop "um, uh" | --tidy | --drop-silence | --edl cut.json ; video render <v> --preview ; video post <v>
+   node solo.js video recordings [--init|--add] ; video watch   # the folder any recorder saves into; what lands there becomes a take (serve.js watches it too)
    node solo.js import list.md           # bulk: "- [ ] item" lines → tasks
    node solo.js inspo list ; inspo add "https://… #tag" --ws <id> ; inspo use <item> --as task|post|script|note
    node solo.js inspo ai --into tasks    # the inbox as a brainstorm prompt
@@ -171,20 +172,26 @@ remote keeps the block.
   and stops: show them, never pick a paid one yourself). `video show` prints
   the phrases with `[start-end]` times: read those, propose the cut in plain
   words (what goes, what stays, the runtime), **wait for a yes**, then
-  `video cut --keep "…"` or `--drop "um, uh"` or `--edl cut.json` (every
-  edge snaps to a word boundary and is padded; the write is logged and
-  `revert` undoes it), `video render --preview` (fast 720p), and only after
+  `video cut --keep "…"` or `--drop "um, uh"` or `--tidy` (fillers and
+  pauses over `video.pause` seconds in one step, pauses measured on the
+  audio: the same function as the page's *Remove fillers and pauses*, so the
+  hash matches) or `--edl cut.json` (every edge snaps to a word boundary and
+  is padded; the write is logged and `revert` undoes it), `video render --preview` (fast 720p), and only after
   they watched it `video render` for the final. One render at a time;
   exports are numbered and never overwritten or deleted by you. Captions
   ride along as a track and a `.srt`; `--burn` burns them when ffmpeg can.
   `video post` links the final into a new post, never copies it. ffmpeg is
   required; `doctor` says so when it is missing. **The page**
   (`studio/video.html`, nav "Video") is the same flow for someone who never
-  opens a terminal: the sentences are toggles (click = cut, click again =
-  keep), *Drop the fillers* takes um/uh/you know in one go, *Cut it with my
-  AI* opens the Guide on `/cut-take` with the take in `{{take}}`, and with
-  `node serve.js` running the buttons run `video add | transcribe | render |
-  post` for her and poll the progress. The page writes only `edl`, `edlHash`,
+  opens a terminal: the transcript is the editor (select words, Delete or
+  Cut; select a struck word to put it back), *Remove fillers and pauses*
+  is one click, *Cut it with my AI* opens the Guide on `/cut-take` with the
+  take in `{{take}}`, and with `node serve.js` running the buttons run
+  `video add | transcribe | render | post` for her, poll the progress, watch
+  the recordings folder (a file saved there becomes a take) and take the
+  ElevenLabs key into `data/secrets.json`. Every step the page cannot do
+  itself shows *Copy for my agent* first and the terminal line under "Do it
+  yourself"; `/setup-video` is the one-conversation install. The page writes only `edl`, `edlHash`,
   `cutAt`, `status`, `updatedAt` and `activeId` of `videos.json` (and removes
   a take on request); everything else is yours (the CLI's), and the page
   merges your copy in before every write (`cutAt` says whose cut is newer),

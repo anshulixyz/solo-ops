@@ -40,7 +40,7 @@
     social: ['A posting arc: each post has a date, copy, type, prep checklist, images and video status. Mark it posted to log engagement. Status: draft → ready → scheduled → posted.'],
     scripts: ['Short-form scripts with a light structure: # Title, ## Hook, ## Script (numbered beats), ## Inserts, ## Prep. Reader shows spoken lines only; 9:16 previews the phone; Teleprompter scrolls at your pace.'],
     writing: ['Drafts with track changes you and your agent both read: ~~cut~~, ++add++, [[note for the AI]]. Copy for AI sends the markup; Copy clean sends the final text.'],
-    video: ['Cut a take by its words. Add a recording (it stays where it is), get the words with their times, click a sentence to cut it or drop the fillers in one go, then render a preview and the final with captions. Every cut is saved and logged; Undo takes it back.', 'Cut it with my AI: the words go to your agent, it proposes the cut, you say yes, and the cut lands here. Terminal: `node solo.js video show <take>` prints the same words.'],
+    video: ['Cut a take by its words. Add a recording (it stays where it is), get the words with their times, then select words and press Delete, or Cut; select a crossed-out word to put it back. Remove fillers and pauses takes um, uh and the long pauses in one click. Render a preview, then the final with captions. Every cut is saved and logged; Undo takes it back.', 'Cut it with my AI: the words go to your agent, it proposes the cut, you say yes, and the cut lands here. Terminal: `node solo.js video show <take>` prints the same words.'],
     calendar: ['Everything with a date, in one place: tasks with a time or a deadline, meetings (a task with a time and the tag meeting), and posts. Agenda shows today onward with overdue first; Month shows the grid. Filter by board, meetings, posts; tick to finish; click to open the item where it lives.', 'Three ways in: + Add here, the + date chip on any card, or an agent: Ask → Fill my calendar reads the calendar it is connected to. Terminal: `node solo.js add "Call with X" --at tomorrow 14:00 --until 14:30 --tags meeting`; `node solo.js calendar` prints this agenda.'],
     inspo: ['Everything worth keeping lands here. Tag with a project, then Use as task / post / script / draft, or tick a few and Brainstorm with AI. The capture strip on every page saves here.']
   };
@@ -201,6 +201,7 @@
     var pend = panel.querySelector('button.guide-pending'); if (pend) pend.onclick = openProtect;
     var ffc = panel.querySelector('.gd-ffcheck'); if (ffc) ffc.onclick = function () { ffc.textContent = 'Checking…'; ffmpegStatus(true).then(function () { render(); }); };
     var ffy = panel.querySelector('.gd-ffcopy'); if (ffy) ffy.onclick = function () { copyText(ffy.getAttribute('data-copy'), ffy, 'Copied'); };
+    var ffs = panel.querySelector('.gd-ffsetup'); if (ffs) ffs.onclick = function () { openPrompt('setup-video'); };
     Array.prototype.forEach.call(panel.querySelectorAll('.gd-copy'), function (b) { b.onclick = function () { copyText(b.dataset.copy, b, 'Copied'); }; });
     var ack = panel.querySelector('.gd-ack'); if (ack) ack.onclick = function () { Store.set(ACK_KEY, new Date().toISOString(), { silent: true }); render(); };
     var unack = panel.querySelector('.gd-unack'); if (unack) unack.onclick = function () { Store.remove ? Store.remove(ACK_KEY) : Store.set(ACK_KEY, '', { silent: true }); render(); };
@@ -617,7 +618,7 @@
   function ffmpegCardDue() { if (ffmpeg.state !== 'missing' || page() === 'video') return false; var w = Config.ws(); if (!w.apps.video) return false; var d = Store.getJSON(Config.key('videos', w.id), null); return !!(d && (d.videos || []).length); }
   function ffmpegCard() {
     var mac = navigator.platform.indexOf('Mac') >= 0; var line = mac ? 'brew install ffmpeg' : 'winget install Gyan.FFmpeg';
-    return '<div class="guide-pending ffmpeg-card" title="Video needs ffmpeg"><span class="dot"></span><span><b>Video needs ffmpeg</b>, a free tool that reads and writes video files. ' + (mac ? 'Mac (needs Homebrew, brew.sh): ' : 'Windows: ') + '<code>' + line + '</code>. Then Check again.</span><span class="go"><button type="button" class="guide-link gd-ffcopy" data-copy="' + line + '">Copy</button> · <button type="button" class="guide-link gd-ffcheck">Check again</button></span></div>';
+    return '<div class="guide-pending ffmpeg-card" title="Video needs ffmpeg"><span class="dot"></span><span><b>Video needs ffmpeg</b>, a free tool that reads and writes video files. ' + (mac ? 'Mac (needs Homebrew, brew.sh): ' : 'Windows: ') + '<code>' + line + '</code>. Or ask your agent: <button type="button" class="guide-link gd-ffsetup">Set up video on this computer</button>. Then Check again.</span><span class="go"><button type="button" class="guide-link gd-ffcopy" data-copy="' + line + '">Copy</button> · <button type="button" class="guide-link gd-ffcheck">Check again</button></span></div>';
   }
   global.Guide = { open: open, close: close, toggle: toggle, snapshot: snapshot, mode: mode, openPrompt: openPrompt };
 })(window);
