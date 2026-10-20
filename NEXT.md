@@ -499,7 +499,7 @@ QR rendered without a dependency, capture strip and boards usable at
   `video-main.js` → `--v-room`), width following at 16:9, and the big
   player's button and captions scale with it; Bigger may take half the
   window, never more. Below a 120 px frame the help line and the hint go
-  first, and only then does the block scroll as before. `(hash follows)`.
+  first, and only then does the block scroll as before. `a95800f`.
 
 - 2026-10-19 · `prompts export` no longer deletes `.claude/commands/mine/`
   when `data/prompts.json` is absent (a worktree, a fresh clone): the
