@@ -35,8 +35,9 @@ looks as it always did.
    **Write the draft**. Press it: a draft titled like the task opens,
    already attached.
 5. **Connect something that exists.** On any draft, script or take, press
-   **Connect with a task…** in the toolbar (under the title on Video): pick
-   a task, or type a title and **Create** a new one with the item attached.
+   **Connect with a task…** in the toolbar: pick a board, find the task, or
+   type a title and **Create** a new one on that board with the item
+   attached (Video too).
    On a card, **attach** (next to notes) does the reverse. **×** next to
    the task name detaches; nothing is deleted.
 6. **Ask your agent.** `node solo.js story <task>` prints the task and its
