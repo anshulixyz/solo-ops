@@ -107,6 +107,9 @@ details.v-details pre { white-space: pre-wrap; font-family: var(--mono); font-si
 .v-found { margin-top: 8px; font-size: 13px; }
 .v-found code { font-family: var(--mono); font-size: 11.5px; }
 
+body.v-dropping .v-drop { border-color: var(--accent); color: var(--ink); background: var(--accent-soft); }
+body.v-dropping::after { content: 'Drop the recording'; position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 28px; color: var(--accent); background: rgba(0,0,0,.04); pointer-events: none; z-index: 400; }
+
 /* empty state */
 .v-empty { padding: 48px 32px 0; }
 .v-empty h2 { font-family: var(--serif); font-size: 28px; margin: 0 0 8px; }

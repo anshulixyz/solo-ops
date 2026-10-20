@@ -44,8 +44,13 @@
     return '<div class="vcard warn"><h3>Video needs ffmpeg</h3><p>A free tool that reads and writes video files. Your agent can install it (and everything else Video needs) in one go.</p>' +
       doors(line, false, SETUP_SENTENCE) + '<p class="v-term">' + (mac() ? 'Mac: needs Homebrew (brew.sh). ' : 'Windows: that build burns captions too. ') + 'Then <button type="button" class="guide-link" onclick="checkDoctor(true, true)">Check again</button>.</p></div>';
   }
+  // the page is open but the server is not answering: a saved copy of the page in the browser (http, the server at this address stopped), or a file:// / folder-linked page. The address and the start line follow where the page actually is.
   function noServerCard(chat) {
-    return '<div class="vcard quiet"><p><b>Your cuts save without it.</b> Getting the words, rendering and the recordings folder need the Solo Ops server running.</p>' + doors('node serve.js', chat, 'In my Solo Ops folder, start `node serve.js` and leave it running, then tell me the address it prints.') + '<p class="v-term">Then open <code>http://localhost:' + esc(String((global.Config && Config.get('sync.port')) || 4321)) + '/studio/video.html</code>.</p></div>';
+    var http = typeof location !== 'undefined' && /^http/.test(location.protocol); var port = http && location.port ? location.port : String((global.Config && Config.get('sync.port')) || 4321);
+    var line = 'node serve.js' + (port !== '4321' ? ' --port ' + port : ''); var here = http ? location.origin + location.pathname : 'http://localhost:' + port + '/studio/video.html';
+    var why = http ? '<p><b>The Solo Ops server at ' + esc(location.host) + ' is not running right now</b>, so this is a saved copy of the page: your cuts still save in this browser, but getting the words, rendering and the recordings folder wait until it is back.</p>'
+      : '<p><b>Your cuts save without it.</b> Getting the words, rendering and the recordings folder need the Solo Ops server running.</p>';
+    return '<div class="vcard quiet">' + why + doors(line, chat, 'In my Solo Ops folder, start `' + line + '` and leave it running, then tell me when ' + here + ' answers.') + '<p class="v-term">Then ' + (http ? 'reload this page' : 'open <code>' + esc(here) + '</code>') + '.</p></div>';
   }
   function empty(ctx) {
     return '<div class="v-empty"><h2>Cut your takes by their words.</h2><p class="lead">The footage stays where it is. A take is one recording, as it came off the phone or camera. Add it, get its words, select what goes, render the cut with captions.</p>' + recordCard(ctx) + addBox(ctx, true) + '</div>';
@@ -62,7 +67,7 @@
   function addBox(ctx, open) {
     var hint = mac() ? 'Mac: in Finder, right-click the file, hold ⌥ Option, “Copy … as Pathname”, paste here.' : 'Windows: Shift + right-click the file → “Copy as path”, paste here.';
     return '<div class="vcard v-add" id="addBox"' + (open ? '' : ' style="display:none"') + '><h3>Add a recording</h3>' +
-      (ctx.server ? '<div class="v-drop" id="dropZone" ondragover="dropOver(event)" ondragleave="dropLeave(event)" ondrop="dropFile(event)">Drop the recording here: the page looks for it in Movies (Videos on Windows), Desktop, Downloads and Documents.</div>' : '<p class="muted" style="font-size:13px;margin:0">Start the server first (the card above) and you can drop the recording here. Or paste its path and add it with your agent:</p>') +
+      '<div class="v-drop" id="dropZone" ondragover="dropOver(event)" ondragleave="dropLeave(event)" ondrop="dropFile(event)">' + (ctx.server ? 'Drop the recording anywhere on this page (or paste it): the page finds it in Movies (Videos on Windows), Desktop, Downloads and Documents.' : 'Drop the recording here once the server is running (the card above): the page then finds it by its name. A browser never tells a page where a file lives, so without the server only the name arrives.') + '</div>' +
       '<input type="text" id="addPath" autocomplete="off" placeholder="…or the whole path to the file, e.g. ' + (mac() ? '~/Movies/take-3.mov' : 'C:\\Users\\you\\Videos\\take-3.mp4') + '" onkeydown="if(event.key===\'Enter\')addTake()">' +
       '<div class="v-found" id="addFound"></div>' +
       '<p class="muted" style="font-size:12px;margin:6px 0 0">' + esc(hint) + ' Nothing is copied or moved.</p>' +

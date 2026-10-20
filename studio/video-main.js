@@ -156,14 +156,24 @@ function openAdd() { ctx.addOpen = true; paint(); var i = $('addPath'); if (i) i
 function closeAdd() { ctx.addOpen = false; paint(); }
 function dropOver(ev) { ev.preventDefault(); ev.currentTarget.classList.add('over'); }
 function dropLeave(ev) { ev.currentTarget.classList.remove('over'); }
-function dropFile(ev) {
-  ev.preventDefault(); ev.currentTarget.classList.remove('over'); var f = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0]; if (!f) return;
-  var found = $('addFound'); found.textContent = 'Looking for ' + f.name + '…';
+function dropFile(ev) { ev.preventDefault(); if (ev.currentTarget && ev.currentTarget.classList) ev.currentTarget.classList.remove('over'); var f = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0]; if (f) fileArrived(f); }
+// a recording dropped anywhere on the page, or pasted: the browser gives its name and size, the server finds where it lives
+function fileArrived(f) {
+  if (!/\.(mov|mp4|m4v|mkv|webm)$/i.test(f.name) && !/^video\//.test(f.type || '')) { flash(f.name + ' is not a video file'); return; }
+  ctx.addOpen = true; paint(); var found = $('addFound'); var box = $('addPath');
+  if (!isServer()) { if (box) { box.value = f.name; box.focus(); box.setSelectionRange(0, 0); } if (found) found.innerHTML = '<span class="muted">Only the name arrives without the server (' + esc(f.name) + '). Start it (the card at the top) and drop the file again, or type the folder in front of the name.</span>'; return; }
+  found.textContent = 'Looking for ' + f.name + '…';
   api('/api/video/find', { name: f.name, size: f.size }).then(function (r) {
     if (!r.found || !r.found.length) { found.innerHTML = '<span class="muted">Not found in Movies (Videos on Windows), Desktop, Downloads or Documents. Type where it is:</span>'; $('addPath').value = f.name; $('addPath').focus(); $('addPath').setSelectionRange(0, 0); return; }
     $('addPath').value = r.found[0].path; found.innerHTML = 'Found it: <code>' + esc(r.found[0].path) + '</code>' + (r.found.length > 1 ? ' <span class="muted">(' + (r.found.length - 1) + ' more with that name; the newest is picked)</span>' : '') + ' <span class="muted">Not it? Type where it is.</span>';
+    addTake();   // found by name and size: add it without another click
   }).catch(function (e) { found.textContent = e.message; });
 }
+// the whole page takes a drop or a paste, not only the box
+document.addEventListener('dragover', function (ev) { if (ev.dataTransfer && Array.prototype.some.call(ev.dataTransfer.types || [], function (t) { return t === 'Files'; })) { ev.preventDefault(); document.body.classList.add('v-dropping'); } });
+document.addEventListener('dragleave', function (ev) { if (!ev.relatedTarget) document.body.classList.remove('v-dropping'); });
+document.addEventListener('drop', function (ev) { document.body.classList.remove('v-dropping'); var f = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0]; if (!f) return; ev.preventDefault(); fileArrived(f); });
+document.addEventListener('paste', function (ev) { var inField = /^(INPUT|TEXTAREA)$/.test((document.activeElement || {}).tagName); var files = ev.clipboardData && ev.clipboardData.files; if (files && files.length) { ev.preventDefault(); fileArrived(files[0]); } else if (!inField && ev.clipboardData) { var t = ev.clipboardData.getData('text') || ''; if (/^(\/|~\/|[A-Za-z]:\\).*\.(mov|mp4|m4v|mkv|webm)$/i.test(t.trim())) { ctx.addOpen = true; paint(); $('addPath').value = t.trim(); addTake(); } } });
 function addTake() {
   var p = ($('addPath') && $('addPath').value || '').trim(); if (!p) return flash('Where is the recording? Drop it above or paste its path.');
   if (!isServer()) return flash('Without the server, your agent adds it: the button below');
