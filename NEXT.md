@@ -240,7 +240,7 @@ the machine-only files, the Home chip counts by status, `help` up to date,
 provider errors in plain words, the missing-words card, the stale-server
 card, `--title=`/`--at=`/`--expect=` from the routes, `Sec-Fetch-Site`
 in the Host check, `recordings.json` out of the backup.
-**One story shipped 2026-10-20, commit `(story commit)`.** A draft, its
+**One story shipped 2026-10-20, commit `3b4c394`.** A draft, its
 script, the takes and the posts as one chain, with no new file or id: the
 downstream item keeps the upstream id (`script.noteId`, `take.scriptId`,
 `post.noteId` / `post.scriptId`; the take → post edge stays on
