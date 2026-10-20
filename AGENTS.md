@@ -200,7 +200,9 @@ remote keeps the block.
   a take on request); everything else is yours (the CLI's), and the page
   merges your copy in before every write (`cutAt` says whose cut is newer),
   so write a take through the CLI while the page is open without fear. The
-  page plays the take with the cuts skipped (click a word), corrects words
+  page plays the take with the cuts skipped (click a word; the captions the
+  final will carry show on it; *Keep only this* trims to a selection, the
+  same as `--keep a-b` when nothing else was cut), corrects words
   through `video word` (an edits trail in transcript.json, `--undo`), and
   `video show` prints `[pause 1.3 s]` and `[said twice …]` for runs of words,
   `{{take}}` the pauses and whole sentences said again, so you see what

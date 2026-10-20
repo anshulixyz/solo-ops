@@ -4,7 +4,7 @@
 (function (global) {
   'use strict';
 
-  var selectedId = null;
+  var selectedId = null; var wantedPost = ''; var wantedMade = false;
 
   function render() {
     SocialView.render(selectedId);
@@ -354,7 +354,7 @@
       }
     });
     Sync.on(function (evt, d) {
-      if (evt === 'applied' && d.file === Config.file('social')) flash('Schedule updated from data/' + d.file + '.');
+      if (evt === 'applied' && d.file === Config.file('social')) { flash('Schedule updated from data/' + d.file + '.'); if (wantedPost && SocialModel.getById(wantedPost)) { selectedId = wantedPost; wantedPost = ''; render(); if (wantedMade) { wantedMade = false; flash('Post made: ' + ((SocialModel.getById(selectedId) || {}).datetime || 'tomorrow 09:00').replace('T', ' ') + ', draft — add the copy below'); var det1 = document.getElementById('detail'); if (det1) det1.scrollIntoView({ block: 'start' }); } } }
       if (evt === 'linked') flash('Folder linked — the schedule now writes data/' + Config.file('social') + ' directly.');
     });
   }
@@ -462,6 +462,7 @@
     var fromGraph = params.get('id');
     var posts = SocialModel.getSorted();
     selectedId = (fromGraph && SocialModel.getById(fromGraph)) ? fromGraph : (posts.length ? posts[0].id : null);
+    if (fromGraph && !SocialModel.getById(fromGraph)) { wantedPost = fromGraph; wantedMade = !!params.get('made'); }   // not in the browser copy yet: after the first pull
     render();
     if (params.get('made') && selectedId === fromGraph) { var p0 = SocialModel.getById(fromGraph); flash('Post made: ' + (p0 && p0.datetime ? p0.datetime.replace('T', ' ') : 'tomorrow 09:00') + ', draft — add the copy below'); var det0 = document.getElementById('detail'); if (det0) det0.scrollIntoView({ block: 'start' }); }   // came from a script's or a draft's "Make the post"
     if (global.Story && Story.clearQuery && (fromGraph || params.get('made'))) Story.clearQuery(['id', 'made']);

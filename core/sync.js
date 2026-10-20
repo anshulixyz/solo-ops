@@ -242,9 +242,10 @@
         if (writable) return writeOne(spec);
         return;
       }
-      if (parsed.updatedAt > local) {
+      var noCopy = (spec.isFresh && spec.isFresh()) || (spec.keys || [spec.key]).some(function (k) { return Store.isFresh(k); });   // a stamp but no real copy here (site data half cleared, untouched sample data): the file wins, whatever the stamps say
+      if (parsed.updatedAt > local || noCopy) {
         applyBody(spec, parsed);
-        lastSeen[spec.file + ':stamp'] = parsed.updatedAt;
+        lastSeen[spec.file + ':stamp'] = parsed.updatedAt; if (noCopy) setMeta(spec.file, parsed.updatedAt);
         if (spec.merge && writable && stripStamp(parsed) !== stripStamp(body(spec))) { setMeta(spec.file, now()); return writeOne(spec); }
       } else if (pushIfNewer && writable && parsed.updatedAt < local) {
         return writeOne(spec);

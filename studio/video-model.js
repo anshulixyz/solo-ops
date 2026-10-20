@@ -171,10 +171,25 @@
     var before = pieces(v) || [{ start: 0, end: dur(v) }];
     var ps = V.cutOut(before, holes, dur(v)).filter(function (p) { return wordInside(v, p); });   // a leftover with no word in it (a silent tail) goes with the cut
     if (!ps.length) throw new Error('That would cut everything. Keep at least one word.');
-    var gone = before; ps.forEach(function (p) { gone = subtract(gone, p.start, p.end); });   // exactly what left the cut
     var res = snapTo(v, markFixed(ps, v.edl)); var r = setEdl(v, res.edl, what || 'cut ' + holes.length + ' span' + (holes.length === 1 ? '' : 's'), res.notes);
-    if (!r.same) (removedMemo[v.id] = removedMemo[v.id] || []).push({ s: Math.min.apply(null, holes.map(function (h) { return h.s; })), e: Math.max.apply(null, holes.map(function (h) { return h.e; })), pieces: gone });
+    var now = (get(v.id) || v).edl || res.edl; var gone = before; now.forEach(function (p) { gone = subtract(gone, num(p.start), num(p.end)); });   // exactly what left the cut, after the snap
+    if (!r.same) holes.forEach(function (h) {   // one memo entry per hole, holding what that hole took (whole pieces, pads included, by their midpoint): a keep on one span never shadows the others (two spans in one step = the trim)
+      var mine = gone.filter(function (p) { var mid = (p.start + p.end) / 2; var own = holes.filter(function (o) { return mid >= o.s - 0.001 && mid <= o.e + 0.001; })[0]; if (own) return own === h; return holes.reduce(function (best, o) { var dd = Math.min(Math.abs(mid - o.s), Math.abs(mid - o.e)); return !best || dd < best.d ? { o: o, d: dd } : best; }, null).o === h; });
+      if (mine.length) (removedMemo[v.id] = removedMemo[v.id] || []).push({ s: Math.min(h.s, Math.min.apply(null, mine.map(function (p) { return p.start; }))), e: Math.max(h.e, Math.max.apply(null, mine.map(function (p) { return p.end; }))), pieces: mine });   // the entry spans its pieces: a silent gap a hole swallowed (no word in it) is still found by the keep that asks for its sentence
+    });
     return r;
+  }
+  function keepOnly(v, s, e, what) {   // the trim: everything before s and after e goes; what is inside stays as it is (one step, one Undo)
+    var d = dur(v); if (!d) { var W0 = wordsFor(v); d = W0.length ? num(W0[W0.length - 1].e) : 0; }   // no probed duration: the last word ends the take
+    s = Math.max(0, num(s)); e = d ? Math.min(d, num(e)) : num(e); if (!(e > s)) return null;
+    var was = runtime(v); var spans = []; if (s > 0) spans.push({ s: 0, e: s }); if (d && e < d) spans.push({ s: e, e: d });
+    if (!spans.length) return { same: true, was: was, kept: was };
+    var r = cutSpans(v, spans, what || 'kept only ' + fmt(s) + '-' + fmt(e)); if (!r) return null; r.was = was; r.kept = runtime(get(v.id) || v); return r;
+  }
+  function captionCues(v) {   // what the player captions: the same chunks the renders' .srt carries (words), else the sentences
+    var W = hasWords(v.id) ? wordsCache[v.id] : null; var style = (v.captions && v.captions.style) || 'sentence';
+    if (W && W.length) return V.chunks(W, style);
+    return (v.phrases || []).map(function (p) { return { s: p.s, e: p.e, t: p.t }; });
   }
   function keepSpans(v, spans, what) {   // the words inside these spans play again, as they were
     var ps = pieces(v) || [{ start: 0, end: dur(v) }]; var cur = pieces(v);
@@ -242,7 +257,7 @@
   function nextStep(v) {
     var st = v.status; var fin = latestExport(v, 'final'), pre = latestExport(v, 'preview');
     if (st === 'recorded') return { text: 'Next: get the words.', action: 'transcribe', label: 'Get the words' };
-    if (st === 'transcribed') return { text: 'Next: select the words that go and press Delete, or remove the fillers and pauses.', action: '' };
+    if (st === 'transcribed') return { text: 'Next: select the words that go and press Delete, keep one part with K (Keep only this), or remove the fillers and pauses.', action: '' };
     if (st === 'cut') return pre && pre.edlHash === v.edlHash ? { text: 'Next: the final, same cut, full quality.', action: 'final', label: 'Render the final' } : { text: 'Next: watch a preview.', action: 'preview', label: 'Render a preview' };
     if (st === 'rendered') return fin && fin.edlHash === v.edlHash ? (v.postId ? { text: statusOf(v) === 'posted' ? 'Posted. Nothing left to do here.' : 'It is on the schedule. Mark it posted there once it is up.', action: 'post-open' } : { text: 'Next: post it.', action: 'post', label: 'Make the post' }) : { text: 'The cut changed after the last final. Render again.', action: 'final', label: 'Render the final' };
     return { text: '', action: '' };
@@ -264,6 +279,6 @@
 
   global.VideoModel = { KEY: KEY, FILE: FILE, FILLERS: FILLERS, init: init, lib: function () { return lib; }, list: list, get: get, active: active, setActive: setActive, src: src,
     normalize: normalize, applyFile: applyFile, reconcile: reconcile, read: read, setWords: setWords, hasWords: hasWords, wordsFor: wordsFor, cueLevel: cueLevel,
-    keptFlags: keptFlags, holes: holes, runtime: runtime, pieces: pieces, toggle: toggle, sentenceSpans: sentenceSpans, fillers: fillers, fillerList: fillerList, dropFillers: dropFillers, keepEverything: keepEverything, setEdl: setEdl, canUndo: canUndo, canRedo: canRedo, undo: undo, redo: redo, cutSpan: cutSpan, keepSpan: keepSpan, cutSpans: cutSpans, keepSpans: keepSpans, playing: playing, rename: rename, tidy: tidy, tidyCount: tidyCount, pauseMin: pauseMin, autoMaxMin: autoMaxMin, remove: remove, cutFromLine: cutFromLine,
+    keptFlags: keptFlags, holes: holes, runtime: runtime, pieces: pieces, toggle: toggle, sentenceSpans: sentenceSpans, keepOnly: keepOnly, captionCues: captionCues, fillers: fillers, fillerList: fillerList, dropFillers: dropFillers, keepEverything: keepEverything, setEdl: setEdl, canUndo: canUndo, canRedo: canRedo, undo: undo, redo: redo, cutSpan: cutSpan, keepSpan: keepSpan, cutSpans: cutSpans, keepSpans: keepSpans, playing: playing, rename: rename, tidy: tidy, tidyCount: tidyCount, pauseMin: pauseMin, autoMaxMin: autoMaxMin, remove: remove, cutFromLine: cutFromLine,
     fmt: fmt, tag: tag, size: size, latestExport: latestExport, statusOf: statusOf, statusLabel: statusLabel, nextStep: nextStep, copyText: copyText, terminal: terminal, dur: dur };
 })(typeof window !== 'undefined' ? window : this);
