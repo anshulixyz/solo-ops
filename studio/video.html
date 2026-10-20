@@ -37,6 +37,9 @@
           <button class="btn" onclick="copyLine('show')" title="node solo.js video show …">Copy the terminal line</button>
           <button class="btn" onclick="copyLine('folder')" title="Where the words and renders live">Copy the folder path</button>
           <div class="sep"></div>
+          <div class="hint">Settings</div>
+          <button class="btn" onclick="showKeyCard()" title="Paste a new ElevenLabs key; it stays on this computer">ElevenLabs key…</button>
+          <div class="sep"></div>
           <button class="btn" onclick="removeTake()">Remove this take</button>
         </div></details>
       <span data-sync-pill></span>
@@ -76,6 +79,7 @@
 
 <script src="../core/store.js"></script>
 <script src="../core/config.js"></script>
+<script src="../core/story.js"></script>
 <script src="../core/templates.js"></script>
 <script src="../core/prompts.js"></script>
 <script src="../core/when.js"></script>

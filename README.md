@@ -135,7 +135,8 @@ node solo.js add "Write the launch post" --proj launch --pri high --tags content
 node solo.js start "Write the launch post" ; done t5 ; move t11 later ; check t5 2
 node solo.js social add "Launch day" --at +3d 9:00 --type launch ; social next ; social posted p4 --url …
 node solo.js scripts add "Teaser" --file teaser.md ; notes list
-node solo.js video add "Take 3" --file ~/Movies/take-3.mov ; video transcribe <take> ; video cut <take> --tidy ; video word <take> "on shoe lee" "Anshuli" ; video render <take> --preview
+node solo.js video add "Take 3" --file ~/Movies/take-3.mov --script <script> ; video transcribe <take> ; video cut <take> --tidy ; video word <take> "on shoe lee" "Anshuli" ; video render <take> --preview
+node solo.js link <draft> <script> ; story <script>   # one story: draft → script → takes → posts; the pages show the same line
 node solo.js inspo add "https://… worth stealing #launch"
 node solo.js inspo use "worth stealing" --as task
 node solo.js boards add "Business as usual" --from sample
@@ -193,6 +194,21 @@ Windows) and, for the buttons, `node serve.js`. Without the server the page
 still cuts (clicking saves the cut) and shows the terminal line for the rest.
 Renders live in `data/videos/<take>/` and never enter the backup; the words
 and the `.srt` do.
+
+## One story
+
+A draft, its script, the takes and the posts belong together, and every
+page shows it on one line: `Draft: Why we killed onboarding → Script: Why we
+killed onboarding → Take: Take 2 · cut 0:23 → Post: Launch · Fri 09:00 ·
+scheduled`. Each piece is a link to its page.
+On a draft, **Start the script** makes the script from the clean text; on a
+script, **Add the take** opens Video with the recording box and **Make the
+post** puts a draft post on the schedule for tomorrow 09:00; a take's
+**Make the post** links the final. **Connect…** attaches something that
+already exists; × on a piece disconnects it (nothing is deleted). Your
+agent does the same with `node solo.js link <a> <b>` and sees the line in
+`story <id>`, in `show`, and in the Guide's `{{this}}` / `{{take}}`. Nothing
+new to back up: the pieces keep each other's ids.
 
 ## Your AI runs it
 

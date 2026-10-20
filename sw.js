@@ -8,7 +8,7 @@
 var VERSION = '__VERSION__';
 if (VERSION.indexOf('__') === 0) VERSION = 'solo-ops-static-1';
 var SHELL = ['./', './index.html', './manifest.json', './solo.config.js', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/icon.svg?v=mono', './icons/icon-192.png?v=mono', './icons/icon-512.png?v=mono',
-  './core/store.js', './core/config.js', './core/templates.js', './core/theme.js', './core/theme-boot.js', './core/theme.css', './core/ui.css',
+  './core/store.js', './core/config.js', './core/story.js', './core/templates.js', './core/theme.js', './core/theme-boot.js', './core/theme.css', './core/ui.css',
   './core/sync.js', './core/activity.js', './core/palette.js', './core/nav.js', './core/inspo-quick.js', './core/attach.js', './core/quick.js', './about.html',
   './core/prompts.js', './core/when.js', './core/datepick.js', './core/apply.js', './core/context.js', './core/guide.js', './core/recent.js', './core/share-card.js', './core/home.js', './core/home.css', './overview.html',
   './calendar/calendar.html', './calendar/calendar.css', './calendar/calendar-model.js', './calendar/calendar-view.js', './calendar/calendar-main.js',

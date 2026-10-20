@@ -251,6 +251,7 @@ function renderScript(doc) {
   }
 
   let html = '<div class="script-doc">';
+  html += storyLine();
 
   if (doc.title) {
     html += `<h2 class="script-title">${esc(doc.title)}</h2>`;
@@ -338,6 +339,7 @@ function renderItem(item) {
   }
 }
 
+function storyLine() { return window.Story && Story.html && library.activeId ? Story.html('script', library.activeId) : ''; }   // draft → script → takes → posts, with Connect…
 function renderReader(doc) {
   if (!doc.spokenLines.length) {
     return `<div class="empty-state"><div class="icon">🎙</div><h2>No spoken lines yet</h2>
@@ -441,6 +443,7 @@ function titleOf(text) {
 function normalizeLib(data) {
   const scripts = (data && Array.isArray(data.scripts) ? data.scripts : []).map((s) => ({
     id: s.id || newId(), title: s.title || titleOf(s.text || ''), text: s.text || '',
+    noteId: s.noteId || '',   // the draft it came from (one story; core/story.js)
     createdAt: s.createdAt || Date.now(), updatedAt: s.updatedAt || Date.now(),
   }));
   let activeId = data && data.activeId;
@@ -619,8 +622,11 @@ function registerPalette() {
 function init() {
   Config.applyDOM();
   library = loadLibrary();
+  const wanted = window.Story && Story.openParam ? Story.openParam() : '';   // ?open=<id>: a link from another page
+  if (wanted && library.scripts.some((s) => s.id === wanted)) library.activeId = wanted;
   persistLibrary({ silent: true });
   if (fresh) Store.markFresh(KEY);
+  if (window.Story && Story.onWrite) Story.onWrite(() => updatePreview({ skipSave: true }));
 
   const input = $('#scriptInput');
   const active = getActive();

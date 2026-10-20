@@ -104,6 +104,7 @@ count per cell. Home reads it for the streak, heatmap and idle reminder;
     "format": "text",                     // text | video | text+video
     "project": "general",
     "copy": "The actual post text…",
+    "noteId": "", "scriptId": "",            // the draft / the script this post came from (one story; core/story.js). The take → post edge lives on the take (postId)
     "video": { "title": "", "status": "none", "notes": "", "link": "" },
                                           // status: none|idea|scripted|recorded|edited|ready
     "links": [{ "id": "l1", "label": "", "url": "", "kind": "reference" }],
@@ -122,7 +123,7 @@ count per cell. Home reads it for the streak, heatmap and idle reminder;
 ```json
 {
   "activeId": "s1",
-  "scripts": [{ "id": "s1", "title": "My Reel Script", "text": "# My Reel Script\n\n## Hook\n…", "createdAt": 0, "updatedAt": 0 }]
+  "scripts": [{ "id": "s1", "title": "My Reel Script", "text": "# My Reel Script\n\n## Hook\n…", "noteId": "", "createdAt": 0, "updatedAt": 0 }]   // noteId: the draft it was written from (one story)
 }
 ```
 
@@ -136,7 +137,7 @@ Script text is Markdown with a light convention the viewer understands:
 {
   "activeId": "v1",
   "videos": [{
-    "id": "v1", "title": "Why we killed onboarding", "scriptId": "s3", "postId": "",
+    "id": "v1", "title": "Why we killed onboarding", "scriptId": "s3", "postId": "", "linkedAt": 0,   // scriptId / postId: the story (link, video add --script, video post); linkedAt: when they last changed
     "status": "recorded",             // recorded | transcribed | cut | rendered  (posted = the linked post's status says so)
     "sources": [{ "id": "a", "path": "/Users/me/Movies/take-3.mov", "size": 2147483648, "duration": 312.4,
                   "width": 1920, "height": 1080, "fps": 29.97, "rotation": 0, "hdr": false, "vcodec": "hevc", "acodec": "aac", "hash": "sha1 of first MB + last MB + size" }],

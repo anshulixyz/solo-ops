@@ -714,7 +714,8 @@ function refreshPreview() {
   const raw = $('#writingInput').value;
   const mode = state.view === 'read' ? 'read' : state.view === 'changes' ? 'changes' : 'draft';
   const images = getActiveNote()?.images || {};
-  $('#preview').innerHTML = renderDocument(raw, mode, images);
+  const story = window.Story && Story.html && library.activeId ? Story.html('note', library.activeId) : '';   // draft → script → takes → posts, with Connect…
+  $('#preview').innerHTML = story + renderDocument(raw, mode, images);
 }
 
 function refresh(opts = {}) {
@@ -779,8 +780,11 @@ function registerPalette() {
 function init() {
   Config.applyDOM();
   library = loadLibrary();
+  const wanted = window.Story && Story.openParam ? Story.openParam() : '';   // ?open=<id>: a link from another page
+  if (wanted && library.notes.some((n) => n.id === wanted)) library.activeId = wanted;
   persistLibrary({ silent: true });
   if (fresh) Store.markFresh(LIBRARY_KEY);
+  if (window.Story && Story.onWrite) Story.onWrite(() => refreshPreview());
 
   const ta = $('#writingInput');
   const active = getActiveNote();

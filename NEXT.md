@@ -240,6 +240,34 @@ the machine-only files, the Home chip counts by status, `help` up to date,
 provider errors in plain words, the missing-words card, the stale-server
 card, `--title=`/`--at=`/`--expect=` from the routes, `Sec-Fetch-Site`
 in the Host check, `recordings.json` out of the backup.
+**One story shipped 2026-10-20, commit `(story commit)`.** A draft, its
+script, the takes and the posts as one chain, with no new file or id: the
+downstream item keeps the upstream id (`script.noteId`, `take.scriptId`,
+`post.noteId` / `post.scriptId`; the take → post edge stays on
+`take.postId`, which `video post` wrote first). `core/story.js` (UMD,
+shared with the CLI) walks the pointers both ways, in story order, with
+deleted members shown as *missing*; the four pages draw one line under the
+title (chips that link to each page by `?open=<id>` / `?id=`, the next step
+in its empty slot: *Write the script*, *Add the take*, *Make the post*;
+*Connect…* with a picker of what can connect directly; × disconnects).
+A page writes only its own field in its own file (the Script Viewer's
+`noteId`, the Social board's `noteId`/`scriptId`); every other connection
+goes through `POST /api/story` → `node solo.js link` / `scripts add --draft`
+/ `social add --draft|--script|--take`, so the log and `revert` cover it,
+and without the server the terminal line is copied. The sibling files are
+registered read-only on each page (the file always wins). `story <id>`,
+`link a b [--off]` (ids or a unique title; a wrong pair or an ambiguous
+title is refused in a sentence), the show commands and `{{this}}` /
+`{{take}}` print the same line; `link` works from a pasted reply.
+`core/test-story.js` (31 checks). Also from the owner's asks: More →
+*ElevenLabs key…* replaces the key from any take; the engine card puts
+ElevenLabs first with the three sign-up steps, then "On this computer" says
+what Whisper is and what it downloads; `/setup-video` in the same order.
+Left for later: a Home card "stories in progress"; a `{{story}}` token;
+drag a draft onto a post card to connect; tasks in the chain; the take's
+words back into a script; `inspo use` keeping its link; the post's video
+status derived from the take's; *Add the take* picking a file already in
+the recordings folder.
 **Slice 4 shipped 2026-10-20, commit `1e5ca53`: easy mode.**
 The owner's direction: trim the umms and pauses, edit the transcript as
 text like Descript, record with Recordly and have the recordings land in

@@ -8,7 +8,7 @@
 'use strict';
 var M = VideoModel, VV = VideoView;
 var ctx = { server: false, ready: false, chat: false, doctor: null, recordings: null, words: false, tidy: null, job: null, left: '', undo: false, redo: false, showAll: false, aspect: Store.get('marathon.video.aspect') || '', showRenderError: false, selection: null, tokens: [], renaming: false, showKey: false, addOpen: false,
-  reviewOpen: false, reviewTicked: {}, reviewCount: null, wordsGone: {}, oldServer: false, correcting: null, engine: '', player: { src: 'take', time: 0, playing: false }, playerHidden: Store.get('marathon.video.playerHidden') === '1' };
+  reviewOpen: false, reviewTicked: {}, reviewCount: null, wordsGone: {}, oldServer: false, keyCard: false, pendingScript: '', correcting: null, engine: '', player: { src: 'take', time: 0, playing: false }, playerHidden: Store.get('marathon.video.playerHidden') === '1' };
 var pollTimer = null; var wordsLoading = {}; var renderStartedAt = 0; var dragging = false; var anchor = -1; var moved = false;
 function $(id) { return document.getElementById(id); }
 function esc(s) { return VV.esc(s); }
@@ -266,7 +266,8 @@ function startPoll(id) {
 }
 function stopPoll() { if (pollTimer) clearInterval(pollTimer); pollTimer = null; }
 function openAdd() { ctx.addOpen = true; paint(); var i = $('addPath'); if (i) i.focus(); var c = $('recordCard'); if (c) c.scrollIntoView({ block: 'nearest' }); }
-function closeAdd() { ctx.addOpen = false; paint(); }
+function closeAdd() { ctx.addOpen = false; ctx.pendingScript = ''; paint(); }
+function forgetScript() { ctx.pendingScript = ''; paint(); }
 function dropOver(ev) { ev.preventDefault(); ev.currentTarget.classList.add('over'); }
 function dropLeave(ev) { ev.currentTarget.classList.remove('over'); }
 function dropFile(ev) { ev.preventDefault(); if (ev.currentTarget && ev.currentTarget.classList) ev.currentTarget.classList.remove('over'); var f = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0]; if (f) fileArrived(f); }
@@ -291,7 +292,7 @@ function addTake() {
   var p = ($('addPath') && $('addPath').value || '').trim(); if (!p) return flash('Where is the recording? Drop it above or paste its path.');
   if (!isServer()) return flash('Without the server, your agent adds it: the button below');
   var btn = document.querySelector('#addBox .btn.primary'); if (btn) { btn.disabled = true; btn.textContent = 'Reading the file…'; }
-  api('/api/video/add', { path: p, ws: Config.activeWs() }).then(function (r) { flash(r.existing ? 'Already a take: ' + r.title : r.wordsStarted ? 'Added: ' + r.title + '. Getting the words…' : 'Added: ' + r.title + '. Next: get the words.'); $('addPath').value = ''; $('addFound').textContent = ''; ctx.addOpen = false; return Sync.pullAll(false).then(function () { if (r.id && M.get(r.id)) { M.setActive(r.id); if (r.wordsStarted) checkJobs(M.active()); } paint(); }); })
+  api('/api/video/add', { path: p, ws: Config.activeWs(), script: ctx.pendingScript || '' }).then(function (r) { ctx.pendingScript = ''; flash(r.existing ? 'Already a take: ' + r.title : r.wordsStarted ? 'Added: ' + r.title + '. Getting the words…' : 'Added: ' + r.title + '. Next: get the words.'); $('addPath').value = ''; $('addFound').textContent = ''; ctx.addOpen = false; return Sync.pullAll(false).then(function () { if (r.id && M.get(r.id)) { M.setActive(r.id); if (r.wordsStarted) checkJobs(M.active()); } paint(); }); })
     .catch(function (e) { flash(e.message); if (btn) { btn.disabled = false; btn.textContent = 'Add this recording'; } });
 }
 function pointAgain() {
@@ -312,8 +313,10 @@ function importChosen(input) {
 }
 function saveKey() {
   var el = $('elevenKey'); var key = el ? el.value.trim() : ''; if (!key) return flash('Paste the key first');
-  api('/api/video/key', { service: 'elevenlabs', key: key }).then(function () { if (el) el.value = ''; ctx.showKey = false; flash('Key saved on this computer'); checkDoctor(true); }).catch(function (e) { flash(e.message); });
+  api('/api/video/key', { service: 'elevenlabs', key: key }).then(function () { if (el) el.value = ''; ctx.showKey = false; ctx.keyCard = false; flash('Key saved on this computer'); checkDoctor(true); }).catch(function (e) { flash(e.message); });
 }
+function showKeyCard() { ctx.keyCard = true; paint(); var el = $('elevenKey'); if (el) el.focus(); var c = $('keyCard'); if (c) c.scrollIntoView({ block: 'nearest' }); }
+function closeKeyCard() { ctx.keyCard = false; paint(); }
 function replaceKey() { ctx.showKey = !ctx.showKey; paint(); var el = $('elevenKey'); if (el) el.focus(); }
 function rememberAspect(el) { ctx.aspect = el.checked ? '9:16' : ''; Store.set('marathon.video.aspect', ctx.aspect, { silent: true }); }
 function startRender(preview) {
@@ -331,6 +334,7 @@ function makePost() {
 /* ---- init ---- */
 function init() {
   Config.applyDOM();
+  if (window.Story) { var wantedTake = Story.openParam('open'); if (wantedTake && M.get(wantedTake)) M.setActive(wantedTake); if (Story.openParam('add')) { ctx.addOpen = true; ctx.pendingScript = Story.openParam('script') || ''; } if (Story.clearQuery) Story.clearQuery(['open', 'add', 'script']); if (Story.onWrite) Story.onWrite(function () { paint(); }); }   // ?open=<take> and ?add=1&script=<id> come from the story line on another page
   Palette.init({ root: '../' });
   Palette.register([
     { label: 'Add a recording', hint: 'video', keywords: 'new take record', run: openAdd },

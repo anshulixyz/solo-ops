@@ -46,6 +46,7 @@
     if (/^(\$\s*)?(node\s+solo\.js|node\s+marathon\.js|solo|marathon)\s+/.test(line)) return true;
     if (/^(add|done|start|later|bucket|todo|move|pri|tag|step|check|note|rm|del|social|post|scripts|notes|inspo|config)\s/.test(line)) return true;
     if (/^video\s+(cut|render|transcribe|add|post|show|list|open|rm|source|key|title|rename|word|correct|proxy)\s/.test(line)) return true;   // "video editing is fun" is prose
+    if (/^(link|connect)\s+("[^"]+"|\S+)\s+("[^"]+"|\S+)(\s+--off)?\s*$/.test(line)) return true;   // link <id> <id> [--off]: one story ("link it with the script" is prose)
     if (/^(at|due)\s/.test(line)) { var toks = line.trim().replace(/\s--\w+(=\S+|\s+\S+)?/g, '').split(/\s+/); /* flags (--until 11:00) do not hide the date */ var last = (toks[toks.length - 1] || '').toLowerCase(); var prev = (toks[toks.length - 2] || '').toLowerCase(); var WD = global.When ? When.WEEKDAY : /^(mon|tue|wed|thu|fri|sat|sun)$/; return toks.length >= 3 && (last === 'clear' || /^\d{4}-\d{2}-\d{2}/.test(last) || /^\+\d+d$/.test(last) || /^(today|tomorrow|now)$/.test(last) || WD.test(last) || (/^\d{1,2}:\d{2}$/.test(last) && (/^\d{4}-\d{2}-\d{2}$/.test(prev) || /^\+\d+d$/.test(prev) || /^(today|tomorrow)$/.test(prev) || WD.test(prev)))); }
     return false;
   }
@@ -195,13 +196,19 @@
             var pw = When.parse(sw.when); if (cmd === 'at') { t.at = pw.stamp; var u8 = a.flags.until ? When.until(t.at, a.flags.until) : ''; if (u8) t.until = u8; else delete t.until; return 'at ' + t.at.replace('T', ' ') + (u8 ? '–' + When.timeOf(u8) : a.flags.until ? ' (end time ignored: before the start)' : '') + ': ' + t.title; }
             t.due = When.dayKey(pw.stamp); return 'due ' + t.due + ': ' + t.title;
           }); (/^no |tasks match/.test(r8) ? skipped : applied).push(r8);
+        } else if (cmd === 'link' || cmd === 'connect') {   // one story: the page writes its own field itself, anything else goes through the server; without it, the terminal
+          if (!global.Story || !Story.connect) skipped.push('link: paste it on the Drafts, Scripts, Video or Schedule page (they show the story), or run it in the terminal');
+          else if (dry) applied.push((a.flags.off ? 'disconnect ' : 'connect ') + (a.pos[0] || '') + ' and ' + (a.pos[1] || ''));
+          else { var lp = a.flags.off ? Story.disconnect(a.pos[0], a.pos[1]) : Story.connect(a.pos[0], a.pos[1]); lp.then(function () { if (global.flash) flash('Connected: ' + a.pos[0] + ' and ' + a.pos[1]); }).catch(function (e) { if (global.flash) flash('link: ' + (e && e.message || e)); }); applied.push('connecting ' + (a.pos[0] || '') + ' and ' + (a.pos[1] || '') + ' (the page shows it when done)'); }
         } else if (cmd === 'rm' || cmd === 'del') {
           skipped.push('not deleting "' + q + '" from a pasted reply — delete it yourself if you agree');
         } else if (cmd === 'social' || cmd === 'post') {
           var sub = (a.pos.shift() || '').toLowerCase(); var sq = a.pos.join(' ');
           if (sub === 'add') {
             var posts = c.sched(); var np = { id: uid('p'), datetime: parseWhen(a.flags.at), title: sq, postType: a.flags.type || 'update', format: a.flags.format || 'text', project: a.flags.project || a.flags.proj || Config.projectNames()[0], copy: a.flags.copy || '', video: { title: '', status: 'none', notes: '', link: '' }, links: [], assets: [], prep: String(a.flags.prep || '').split('|').map(function (s) { return s.trim(); }).filter(Boolean).map(function (s) { return { text: s, done: false, kind: 'content' }; }), notes: a.flags.notes || '', status: 'draft', posted: { url: '', postedAt: '', stats: {}, notes: '', screenshotId: '' } };
+            if (a.flags.draft) np.noteId = String(a.flags.draft); if (a.flags.script) np.scriptId = String(a.flags.script);   // the post remembers the draft or the script it came from
             posts.push(np); c.saveSched(posts); applied.push('scheduled post: ' + sq + ' · ' + np.datetime.replace('T', ' '));
+            if (a.flags.take && !dry && global.Story && Story.connect) Story.connect(String(a.flags.take), np.id).catch(function (e) { if (global.flash) flash('link: ' + (e && e.message || e)); });   // --take: the take's postId lives on the take, written through the server
           } else if (['posted', 'ready', 'draft'].indexOf(sub) >= 0) {
             var pp = c.findPost(sq); if (!pp) skipped.push('no post matches "' + sq + '"'); else { var ps = c.sched(); ps.forEach(function (x) { if (x.id === pp.id) { x.status = sub; if (sub === 'posted') { x.posted = x.posted || {}; x.posted.postedAt = x.posted.postedAt || localDT(new Date()); if (a.flags.url) x.posted.url = a.flags.url; } } }); c.saveSched(ps); applied.push(sub + ': ' + pp.title); }
           } else if (sub === 'copy') {
@@ -217,7 +224,7 @@
           var fence = a.flags.text ? null : bodyAfter(lines, i, inFence); var body = a.flags.text || (fence ? fence.text : '');
           if (cmd === 'scripts') {
             var k = Config.key('scripts', c.ws); var lib = Store.getJSON(k, { activeId: '', scripts: [] }) || { activeId: '', scripts: [] }; lib.scripts = lib.scripts || [];
-            var si = { id: uid('s'), title: title2 || 'Untitled', text: body || ('# ' + title2 + '\n\n## Hook\n\n## Script\n1. \n'), createdAt: Date.now(), updatedAt: Date.now() }; lib.scripts.unshift(si); lib.activeId = si.id; if (!dry) { Store.setJSON(k, lib); c.touched[Config.file('scripts', c.ws)] = 1; } applied.push('script added: ' + si.title + (body ? '' : ' (empty — no code block followed)'));
+            var si = { id: uid('s'), title: title2 || 'Untitled', text: body || ('# ' + title2 + '\n\n## Hook\n\n## Script\n1. \n'), createdAt: Date.now(), updatedAt: Date.now() , noteId: a.flags.draft ? String(a.flags.draft) : '' }; lib.scripts.unshift(si); lib.activeId = si.id; if (!dry) { Store.setJSON(k, lib); c.touched[Config.file('scripts', c.ws)] = 1; } applied.push('script added: ' + si.title + (body ? '' : ' (empty — no code block followed)'));
           } else {
             var k2 = Config.key('writing', c.ws); var nl = Store.getJSON(k2, { activeId: '', notes: [] }) || { activeId: '', notes: [] }; nl.notes = nl.notes || [];
             var ni = { id: uid('n'), text: body || ('# ' + title2 + '\n\n'), images: {}, createdAt: Date.now(), updatedAt: Date.now() }; nl.notes.unshift(ni); nl.activeId = ni.id; if (!dry) { Store.setJSON(k2, nl); c.touched[Config.file('writing', c.ws)] = 1; } applied.push('note added: ' + (title2 || 'untitled'));

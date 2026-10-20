@@ -244,6 +244,19 @@ function videoApi(req, res, url) {
       return json(res, 200, { name: name, found: hits });
     });
   }
+  if (url === '/api/story') {   // the pages' Connect… / Write the script / Make the post: the CLI does the write, so the log and the story rules are the same as from the terminal
+    if (req.method !== 'POST') return json(res, 405, { error: 'method' });
+    return readBody(req, res, 4096, function (err, b) {
+      if (err) return json(res, 400, { error: err.message });
+      if (wsFile(b.ws) === null) return json(res, 400, { error: 'bad workspace id' }); var ws = String(b.ws || '').toLowerCase(); var idOk = function (x) { return /^[A-Za-z0-9_-]{1,64}$/.test(String(x || '')); };
+      var args;
+      if (b.op === 'link' || b.op === 'unlink') { if (!idOk(b.a) || !idOk(b.b)) return json(res, 400, { error: 'which two?' }); args = ['link', String(b.a), String(b.b)].concat(b.op === 'unlink' ? ['--off'] : []); }
+      else if (b.op === 'script') { if (!idOk(b.from)) return json(res, 400, { error: 'which draft?' }); args = ['scripts', 'add', '--draft=' + String(b.from)]; }
+      else if (b.op === 'post') { var k = ['note', 'script', 'take'].indexOf(String(b.kind)) >= 0 ? String(b.kind) : ''; if (!k || !idOk(b.from)) return json(res, 400, { error: 'from what?' }); args = ['social', 'add', '--' + (k === 'note' ? 'draft' : k) + '=' + String(b.from)]; }
+      else return json(res, 400, { error: 'unknown story op' });
+      var r = soloRun(args.concat(soloArgs(ws)), 20000); return json(res, r.code === 0 ? 200 : 400, r.out);
+    });
+  }
   if (url === '/api/video/add' || url === '/api/video/transcribe' || url === '/api/video/render' || url === '/api/video/source' || url === '/api/video/post' || url === '/api/video/title' || url === '/api/video/word' || url === '/api/video/proxy') {
     if (req.method !== 'POST') return json(res, 405, { error: 'method' });
     return readBody(req, res, 25 * 1048576, function (err, b) {
@@ -254,7 +267,7 @@ function videoApi(req, res, url) {
         if (p.indexOf('~/') === 0) p = path.join(require('os').homedir(), p.slice(2));
         if (!path.isAbsolute(p)) return json(res, 400, { error: 'Give the whole path, from the top: /Users/you/Movies/take.mov (Mac) or C:\\Users\\you\\Videos\\take.mp4 (Windows). Finder: right-click the file, hold ⌥ (Option), "Copy … as Pathname".' });
         if (!fs.existsSync(p)) return json(res, 404, { error: 'No file at ' + p + '. Check the folder and the name (it has to match exactly, with the ending like .mov or .mp4).' });
-        var args = ['video', 'add'].concat(b.title ? ['--title=' + String(b.title).slice(0, 120)] : []).concat(['--file', p]).concat(soloArgs(ws));
+        var args = ['video', 'add'].concat(b.title ? ['--title=' + String(b.title).slice(0, 120)] : []).concat(['--file', p]).concat(b.script && /^[A-Za-z0-9_-]{1,64}$/.test(String(b.script)) ? ['--script=' + String(b.script)] : []).concat(soloArgs(ws));   // --script: the take remembers the script it was recorded from
         var r = soloRun(args, 30000); if (r.code === 0 && r.out && r.out.id && !r.out.existing) r.out.wordsStarted = autoWords(r.out.id); return json(res, r.code === 0 ? 200 : 400, r.out);
       }
       var t = findTake(b.id); if (!t) return json(res, 404, { error: 'no take with id ' + String(b.id || '').slice(0, 20) });
@@ -430,6 +443,7 @@ var server = http.createServer(function (req, res) {
   // video: the Studio page's buttons. ffmpeg work (transcribe, render) runs the CLI detached and the page polls;
   // exports stream with Range so <video> can seek. Every id is checked against videos.json before a path is built.
   if (url.indexOf('/api/video') === 0) return videoApi(req, res, url);
+  if (url === '/api/story') return videoApi(req, res, url);   // the story route lives with the video ones (same body reader, same CLI runner)
 
   var m = url.match(/^\/api\/data\/([^/]+)$/);
   if (m) {

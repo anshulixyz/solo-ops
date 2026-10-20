@@ -457,11 +457,14 @@
     bindFileInputs();
     registerSync();
     registerPalette();
+    if (global.Story && Story.onWrite) Story.onWrite(function () { render(); });   // a connection changed (here or in a sibling file): the story line follows
     var params = new URLSearchParams(location.search);
     var fromGraph = params.get('id');
     var posts = SocialModel.getSorted();
     selectedId = (fromGraph && SocialModel.getById(fromGraph)) ? fromGraph : (posts.length ? posts[0].id : null);
     render();
+    if (params.get('made') && selectedId === fromGraph) { var p0 = SocialModel.getById(fromGraph); flash('Post made: ' + (p0 && p0.datetime ? p0.datetime.replace('T', ' ') : 'tomorrow 09:00') + ', draft — add the copy below'); var det0 = document.getElementById('detail'); if (det0) det0.scrollIntoView({ block: 'start' }); }   // came from a script's or a draft's "Make the post"
+    if (global.Story && Story.clearQuery && (fromGraph || params.get('made'))) Story.clearQuery(['id', 'made']);
     var note = document.getElementById('storeNote');
     if (note) {
       note.textContent = (Store.ok ? (SocialModel.isFresh() ? 'This is the sample posting arc — edit it or add your own.' : 'Auto-saves to browser') : 'Storage limited — use Save file')

@@ -29,9 +29,9 @@
     } },
     this: { label: 'This item', hint: 'what is open on this page', get: function () {
       var pg = page(); var w = ws();
-      if (pg === 'scripts' && typeof library !== 'undefined' && library.scripts) { var s = library.scripts.filter(function (x) { return x.id === library.activeId; })[0]; return s ? '# Script: ' + s.title + '\n\n' + s.text : '(no script open)'; }
-      if (pg === 'writing' && typeof library !== 'undefined' && library.notes) { var n = library.notes.filter(function (x) { return x.id === library.activeId; })[0]; return n ? '# Draft (markup: ~~cut~~ ++add++ [[note for you]])\n\n' + n.text + (Object.keys(n.files || {}).length ? '\n\nimage files: ' + Object.keys(n.files).map(function (k) { return n.files[k]; }).join(', ') : '') : '(no note open)'; }
-      if (pg === 'social') { var ti = document.querySelector('.detail-title'); var posts = Store.getJSON(Config.key('social', w.id), []) || []; var p = ti ? posts.filter(function (x) { return x.title === ti.value; })[0] : null; return p ? '# Post\n' + post(p) : '(no post selected)'; }
+      if (pg === 'scripts' && typeof library !== 'undefined' && library.scripts) { var s = library.scripts.filter(function (x) { return x.id === library.activeId; })[0]; return s ? '# Script: ' + s.title + storyTok('script', s.id) + '\n\n' + s.text : '(no script open)'; }
+      if (pg === 'writing' && typeof library !== 'undefined' && library.notes) { var n = library.notes.filter(function (x) { return x.id === library.activeId; })[0]; return n ? '# Draft (markup: ~~cut~~ ++add++ [[note for you]])' + storyTok('note', n.id) + '\n\n' + n.text + (Object.keys(n.files || {}).length ? '\n\nimage files: ' + Object.keys(n.files).map(function (k) { return n.files[k]; }).join(', ') : '') : '(no note open)'; }
+      if (pg === 'social') { var ti = document.querySelector('.detail-title'); var posts = Store.getJSON(Config.key('social', w.id), []) || []; var p = ti ? posts.filter(function (x) { return x.title === ti.value; })[0] : null; return p ? '# Post' + storyTok('post', p.id) + '\n' + post(p) : '(no post selected)'; }
       if (pg === 'board') { var evs = global.Recent ? Recent.load().slice().reverse().filter(function (e) { return e.kind === 'task' && global.Model && e.key === Model.KEY; }) : []; var t = evs.length ? Model.getState().filter(function (x) { return x.id === evs[0].id; })[0] : null; if (!t) t = Model.getState().filter(function (x) { return x.col === 'doing'; })[0]; return t ? '# Task\n' + task(t, Model.board().title) : C.board.get(); }
       if (pg === 'inspo') return C.inspiration.get();
       if (pg === 'video') return C.take.get();
@@ -89,6 +89,7 @@
       var v = vids.filter(function (x) { return x.id === d.activeId; })[0] || vids.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); })[0];   // the open take on the Video page, else the latest
       var src = (v.sources || [])[0] || {}; var tr = v.transcript || null; var ex = (v.exports || []).filter(function (e) { return e.kind === 'final'; }).slice(-1)[0];
       var L = ['# Take [' + v.id + '] ' + v.title + ' · ' + (v.status || 'recorded') + (src.duration ? ' · ' + tfmt(src.duration) : '') + (src.fps ? ' · ' + src.fps + ' fps' : '') + (src.width ? ' · ' + src.width + '×' + src.height : '') + (tr && tr.words ? ' · ' + tr.words + ' words' : '') + (v.scriptId ? ' · script: ' + v.scriptId : '') + (v.postId ? ' · post: ' + v.postId : ''), ''];
+      var slT = storyTok('take', v.id); if (slT) L.push(slT.trim());
       if (tr && (v.phrases || []).length) {
         // what tidy up would take, so the agent sees it without running anything: fillers counted in the phrases, pauses between phrases over video.pause, a phrase said twice within 20 s
         var fillers = ['um', 'uh', 'uhm', 'umm', 'erm', 'hmm', 'you know', 'i mean']; var fc = {}; var ftot = 0; var pauseMin = Number(Config.get('video.pause')) > 0.1 ? Number(Config.get('video.pause')) : 0.7;
@@ -113,6 +114,7 @@
   function tfmt(sec) { var s = Math.max(0, Number(sec) || 0); var m = Math.floor(s / 60), r = s - m * 60; var rs = r.toFixed(1); if (rs === '60.0') { rs = '0.0'; m++; } var h = Math.floor(m / 60); m -= h * 60; if (rs.length < 4) rs = '0' + rs; return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + rs; }
   function ttag(sec) { var s = Math.max(0, Number(sec) || 0); return s < 100 ? ('00' + s.toFixed(2)).slice(-6) : s.toFixed(2); }
   // videos.json reaches every other page read-only (the file always wins, the page never writes it back); the Video page registers it itself, writable
+  function storyTok(kind, id) { var l = global.Story && Story.line ? Story.line(kind, id) : ''; return l ? '\nStory: ' + l : ''; }   // the chain this item belongs to (core/story.js), so the agent sees the draft, the script, the takes and the posts together
   function registerTakes() {
     if (!global.Sync) return; var w = ws(); var key = Config.key('videos', w.id); var file = Config.file('videos', w.id);
     if ((Sync.specs || []).some(function (s) { return s.file === file; })) return;   // the Video page registered it itself (writable) at script evaluation

@@ -64,6 +64,7 @@
     });
   });
   function scheduleWrite(spec) {
+    if (spec.readOnly) return;   // a sibling file mirrored on this page (takes on every page, the story's four): the file always wins, the page never writes it back
     if (mode !== 'server' && mode !== 'folder') return;
     clearTimeout(timers[spec.file]);
     timers[spec.file] = setTimeout(function () { writeOne(spec); }, 400);

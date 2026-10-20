@@ -66,7 +66,8 @@
   }
   function addBox(ctx, open) {
     var hint = mac() ? 'Mac: in Finder, right-click the file, hold ⌥ Option, “Copy … as Pathname”, paste here.' : 'Windows: Shift + right-click the file → “Copy as path”, paste here.';
-    return '<div class="vcard v-add" id="addBox"' + (open ? '' : ' style="display:none"') + '><h3>Add a recording</h3>' +
+    var forScript = ''; if (ctx.pendingScript && window.Story) { var sd = Story.load(); var sc = sd.script.filter(function (x) { return x.id === ctx.pendingScript; })[0]; forScript = '<p class="muted v-for" style="margin:-4px 0 8px">For ' + esc(sc ? Story.describe('script', sc) : 'the script you came from') + ' · <button type="button" class="guide-link" onclick="forgetScript()">not this one</button></p>'; }   // came from a script's "Add the take"
+    return '<div class="vcard v-add" id="addBox"' + (open ? '' : ' style="display:none"') + '><h3>Add a recording</h3>' + forScript +
       '<div class="v-drop" id="dropZone" ondragover="dropOver(event)" ondragleave="dropLeave(event)" ondrop="dropFile(event)">' + (ctx.server ? 'Drop the recording anywhere on this page (or paste it): the page finds it in Movies (Videos on Windows), Desktop, Downloads and Documents.' : 'Drop the recording here once the server is running (the card above): the page then finds it by its name. A browser never tells a page where a file lives, so without the server only the name arrives.') + '</div>' +
       '<input type="text" id="addPath" autocomplete="off" placeholder="…or the whole path to the file, e.g. ' + (mac() ? '~/Movies/take-3.mov' : 'C:\\Users\\you\\Videos\\take-3.mp4') + '" onkeydown="if(event.key===\'Enter\')addTake()">' +
       '<div class="v-found" id="addFound"></div>' +
@@ -81,17 +82,24 @@
     var btn = next.action === 'preview' ? '<button type="button" class="btn primary" onclick="startRender(true)">Render a preview</button>' : next.action === 'final' ? '<button type="button" class="btn primary" onclick="startRender(false)">Render the final</button>' : next.action === 'post' ? '<button type="button" class="btn primary" onclick="makePost()">Make the post</button>' : next.action === 'post-open' ? '<a class="btn" href="../social/social-board.html?ws=' + attr(encodeURIComponent(Config.activeWs())) + '">Open the schedule</a>' : '';
     if (!ctx.server && /^(preview|final|post)$/.test(next.action)) btn = '';
     var title = ctx.renaming ? '<input type="text" id="titleInput" class="v-title-input" value="' + attr(v.title) + '" maxlength="120" autocomplete="off" onkeydown="titleKey(event)" onblur="saveTitle()">' : '<span class="v-title" title="Click to rename" onclick="startRename()">' + esc(v.title) + '</span>';
-    return '<div class="v-head"><h2>' + title + ' <span class="v-chip ' + attr(st) + '">' + esc(M.statusLabel(st)) + '</span></h2>' +
+    var story = window.Story && Story.html ? Story.html('take', v.id, { takePost: next.action === 'post' ? '' : '<span class="muted">the post comes after the final</span>' }) : '';   // draft → script → this take → post; "Make the post" is the button above
+    return '<div class="v-head"><h2>' + title + ' <span class="v-chip ' + attr(st) + '">' + esc(M.statusLabel(st)) + '</span></h2>' + story +
       '<div class="v-meta">' + (s.duration ? '<span>' + esc(fmt(s.duration)) + '</span>' : '') + (s.width ? '<span>' + esc(s.width + '×' + s.height) + '</span>' : '') + (s.fps ? '<span>' + esc(s.fps + ' fps') + '</span>' : '') + (s.size ? '<span>' + esc(M.size(s.size)) + '</span>' : '') + (s.hdr ? '<span>HDR</span>' : '') + (v.transcript && v.transcript.words ? '<span>' + esc(Number(v.transcript.words)) + ' words</span>' : '') + '</div>' +
       (s.path ? '<div class="v-file" title="' + attr(s.path) + '">' + esc(s.path) + '</div>' : '') +
       (moved ? '<div class="vcard warn" style="margin:12px 0 0"><p><b>The recording is not where it was.</b> Point at it again:</p><input type="text" id="movedPath" autocomplete="off" placeholder="the whole path to the file now" onkeydown="if(event.key===\'Enter\')pointAgain()"><div class="v-row" style="margin-top:8px"><button type="button" class="btn primary" onclick="pointAgain()">Use this file</button></div></div>' : '') +
       (next.text ? '<div class="v-next"><span>' + esc(next.text) + '</span>' + btn + '</div>' : '') + '</div>';
   }
+  function keyCard(ctx) {   // More → ElevenLabs key…: replace or add the key from any take
+    var doc = ctx.doctor || {};
+    return '<div class="vcard" id="keyCard"><h3>ElevenLabs key</h3><p>' + (doc.elevenlabsKey ? 'A key is saved on this computer. Pasting a new one replaces it; it is never shown again.' : 'No key saved yet. Three steps: a free account at elevenlabs.io · Profile → API keys → Create · paste the key here once.') + '</p>' +
+      (ctx.server ? keyField() : '<p class="muted">Needs <code>node serve.js</code> running; or in the terminal: <code>node solo.js video key set elevenlabs --stdin</code> (it asks for the key, nothing is echoed).</p>') +
+      '<div class="v-row" style="margin-top:8px"><button type="button" class="btn ghost" onclick="closeKeyCard()">Close</button></div></div>';
+  }
   function keyField() {
     return '<div class="v-key"><label for="elevenKey">ElevenLabs API key</label><div class="v-row"><input type="password" id="elevenKey" autocomplete="new-password" autocapitalize="off" spellcheck="false" placeholder="paste it here" onkeydown="if(event.key===\'Enter\')saveKey()"><button type="button" class="btn" onclick="saveKey()">Save the key</button></div>' +
       '<p class="muted" style="font-size:12px;margin:6px 0 0">Kept on this computer only, in data/secrets.json. Never in the backup, never shown again, never sent anywhere but ElevenLabs.</p></div>';
   }
-  var ELEVEN_SENTENCE = 'Help me sign up to ElevenLabs (elevenlabs.io, it has a free tier) and get an API key: Profile → API keys → Create. Walk me through it, then tell me to paste the key into the key field on my Video page in Solo Ops. Never ask me to paste the key in this chat.';
+  var ELEVEN_SENTENCE = 'Help me set up ElevenLabs for the words of my videos: sign up at elevenlabs.io (free tier), then Profile → API keys → Create. Walk me through it step by step, then tell me to paste the key into the key field on my Video page in Solo Ops (More → ElevenLabs key…). Never ask me to paste the key in this chat.';
   function engineCard(v, ctx) {
     var s = M.src(v); var doc = ctx.doctor || {}; var est = (s.duration || 0) / 3600 * 0.40; var price = est < 0.005 ? 'less than $0.01' : 'about $' + est.toFixed(2);
     if (ctx.job && ctx.job.transcribe && !ctx.job.transcribe.finished) {
@@ -100,19 +108,19 @@
     }
     var failed = ctx.job && ctx.job.transcribe && ctx.job.transcribe.finished && ctx.job.transcribe.code !== 0 && v.status === 'recorded';
     if (s.hasAudio === false) return '<div class="vcard"><h3>No audio track</h3><p>Nothing to transcribe. You can still trim it from the terminal:</p>' + cmd('node solo.js video cut ' + v.id + ' --keep "0-' + fmt(s.duration) + '"') + '</div>';
-    var one = '<div class="v-choice"><span class="n">1</span><div class="body"><b>On this computer</b>Free · nothing leaves your ' + (mac() ? 'Mac' : 'computer') + ' · about a minute per 10 minutes.' +
-      (doc.whisper === false ? ' <span class="muted">Needs one install first.</span><div class="v-row" style="margin-top:6px"><button type="button" class="btn small" onclick="copyText(' + attr(JSON.stringify(SETUP_SENTENCE)) + ', \'Copied — paste it into Claude Code or Cursor\')">Ask my agent to install it</button></div>' : doc.model === false ? ' <span class="muted">First time: downloads a 490 MB model once.</span>' : '') +
+    var one = '<div class="v-choice"><span class="n">2</span><div class="body"><b>On this computer</b>Free · nothing leaves your ' + (mac() ? 'Mac' : 'computer') + ' · about a minute per 10 minutes. It uses Whisper, OpenAI\'s open speech-to-text model, running here: the first time it downloads the model once (490 MB, the English "small" one), after that it works offline.' +
+      (doc.whisper === false ? ' <span class="muted">Needs one install first.</span><div class="v-row" style="margin-top:6px"><button type="button" class="btn small" onclick="copyText(' + attr(JSON.stringify(SETUP_SENTENCE)) + ', \'Copied — paste it into Claude Code or Cursor\')">Ask my agent to install it</button></div>' : doc.model === false ? ' <span class="muted">Not downloaded yet: it happens on the first run.</span>' : '') +
       (ctx.server && doc.whisper === true ? '<label class="v-always"><input type="checkbox" onchange="setEngine(this.checked ? \'whisper\' : \'\')"' + (ctx.engine === 'whisper' ? ' checked' : '') + '> Get the words this way for every new take, without asking</label>' : '') + '</div>' +
       (ctx.server ? '<button type="button" class="btn primary" onclick="transcribe(\'whisper\')"' + (doc.whisper === false ? ' disabled title="Install whisper.cpp first"' : '') + '>Get the words here</button>' : '') + '</div>';
-    var two = '<div class="v-choice"><span class="n">2</span><div class="body"><b>ElevenLabs</b>The audio is sent to them, the video stays here · ' + esc(price) + ' for this take · the words come back and are kept only in <code>' + esc('data/videos/' + v.id + '/') + '</code>.' +
-      (ctx.server && doc.elevenlabsKey === false ? '<p class="muted" style="margin:6px 0 4px">Needs your key first.</p>' + keyField() + '<div class="v-row" style="margin-top:8px"><button type="button" class="btn small" onclick="copyText(' + attr(JSON.stringify(ELEVEN_SENTENCE)) + ', \'Copied — paste it into Claude Code or Cursor\')">Ask my agent to set it up</button></div>' : ctx.server && doc.elevenlabsKey ? ' <span class="muted">Key saved · <button type="button" class="guide-link" onclick="replaceKey()">Replace</button></span>' + (ctx.showKey ? keyField() : '') : '') +
+    var two = '<div class="v-choice"><span class="n">1</span><div class="body"><b>ElevenLabs</b>The most accurate words, in about a minute · ' + esc(price) + ' for this take (a free account covers a few hours a month) · only the audio is sent, the video stays here · the words come back and are kept only in <code>' + esc('data/videos/' + v.id + '/') + '</code>.' +
+      (ctx.server && doc.elevenlabsKey === false ? '<ol class="v-steps"><li>Create a free account at <a href="https://elevenlabs.io" target="_blank" rel="noopener">elevenlabs.io</a>.</li><li>In your profile, open <strong>API keys</strong> and press <strong>Create</strong>; copy the key it shows.</li><li>Paste it here once. It stays on this computer.</li></ol>' + keyField() + '<div class="v-row" style="margin-top:8px"><button type="button" class="btn small" onclick="copyText(' + attr(JSON.stringify(ELEVEN_SENTENCE)) + ', \'Copied — paste it into Claude Code or Cursor\')">Ask my agent to set it up</button></div>' : ctx.server && doc.elevenlabsKey ? ' <span class="muted">Key saved · <button type="button" class="guide-link" onclick="replaceKey()">Replace</button></span>' + (ctx.showKey ? keyField() : '') : '') +
       (ctx.server && doc.elevenlabsKey ? '<label class="v-always"><input type="checkbox" onchange="setEngine(this.checked ? \'elevenlabs\' : \'\')"' + (ctx.engine === 'elevenlabs' ? ' checked' : '') + '> Send every new take to ElevenLabs without asking · about $0.40 per hour of audio from your ElevenLabs credits · a take over ' + esc(String(M.autoMaxMin())) + ' minutes waits for you · untick to stop</label>' : '') + '</div>' +
       (ctx.server ? '<button type="button" class="btn" onclick="transcribe(\'elevenlabs\')"' + (doc.elevenlabsKey === false ? ' disabled title="Save the key first"' : '') + '>Send the audio</button>' : '') + '</div>';
-    var three = '<div class="v-choice"><span class="n">3</span><div class="body"><b>I already have a transcript</b>An SRT, VTT or JSON from YouTube, Descript or another tool (Descript: File → Export → Subtitles). Cuts then land on whole captions, not words, and fillers cannot be removed; to cut single words, pick 1.</div>' +
+    var three = '<div class="v-choice"><span class="n">3</span><div class="body"><b>I already have a transcript</b>An SRT, VTT or JSON from YouTube, Descript or another tool (Descript: File → Export → Subtitles). Cuts then land on whole captions, not words, and fillers cannot be removed; to cut single words, pick 1 or 2.</div>' +
       (ctx.server ? '<button type="button" class="btn" onclick="document.getElementById(\'importFile\').click()">Choose the file</button>' : '') + '</div>';
     return '<div class="vcard"><h3>Which way do you want the words?</h3>' + (failed ? '<div class="vcard warn" style="margin:8px 0"><p><b>It did not finish.</b> ' + esc(ctx.job.transcribe.tail || 'No reason was given.') + '</p></div>' : '') +
-      '<div class="v-choices">' + one + two + three + '</div>' +
-      (ctx.server ? '' : '<div class="v-term">Without the server, pick one and run its line (the card at the top says how):' + cmd(M.terminal(v, 'whisper')) + cmd(M.terminal(v, 'elevenlabs')) + cmd(M.terminal(v, 'import')) + '</div>') + '</div>';
+      '<div class="v-choices">' + two + one + three + '</div>' +
+      (ctx.server ? '' : '<div class="v-term">Without the server, pick one and run its line (the card at the top says how):' + cmd(M.terminal(v, 'elevenlabs')) + cmd(M.terminal(v, 'whisper')) + cmd(M.terminal(v, 'import')) + '</div>') + '</div>';
   }
   function strip(v, ctx) {
     var n = (v.edl || []).length; var rt = M.runtime(v); var total = M.dur(v); var tc = ctx.tidy || { fillers: 0, pauses: 0, retakes: 0, allRetakes: [] };
@@ -222,6 +230,7 @@
   function main(v, ctx) {
     var out = '';
     if (ctx.server && ctx.oldServer) out += '<div class="vcard warn"><h3>The server that is running is older than this page</h3><p>It was started before Video existed, so its buttons answer "not found". In the terminal where <code>node serve.js</code> runs, press Ctrl-C and run it again; then reload this page.</p></div>';
+    if (ctx.keyCard) out += keyCard(ctx);
     if (ctx.server && ctx.doctor && ctx.doctor.ffmpeg === false) out += ffmpegCard(ctx.doctor);
     if (!ctx.server && ctx.ready) out += noServerCard(ctx.chat);
     if (!v) return out + empty(ctx);

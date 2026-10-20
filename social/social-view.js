@@ -213,6 +213,7 @@
       + '</div>'
       + metaStripHTML(p)
       + '</div>'
+      + (global.Story && Story.html ? Story.html('post', p.id) : '')
 
       + postedSectionHTML(p)
 

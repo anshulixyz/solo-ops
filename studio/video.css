@@ -129,6 +129,9 @@ details.v-details pre { white-space: pre-wrap; font-family: var(--mono); font-si
 .v-choice .body { flex: 1; font-size: 13px; line-height: 1.5; }
 .v-choice .body b { display: block; font-size: 14px; }
 .v-choice .btn { flex: none; margin-top: 2px; }
+.v-steps { margin: 8px 0 4px; padding-left: 18px; font-size: 12.5px; color: var(--ink); }
+.v-steps li { margin: 2px 0; }
+.v-steps a { color: var(--accent); }
 
 /* add a take */
 .v-add { margin-top: 10px; }
