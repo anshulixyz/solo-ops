@@ -25,6 +25,11 @@
     return projectMatch && tagMatch;
   }
   function filteredTasks() { return Model.getState().filter(taskMatchesFilters); }
+  var wantedTask = '';   // ?id=<task> that was not in the browser copy yet
+  global.taskNext = function (id, kind) { if (!global.Story) return; Story.makeFor(id, kind).then(function (nid) { if (nid) Story.openPiece(kind, nid); }).catch(function (e) { flash(e.message); }); };
+  var attachId = null;
+  global.toggleAttach = function (id) { attachId = attachId === id ? null : id; View.setAttachOpen(attachId); var t = Model.getState().find(function (x) { return x.id === id; }); if (attachId && t && t.collapsed) Model.update(id, { collapsed: false }); render(); if (attachId) setTimeout(function () { var f = document.querySelector('.card[data-id="' + id + '"] .attach-form'); if (f) f.scrollIntoView({ block: 'nearest' }); }, 50); };
+  global.attachPicked = function (id, form) { var pid = form && form.piece && form.piece.value; if (!pid || !global.Story) return false; Story.connect(id, pid).then(function (p) { attachId = null; View.setAttachOpen(null); render(); var what = 'attached ' + Story.describe(p.down.kind, p.down.item); flash('Attached ' + Story.describe(p.down.kind, p.down.item)); if (global.Sync && Sync.note) Sync.note(Config.boardFile(Model.BOARD), what); }).catch(function (e) { flash(e.message); }); return false; };
   function render() {
     View.render(view, filteredTasks(), selectedProjects, selectedTags, notesOpen, whenOpen);
     if (window.DatePick) DatePick.mount(document.getElementById('boardView') || document);
@@ -416,6 +421,7 @@
         if (Array.isArray(body.tasks)) Model.replaceAll(body.tasks, { silent: true });
         if (Array.isArray(body.projects)) Model.setCustomProjects(body.projects, { silent: true });
         renderProjectSelect(); renderTagDatalist(); render();
+        if (wantedTask) { var wt = Model.getState().find(function (x) { return x.id === wantedTask; }); if (wt) { wantedTask = ''; if (wt.collapsed) { Model.update(wt.id, { collapsed: false }); render(); } setTimeout(function () { var el = document.querySelector('.card[data-id="' + wt.id + '"]'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('flash'); setTimeout(function () { el.classList.remove('flash'); }, 2200); } }, 150); } }   // the deep link, once the file is here
       }
     });
     Sync.on(function (evt, d) {
@@ -532,7 +538,8 @@
     registerSync();
     registerPalette();
     // ?id=<task>: expand, scroll to it and flash it (the Calendar links here)
-    (function () { var id = new URLSearchParams(location.search).get('id'); if (!id) return; var t = Model.getState().find(function (x) { return x.id === id; }); if (!t) return; if (t.collapsed) { Model.update(id, { collapsed: false }); render(); }
+    if (global.Story && Story.onWrite) Story.onWrite(function () { render(); });   // a connection changed, here or in a sibling file
+    (function () { var id = new URLSearchParams(location.search).get('id'); if (!id) return; var t = Model.getState().find(function (x) { return x.id === id; }); if (!t) { wantedTask = id; return; } if (t.collapsed) { Model.update(id, { collapsed: false }); render(); }
       setTimeout(function () { var el = document.querySelector('.card[data-id="' + id + '"]'); if (!el) return; el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('flash'); setTimeout(function () { el.classList.remove('flash'); }, 2200); }, 150); })();
     if (location.hash === '#new' || !Config.boards().length) { toggleBoardPanel(); history.replaceState(null, '', location.pathname + location.search); }
     setBaseNote(Store.ok

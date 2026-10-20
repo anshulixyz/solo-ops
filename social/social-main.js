@@ -4,7 +4,7 @@
 (function (global) {
   'use strict';
 
-  var selectedId = null; var wantedPost = ''; var wantedMade = false;
+  var selectedId = null; var wantedPost = '';
 
   function render() {
     SocialView.render(selectedId);
@@ -354,7 +354,7 @@
       }
     });
     Sync.on(function (evt, d) {
-      if (evt === 'applied' && d.file === Config.file('social')) { flash('Schedule updated from data/' + d.file + '.'); if (wantedPost && SocialModel.getById(wantedPost)) { selectedId = wantedPost; wantedPost = ''; render(); if (wantedMade) { wantedMade = false; flash('Post made: ' + ((SocialModel.getById(selectedId) || {}).datetime || 'tomorrow 09:00').replace('T', ' ') + ', draft — add the copy below'); var det1 = document.getElementById('detail'); if (det1) det1.scrollIntoView({ block: 'start' }); } } }
+      if (evt === 'applied' && d.file === Config.file('social')) { flash('Schedule updated from data/' + d.file + '.'); if (wantedPost && SocialModel.getById(wantedPost)) { selectedId = wantedPost; wantedPost = ''; render(); } }
       if (evt === 'linked') flash('Folder linked — the schedule now writes data/' + Config.file('social') + ' directly.');
     });
   }
@@ -462,10 +462,9 @@
     var fromGraph = params.get('id');
     var posts = SocialModel.getSorted();
     selectedId = (fromGraph && SocialModel.getById(fromGraph)) ? fromGraph : (posts.length ? posts[0].id : null);
-    if (fromGraph && !SocialModel.getById(fromGraph)) { wantedPost = fromGraph; wantedMade = !!params.get('made'); }   // not in the browser copy yet: after the first pull
+    if (fromGraph && !SocialModel.getById(fromGraph)) wantedPost = fromGraph;   // not in the browser copy yet: after the first pull
     render();
-    if (params.get('made') && selectedId === fromGraph) { var p0 = SocialModel.getById(fromGraph); flash('Post made: ' + (p0 && p0.datetime ? p0.datetime.replace('T', ' ') : 'tomorrow 09:00') + ', draft — add the copy below'); var det0 = document.getElementById('detail'); if (det0) det0.scrollIntoView({ block: 'start' }); }   // came from a script's or a draft's "Make the post"
-    if (global.Story && Story.clearQuery && (fromGraph || params.get('made'))) Story.clearQuery(['id', 'made']);
+    if (global.Story && Story.clearQuery && fromGraph) Story.clearQuery(['id']);
     var note = document.getElementById('storeNote');
     if (note) {
       note.textContent = (Store.ok ? (SocialModel.isFresh() ? 'This is the sample posting arc — edit it or add your own.' : 'Auto-saves to browser') : 'Storage limited — use Save file')

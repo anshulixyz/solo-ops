@@ -317,6 +317,11 @@ function cmdAdd() {
     checklist: String(flags.steps || '').split('|').map(function (s) { return s.trim(); }).filter(Boolean).map(function (s) { return { text: s, done: false }; })
   };
   applyDates(t, flags);
+  (function () {   // add "Title" --draft n1 | --script s1 | --take v1 | --post p1: the task is born with its piece attached, and the tag that goes with it
+    var sdA = null; [['draft', 'note', 'noteId', 'writing'], ['script', 'script', 'scriptId', 'script'], ['take', 'take', 'takeId', 'video'], ['post', 'post', 'postId', '']].forEach(function (r) {
+      if (!flags[r[0]]) return; sdA = sdA || storyData(); var it = (sdA[r[1]] || []).filter(function (x) { return x.id === String(flags[r[0]]); })[0]; if (!it) fail('No ' + (r[1] === 'note' ? 'draft' : r[1]) + ' has the id ' + flags[r[0]]);
+      t[r[2]] = it.id; if (r[3] && t.tags.indexOf(r[3]) < 0) t.tags.push(r[3]); });
+  })();
   // --ext: the id a connected calendar gave this item. Same ext on the board → update it, never a duplicate (safe re-import).
   var same = t.ext ? b.tasks.filter(function (x) { return x.ext === t.ext; })[0] : null;
   if (same) {
@@ -385,6 +390,7 @@ function cmdEdit() {
   if (flags.col && COLS.indexOf(flags.col) >= 0) t.col = flags.col;
   if (flags.tags !== undefined) t.tags = split(flags.tags);
   applyDates(t, flags);
+  ['noteId', 'scriptId', 'takeId', 'postId'].forEach(function (k) { if (flags[k] !== undefined) t[k] = String(flags[k] === true ? '' : flags[k]); });   // edit t1 --takeId v1 (or --takeId "" to detach); `link` is the friendlier way
   saveBoard(b); out('✓ Updated [' + t.id + '] ' + t.title + whenText(t), t);
 }
 
@@ -512,7 +518,10 @@ function cmdSocial() {
   if (sub === 'show') { var p = find(s.posts, pos.join(' '), 'post'); var md = ['# ' + p.title, '', '- id: ' + p.id, '- when: ' + fmtDT(p.datetime), '- type: ' + p.postType + ' · ' + p.format + ' · ' + p.project, '- status: ' + p.status].concat(storyLine('post', p.id) ? ['- story: ' + storyLine('post', p.id)] : []).concat(['', '## Copy', '', p.copy || '_empty_', '']); if (p.prep && p.prep.length) { md.push('## Prep'); p.prep.forEach(function (x, i) { md.push('- [' + (x.done ? 'x' : ' ') + '] ' + (i + 1) + '. ' + x.text + ' (' + x.kind + ')'); }); md.push(''); } if (p.notes) md.push('## Notes', '', p.notes); return out(md, p); }
   if (sub === 'add') {
     var fromK = flags.draft ? 'note' : flags.script ? 'script' : flags.take ? 'take' : ''; var fromFlag = flags.draft || flags.script || flags.take; var fromIt = null; var pf = null;   // social add --draft n1 | --script s1 | --take v1: the post comes from that item and the story holds
+    var forTaskP = flags.task ? findTaskAny(flags.task) : null;   // --task t1: the post is made for that task (its script or take when it has one, else its title and description)
+    if (forTaskP && !fromK) { var tp = forTaskP.task; if (tp.takeId) { fromK = 'take'; fromFlag = tp.takeId; } else if (tp.scriptId) { fromK = 'script'; fromFlag = tp.scriptId; } else if (tp.noteId) { fromK = 'note'; fromFlag = tp.noteId; } }
     if (fromK) { var sd = storyData(); fromIt = (sd[fromK] || []).filter(function (x) { return x.id === fromFlag; })[0]; if (!fromIt) fail('No ' + (fromK === 'note' ? 'draft' : fromK) + ' has the id ' + fromFlag); if (ST) pf = ST.postFrom(fromK, fromIt); }
+    else if (forTaskP && ST) pf = ST.postFrom('task', forTaskP.task);
     var title = pos.join(' ').trim() || flags.title || (pf && pf.title); if (!title) fail('Usage: social add "Title" [--at 2026-10-20T09:00 | +3d 17:30] [--type launch] [--project X] [--format text|video|text+video] [--copy "..."] [--prep "a|b"] [--draft n1 | --script s1 | --take v1]');
     var types = (cfg.social && cfg.social.postTypes) || ['announcement', 'launch', 'update', 'thread', 'teaser'];
     var np = { id: newId('p'), datetime: flags.at ? parseWhen(flags.at) : pf ? pf.datetime : parseWhen(flags.at), title: title, postType: types.indexOf(flags.type) >= 0 ? flags.type : (types.indexOf('update') >= 0 ? 'update' : types[0] || 'update'), format: ['text', 'video', 'text+video'].indexOf(flags.format) >= 0 ? flags.format : (pf ? pf.format : 'text'),
@@ -522,7 +531,8 @@ function cmdSocial() {
     if (pf) { if (pf.noteId) np.noteId = pf.noteId; if (pf.scriptId) np.scriptId = pf.scriptId; }
     s.posts.push(np); write(fileName('social'), s);
     if (fromK === 'take') { flags.note = 'link: connected take ' + fromIt.id + ' to post ' + np.id + (flags.note ? ' · ' + flags.note : ''); patchVideo(fromIt, function (f) { f.postId = np.id; f.linkedAt = Date.now(); }); }
-    return out('✓ Scheduled [' + np.id + '] ' + np.title + ' · ' + fmtDT(np.datetime) + (fromK ? '\n  Story: ' + storyLine('post', np.id) : '') + (flags.type && types.indexOf(flags.type) < 0 ? '\n  · type "' + flags.type + '" is not in your post types (' + types.join(', ') + '), so it is "' + np.postType + '". Add it: node solo.js config add social.postTypes ' + flags.type : ''), np);
+    if (forTaskP) attachToTask(forTaskP.task.id, 'postId', np.id, '', 'for task ' + forTaskP.task.id);
+    return out('✓ Scheduled [' + np.id + '] ' + np.title + ' · ' + fmtDT(np.datetime) + (forTaskP ? '\n  For task: ' + forTaskP.task.title + ' [' + forTaskP.task.id + ']' : '') + (fromK ? '\n  Story: ' + storyLine('post', np.id) : '') + (flags.type && types.indexOf(flags.type) < 0 ? '\n  · type "' + flags.type + '" is not in your post types (' + types.join(', ') + '), so it is "' + np.postType + '". Add it: node solo.js config add social.postTypes ' + flags.type : ''), np);
   }
   if (sub === 'posted' || sub === 'ready' || sub === 'draft') {
     var pp = find(s.posts, pos.join(' '), 'post'); pp.status = sub;
@@ -547,10 +557,14 @@ function libCmd(name, key, label, mk) {
     if (sub === 'show') { var it = find(items, pos.join(' '), label); var sl = storyLine(name === 'scripts' ? 'script' : 'note', it.id); return out(it.text + (sl ? '\n\n_Story: ' + sl + '_' : ''), it); }
     if (sub === 'add') {
       var title = pos.join(' ').trim() || flags.title; var text = flags.file ? fs.readFileSync(path.resolve(flags.file), 'utf8') : (flags.text || (title ? '# ' + title + '\n\n' : ''));
-      var srcN = null; if (name === 'scripts' && flags.draft) { srcN = notes().notes.filter(function (n) { return n.id === flags.draft; })[0]; if (!srcN) fail('No draft has the id ' + flags.draft + ' (node solo.js notes list)'); if (!flags.file && !flags.text && ST) { text = ST.scriptFrom('note', srcN).text; if (title) text = text.replace(/^#\s+.+/m, '# ' + title); } }   // --title only renames; the draft's text still comes along   // scripts add --draft n1: the draft's clean text becomes the script, and the script remembers the draft
+      var srcN = null; if (name === 'scripts' && flags.draft) { srcN = notes().notes.filter(function (n) { return n.id === flags.draft; })[0]; if (!srcN) fail('No draft has the id ' + flags.draft + ' (node solo.js notes list)'); if (!flags.file && !flags.text && ST) { text = ST.scriptFrom('note', srcN).text; if (title) text = text.replace(/^#\s+.+/m, '# ' + title); } }   // --title only renames; the draft's text still comes along
+      var forTask = flags.task ? findTaskAny(flags.task) : null;   // --task t1: the piece is made for that task (its title and description when nothing else is given) and the card shows it
+      if (forTask && !srcN && !flags.file && !flags.text && !title && ST) { if (name === 'scripts') { var tdraft = forTask.task.noteId ? notes().notes.filter(function (n) { return n.id === forTask.task.noteId; })[0] : null; if (tdraft) { srcN = tdraft; text = ST.scriptFrom('note', tdraft).text; } else text = ST.scriptFrom('task', forTask.task).text; } else text = ST.noteFrom(forTask.task).text; }   // scripts add --draft n1: the draft's clean text becomes the script, and the script remembers the draft
       if (!text.trim()) fail('Usage: ' + name + ' add "Title"   or   ' + name + ' add --file draft.md' + (name === 'scripts' ? '   or   scripts add --draft <draft id>' : ''));
       var item = mk(text); if (srcN) item.noteId = srcN.id;
-      list.unshift(item); d.activeId = item.id; write(fileName(name), d); return out('✓ Added [' + item.id + '] ' + (item.title || titleOf(item.text)) + (item.noteId ? '\n  Story: ' + storyLine('script', item.id) : ''), item);
+      list.unshift(item); d.activeId = item.id; write(fileName(name), d);
+      if (forTask) attachToTask(forTask.task.id, name === 'scripts' ? 'scriptId' : 'noteId', item.id, name === 'scripts' ? 'script' : 'writing', 'for task ' + forTask.task.id);
+      return out('✓ Added [' + item.id + '] ' + (item.title || titleOf(item.text)) + (forTask ? '\n  For task: ' + forTask.task.title + ' [' + forTask.task.id + ']' : '') + (item.noteId ? '\n  Story: ' + storyLine(name === 'scripts' ? 'script' : 'note', item.id) : ''), item);
     }
     if (sub === 'rm') { var r = find(items, pos.join(' '), label); d[key] = list.filter(function (x) { return x.id !== r.id; }); if (d.activeId === r.id) d.activeId = d[key][0] ? d[key][0].id : ''; write(fileName(name), d); return out('✓ Deleted [' + r.id + '] ' + r.title, r); }
     fail('Unknown ' + name + ' command "' + sub + '". Try: list, show, add, rm');
@@ -623,7 +637,9 @@ function cmdVideo() {
     if (dup && !flags.again) return out('✓ Already a take: [' + dup.id + '] ' + dup.title + ' (the same recording; --again adds it once more)', Object.assign({ existing: true }, dup));
     var scriptId = ''; if (flags.script) { var sc = find(scripts().scripts.map(function (x) { return { id: x.id, title: x.title || titleOf(x.text) }; }), String(flags.script), 'script'); scriptId = sc.id; }
     var v = { id: newId('v'), title: title, scriptId: scriptId, postId: '', status: 'recorded', sources: [{ id: 'a', path: abs, size: pr.size, duration: pr.duration, width: pr.width, height: pr.height, fps: pr.fps, rotation: pr.rotation, hdr: pr.hdr, hasAudio: pr.hasAudio, vcodec: pr.vcodec || '', acodec: pr.acodec || '', hash: h0 }], transcript: null, phrases: [], edl: [], edlHash: '', captions: { style: VC.captions.style || 'sentence', burn: !!VC.captions.burn }, exports: [], notes: flags.notes || '', createdAt: Date.now(), updatedAt: Date.now() };
-    note('video add ' + v.id + ' ' + title); d.videos.unshift(v); if (!flags['no-open']) d.activeId = v.id; write(fileName('videos'), d);   // --no-open: the watcher adds without switching the open take
+    var forTaskV = flags.task ? findTaskAny(flags.task) : null; if (forTaskV && !scriptId && forTaskV.task.scriptId) { v.scriptId = forTaskV.task.scriptId; scriptId = v.scriptId; }   // --task t1: the take belongs to that task (and to its script when it has one)
+    note('video add ' + v.id + ' ' + title); d.videos.unshift(v); if (!flags['no-open']) d.activeId = v.id; write(fileName('videos'), d);
+    if (forTaskV) attachToTask(forTaskV.task.id, 'takeId', v.id, 'video', 'for task ' + forTaskV.task.id);   // --no-open: the watcher adds without switching the open take
     return out(['✓ Added take [' + v.id + '] ' + v.title + (pos.length || flags.title ? '' : '   (title from the file name; rename with --title)'), '  ' + abs, '  ' + V.fmt(pr.duration) + ' · ' + pr.width + '×' + pr.height + ' · ' + pr.fps + ' fps · ' + fmtSize(pr.size) + (pr.hdr ? ' · HDR' : '') + (pr.rotation ? ' · rotated ' + pr.rotation + '°' : '') + (pr.hasAudio ? '' : ' · no audio track (no words to transcribe; --keep trims still work)'), '  The file stays where it is; nothing was copied.', '  Next: ' + videoNext(v)], v);
   }
   if (!read(fileName('videos')) && sub !== 'recordings' && sub !== 'watch') fail('No takes yet. Add one: node solo.js video add --file ./take.mov   (or save a recording in the folder: node solo.js video recordings)');
@@ -842,6 +858,7 @@ function cmdVideo() {
     var s2 = schedule(); var types = (cfg.social && cfg.social.postTypes) || ['announcement', 'launch', 'update', 'thread', 'teaser']; var link = require('url').pathToFileURL(absData(exF.file)).href;
     var np = { id: newId('p'), datetime: parseWhen(flags.at), title: flags.title || vp.title, postType: types.indexOf(flags.type) >= 0 ? flags.type : (types.indexOf('update') >= 0 ? 'update' : types[0] || 'update'), format: 'video', scriptId: vp.scriptId || '', project: flags.project || flags.proj || ((cfg.projects || [])[0] || {}).name || 'general', copy: flags.copy || '', video: { title: vp.title, status: 'edited', notes: 'cut from take ' + vp.id + (vp.scriptId ? ', script ' + vp.scriptId : ''), link: link }, links: [{ id: newId('l'), label: 'the cut (' + V.fmt(exF.duration) + ')', url: link, kind: 'video' }], assets: [], prep: [{ text: 'Watch the cut full-screen, sound off and on', done: false, kind: 'video' }, { text: 'Write the copy', done: !!flags.copy, kind: 'content' }], notes: '', status: 'draft', posted: { url: '', postedAt: '', stats: {}, notes: '', screenshotId: '' } };
     note('video post ' + vp.id + ' → ' + np.id); s2.posts.push(np); write(fileName('social'), s2); patchVideo(vp, function (f) { f.postId = np.id; });
+    if (flags.task) attachToTask(flags.task, 'postId', np.id, '', 'for task ' + flags.task);   // --task t1: the card's Post pill fills (it would anyway through the take, but the task knows the post directly)
     return out(['✓ Post [' + np.id + '] ' + np.title + ' · ' + fmtDT(np.datetime) + ' · video linked (not copied): ' + exF.file, '  Copy: node solo.js social copy ' + np.id + ' "…" · mark posted: node solo.js social posted ' + np.id + ' --url … (the take then reads posted)'], { post: np, video: vp.id });
   }
   fail('Unknown video command "' + sub + '". Try: list, add, show, transcribe, cut, word, render, proxy, open, post, title, source, recordings, watch, rm, key');
@@ -1415,8 +1432,9 @@ function cmdHelp() {
     '  video title <v> "New title"   video proxy <v> (a 720p copy for the page\'s player)   video key set elevenlabs --stdin',
     '  video recordings [--init|--add|--forget <path>]   video watch [--transcribe [engine]]   the folder any recorder saves into; what lands there becomes a take (serve.js watches it too)',
     '  video render <v> [--preview] [--burn] [--aspect 9:16] [--style sentence|bold] [--out file]   one encode, captions as a track + .srt (burned with libass)', '  video post <v> [--at <when>] [--type update] [--copy "…"]   a post dated then, in draft, with the cut linked, never copied', '',
-    'Story (a draft, a script, its takes and the posts as one chain; never across workspaces)', '  link <a> <b> [--off]   connect two of them by id or title (draft↔script, draft↔post, script↔take, script↔post, take↔post)   story <id>   print the chain',
-    '  scripts add --draft n1   social add --draft n1 | --script s1 | --take v1   video add --script s1   the new item remembers where it came from; the pages show the same line and a Connect… picker', '',
+    'A task carries its pieces (a draft, a script, a take, a post; the card shows them as pills with one next step; never across workspaces)', '  link <task> <piece> [--off]   connect a task with a draft, script, take or post by id or title (also piece↔piece)   story <id>   print what belongs together',
+    '  notes add --task t1   scripts add --task t1 [--draft n1]   social add --task t1   video add "Title" --file … --task t1   the piece is made for that task and the card shows it',
+    '  add "Title" --tags video --script s1 | --draft n1 | --take v1 | --post p1   a task born with its piece; tags writing · script · video make a task a suggestion in that view', '',
     'Safety', '  backup setup [--name solo-ops-data] [--no-github]   first time: a PRIVATE GitHub repo via gh, or it tells you the two other ways', '  backup [--remote <private url>] [--to <folder>] [--status]   push data/ to its private repo and/or copy it to a syncing folder; refuses public repos', '  backup --daily [--hour 21] [--dry-run]   run it every evening (launchd / crontab / a schtasks line)', '  guard [--install] [--allow-data]   fail when staged files hold your content; --install = on every commit; --allow-data = your own PRIVATE fork only', '  doctor | health            check every data file, attachments and backup age', '',
     'Setup', '  template [all|board|social|scripts|writing|settings] [--board id] [--force]', '  theme [show|list|set <palette>|mode <auto|light|dark>|font <inter|system|lato|editorial>]', '  config                     the settings in use (solo.config.js + your settings)', '  config set <setting> <value>  your values, kept in data/settings.json: owner "Mara" · name "Pocket Studio" · social.postTypes reel,carousel · boards.runway.title "…"', '  config add <list> a b      add to a list (config unset <setting> · config set --file x.json · config clear)', '  serve [--port 4321]        start the local server (pages write data/ directly)', '',
     'Add --json to any command for machine-readable output. Ids: tasks t…, posts p…, scripts s…, notes n….',
@@ -1698,11 +1716,22 @@ function inboxList(me) {
    `link a b` writes the one pointer the pair needs (script.noteId, take.scriptId, take.postId,
    post.noteId / post.scriptId); `story <id>` prints the chain. Never across workspaces. */
 var ST = safeRequire(path.join(ROOT, 'core', 'story.js'));
-function storyData() { return { note: notes().notes, script: scripts().scripts, take: videos().videos, post: schedule().posts }; }
+function storyData() { var tasks = []; BOARDS.forEach(function (b) { board(b.id).tasks.forEach(function (t) { tasks.push(Object.assign({ _board: b.id }, t)); }); }); return { task: tasks, note: notes().notes, script: scripts().scripts, take: videos().videos, post: schedule().posts }; }
+function findTaskAny(q) {   // a task on any board of the workspace, by id or a unique title; → { task, boardId }
+  q = String(q || '').trim(); if (!q) fail('Which task? Give an id or part of the title.'); var hits = [];
+  BOARDS.forEach(function (b) { board(b.id).tasks.forEach(function (t) { if (t.id === q) hits.unshift({ task: t, boardId: b.id, exact: true }); else if ((t.title || '').toLowerCase().indexOf(q.toLowerCase()) >= 0) hits.push({ task: t, boardId: b.id }); }); });
+  if (hits[0] && hits[0].exact) return hits[0]; if (hits.length === 1) return hits[0]; if (!hits.length) fail('No task matches "' + q + '" on any board'); fail('Several tasks match "' + q + '": ' + hits.slice(0, 6).map(function (h) { return h.task.title + ' [' + h.task.id + ']'; }).join(' · ') + '. Give the id.');
+}
+function attachToTask(taskQ, field, pieceId, tagToAdd, what) {   // the task's pointer and, when asked, its tag; written through its board file so the log and the sync see it
+  var h = findTaskAny(taskQ); var bd = board(h.boardId); var t = bd.tasks.filter(function (x) { return x.id === h.task.id; })[0]; if (!t) fail('The task vanished while writing');
+  if (t[field] && t[field] !== pieceId && !JSON_OUT) out('Note: ' + t.title + ' already had a ' + field.replace(/Id$/, '') + ' (' + t[field] + '); now it is this one.');
+  t[field] = pieceId; if (tagToAdd) { t.tags = Array.isArray(t.tags) ? t.tags : []; if (t.tags.indexOf(tagToAdd) < 0) t.tags.push(tagToAdd); }
+  flags.note = (what || 'link: connected task ' + t.id + ' to ' + field.replace(/Id$/, '') + ' ' + pieceId) + (flags.note ? ' · ' + flags.note : ''); saveBoard(bd, h.boardId); return t;
+}
 function storyLine(kind, id) { if (!ST) return ''; var ms = ST.of(storyData(), kind, id); return ST.connected(ms) ? ST.text(ms) : ''; }
 function cmdLink() {
   if (!ST) fail('core/story.js is missing'); function note(t) { flags.note = flags.note ? t + ' · ' + flags.note : t; }
-  var a = pos[0], b = pos[1]; if (!a || !b) fail('Usage: link <id or title> <id or title> [--off]   a draft, a script, a take and a post become one story (node solo.js story <id> shows it)');
+  var a = pos[0], b = pos[1]; if (!a || !b) fail('Usage: link <task or piece> <piece> [--off]   a task and its draft, script, take or post (or two pieces) become one story; node solo.js story <id> shows it');
   var p; try { p = ST.pair(storyData(), a, b); } catch (e) { fail(e.message); }
   var off = !!flags.off; var val = off ? '' : p.target.item.id;
   if (!off && (p.target.missing || p.holder.missing)) fail('One of those was deleted; it cannot be connected. (--off forgets it.)');
@@ -1712,14 +1741,15 @@ function cmdLink() {
   if (wasId && !JSON_OUT) out('Note: ' + ST.describe(p.holder.kind, p.holder.item) + ' was connected to ' + (was ? ST.describe(was.kind, was.item) : wasId) + '; now it is this one.');
   var what = (off ? 'disconnected ' : 'connected ') + ST.WORD[p.holder.kind].toLowerCase() + ' ' + p.holder.item.id + (off ? ' from ' : ' to ') + ST.WORD[p.target.kind].toLowerCase() + ' ' + p.target.item.id;
   note('link: ' + what);
-  if (p.holder.kind === 'take') patchVideo(p.holder.item, function (f) { f[p.field] = val; f.linkedAt = Date.now(); });
+  if (p.holder.kind === 'task') { var bdL = board(p.holder.item._board); var tL = bdL.tasks.filter(function (x) { return x.id === p.holder.item.id; })[0]; if (!tL) fail('The task vanished while writing'); tL[p.field] = val; if (!off) { var tagL = { note: 'writing', script: 'script', take: 'video' }[p.target.kind]; if (tagL) { tL.tags = Array.isArray(tL.tags) ? tL.tags : []; if (tL.tags.indexOf(tagL) < 0) tL.tags.push(tagL); } } saveBoard(bdL, p.holder.item._board); }
+  else if (p.holder.kind === 'take') patchVideo(p.holder.item, function (f) { f[p.field] = val; f.linkedAt = Date.now(); });
   else { var app = ST.APP[p.holder.kind]; var d = app === 'scripts' ? scripts() : app === 'writing' ? notes() : schedule(); var arr = app === 'social' ? d.posts : app === 'scripts' ? d.scripts : d.notes; var it = arr.filter(function (x) { return x.id === p.holder.item.id; })[0]; it[p.field] = val; it.updatedAt = Date.now(); write(fileName(app), d); }
   return out('✓ ' + (off ? 'Disconnected' : 'Connected') + ': ' + ST.describe(p.up.kind, p.up.item) + ' → ' + ST.describe(p.down.kind, p.down.item) + (off ? '' : '\n  Story: ' + storyLine(p.holder.kind, p.holder.item.id)), { up: p.up.item.id, down: p.down.item.id, field: p.field, on: p.holder.item.id, off: off, changed: true, was: wasId });
 }
 function cmdStory() {
   if (!ST) fail('core/story.js is missing');
   var q = pos.join(' ').trim(); if (!q) fail('Usage: story <id or title>   prints the draft, script, takes and posts that belong together');
-  var d = storyData(); var hit; try { hit = ST.lookup(d, q); } catch (e) { fail(e.message); } if (!hit) fail('No draft, script, take or post here matches "' + q + '"');
+  var d = storyData(); var hit; try { hit = ST.lookup(d, q); } catch (e) { fail(e.message); } if (!hit) fail('No task, draft, script, take or post here matches "' + q + '"');
   var ms = ST.of(d, hit.kind, hit.item.id); var g = ST.byKind(ms); var dup = ST.dupTitles(ms.filter(function (m) { return !m.missing; }), function (m) { return m.kind; });
   var md = ['# Story of ' + ST.describe(hit.kind, hit.item), ''];
   ST.KINDS.forEach(function (k) { if (!g[k].length) { md.push('- ' + ST.WORD[k] + ': —'); return; } g[k].forEach(function (m) { md.push('- ' + (m.missing ? ST.WORD[k] + ': missing [' + m.id + '] (deleted; node solo.js link <other> ' + m.id + ' --off forgets it)' : ST.describe(k, m.item) + (dup(k, m.item) && ST.tag(m.item) ? ' · ' + ST.tag(m.item) : '') + ' [' + m.id + ']')); }); });

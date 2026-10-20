@@ -136,7 +136,7 @@ node solo.js start "Write the launch post" ; done t5 ; move t11 later ; check t5
 node solo.js social add "Launch day" --at +3d 9:00 --type launch ; social next ; social posted p4 --url …
 node solo.js scripts add "Teaser" --file teaser.md ; notes list
 node solo.js video add "Take 3" --file ~/Movies/take-3.mov --script <script> ; video transcribe <take> ; video cut <take> --tidy ; video word <take> "on shoe lee" "Anshuli" ; video render <take> --preview
-node solo.js link <draft> <script> ; story <script>   # one story: draft → script → takes → posts; the pages show the same line
+node solo.js link <task> <script> ; story <task> ; scripts add --task <task>   # a task carries its pieces; the card and the views show the same
 node solo.js inspo add "https://… worth stealing #launch"
 node solo.js inspo use "worth stealing" --as task
 node solo.js boards add "Business as usual" --from sample
@@ -200,20 +200,24 @@ still cuts (clicking saves the cut) and shows the terminal line for the rest.
 Renders live in `data/videos/<take>/` and never enter the backup; the words
 and the `.srt` do.
 
-## One story
+## A task carries its pieces
 
-A draft, its script, the takes and the posts belong together, and every
-page shows it on one line: `Draft: Why we killed onboarding → Script: Why we
-killed onboarding → Take: Take 2 · cut 0:23 → Post: Launch · Fri 09:00 ·
-scheduled`. Each piece is a link to its page.
-On a draft, **Start the script** makes the script from the clean text; on a
-script, **Add the take** opens Video with the recording box and **Make the
-post** puts a draft post on the schedule for tomorrow 09:00; a take's
-**Make the post** links the final. **Connect…** attaches something that
-already exists; × on a piece disconnects it (nothing is deleted). Your
-agent does the same with `node solo.js link <a> <b>` and sees the line in
-`story <id>`, in `show`, and in the Guide's `{{this}}` / `{{take}}`. Nothing
-new to back up: the pieces keep each other's ids.
+The board card is the one unit. Tag a task `writing`, `script` or `video`
+and it carries its pieces: four pills, **Draft · Script · Take · Post**,
+filled when the piece exists and each a link, plus one button for the next
+step, **Start the script**, **Add the take**, **Make the post** (a writing
+task starts with **Write the draft**). The piece is made for that task and
+attached to it; nothing is connected by hand. **attach**, next to notes,
+takes something that already exists. The task moves across the columns as
+it always has.
+
+In the Writing, Script and Video views the open item shows **Task: …** with
+its pills, or **Connect with a task…** (pick a task, or make a new one from
+the item). Tasks tagged for a view show at the top of its list as
+suggestions, with the same verbs. Your agent does the same with
+`node solo.js link <task> <piece>`, `story <task>` and `--task` on the add
+commands, and sees the task in the Guide's `{{this}}`. Nothing new to back
+up: the task keeps the ids.
 
 ## Your AI runs it
 

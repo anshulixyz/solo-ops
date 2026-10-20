@@ -213,7 +213,7 @@
       + '</div>'
       + metaStripHTML(p)
       + '</div>'
-      + (global.Story && Story.html ? Story.html('post', p.id) : '')
+      + (global.Story && Story.taskLine ? '<div class="detail-story" style="margin:8px 0 12px">' + Story.taskLine('post', p.id) + '</div>' : '')
 
       + postedSectionHTML(p)
 

@@ -114,7 +114,7 @@
   function tfmt(sec) { var s = Math.max(0, Number(sec) || 0); var m = Math.floor(s / 60), r = s - m * 60; var rs = r.toFixed(1); if (rs === '60.0') { rs = '0.0'; m++; } var h = Math.floor(m / 60); m -= h * 60; if (rs.length < 4) rs = '0' + rs; return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + rs; }
   function ttag(sec) { var s = Math.max(0, Number(sec) || 0); return s < 100 ? ('00' + s.toFixed(2)).slice(-6) : s.toFixed(2); }
   // videos.json reaches every other page read-only (the file always wins, the page never writes it back); the Video page registers it itself, writable
-  function storyTok(kind, id) { var l = global.Story && Story.line ? Story.line(kind, id) : ''; return l ? '\nStory: ' + l : ''; }   // the chain this item belongs to (core/story.js), so the agent sees the draft, the script, the takes and the posts together
+  function storyTok(kind, id) { if (!global.Story || !Story.taskText) return ''; var t = Story.taskText(kind, id); var l = Story.line ? Story.line(kind, id) : ''; return '\n' + (t === 'no task yet' ? 'Task: none yet (node solo.js link <task> ' + id + ' connects one)' : t) + (l ? '\nStory: ' + l : ''); }   // the task this item belongs to and what else hangs together (core/story.js)
   function registerTakes() {
     if (!global.Sync) return; var w = ws(); var key = Config.key('videos', w.id); var file = Config.file('videos', w.id);
     if ((Sync.specs || []).some(function (s) { return s.file === file; })) return;   // the Video page registered it itself (writable) at script evaluation

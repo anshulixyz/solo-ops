@@ -28,8 +28,9 @@
 
   /* ---- the left list ---- */
   function list(takes, activeId) {
-    if (!takes.length) return '<div class="muted" style="padding:14px 10px;font-size:12.5px">No takes yet. Record one, or add a recording: the file stays where it is.</div>';
-    return takes.map(function (v) {
+    var sugg = window.Story && Story.suggestionsHtml ? Story.suggestionsHtml('take') : '';
+    if (!takes.length) return sugg + '<div class="muted" style="padding:14px 10px;font-size:12.5px">No takes yet. Record one, or add a recording: the file stays where it is.</div>';
+    return sugg + takes.map(function (v) {
       var s = M.src(v); var st = M.statusOf(v); var n = (v.edl || []).length;
       return '<button type="button" class="note-item' + (v.id === activeId ? ' active' : '') + '" data-id="' + attr(v.id) + '" onclick="selectTake(this.dataset.id)">' +
         '<span class="note-item-title">' + esc(v.title) + '</span>' +
@@ -66,7 +67,7 @@
   }
   function addBox(ctx, open) {
     var hint = mac() ? 'Mac: in Finder, right-click the file, hold ⌥ Option, “Copy … as Pathname”, paste here.' : 'Windows: Shift + right-click the file → “Copy as path”, paste here.';
-    var forScript = ''; if (ctx.pendingScript && window.Story) { var sd = Story.load(); var sc = sd.script.filter(function (x) { return x.id === ctx.pendingScript; })[0]; forScript = '<p class="muted v-for" style="margin:-4px 0 8px">For ' + esc(sc ? Story.describe('script', sc) : 'the script you came from') + ' · <button type="button" class="guide-link" onclick="forgetScript()">not this one</button></p>'; }   // came from a script's "Add the take"
+    var forScript = ''; if (ctx.pendingTask && window.Story) { var sd = Story.load(); var tk = sd.task.filter(function (x) { return x.id === ctx.pendingTask; })[0]; forScript = '<p class="muted v-for" style="margin:-4px 0 8px">For ' + esc(tk ? Story.describe('task', tk) : 'the task you came from') + ' · <button type="button" class="guide-link" onclick="forgetTask()">not this one</button></p>'; }   // came from a card's or a suggestion's "Add the take"
     return '<div class="vcard v-add" id="addBox"' + (open ? '' : ' style="display:none"') + '><h3>Add a recording</h3>' + forScript +
       '<div class="v-drop" id="dropZone" ondragover="dropOver(event)" ondragleave="dropLeave(event)" ondrop="dropFile(event)">' + (ctx.server ? 'Drop the recording anywhere on this page (or paste it): the page finds it in Movies (Videos on Windows), Desktop, Downloads and Documents.' : 'Drop the recording here once the server is running (the card above): the page then finds it by its name. A browser never tells a page where a file lives, so without the server only the name arrives.') + '</div>' +
       '<input type="text" id="addPath" autocomplete="off" placeholder="…or the whole path to the file, e.g. ' + (mac() ? '~/Movies/take-3.mov' : 'C:\\Users\\you\\Videos\\take-3.mp4') + '" onkeydown="if(event.key===\'Enter\')addTake()">' +
@@ -82,7 +83,7 @@
     var btn = next.action === 'preview' ? '<button type="button" class="btn primary" onclick="startRender(true)">Render a preview</button>' : next.action === 'final' ? '<button type="button" class="btn primary" onclick="startRender(false)">Render the final</button>' : next.action === 'post' ? '<button type="button" class="btn primary" onclick="makePost()">Make the post</button>' : next.action === 'post-open' ? '<a class="btn" href="../social/social-board.html?ws=' + attr(encodeURIComponent(Config.activeWs())) + '">Open the schedule</a>' : '';
     if (!ctx.server && /^(preview|final|post)$/.test(next.action)) btn = '';
     var title = ctx.renaming ? '<input type="text" id="titleInput" class="v-title-input" value="' + attr(v.title) + '" maxlength="120" autocomplete="off" onkeydown="titleKey(event)" onblur="saveTitle()">' : '<span class="v-title" title="Click to rename" onclick="startRename()">' + esc(v.title) + '</span>';
-    var story = window.Story && Story.html ? Story.html('take', v.id, { takePost: next.action === 'post' ? '' : /^(cut|rendered)$/.test(v.status) ? '<span class="muted">the post comes after the final</span>' : '' }) : '';   // draft → script → this take → post; "Make the post" is the button above
+    var story = window.Story && Story.taskLine ? '<div class="v-story">' + Story.taskLine('take', v.id) + '</div>' : '';   // "Task: …" with its pills, or "Connect with a task…"
     return '<div class="v-head"><h2>' + title + ' <span class="v-chip ' + attr(st) + '">' + esc(M.statusLabel(st)) + '</span></h2>' + story +
       '<div class="v-meta">' + (s.duration ? '<span>' + esc(fmt(s.duration)) + '</span>' : '') + (s.width ? '<span>' + esc(s.width + '×' + s.height) + '</span>' : '') + (s.fps ? '<span>' + esc(s.fps + ' fps') + '</span>' : '') + (s.size ? '<span>' + esc(M.size(s.size)) + '</span>' : '') + (s.hdr ? '<span>HDR</span>' : '') + (v.transcript && v.transcript.words ? '<span>' + esc(Number(v.transcript.words)) + ' words</span>' : '') + '</div>' +
       (s.path ? '<div class="v-file" title="' + attr(s.path) + '">' + esc(s.path) + '</div>' : '') +
@@ -159,9 +160,8 @@
   }
   // beside and under the player: what plays, the time, Watch / Back to the take, Hide
   function playerSide(v, ctx) {
-    var p = ctx.player || {}; var srcLabel = p.src === 'take' ? 'The take, with your cuts skipped · click the picture or press Space' : 'Watching ' + esc(p.label || 'a render');
-    var playBtn = p.cannotPlay || !ctx.server ? '' : '<button type="button" class="btn small primary v-play" onclick="togglePlay()" title="Space">' + (p.playing ? '❚❚ Pause' : '▶ Play') + '</button>';
-    return '<div class="v-pwhat">' + srcLabel + '</div><div class="v-ptime">' + playBtn + '<span class="v-tm"><b id="ptime">' + esc(fmt(p.time || 0)) + '</b> <span class="muted">of ' + esc(fmt(p.src === 'take' ? M.dur(v) : (p.duration || 0))) + '</span></span></div>' +
+    var p = ctx.player || {}; var srcLabel = p.src === 'take' ? 'The take, with your cuts skipped' : 'Watching ' + esc(p.label || 'a render');
+    return '<div class="v-pwhat">' + srcLabel + '</div><div class="v-ptime"><span class="v-tm"><b id="ptime">' + esc(fmt(p.time || 0)) + '</b> <span class="muted">of ' + esc(fmt(p.src === 'take' ? M.dur(v) : (p.duration || 0))) + '</span></span></div>' +
       '<div class="v-row">' + (p.src !== 'take' ? '<button type="button" class="btn small" onclick="watchTake()">Back to the take</button>' : '') + '<label class="v-ck" title="The captions, as the final will carry them"><input type="checkbox" onchange="toggleCaptions()"' + (ctx.captions ? ' checked' : '') + '> Captions</label><button type="button" class="btn small ghost" onclick="togglePlayerSize()">' + (ctx.playerBig ? 'Smaller' : 'Bigger') + '</button><button type="button" class="btn small ghost" onclick="togglePlayer()">' + (ctx.playerHidden ? 'Show the video' : 'Hide the video') + '</button></div>';
   }
   function playerCap(v, ctx) {

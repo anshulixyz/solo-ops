@@ -110,8 +110,9 @@ remote keeps the block.
    node solo.js video word <v> "what it says" "what it should say" [--all] | --undo   # a misheard word: the text changes, the audio and the cut do not (never transcribe again for a typo); <n>[-<m>] word numbers work too
    node solo.js video proxy <v>   # a 720p copy for the page's player when the browser cannot play the original (iPhone HEVC); never posted
    node solo.js video recordings [--init|--add] ; video watch   # the folder any recorder saves into; what lands there becomes a take (serve.js watches it too)
-   node solo.js link <a> <b> [--off] ; story <id>   # one story: a draft, its script, the takes and the posts (ids or a unique title); never across workspaces
-   node solo.js scripts add --draft <n> ; social add --draft <n> | --script <s> | --take <v> ; video add --script <s>   # the new item remembers where it came from, so the story holds
+   node solo.js link <task> <piece> [--off] ; story <task>   # a task carries its draft, script, take and post (ids or a unique title); also piece↔piece; never across workspaces
+   node solo.js notes add --task <t> ; scripts add --task <t> [--draft <n>] ; social add --task <t> ; video add "Title" --file … --task <t>   # the piece is made for that task and the card shows it
+   node solo.js add "Title" --tags video --script <s> | --draft <n> | --take <v> | --post <p>   # a task born with its piece; the tags writing · script · video make a task a suggestion in that view
    node solo.js import list.md           # bulk: "- [ ] item" lines → tasks
    node solo.js inspo list ; inspo add "https://… #tag" --ws <id> ; inspo use <item> --as task|post|script|note
    node solo.js inspo ai --into tasks    # the inbox as a brainstorm prompt
@@ -209,18 +210,24 @@ remote keeps the block.
   *Remove fillers and pauses* and `--retakes` would take. A pasted reply's
   `video cut <take> --keep "…"` / `--drop "…"` lands on the page too (never a
   render).
-- **One story.** A script keeps the draft it came from (`noteId`), a take its
-  script (`scriptId`) and its post (`postId`), a post its draft or script
-  (`noteId` / `scriptId`). `core/story.js` walks those both ways; the four
-  pages show the chain on one line with *Connect…*, *Write the script*,
-  *Add the take*, *Make the post*; `link a b` / `story <id>` are the same
-  from the terminal and from a pasted reply. When you make a script from a
-  draft, a take from a script or a post from any of them, pass `--draft` /
-  `--script` / `--take` (or `link` afterwards) so the story holds. A deleted
-  member shows as *missing* and is never removed for the user; `link … --off`
-  forgets it. A page writes only its own file; every other connection runs
-  through the server (`POST /api/story` → the CLI), so the log and `revert`
-  cover it. The line never crosses a workspace.
+- **A task carries its pieces.** A task on any board may hold `noteId`,
+  `scriptId`, `takeId`, `postId` (a draft, a script, a take, a post); the
+  pieces keep their own ids too (`script.noteId`, `take.scriptId`,
+  `take.postId`, `post.noteId` / `post.scriptId`). Only a task tagged
+  `writing`, `script` or `video`, or one holding a piece, shows them on its
+  card: four pills, one next step (*Write the draft* / *Start the script* /
+  *Add the take* / *Make the post*, following the tag and what exists; a
+  draft is never forced) and *attach* for one that exists. The Writing,
+  Script, Video and Social views show *Task: <title>* with the pills, or
+  *Connect with a task…*; tasks tagged for a view are its suggestions at the
+  top of its list. Rules for you: a piece made for a task carries `--task`
+  (a `--task` without the tag adds the tag); a task that ends in a draft, a
+  script or a video gets that tag when you plan; `link <task> <piece>` and
+  `story <task>` are the same from the terminal and from a pasted reply.
+  A deleted piece shows as *missing* and is never removed for the user;
+  `link … --off` forgets it. A page writes only its own file; every other
+  connection runs through the server (`POST /api/story` → the CLI), so the
+  log and `revert` cover it. Never across workspaces.
 - **Inspiration flow:** the user drops links/ideas/images into the inbox (often
   by pasting into you first). Items arrive with auto tags (kind, site) and,
   when the server was running, the page's title and description in `meta`.

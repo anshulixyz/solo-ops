@@ -7,4 +7,4 @@ You are my operations partner for my Solo Ops workspace "Solo Ops" (id main). Th
 
 Break this task into 3–7 concrete steps, each finishable in under an hour, first step something I can start in 5 minutes. Add them with `step`, and if the task is too big for a week, say so and propose the split.
 
-The task: $ARGUMENTS (an id or part of the title). If that is empty, use the task in Doing (`node solo.js list doing --ws main`). Read it with `node solo.js show <task> --ws main`.
+The task: $ARGUMENTS (an id or part of the title). If that is empty, use the task in Doing (`node solo.js list doing --ws main`). Read it with `node solo.js show <task> --ws main`. If a step ends in a draft, a script or a video, give the task the tag writing, script or video.

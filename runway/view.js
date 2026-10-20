@@ -49,6 +49,22 @@
   }
 
   // date chip: 'Today 14:00–14:30', 'Tomorrow', 'due Wed 15 Oct'; coloured by state (overdue · today · past)
+  var attachOpen = null;   // the card whose attach picker is open
+  function setAttachOpen(id) { attachOpen = id; }
+  // the pieces a content task carries: pills (filled when the piece exists), one next step, and the attach picker when open
+  function piecesHTML(t) {
+    if (!window.Story || !Story.isContent(t)) return '';
+    var next = t.collapsed ? null : Story.nextStep(Story.load(), Object.assign({ _board: Model.BOARD }, t));
+    return '<div class="card-pieces" onclick="event.stopPropagation()">' + Story.pills(t.id, !t.collapsed, Object.assign({ _board: Model.BOARD }, t)) +
+      (next ? '<button type="button" class="btn-next" onclick="taskNext(\'' + t.id + '\',\'' + next.kind + '\')" title="Made for this task and attached to it">' + esc(next.label) + '</button>' : '') +
+'</div>';
+  }
+  function attachFormHTML(t) {
+    var d = Story.load(); var groups = ''; var onTask = {}; d.task.forEach(function (x) { ['noteId', 'scriptId', 'takeId', 'postId'].forEach(function (k) { if (x[k]) onTask[x[k]] = 1; }); });
+    Story.PIECES.forEach(function (k) { if (t[Story.FIELD[k]]) return; var items = (d[k] || []).filter(function (x) { return x && x.id && !onTask[x.id]; }).slice(0, 40); if (!items.length) return;
+      groups += '<optgroup label="' + esc(Story.PLURAL[k]) + '">' + items.map(function (x) { var st = Story.stateFor(k, x); return '<option value="' + esc(x.id) + '">' + esc(Story.titleFor(k, x) + (st ? ' · ' + st : '')) + '</option>'; }).join('') + '</optgroup>'; });
+    return '<form class="attach-form" onsubmit="return attachPicked(\'' + t.id + '\', this)"><select name="piece">' + (groups ? '<option value="">Choose a draft, script, take or post…</option>' + groups : '<option value="">Nothing free to attach</option>') + '</select><button type="submit" class="mv"' + (groups ? '' : ' disabled') + '>Attach</button><button type="button" class="mv" onclick="toggleAttach(\'' + t.id + '\')">Cancel</button></form>';
+  }
   function whenFormHTML(t) {
     var W = window.When; var atV = t.at ? t.at.replace('T', ' ') : ''; var unV = t.until ? W.timeOf(t.until) : '';
     return '<form class="when-form" onsubmit="return saveWhen(\'' + t.id + '\', this)" onclick="event.stopPropagation()">' +
@@ -137,7 +153,8 @@
     }
     var notesBtn = '<button class="notes-btn ' + (t.notes ? 'has-notes' : '') + '" ' +
       'onclick="toggleNotes(\'' + t.id + '\')" title="Rough notes"><span class="dot"></span>notes</button>';
-    return '<div class="card-foot"><div class="foot-left">' + moves + notesBtn + '</div>' +
+    var attachBtn = window.Story ? '<button class="notes-btn" onclick="event.stopPropagation();toggleAttach(\'' + t.id + '\')" title="Attach a draft, a script, a take or a post that already exists">attach</button>' : '';
+    return '<div class="card-foot"><div class="foot-left">' + moves + notesBtn + attachBtn + '</div>' +
       '<button class="card-del" onclick="delTask(\'' + t.id + '\')" title="Delete task">delete</button></div>';
   }
 
@@ -150,7 +167,7 @@
         checklistHTML(t) +
         (whenOpen === t.id ? whenFormHTML(t) : '') +
         notesHTML(t, notesOpen) +
-        footHTML(t, view) +
+        footHTML(t, view) + (attachOpen === t.id ? attachFormHTML(t) : '') +
         '</div>';
     }
     return '<div class="card ' + (isDone ? 'done-card ' : '') + (t.collapsed ? 'collapsed' : '') + '" draggable="true" data-id="' + t.id + '">' +
@@ -160,7 +177,7 @@
       '<div class="card-tags">' + prioritySelect(t) +
       '<span class="tag proj" style="--h:' + projHue(t.proj) + '">' + esc(projLabel(t.proj)) + '</span>' +
       whenChipHTML(t) + tagsHTML(t, !t.collapsed) + '</div>' +
-      '<div class="card-title">' + esc(t.title) + '</div>' +
+      '<div class="card-title">' + esc(t.title) + '</div>' + piecesHTML(t) +
       '</div>' +
       ringHTML(t) +
       '</div>' + body + '</div>';
@@ -248,5 +265,5 @@
     }).join('');
   }
 
-  global.View = { render: render, renderFilters: renderFilters, renderTagFilters: renderTagFilters, hueFor: hueFor };
+  global.View = { setAttachOpen: setAttachOpen, render: render, renderFilters: renderFilters, renderTagFilters: renderTagFilters, hueFor: hueFor };
 })(window);

@@ -244,15 +244,19 @@ function videoApi(req, res, url) {
       return json(res, 200, { name: name, found: hits });
     });
   }
-  if (url === '/api/story') {   // the pages' Connect… / Write the script / Make the post: the CLI does the write, so the log and the story rules are the same as from the terminal
+  if (url === '/api/story') {   // the views' Connect with a task… and the card's next step: the CLI does the write, so the log and the rules are the same as from the terminal
     if (req.method !== 'POST') return json(res, 405, { error: 'method' });
     return readBody(req, res, 4096, function (err, b) {
       if (err) return json(res, 400, { error: err.message });
       if (wsFile(b.ws) === null) return json(res, 400, { error: 'bad workspace id' }); var ws = String(b.ws || '').toLowerCase(); var idOk = function (x) { return /^[A-Za-z0-9_-]{1,64}$/.test(String(x || '')); };
       var args;
       if (b.op === 'link' || b.op === 'unlink') { if (!idOk(b.a) || !idOk(b.b)) return json(res, 400, { error: 'which two?' }); args = ['link', String(b.a), String(b.b)].concat(b.op === 'unlink' ? ['--off'] : []); }
-      else if (b.op === 'script') { if (!idOk(b.from)) return json(res, 400, { error: 'which draft?' }); args = ['scripts', 'add', '--draft=' + String(b.from)]; }
-      else if (b.op === 'post') { var k = ['note', 'script', 'take'].indexOf(String(b.kind)) >= 0 ? String(b.kind) : ''; if (!k || !idOk(b.from)) return json(res, 400, { error: 'from what?' }); args = ['social', 'add', '--' + (k === 'note' ? 'draft' : k) + '=' + String(b.from)]; }
+      else if (b.op === 'note' || b.op === 'script' || b.op === 'post') { if (!idOk(b.task)) return json(res, 400, { error: 'which task?' }); args = (b.op === 'note' ? ['notes', 'add'] : b.op === 'script' ? ['scripts', 'add'] : ['social', 'add']).concat(['--task=' + String(b.task)]); }   // a piece made for a task: one process creates it and links it
+      else if (b.op === 'task') {   // a new task born with the open piece attached
+        var kindT = ['note', 'script', 'take', 'post'].indexOf(String(b.kind)) >= 0 ? String(b.kind) : ''; var titleT = String(b.title || '').trim().slice(0, 120); var boardT = String(b.board || '').toLowerCase();
+        if (!kindT || !idOk(b.id) || !titleT) return json(res, 400, { error: 'a title and the piece' }); if (boardT && !/^[a-z0-9-]{1,32}$/.test(boardT)) return json(res, 400, { error: 'bad board id' });
+        args = ['add', '--title=' + titleT, '--' + (kindT === 'note' ? 'draft' : kindT) + '=' + String(b.id)].concat(boardT ? ['--board', boardT] : []).concat(typeof b.note === 'string' && b.note ? ['--note=' + String(b.note).slice(0, 120)] : []);
+      }
       else return json(res, 400, { error: 'unknown story op' });
       var r = soloRun(args.concat(soloArgs(ws)), 20000); return json(res, r.code === 0 ? 200 : 400, r.out);
     });
@@ -267,7 +271,7 @@ function videoApi(req, res, url) {
         if (p.indexOf('~/') === 0) p = path.join(require('os').homedir(), p.slice(2));
         if (!path.isAbsolute(p)) return json(res, 400, { error: 'Give the whole path, from the top: /Users/you/Movies/take.mov (Mac) or C:\\Users\\you\\Videos\\take.mp4 (Windows). Finder: right-click the file, hold ⌥ (Option), "Copy … as Pathname".' });
         if (!fs.existsSync(p)) return json(res, 404, { error: 'No file at ' + p + '. Check the folder and the name (it has to match exactly, with the ending like .mov or .mp4).' });
-        var args = ['video', 'add'].concat(b.title ? ['--title=' + String(b.title).slice(0, 120)] : []).concat(['--file', p]).concat(b.script && /^[A-Za-z0-9_-]{1,64}$/.test(String(b.script)) ? ['--script=' + String(b.script)] : []).concat(soloArgs(ws));   // --script: the take remembers the script it was recorded from
+        var args = ['video', 'add'].concat(b.title ? ['--title=' + String(b.title).slice(0, 120)] : []).concat(['--file', p]).concat(b.task && /^[A-Za-z0-9_-]{1,64}$/.test(String(b.task)) ? ['--task=' + String(b.task)] : []).concat(soloArgs(ws));   // --task: the take belongs to that task (and to its script when it has one)
         var r = soloRun(args, 30000); if (r.code === 0 && r.out && r.out.id && !r.out.existing) r.out.wordsStarted = autoWords(r.out.id); return json(res, r.code === 0 ? 200 : 400, r.out);
       }
       var t = findTake(b.id); if (!t) return json(res, 404, { error: 'no take with id ' + String(b.id || '').slice(0, 20) });
