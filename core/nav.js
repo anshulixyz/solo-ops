@@ -14,6 +14,7 @@
     calendar: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>',
     script: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M8 5v4M16 5v4M10 12l4 2.5-4 2.5z"/></svg>',
     writing: '<svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
+    video: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M3 15h18M8 5v14M16 5v14"/></svg>',
     inspo: '<svg viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg>',
     plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
     install: '<svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>'
@@ -33,6 +34,7 @@
     if (w.apps.social) out.push({ id: 'social', icon: 'social', label: Config.get('social.title'), href: root + 'social/social-board.html' + q, on: here === 'social-board.html' || here === 'social-calendar.html' });
     if (w.apps.scripts) out.push({ id: 'scripts', icon: 'script', label: Config.get('studio.scriptTitle'), href: root + 'studio/script-viewer.html' + q, on: here === 'script-viewer.html' });
     if (w.apps.writing) out.push({ id: 'writing', icon: 'writing', label: Config.get('studio.writingTitle'), href: root + 'studio/writing-viewer.html' + q, on: here === 'writing-viewer.html' });
+    if (w.apps.video) out.push({ id: 'video', icon: 'video', label: Config.get('studio.videoTitle'), href: root + 'studio/video.html' + q, on: here === 'video.html' });
     out.push({ id: 'inspo', icon: 'inspo', label: 'Inspiration', href: root + 'inspo/inspiration.html' + q, on: here === 'inspiration.html' });
     return out;
   }
@@ -82,6 +84,7 @@
   function registerSW(root) {
     addManifest(root);
     if (!('serviceWorker' in navigator) || location.protocol.indexOf('http') !== 0) return;
+    if (/[?&]nosw=1/.test(location.search)) return;   // ?nosw=1: no worker on this load (debugging a page in an embedded browser that cannot fetch through one)
     var hadController = !!navigator.serviceWorker.controller; var firstInstallAt = 0;
     navigator.serviceWorker.register(root + 'sw.js', { scope: root, updateViaCache: 'none' }).then(function (reg) {
       // look for a newer worker whenever the page is shown again, and every 10 min

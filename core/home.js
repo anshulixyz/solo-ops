@@ -16,12 +16,13 @@
     social: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v11H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg>',
     script: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M8 5v4M16 5v4M10 12l4 2.5-4 2.5z"/></svg>',
     writing: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
+    video: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M3 15h18M8 5v14M16 5v14"/></svg>',
     flame: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c4 0 7-3 7-7 0-3-2-5-3-7-1 2-2 3-3 3 0-3-1-6-4-8 0 4-3 6-4 9-1 3 1 10 7 10z"/></svg>'
   };
   var W = Config.ws();
   var PRIMARY_ID = Config.PRIMARY;
-  var KEYS = { social: Config.key('social'), scripts: Config.key('scripts'), writing: Config.key('writing') };
-  var data = { boards: {}, posts: null, scripts: null, notes: null };
+  var KEYS = { social: Config.key('social'), scripts: Config.key('scripts'), writing: Config.key('writing'), video: Config.key('videos') };
+  var data = { boards: {}, posts: null, scripts: null, notes: null, takes: null };
   var fromFiles = false;
   var HIDDEN_FILES = /^(settings|activity|prompts|backup)\.json$/;   // housekeeping files: not "changes" to a person (boards/workspaces stay: removing a project must be restorable)
   var PAGE = document.body.getAttribute('data-home-page') || 'home';
@@ -34,18 +35,20 @@
     data.posts = Store.getJSON(KEYS.social, null);
     var s = Store.getJSON(KEYS.scripts, null); data.scripts = s && s.scripts ? s.scripts : null;
     var w = Store.getJSON(KEYS.writing, null); data.notes = w && w.notes ? w.notes : null;
+    var v = Store.getJSON(KEYS.video, null); data.takes = v && v.videos ? v.videos : null;
   }
   function loadFiles() {
     var m = Sync.getMode();
     if (m !== 'server' && m !== 'folder' && m !== 'static') return Promise.resolve(false);
     var boards = Config.boards();
-    return Promise.all(boards.map(function (b) { return Sync.peek(Config.boardFile(b.id)); }).concat([Config.file('social'), Config.file('scripts'), Config.file('writing'), 'activity.json'].map(Sync.peek))).then(function (r) {
+    return Promise.all(boards.map(function (b) { return Sync.peek(Config.boardFile(b.id)); }).concat([Config.file('social'), Config.file('scripts'), Config.file('writing'), 'activity.json', Config.file('videos')].map(Sync.peek))).then(function (r) {
       boards.forEach(function (b, i) { if (r[i] && r[i].tasks) data.boards[b.id] = r[i].tasks; });
       var o = boards.length;
       if (r[o] && r[o].posts) data.posts = r[o].posts;
       if (r[o + 1] && r[o + 1].scripts) data.scripts = r[o + 1].scripts;
       if (r[o + 2] && r[o + 2].notes) data.notes = r[o + 2].notes;
       if (r[o + 3] && r[o + 3].days) Store.setJSON(Activity.KEY, Activity.merge(Activity.load(), r[o + 3]), { silent: true });
+      if (r[o + 4] && r[o + 4].videos) data.takes = r[o + 4].videos;
       fromFiles = r.some(Boolean);
       return fromFiles;
     });
@@ -57,6 +60,13 @@
     var T = MARATHON_TEMPLATES.runway().tasks.map(function (t) { return t.id; }).join();
     var ids = (data.boards[first.id] || []).map(function (t) { return t.id; }).join();
     return !data.boards[first.id] || ids === T;
+  }
+  // "1 take without words yet" · "2 takes waiting to be cut" · "1 cut waiting to be rendered": the step the most recent waiting take is at
+  function takeWaiting(takes) {
+    var w = (takes || []).filter(function (v) { return ['recorded', 'transcribed', 'cut'].indexOf(v.status || 'recorded') >= 0; }).sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
+    if (!w.length) return ''; var by = {}; w.forEach(function (v) { var st = v.status || 'recorded'; by[st] = (by[st] || 0) + 1; });
+    var part = function (n, one, many) { return n ? n + ' ' + (n === 1 ? one : many) : ''; };
+    return [part(by.recorded, 'take without words yet', 'takes without words yet'), part(by.transcribed, 'take to cut', 'takes to cut'), part(by.cut, 'cut to render', 'cuts to render')].filter(Boolean).join(' · ');
   }
   function latest(arr) { return arr.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); })[0]; }
   function noteTitle(text) { var m = (text || '').match(/^#\s+(.+)/m); return m ? m[1].trim().slice(0, 50) : (text || '').split('\n')[0].slice(0, 50) || 'Untitled'; }
@@ -114,11 +124,12 @@
   /* ---- every project: stats read from files (peek) or the browser ---- */
   var wsStats = {};
   function wsLocal(w) {
-    var o = { tasks: [], tasksByBoard: {}, posts: null, scripts: null, notes: null };
+    var o = { tasks: [], tasksByBoard: {}, posts: null, scripts: null, notes: null, takes: null };
     Config.boards(w.id).forEach(function (b) { var bt = Store.getJSON(Config.boardKey(b.id, w.id), null) || []; o.tasksByBoard[b.id] = bt; bt.forEach(function (t) { o.tasks.push(t); }); });
     if (w.apps.social) o.posts = Store.getJSON(Config.key('social', w.id), null);
     if (w.apps.scripts) { var sc = Store.getJSON(Config.key('scripts', w.id), null); o.scripts = sc && sc.scripts ? sc.scripts : null; }
     if (w.apps.writing) { var wr = Store.getJSON(Config.key('writing', w.id), null); o.notes = wr && wr.notes ? wr.notes : null; }
+    if (w.apps.video) { var vd = Store.getJSON(Config.key('videos', w.id), null); o.takes = vd && vd.videos ? vd.videos : null; }
     return o;
   }
   function wsFiles(w) {
@@ -126,7 +137,7 @@
     if (m !== 'server' && m !== 'folder' && m !== 'static') return Promise.resolve(o);
     var boards = Config.boards(w.id);
     var reads = boards.map(function (b) { return Sync.peek(Config.boardFile(b.id, w.id)); })
-      .concat([w.apps.social ? Sync.peek(Config.file('social', w.id)) : null, w.apps.scripts ? Sync.peek(Config.file('scripts', w.id)) : null, w.apps.writing ? Sync.peek(Config.file('writing', w.id)) : null]);
+      .concat([w.apps.social ? Sync.peek(Config.file('social', w.id)) : null, w.apps.scripts ? Sync.peek(Config.file('scripts', w.id)) : null, w.apps.writing ? Sync.peek(Config.file('writing', w.id)) : null, w.apps.video ? Sync.peek(Config.file('videos', w.id)) : null]);
     return Promise.all(reads).then(function (r) {
       var tasks = []; var any = false;
       boards.forEach(function (b, i) { if (r[i] && r[i].tasks) { any = true; o.tasksByBoard[b.id] = r[i].tasks; r[i].tasks.forEach(function (t) { tasks.push(t); }); } });
@@ -135,6 +146,7 @@
       if (r[n] && r[n].posts) o.posts = r[n].posts;
       if (r[n + 1] && r[n + 1].scripts) o.scripts = r[n + 1].scripts;
       if (r[n + 2] && r[n + 2].notes) o.notes = r[n + 2].notes;
+      if (r[n + 3] && r[n + 3].videos) o.takes = r[n + 3].videos;
       return o;
     });
   }
@@ -281,6 +293,7 @@
       if (w.apps.social) chips.push('<span>' + postsWeek + ' post' + (postsWeek === 1 ? '' : 's') + ' this week</span>');
       if (w.apps.scripts && (o.scripts || []).length) chips.push('<span>' + o.scripts.length + ' script' + (o.scripts.length === 1 ? '' : 's') + '</span>');
       if (w.apps.writing && (o.notes || []).length) chips.push('<span>' + o.notes.length + ' note' + (o.notes.length === 1 ? '' : 's') + '</span>');
+      var tw = takeWaiting(o.takes); if (w.apps.video && tw) chips.push('<span>' + esc(tw) + '</span>');
       return '<a class="hub-card ws' + (w.id === W.id ? ' on' : '') + '" href="overview.html?ws=' + encodeURIComponent(w.id) + '" title="Open this project: its boards, schedule, scripts and notes">' +
         (stamps[0] ? '<span class="last">' + esc(Activity.ago(stamps[0])) + '</span>' : '') +
         '<h2>' + esc(w.title) + (w.id === W.id ? '<span class="open-tag">OPEN</span>' : '') + '</h2>' + line +
@@ -312,6 +325,9 @@
       '<span><b>' + scripts.length + '</b> scripts</span>' + (scripts[0] ? '<span>latest <b>' + esc(latest(scripts).title) + '</b></span>' : ''), 'data/' + Config.file('scripts'), la.scripts));
     if (Config.appEnabled('writing')) cards.push(card('studio/writing-viewer.html' + q(), ICONS.writing, Config.get('studio.writingTitle'), 'Drafts with ~~cuts~~, ++adds++, [[notes for AI]], copy-for-AI.',
       '<span><b>' + notes.length + '</b> notes</span>' + (notes[0] ? '<span>latest <b>' + esc(noteTitle(latest(notes).text)) + '</b></span>' : ''), 'data/' + Config.file('writing'), la.notes || la.writing));
+    var takes = data.takes || []; var tw = takeWaiting(takes);
+    if (Config.appEnabled('video')) cards.push(card('studio/video.html' + q(), ICONS.video, Config.get('studio.videoTitle'), 'Cut your takes by their words. The footage stays where it is.',
+      '<span><b>' + takes.length + '</b> take' + (takes.length === 1 ? '' : 's') + '</span>' + (tw ? '<span>' + esc(tw) + '</span>' : takes[0] ? '<span>latest <b>' + esc(latest(takes).title) + '</b></span>' : ''), 'data/' + Config.file('videos'), la.videos));
     $('cards').innerHTML = cards.join('');
     $('appsHead').style.display = cards.length ? '' : 'none';
     var c = counts([].concat.apply([], boards.map(function (b) { return data.boards[b.id] || []; })));
@@ -396,6 +412,7 @@
     $('wsAppSocial').checked = edit ? W.apps.social : true;
     $('wsAppScripts').checked = edit ? W.apps.scripts : true;
     $('wsAppWriting').checked = edit ? W.apps.writing : true;
+    if ($('wsAppVideo')) $('wsAppVideo').checked = edit ? W.apps.video !== false : true;
     if (!edit) $('wsTitleInput').focus();
   };
   function seedApp(app, key, sample) {
@@ -404,7 +421,7 @@
     Store.setJSON(key, body, { silent: true }); if (sample) Store.markFresh(key);
   }
   window.submitWs = function () {
-    var apps = { social: $('wsAppSocial').checked, scripts: $('wsAppScripts').checked, writing: $('wsAppWriting').checked };
+    var apps = { social: $('wsAppSocial').checked, scripts: $('wsAppScripts').checked, writing: $('wsAppWriting').checked, video: $('wsAppVideo') ? $('wsAppVideo').checked : true };
     if (wsMode === 'edit') { Config.updateWorkspace(W.id, { apps: apps }); location.href = 'overview.html' + q(); return; }
     var title = $('wsTitleInput').value.trim(); if (!title) { alert('Give the project a name.'); return; }
     var id = Config.slug(title); if (!id || Config.RESERVED.indexOf(id) >= 0 || Config.workspace(id)) { alert('Pick a different name.'); return; }

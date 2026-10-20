@@ -15,7 +15,7 @@
   var WS_ACTIVE = 'marathon.workspace';     // last used workspace id (this browser)
   var DEFAULTS = {
     name: 'Solo Ops', eyebrow: 'Solo founder ops',
-    apps: { boards: true, social: true, scripts: true, writing: true },
+    apps: { boards: true, social: true, scripts: true, writing: true, video: true },
     projects: [{ name: 'general', hue: 45 }],
     boards: [{ id: 'runway', title: 'Launch Runway', sprintLabel: 'Sprint progress', milestones: [], focus: [] }],
     workspaces: [],
@@ -24,7 +24,7 @@
       postTypes: ['announcement', 'launch', 'update', 'thread', 'teaser'],
       prepKinds: ['content', 'video', 'dev', 'design', 'outreach', 'other'] },
     studio: { scriptTitle: 'Script Viewer', writingTitle: 'Writing Viewer', videoTitle: 'Video' },
-    video: { engine: '', ffmpeg: '', whisper: '', model: 'small.en', captions: { style: 'sentence', burn: false } },
+    video: { engine: '', ffmpeg: '', whisper: '', model: 'small.en', captions: { style: 'sentence', burn: false }, pause: 0.7, recordings: '', auto: '', autoMaxMin: 30 },
     activity: { reminderAfterHours: 24 },
     theme: { mode: 'auto', palette: 'warm' },
     sync: { port: 4321, pollMs: 3000 }
@@ -167,10 +167,10 @@
   function normWs(w) {
     if (!w) return null;
     var id = slug(w.id || w.title); if (!id || RESERVED.indexOf(id) >= 0) return null;
-    var apps = merge({ social: true, scripts: true, writing: true }, w.apps || {});
+    var apps = merge({ social: true, scripts: true, writing: true, video: true }, w.apps || {});
     var boards = (Array.isArray(w.boards) ? w.boards : []).map(normBoard).filter(Boolean);
     if (w.boards === undefined && apps.boards !== false && !boards.length) boards = [normBoard({ id: 'runway', title: 'Launch Runway', sprintLabel: 'Sprint progress' })];
-    return { id: id, title: w.title || id, apps: { social: apps.social !== false, scripts: apps.scripts !== false, writing: apps.writing !== false }, boards: boards, createdAt: w.createdAt || 0 };
+    return { id: id, title: w.title || id, apps: { social: apps.social !== false, scripts: apps.scripts !== false, writing: apps.writing !== false, video: apps.video !== false }, boards: boards, createdAt: w.createdAt || 0 };
   }
   function path(obj, p) { return String(p).split('.').reduce(function (o, k) { return o == null ? undefined : o[k]; }, obj); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -193,7 +193,7 @@
     return (saved && workspace(saved)) ? saved : PRIMARY;
   }
   function setActiveWs(id) { if (global.Store) Store.set(WS_ACTIVE, id, { silent: true }); }
-  function ws() { return workspace(activeWs()) || { id: activeWs(), title: activeWs(), apps: { social: true, scripts: true, writing: true }, boards: [] }; }
+  function ws() { return workspace(activeWs()) || { id: activeWs(), title: activeWs(), apps: { social: true, scripts: true, writing: true, video: true }, boards: [] }; }
   function addWorkspace(w) {
     var nw = normWs(w); if (!nw) return null;
     if (workspace(nw.id)) return workspace(nw.id);
@@ -301,6 +301,9 @@
       if (JSON.stringify(next || {}) === LOADED) return false;
       if (!global.Store || !Store.ok) return false;   // nowhere to keep it (private window): a reload would only loop
       if (next) Store.setJSON(OVR_KEY, next, { silent: true }); else Store.remove(OVR_KEY);
+      // `video` settings (the pause length, the remembered engine, the recordings folder) apply in place: the Video page must not reload under a selection
+      var was = JSON.parse(LOADED || '{}'); var nx = next || {}; var changed = {}; Object.keys(was).concat(Object.keys(nx)).forEach(function (k) { if (JSON.stringify(was[k]) !== JSON.stringify(nx[k])) changed[k] = 1; });
+      if (Object.keys(changed).length && Object.keys(changed).every(function (k) { return k === 'video'; })) { cfg.video = merge(merge(DEFAULTS.video, (global.MARATHON_CONFIG || {}).video || {}), nx.video || {}); LOADED = JSON.stringify(nx); return true; }
       if (typeof location !== 'undefined' && location.reload) (function go() {   // not while someone is typing
         var el = typeof document !== 'undefined' ? document.activeElement : null;
         if (el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable)) return setTimeout(go, 2000);

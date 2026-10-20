@@ -32,18 +32,19 @@
   function root() { var n = document.querySelector('[data-nav]'); return (n && n.getAttribute('data-root')) || './'; }
   function page() {
     var h = location.pathname.replace(/.*\//, '');
-    return { 'index.html': 'home', '': 'home', 'marathon-board.html': 'board', 'social-board.html': 'social', 'social-calendar.html': 'social', 'calendar.html': 'calendar', 'script-viewer.html': 'scripts', 'writing-viewer.html': 'writing', 'inspiration.html': 'inspo' }[h] || 'home';
+    return { 'index.html': 'home', '': 'home', 'marathon-board.html': 'board', 'social-board.html': 'social', 'social-calendar.html': 'social', 'calendar.html': 'calendar', 'script-viewer.html': 'scripts', 'writing-viewer.html': 'writing', 'video.html': 'video', 'inspiration.html': 'inspo' }[h] || 'home';
   }
   var ABOUT = {
     home: ['The helicopter view: activity across every project, each workspace with its numbers, what is in play, your inbox and the change log.', 'Switch the open project with the Workspace menu in the nav. "Open project" and everything below it belongs to that one.'],
     board: ['One board = one kanban: To Do → Doing → Done, a Later parking lot and a Bucket List for ideas. Cards carry checklists, priority, project, tags and private notes.', 'n adds a task · 1 / 2 / 3 switch views · ⌘K runs "add Fix the hero @launch #copy !high".'],
-    social: ['A posting arc: each post has a date, copy, type, prep checklist, images and video status. Mark it posted to log engagement. Status: draft → ready → scheduled → posted.'],
-    scripts: ['Short-form scripts with a light structure: # Title, ## Hook, ## Script (numbered beats), ## Inserts, ## Prep. Reader shows spoken lines only; 9:16 previews the phone; Teleprompter scrolls at your pace.'],
-    writing: ['Drafts with track changes you and your agent both read: ~~cut~~, ++add++, [[note for the AI]]. Copy for AI sends the markup; Copy clean sends the final text.'],
+    social: ['Above the copy: the story the post belongs to (the draft, the script, the take), with Connect…. A posting arc: each post has a date, copy, type, prep checklist, images and video status. Mark it posted to log engagement. Status: draft → ready → scheduled → posted.'],
+    scripts: ['The line at the top of the preview is the story: the draft it came from, the takes and the posts; Add the take opens Video, Make the post puts a draft post on the schedule, Connect… attaches one that exists. Short-form scripts with a light structure: # Title, ## Hook, ## Script (numbered beats), ## Inserts, ## Prep. Reader shows spoken lines only; 9:16 previews the phone; Teleprompter scrolls at your pace.'],
+    writing: ['Write the script turns a draft into a script (clean text, markup gone); the line above the preview shows what the draft became. Drafts with track changes you and your agent both read: ~~cut~~, ++add++, [[note for the AI]]. Copy for AI sends the markup; Copy clean sends the final text.'],
+    video: ['Under the title: the story (the script this take was recorded from, the post it became); Connect… attaches one. Cut a take by its words. Add a recording (it stays where it is), get the words with their times, then select words and press Delete, or Cut; select a crossed-out word to put it back. Click a word and press Space: the take plays from there with your cuts skipped. Remove fillers and pauses takes um, uh and the long pauses in one click; Review first lists each one, and what was said twice, before you remove them. A misheard word: select it, press C, retype it. Render a preview, then the final with captions, and watch them in the same player. Every cut is saved and logged; Undo takes it back.', 'Cut it with my AI: the words go to your agent, it proposes the cut, you say yes, and the cut lands here. Terminal: `node solo.js video show <take>` prints the same words.'],
     calendar: ['Everything with a date, in one place: tasks with a time or a deadline, meetings (a task with a time and the tag meeting), and posts. Agenda shows today onward with overdue first; Month shows the grid. Filter by board, meetings, posts; tick to finish; click to open the item where it lives.', 'Three ways in: + Add here, the + date chip on any card, or an agent: Ask → Fill my calendar reads the calendar it is connected to. Terminal: `node solo.js add "Call with X" --at tomorrow 14:00 --until 14:30 --tags meeting`; `node solo.js calendar` prints this agenda.'],
     inspo: ['Everything worth keeping lands here. Tag with a project, then Use as task / post / script / draft, or tick a few and Brainstorm with AI. The capture strip on every page saves here.']
   };
-  var GO = { calendar: ['calendar/calendar.html', 'the Calendar'], board: ['runway/marathon-board.html', 'the board'], social: ['social/social-board.html', 'the schedule'], scripts: ['studio/script-viewer.html', 'the Script Viewer'], writing: ['studio/writing-viewer.html', 'the Writing Viewer'], inspo: ['inspo/inspiration.html', 'Inspiration'], home: ['index.html', 'Home'] };
+  var GO = { calendar: ['calendar/calendar.html', 'the Calendar'], board: ['runway/marathon-board.html', 'the board'], social: ['social/social-board.html', 'the schedule'], scripts: ['studio/script-viewer.html', 'the Script Viewer'], writing: ['studio/writing-viewer.html', 'the Writing Viewer'], video: ['studio/video.html', 'Video'], inspo: ['inspo/inspiration.html', 'Inspiration'], home: ['index.html', 'Home'] };
 
   /* ---- snapshot of the open workspace (chat mode pastes this) ---------- */
   function snapshot() {
@@ -162,6 +163,7 @@
         '<button type="button" data-mode="chat" class="' + (m === 'chat' ? 'on' : '') + '" title="ChatGPT, Claude.ai, Gemini. Prompts carry a snapshot of your data; you paste the reply back here.">Chat only</button>' +
         (m ? '' : '<em>pick one</em>') + '</div>' +
       (!backupDone() && backup.state !== 'unknown' && t !== 'settings' ? '<button type="button" class="guide-pending" title="Open Protect your work"><span class="dot"></span><span><b>Save your data somewhere private.</b> ' + (backup.state === 'ok' ? 'Right now it lives only on this computer.' : 'Nothing here says it is backed up yet.') + '</span><span class="go">Set up →</span></button>' : '') +
+      (ffmpegCardDue() ? ffmpegCard() : '') +
       '<div class="guide-body">' +
       (t === 'quick' ? quickSection() : '') +
       (t === 'ask' ? askSection(all, pg) + '<div class="guide-search-wrap">' + I.search + '<input type="search" class="guide-search" placeholder="Search prompts" value="' + esc(query) + '" aria-label="Search prompts"></div><div id="guideList"></div>' : '') +
@@ -196,7 +198,10 @@
     Array.prototype.forEach.call(panel.querySelectorAll('.guide-agent [data-mode]'), function (b) { b.onclick = function () { Store.set(MODE_KEY, b.dataset.mode, { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); render(); }; });
     Array.prototype.forEach.call(panel.querySelectorAll('input[name=gmode]'), function (i) { i.onchange = function () { Store.set(MODE_KEY, i.value, { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); Store.set(TAB_KEY, 'ask', { silent: true }); render(); }; });
     var pr = panel.querySelector('.pe-restore'); if (pr) pr.onclick = restoreHidden;
-    var pend = panel.querySelector('.guide-pending'); if (pend) pend.onclick = openProtect;
+    var pend = panel.querySelector('button.guide-pending'); if (pend) pend.onclick = openProtect;
+    var ffc = panel.querySelector('.gd-ffcheck'); if (ffc) ffc.onclick = function () { ffc.textContent = 'Checking…'; ffmpegStatus(true).then(function () { render(); }); };
+    var ffy = panel.querySelector('.gd-ffcopy'); if (ffy) ffy.onclick = function () { copyText(ffy.getAttribute('data-copy'), ffy, 'Copied'); };
+    var ffs = panel.querySelector('.gd-ffsetup'); if (ffs) ffs.onclick = function () { openPrompt('setup-video'); };
     Array.prototype.forEach.call(panel.querySelectorAll('.gd-copy'), function (b) { b.onclick = function () { copyText(b.dataset.copy, b, 'Copied'); }; });
     var ack = panel.querySelector('.gd-ack'); if (ack) ack.onclick = function () { Store.set(ACK_KEY, new Date().toISOString(), { silent: true }); render(); };
     var unack = panel.querySelector('.gd-unack'); if (unack) unack.onclick = function () { Store.remove ? Store.remove(ACK_KEY) : Store.set(ACK_KEY, '', { silent: true }); render(); };
@@ -257,7 +262,7 @@
   }
   /* ---- Ask: one box, what you want in plain words, with the context attached ------ */
   var ask = { text: '', chips: null, focus: false };   // survives the re-renders (open() re-renders twice while the backup status and folder arrive)
-  var ASK_DEFAULT = { board: ['this', 'board'], social: ['this', 'posts'], scripts: ['this'], writing: ['this'], inspo: ['inspiration_new'], calendar: ['schedule', 'recent'], home: ['recent', 'schedule'] };
+  var ASK_DEFAULT = { board: ['this', 'board'], social: ['this', 'posts'], scripts: ['this'], writing: ['this'], video: ['take'], inspo: ['inspiration_new'], calendar: ['schedule', 'recent'], home: ['recent', 'schedule'] };
   function who(m) { return m === 'files' ? 'your agent' : 'your AI'; }
   function askChips(pg) {
     if (!ask.chips) { var d = (ASK_DEFAULT[pg] || ASK_DEFAULT.home).slice(); if (d.indexOf('this') >= 0 && !hasThis()) { d = d.filter(function (c) { return c !== 'this'; }); if (!d.length) d = ['recent']; } ask.chips = d; }
@@ -267,10 +272,11 @@
     if (it.id !== 'this' && it.id !== 'last_task') return it.label;
     var txt = global.Context ? Context.get(it.id) : ''; var first = (txt.match(/^#\s*([^\n]*)/) || [])[1] || '';
     if (/^(Task|Post|Last task I touched|Task in progress)/.test(first)) { var m = txt.match(/^#[^\n]*\n\[[^\]]+\]\s*([^·\n]+)/); if (m) return (it.id === 'last_task' ? 'Last task' : 'This ' + (/^Post/.test(first) ? 'post' : 'task')) + ': ' + m[1].trim().slice(0, 40); }
+    if (/^Take/.test(first)) { var tm = first.match(/^Take \[[^\]]+\]\s*([^·]+)/); return 'This take: ' + (tm ? tm[1].trim().slice(0, 40) : ''); }
     if (/^(Script|Draft)/.test(first)) { var title = first.replace(/^(Script|Draft)[^:]*:?\s*/, '').replace(/\(.*$/, '').trim(); if (!title) { var m2 = txt.match(/\n#\s+([^\n]{1,60})/); title = m2 ? m2[1].trim() : ''; } return 'This ' + (/^Script/.test(first) ? 'script' : 'draft') + (title ? ': ' + title.slice(0, 40) : ''); }
     return it.label + (hasThis() ? '' : ' (nothing open)');
   }
-  function hasThis() { var t = global.Context ? Context.get('this') : ''; return /^# (Task|Post|Script|Draft|Last task I touched|Task in progress)/.test(t); }   // one open item, not the board/project fallback
+  function hasThis() { var t = global.Context ? Context.get('this') : ''; return /^# (Task|Post|Script|Draft|Take|Last task I touched|Task in progress)/.test(t); }   // one open item, not the board/project fallback
   function askItems() {   // the Context menu minus "Last task" when it is the same card as "This item"
     var items = global.Context ? Context.menu() : []; var same = items.some(function (x) { return x.id === 'this'; }) && items.some(function (x) { return x.id === 'last_task'; }) && Context.get('this').split('\n')[1] === Context.get('last_task').split('\n')[1];
     return same ? items.filter(function (x) { return x.id !== 'last_task'; }) : items;
@@ -381,7 +387,8 @@
     Config.workspaces().forEach(function (x) { Config.boards(x.id).forEach(function (b) { files.push({ file: Config.boardFile(b.id, x.id), key: Config.boardKey(b.id, x.id), wrap: 'tasks', label: x.title + ' · ' + b.title }); });
       if (x.apps.social) files.push({ file: Config.file('social', x.id), key: Config.key('social', x.id), wrap: 'posts', label: x.title + ' · posts' });
       if (x.apps.scripts) files.push({ file: Config.file('scripts', x.id), key: Config.key('scripts', x.id), wrap: null, label: x.title + ' · scripts' });
-      if (x.apps.writing) files.push({ file: Config.file('writing', x.id), key: Config.key('writing', x.id), wrap: null, label: x.title + ' · notes' }); });
+      if (x.apps.writing) files.push({ file: Config.file('writing', x.id), key: Config.key('writing', x.id), wrap: null, label: x.title + ' · notes' });
+      if (x.apps.video) files.push({ file: Config.file('videos', x.id), key: Config.key('videos', x.id), wrap: null, label: x.title + ' · takes' }); });
     files.push({ file: 'inspiration.json', key: 'marathon.inspiration', wrap: null, label: 'inspiration' }, { file: 'boards.json', key: Config.BOARDS_KEY, wrap: null, label: 'boards registry' }, { file: 'workspaces.json', key: Config.WS_KEY, wrap: null, label: 'workspaces registry' }, { file: 'prompts.json', key: PKEY, wrap: null, label: 'your prompts' }, { file: 'settings.json', key: 'marathon.theme', wrap: 'theme', label: 'theme' });
     return files;
   }
@@ -572,7 +579,7 @@
       if (global.Sync) Sync.note('inspiration.json', 'agent reply applied');
     }
   }
-  function open() { if (!panel) { panel = document.createElement('aside'); panel.className = 'guide'; document.body.appendChild(panel); } render(); panel.classList.add('open'); document.body.classList.add('guide-open'); var before = backup.at; backupStatus().then(function () { if (backup.at !== before && panel.classList.contains('open')) render(); }); fetchFolder().then(function (got) { if (got && panel.classList.contains('open')) render(); }); }
+  function open() { if (!panel) { panel = document.createElement('aside'); panel.className = 'guide'; document.body.appendChild(panel); } render(); panel.classList.add('open'); document.body.classList.add('guide-open'); var before = backup.at; backupStatus().then(function () { if (backup.at !== before && panel.classList.contains('open')) render(); }); var ffBefore = ffmpeg.at; ffmpegStatus().then(function () { if (ffmpeg.at !== ffBefore && ffmpegCardDue() && panel.classList.contains('open')) render(); }); fetchFolder().then(function (got) { if (got && panel.classList.contains('open')) render(); }); }
   function close() { if (panel) { panel.classList.remove('open'); document.body.classList.remove('guide-open'); } }
   function toggle() { if (panel && panel.classList.contains('open')) close(); else open(); }
   function mountHandle() {
@@ -597,9 +604,21 @@
     var det = card.closest('details'); if (det && !det.open) det.open = true;
     card.scrollIntoView({ block: 'center' }); card.classList.add('flash');
   }
-  function openPrompt(slug) {
+  function openPrompt(slug) {   // the Video page opens Cut this take here; the open take rides along through the {{take}} token
     Store.set(TAB_KEY, 'ask', { silent: true }); query = ''; pendingSlug = slug; open();
     setTimeout(function () { pendingSlug = null; var f = panel && panel.querySelector('.guide-prompt.flash'); if (f) f.classList.remove('flash'); }, 2500);
+  }
+  /* ---- ffmpeg (server mode only): a pending card while Video cannot work, once a take exists; the Video page shows its own card instead ---- */
+  var ffmpeg = { state: 'unknown', at: 0 };   // state: unknown | ok | missing | n/a
+  function ffmpegStatus(force) {
+    if (!global.Sync || Sync.getMode() !== 'server') { ffmpeg.state = 'n/a'; return Promise.resolve(ffmpeg); }
+    if (!force && Date.now() - ffmpeg.at < 300000) return Promise.resolve(ffmpeg);
+    return fetch('/api/video/doctor' + (force ? '?fresh=1' : ''), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { ffmpeg = Object.assign({ state: j ? (j.ffmpeg ? 'ok' : 'missing') : 'unknown', at: Date.now() }, j || {}); return ffmpeg; }).catch(function () { ffmpeg.state = 'unknown'; ffmpeg.at = Date.now(); return ffmpeg; });
+  }
+  function ffmpegCardDue() { if (ffmpeg.state !== 'missing' || page() === 'video') return false; var w = Config.ws(); if (!w.apps.video) return false; var d = Store.getJSON(Config.key('videos', w.id), null); return !!(d && (d.videos || []).length); }
+  function ffmpegCard() {
+    var mac = navigator.platform.indexOf('Mac') >= 0; var line = mac ? 'brew install ffmpeg' : 'winget install Gyan.FFmpeg';
+    return '<div class="guide-pending ffmpeg-card" title="Video needs ffmpeg"><span class="dot"></span><span><b>Video needs ffmpeg</b>, a free tool that reads and writes video files. ' + (mac ? 'Mac (needs Homebrew, brew.sh): ' : 'Windows: ') + '<code>' + line + '</code>. Or ask your agent: <button type="button" class="guide-link gd-ffsetup">Set up video on this computer</button>. Then Check again.</span><span class="go"><button type="button" class="guide-link gd-ffcopy" data-copy="' + line + '">Copy</button> · <button type="button" class="guide-link gd-ffcheck">Check again</button></span></div>';
   }
   global.Guide = { open: open, close: close, toggle: toggle, snapshot: snapshot, mode: mode, openPrompt: openPrompt };
 })(window);

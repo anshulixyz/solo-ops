@@ -32,6 +32,15 @@ eq(d.hits, 2, '--drop finds a word and a two-word phrase, punctuation and case i
 ok(d.ranges.length === 3 && d.ranges.every(function (x) { return !(x.start < 2.3 && x.end > 2.0) && !(x.start < 6.8 && x.end > 6.0); }), 'the dropped spans are cut out of the keeps');
 var d2 = V.drop(['word5', 'word6'], words, null); ok(d2.ranges.length === 2 && d2.ranges.every(function (x) { return x.end <= 2.5 + 1e-6 || x.start >= 3.3 - 1e-6; }), 'an island under 300 ms between two drops goes too');
 var ed = V.fromEdl([{ start: 1, end: 2, beat: 'HOOK' }], 10); eq(ed[0].reason, 'HOOK', 'an agent EDL keeps its reason');
+// pauses: a 1.2 s gap, a 0.4 s gap, leading and trailing silence
+var pw = [{ w: 'so', s: 1.0, e: 1.3 }, { w: 'then', s: 2.5, e: 2.8 }, { w: 'we', s: 3.2, e: 3.5 }, { w: 'go.', s: 3.6, e: 3.9 }];
+var ps = V.pauses(pw, { duration: 6 });
+ok(ps.length === 3 && ps[0].s === 0 && Math.abs(ps[1].s - 1.345) < 1e-6 && Math.abs(ps[1].e - 2.425) < 1e-6 && ps[2].e === 6, 'pauses: leading, the 1.2 s gap and the tail are shortened, the 0.4 s gap stays (' + JSON.stringify(ps) + ')');
+var pr = V.snap(V.cutOut(null, ps, 6), pw, { fps: 30, duration: 6 });
+var beat = (pr.edl[0].end - 1.3) + (2.5 - pr.edl[1].start);   // what remains around the join on the output timeline
+ok(pr.edl.length === 2 && Math.abs(beat - 0.25) < 0.04 && Math.abs((1.0 - pr.edl[0].start) - 0.25) < 0.04 && Math.abs((pr.edl[1].end - 3.9) - 0.25) < 0.04 && pr.edl.every(function (s) { return !inside(s.start, pw) && !inside(s.end, pw); }), 'after snapping, one beat (0.25 s) remains at the join, before the first word and after the last; no edge inside a word (' + JSON.stringify(pr.edl.map(function (s) { return [s.start, s.end]; })) + ')');
+var co = V.cutOut([{ start: 1, end: 4 }], [{ s: 2, e: 2.5 }], 10); ok(co.length === 2 && co[0].fixedStart === true && co[1].fixedEnd === true && !co[0].fixedEnd, 'cutOut flags the keep\'s own edges as fixed');
+ok(V.packed([{ s: 0, e: 1, t: 'a' }, { s: 2.5, e: 3, t: 'b' }], { pauses: V.pauses([{ w: 'a', s: 0, e: 1 }, { w: 'b', s: 2.5, e: 3 }], null, { duration: 3 }) }).indexOf('[pause 1.5 s]') > 0, 'packed shows a long pause between phrases');
 var fw = [{ w: 'so', s: 1.0, e: 1.3 }, { w: 'um', s: 1.35, e: 1.45 }, { w: 'here', s: 1.5, e: 1.9 }, { w: 'we', s: 2.0, e: 2.3 }, { w: 'go.', s: 2.4, e: 2.7 }];
 var fd = V.snap(V.drop(['um'], fw, null).ranges, fw, { fps: 30, duration: 3 });
 ok(fd.edl.length === 2 && !fd.edl.some(function (s) { return s.start < 1.45 && s.end > 1.35; }), 'a 100 ms filler is not stitched back by the merge rule (' + JSON.stringify(fd.edl) + ')');
@@ -58,12 +67,55 @@ var el = V.importTranscript(JSON.stringify({ words: [{ text: 'Hi', start: 0.1, e
 eq(el.words.length, 1, 'ElevenLabs output: spacing tokens are dropped');
 var ours = V.importTranscript(JSON.stringify({ words: [{ w: 'a', s: 1, e: 1.2 }], granularity: 'word' }), 'json'); eq(ours.words[0].w, 'a', 'our own shape imports');
 
+// contiguous whisper words: a cut between them never lands inside the neighbour (the frame grid yields to the word boundary)
+var cw3 = [{ w: 'a', s: 1.0, e: 1.21 }, { w: 'b', s: 1.21, e: 1.52 }, { w: 'c', s: 1.52, e: 1.83 }];
+var ce = V.snap(V.cutOut(null, [{ s: 1.21, e: 1.52 }], 3), cw3, { fps: 30, duration: 3 }).edl;
+ok(ce.length === 2 && ce[0].end === 1.21 && ce[1].start === 1.52, 'cutting the middle of three contiguous words keeps the exact boundaries (' + JSON.stringify(ce.map(function (s) { return [s.start, s.end]; })) + ')');
+// a filler right after a long pause: one hole, one join, no silent sliver between them
+var w4 = [{ w: 'so', s: 1.0, e: 1.3 }, { w: 'um', s: 2.7, e: 2.9 }, { w: 'then', s: 3.0, e: 3.3 }];
+var t4 = V.tidy(w4, null, null, { duration: 5, fps: 30, fillers: V.FILLERS }); var e4 = V.snap(t4.ranges, w4, { fps: 30, duration: 5 }).edl;
+ok(t4.holes.length === 3 && e4.length === 2 && !e4.some(function (s) { return s.end - s.start < 0.3; }), 'pause + filler merge into one hole (lead, the merged middle, tail): no sliver piece (' + JSON.stringify(e4.map(function (s) { return [s.start, s.end]; })) + ')');
+var sw = V.trimToSilences([{ w: 'so', s: 1.0, e: 3.5 }, { w: 'then', s: 3.5, e: 3.9 }], [{ s: 1.3, e: 3.2 }]);
+ok(sw[0].s === 3.2 && sw[0].e === 3.5, 'a word running over a whole silence is cut to its shorter side (' + JSON.stringify(sw) + ')');
+ok(V.pauses(sw, null, { duration: 4 }).some(function (h) { return h.gs <= 1.0 && h.ge >= 3.2; }), 'and the silence it hid becomes a pause');
+// said twice: the same run of words again within the window; the first is the retake; fillers do not break the match; a run 30 s later is not one
+var rw = [['so', 0, 0.3], ['we', 0.4, 0.6], ['killed', 0.7, 1.1], ['the', 1.2, 1.3], ['flow', 1.4, 1.8], ['um', 2.0, 2.2], ['so', 2.5, 2.8], ['we', 2.9, 3.1], ['killed', 3.2, 3.6], ['the', 3.7, 3.8], ['flow', 3.9, 4.3], ['and', 4.5, 4.7], ['no', 5, 5.2], ['no', 5.3, 5.5], ['no', 5.6, 5.8], ['we', 40, 40.2], ['killed', 40.3, 40.7], ['the', 40.8, 40.9], ['flow', 41, 41.4]].map(function (a) { return { w: a[0], s: a[1], e: a[2] }; });
+var rt = V.retakes(rw); ok(rt.length === 1 && rt[0].s === 0 && rt[0].e >= 1.8 && rt[0].e <= 2.5 && rt[0].text === 'so we killed the flow' && rt[0].again.s === 2.5, 'retakes: the first "so we killed the flow" is flagged up to the second try, the one 40 s later is not, "no no no" is not (' + JSON.stringify(rt) + ')');
+var rwLate = rw.slice(0, 5).concat([{ w: 'so', s: 6.0, e: 6.3 }, { w: 'we', s: 6.4, e: 6.6 }, { w: 'killed', s: 6.7, e: 7.1 }, { w: 'the', s: 7.2, e: 7.3 }, { w: 'flow', s: 7.4, e: 7.8 }]);
+ok(V.retakes(rwLate).length === 0, 'the same run 4 s later is not a retake (a retake restarts within 3 s)');
+ok(V.retakes([{ w: 'and', s: 0, e: 0.2 }, { w: 'then', s: 0.3, e: 0.5 }, { w: 'we', s: 0.6, e: 0.8 }, { w: 'and', s: 1.0, e: 1.2 }, { w: 'then', s: 1.3, e: 1.5 }, { w: 'we', s: 1.6, e: 1.8 }]).length === 0, 'three short common words are not enough on their own');
+var tR = V.tidy(rw, null, null, { pause: 1e9, duration: 42, fps: 30, fillers: false, retakes: true }); ok(tR.retakeHits === 1 && tR.holes.length === 1 && tR.holes[0].s === 0, '--retakes through tidy takes the first try only');
+// correct: one word to three shares the span by length; three to one; all
+var cw = [{ w: 'we', s: 0, e: 0.3 }, { w: 'killd', s: 0.4, e: 1.0 }, { w: 'it', s: 1.1, e: 1.3 }, { w: 'killd', s: 2, e: 2.5 }];
+var c13 = V.correct(cw, 1, 1, 'did not need'); ok(c13.length === 6 && c13[1].s === 0.4 && c13[3].e === 1.0 && c13[1].w === 'did' && c13[3].w === 'need' && c13[2].s > c13[1].s && c13[3].s > c13[2].s, 'one word → three: the span is shared (' + JSON.stringify(c13.slice(1, 4)) + ')');
+var c31 = V.correct(cw, 0, 2, 'wekilledit'); ok(c31.length === 2 && c31[0].s === 0 && c31[0].e === 1.3, 'three words → one keeps the whole span');
+ok(V.correct(cw, 1, 1, 'killed', true).filter(function (w) { return w.w === 'killed'; }).length === 2, 'all: the same misheard word elsewhere changes too');
+var threwC = ''; try { V.correct(cw, 9, 9, 'x'); } catch (e) { threwC = e.message; } ok(/not in the transcript/.test(threwC), 'an index outside the words is refused');
+ok(V.nextPlayable([{ start: 0, end: 1 }, { start: 2, end: 3 }], 1.5) === 2 && V.nextPlayable([{ start: 0, end: 1 }], 1.2) === -1 && V.nextPlayable([{ start: 0, end: 1 }], 0.5) === 0.5 && V.nextPlayable(null, 7) === 7, 'nextPlayable: inside a piece stays, in a hole jumps to the next piece, past the end is -1');
+// the recordings folder: stable twice, untouched 5 s, pending when there at the first look, queued while an add runs, backoff on failure
+var rdir = fs.mkdtempSync(path.join(os.tmpdir(), 'solo-rec-')); var rf = path.join(rdir, 'Screen Recording 2026-10-20 at 10.31.22.mov'); fs.writeFileSync(rf, Buffer.alloc(70000, 1));
+var rst = { files: {}, firstLook: true }; V.node.scanRecordings(rdir, rst, Date.now()); rst.firstLook = false;
+ok(rst.files[rf] && rst.files[rf].pending === true, 'a file there at the first look is pending (waits for a yes)');
+var rf2 = path.join(rdir, 'new.mp4'); fs.writeFileSync(rf2, Buffer.alloc(70000, 2)); var t0 = Date.now() + 6000;
+ok(V.node.scanRecordings(rdir, rst, t0).length === 0 && V.node.scanRecordings(rdir, rst, t0 + 4000).length === 0, 'a new file is not ready on its first two looks');
+var rdy = V.node.scanRecordings(rdir, rst, t0 + 8000); ok(rdy.length === 1 && rdy[0].path === rf2 && rst.files[rf2].queued === true, 'stable for two looks and 5 s old: ready once, then queued');
+ok(V.node.scanRecordings(rdir, rst, t0 + 12000).length === 0, 'a queued file is not handed out again');
+V.node.recResult(rst, rf2, null, t0 + 12000); ok(!rst.files[rf2].queued && rst.files[rf2].tries === 1 && rst.files[rf2].nextAt > t0 + 12000, 'a failed add backs off');
+ok(V.node.scanRecordings(rdir, rst, t0 + 13000).length === 0 && V.node.scanRecordings(rdir, rst, t0 + 30000).length === 1, 'not before the backoff, again after it');
+V.node.recResult(rst, rf2, 'v9', t0 + 30000); ok(rst.files[rf2].takeId === 'v9' && !rst.files[rf2].queued, 'a successful add remembers the take');
+V.node.recResult(rst, rf, 'v1', t0, true); ok(/same recording/.test(rst.files[rf].skipped), 'a duplicate of another take is skipped, not a take of its own');
+fs.writeFileSync(path.join(rdir, 'tiny.mp4'), Buffer.alloc(100)); fs.writeFileSync(path.join(rdir, 'voice.m4a'), Buffer.alloc(70000)); fs.writeFileSync(path.join(rdir, '.hidden.mp4'), Buffer.alloc(70000));
+V.node.scanRecordings(rdir, rst, t0 + 40000); ok(!rst.files[path.join(rdir, 'tiny.mp4')] && !rst.files[path.join(rdir, 'voice.m4a')] && !rst.files[path.join(rdir, '.hidden.mp4')], 'tiny files, audio files and dotfiles are ignored');
+eq(V.node.titleFromFile('Screen Recording 2026-10-20 at 10.31.22.mov'), 'Recording 2026-10-20 10.31', 'a recorder file name becomes a title');
+fs.rmSync(rdir, { recursive: true, force: true });
+
 /* ---- the CLI on a synthetic clip ------------------------------------------- */
 var tools = V.node.tools({});
 if (!tools.ffmpeg || !tools.ffprobe) { console.log((fails ? '✗ ' + fails + ' failed of ' + checks : '✓ ' + checks + ' checks') + ' · ffmpeg not found, the render tests were skipped'); process.exit(fails ? 1 : 0); }
 var tmp = fs.mkdtempSync(path.join(os.tmpdir(), "solo video 'test-")); var data = path.join(tmp, 'data'); fs.mkdirSync(data);
 var clip = path.join(tmp, "take one's.mp4");
-cp.execFileSync(tools.ffmpeg, ['-nostdin', '-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=size=640x360:rate=30', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000', '-t', '10', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', clip]);
+cp.execFileSync(tools.ffmpeg, ['-nostdin', '-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=size=640x360:rate=30', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000', '-t', '10', '-af', "volume=enable='between(t,3,4.5)':volume=0", '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', clip]);   // silent from 3.0 to 4.5 s: a real pause for tidy up
+var sil = V.node.silences(tools, clip, { duration: 10 }); ok(sil.length === 1 && Math.abs(sil[0].s - 3) < 0.15 && Math.abs(sil[0].e - 4.5) < 0.15, 'silencedetect finds the 1.5 s silence (' + JSON.stringify(sil) + ')');
 var transcript = path.join(tmp, 'words.json'); fs.writeFileSync(transcript, JSON.stringify({ words: words }));
 var ROOT = path.join(__dirname, '..');
 function solo(args, opts) { var r = cp.spawnSync(process.execPath, [path.join(ROOT, 'solo.js')].concat(args).concat(['--json']), { cwd: ROOT, encoding: 'utf8', env: Object.assign({}, process.env, { SOLO_DATA: data }) }); var o = null; try { o = JSON.parse(r.stdout.trim()); } catch (e) { try { o = JSON.parse(r.stdout.trim().split('\n').pop()); } catch (e2) { o = null; } } return { code: r.status, out: o, stdout: r.stdout, stderr: r.stderr }; }
@@ -80,6 +132,33 @@ try {
   var c = solo(['video', 'cut', id, '--keep', '0.65-2.1, 4.0-6.0']); eq(c.code, 0, 'video cut --keep runs (' + (c.stderr || '').trim() + ')'); eq(c.out.edl.length, 2, 'two pieces');
   ok(c.out.edl.every(function (s) { return !inside(s.start, words) && !inside(s.end, words); }), 'CLI cut never lands inside a word');
   var dr = solo(['video', 'cut', id, '--drop', 'um, you know']); eq(dr.code, 0, '--drop inside the current cut runs'); ok(dr.out && dr.out.edl.length >= 2 && dr.out.edl.every(function (s) { return !(s.start < 2.3 && s.end > 2.0); }) && !dr.out.edl.some(function (s) { return s.end - s.start < 0.2; }), 'the um is gone from the cut and no padding fragment is left behind (' + JSON.stringify(dr.out && dr.out.edl) + ')');
+  var nt = solo(['video', 'cut', id, '--drop-silence']); ok(nt.code !== 0 && /Nothing to tidy/.test((nt.out && nt.out.error) || ''), 'words every 0.5 s: no pause to shorten, says so');
+  var dup = solo(['video', 'add', 'Again', '--file', clip]); ok(dup.code === 0 && dup.out.existing === true && dup.out.id === id, 'adding the same file again returns the existing take');
+  // a second take on the same clip whose words stop over the 1.5 s silence (3.0–4.5): the pause is real, fillers too
+  var dup2 = solo(['video', 'add', 'With a pause', '--file', clip, '--again', '--no-open']); ok(dup2.code === 0 && dup2.out.id !== id, '--again adds it once more'); var id2 = dup2.out.id;
+  var words2 = words.map(function (w, i) { return i < 6 ? w : { w: w.w, s: w.s + 1.5, e: w.e + 1.5 }; }).filter(function (w) { return w.e <= 10; }); fs.writeFileSync(path.join(tmp, 'words2.json'), JSON.stringify({ words: words2 }));
+  var t2i = solo(['video', 'transcribe', id2, '--from', path.join(tmp, 'words2.json')]); eq(t2i.code, 0, 'second take transcribed');
+  var trJ = JSON.parse(fs.readFileSync(path.join(data, 'videos', id2, 'transcript.json'), 'utf8')); ok(Array.isArray(trJ.silences) && trJ.silences.length === 1, 'transcript.json carries the silence measured on the audio (the import path measures it too)');
+  var ts = solo(['video', 'cut', id2, '--drop-silence']); ok(ts.code === 0 && ts.out.runtime < 8.9 && ts.out.runtime > 8.4 && ts.out.edl.length === 2 && ts.out.edl.every(function (s) { return !inside(s.start, words2) && !inside(s.end, words2); }) && /shortened 1 pause over 0.7 s/.test(JSON.stringify(ts.out.notes)), '--drop-silence shortens the 1.5 s pause to a beat, edges outside words (' + JSON.stringify(ts.out && ts.out.edl) + ' ' + (ts.stderr || '').trim() + ')');
+  var nt2 = solo(['video', 'cut', id2, '--drop-silence']); ok(nt2.code !== 0 && /Nothing to tidy/.test((nt2.out && nt2.out.error) || ''), 'a shortened pause does not count again');
+  var tt = solo(['video', 'cut', id2, '--tidy']); ok(tt.code === 0 && /dropped \d+ filler/.test(JSON.stringify(tt.out.notes)), '--tidy then drops the fillers inside the current cut (' + JSON.stringify(tt.out && tt.out.notes) + ')');
+  solo(['video', 'cut', id2, '--keep', '0-10']); var tidyCli = solo(['video', 'cut', id2, '--tidy']);
+  var tw = V.trimToSilences(trJ.words, trJ.silences); var tPure = V.tidy(tw, [], null, { pause: 0.7, duration: 10, fps: 30, fillers: V.FILLERS }); var pureEdl = V.snap(tPure.ranges, tw, { fps: 30, duration: 10 }).edl;
+  ok(tidyCli.code === 0 && V.edlHash(tidyCli.out.edl) === V.edlHash(pureEdl), '--tidy on the CLI = Video.tidy + snap (what the page runs): same EDL, same hash (' + V.edlHash(tidyCli.out.edl) + ')');
+  // correct a word through the CLI: the words and phrases change, the cut does not
+  var before2 = JSON.parse(fs.readFileSync(path.join(data, 'videos.json'), 'utf8')).videos.filter(function (v) { return v.id === id2; })[0];
+  var cw2 = solo(['video', 'word', id2, '4', 'hmm', '--all']); ok(cw2.code === 0 && cw2.out.changed === 1, 'video word corrects a word (' + (cw2.stderr || '').trim() + ')');
+  var after2 = JSON.parse(fs.readFileSync(path.join(data, 'videos.json'), 'utf8')).videos.filter(function (v) { return v.id === id2; })[0]; var trc = JSON.parse(fs.readFileSync(path.join(data, 'videos', id2, 'transcript.json'), 'utf8'));
+  var w4before = JSON.parse(fs.readFileSync(path.join(data, 'videos', id2, 'transcript.json'), 'utf8')).words[4];
+  ok(trc.words[4].w === 'hmm,' && trc.words[4].s === w4before.s && trc.words[4].e === w4before.e && trc.edits.length === 1, 'transcript.json carries the correction (the comma stays) with the old times and an edits trail');
+  var cu = solo(['video', 'word', id2, '--undo']); var trc2 = JSON.parse(fs.readFileSync(path.join(data, 'videos', id2, 'transcript.json'), 'utf8')); ok(cu.code === 0 && trc2.words[4].w === 'um,' && trc2.edits.length === 0, 'video word --undo brings the old word back');
+  var ct = solo(['video', 'word', id2, 'you know', 'you see']); var trc3 = JSON.parse(fs.readFileSync(path.join(data, 'videos', id2, 'transcript.json'), 'utf8')); ok(ct.code === 0 && ct.out.from === 12 && trc3.words[12].w === 'you' && trc3.words[13].w === 'see' && trc3.edits.length === 1, 'video word finds a run by its text');
+  var ct2 = solo(['video', 'word', id2, 'not in there', 'x']); ok(ct2.code !== 0 && /not in the words/.test((ct2.out && ct2.out.error) || ''), 'a text that is not said is refused');
+  solo(['video', 'word', id2, '--undo']);
+  var cx = solo(['video', 'word', id2, '4', 'hmm', '--expect', 'something else']); ok(cx.code !== 0 && /moved/.test((cx.out && cx.out.error) || ''), 'a correction with a stale expectation is refused');
+  ok(/hmm/.test(after2.phrases[0].t) && after2.edlHash === before2.edlHash && after2.transcript.wordsAt > 0, 'the phrases follow, the cut and its hash stay, wordsAt is stamped');
+  var cr = solo(['video', 'cut', id2, '--retakes']); ok(cr.code !== 0 && /nothing said twice/.test((cr.out && cr.out.error) || ''), '--retakes with nothing repeated says so');
+  solo(['video', 'rm', id2]);
   var bad = solo(['video', 'cut', id, '--keep', '5-50']); ok(bad.code === 0 && bad.out.edl[0].end <= 10 && bad.out.notes.some(function (n) { return /past the end/.test(n); }), 'a range past the end is clipped to the take and says so');
   var edlFile = path.join(tmp, 'cut.json'); fs.writeFileSync(edlFile, JSON.stringify([{ start: 1, end: 2, reason: 'HOOK' }, { start: 4, end: 5, reason: 'CTA' }]));
   var ce = solo(['video', 'cut', id, '--edl', edlFile]); eq(ce.code, 0, '--edl through the CLI runs'); eq(ce.out.edl[0].reason, 'HOOK', 'the stored cut keeps the reason'); ok(ce.out.notes.some(function (n) { return /replaced the previous cut/.test(n); }), 'replacing a cut says so');

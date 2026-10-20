@@ -104,6 +104,7 @@ count per cell. Home reads it for the streak, heatmap and idle reminder;
     "format": "text",                     // text | video | text+video
     "project": "general",
     "copy": "The actual post text…",
+    "noteId": "", "scriptId": "",            // the draft / the script this post came from (one story; core/story.js). The take → post edge lives on the take (postId)
     "video": { "title": "", "status": "none", "notes": "", "link": "" },
                                           // status: none|idea|scripted|recorded|edited|ready
     "links": [{ "id": "l1", "label": "", "url": "", "kind": "reference" }],
@@ -122,7 +123,7 @@ count per cell. Home reads it for the streak, heatmap and idle reminder;
 ```json
 {
   "activeId": "s1",
-  "scripts": [{ "id": "s1", "title": "My Reel Script", "text": "# My Reel Script\n\n## Hook\n…", "createdAt": 0, "updatedAt": 0 }]
+  "scripts": [{ "id": "s1", "title": "My Reel Script", "text": "# My Reel Script\n\n## Hook\n…", "noteId": "", "createdAt": 0, "updatedAt": 0 }]   // noteId: the draft it was written from (one story)
 }
 ```
 
@@ -136,14 +137,15 @@ Script text is Markdown with a light convention the viewer understands:
 {
   "activeId": "v1",
   "videos": [{
-    "id": "v1", "title": "Why we killed onboarding", "scriptId": "s3", "postId": "",
+    "id": "v1", "title": "Why we killed onboarding", "scriptId": "s3", "postId": "", "linkedAt": 0,   // scriptId / postId: the story (link, video add --script, video post); linkedAt: when they last changed
     "status": "recorded",             // recorded | transcribed | cut | rendered  (posted = the linked post's status says so)
     "sources": [{ "id": "a", "path": "/Users/me/Movies/take-3.mov", "size": 2147483648, "duration": 312.4,
-                  "width": 1920, "height": 1080, "fps": 29.97, "rotation": 0, "hdr": false, "hash": "sha1 of first MB + last MB + size" }],
+                  "width": 1920, "height": 1080, "fps": 29.97, "rotation": 0, "hdr": false, "vcodec": "hevc", "acodec": "aac", "hash": "sha1 of first MB + last MB + size" }],
+    "proxy": { "file": "data/videos/v1/proxy.mp4", "size": 0, "hash": "the source hash it was made from", "at": 0 },   // a 720p copy for the page's player only (video proxy); never posted, never backed up
     "transcript": { "engine": "whisper", "model": "small.en", "lang": "en", "granularity": "word", "words": 1840, "file": "data/videos/v1/transcript.json" },
     "phrases": [{ "s": 2.52, "e": 5.36, "t": "Ninety percent of what a web agent does is wasted." }],
     "edl": [{ "start": 2.42, "end": 6.85, "quote": "…", "reason": "" }],   // the cut: pieces kept, in order, edges on word boundaries
-    "edlHash": "…",
+    "edlHash": "…", "cutAt": 0,   // the cut's own stamp (ms): the page and the CLI compare it to see whose cut is newer
     "captions": { "style": "sentence", "burn": false },
     "exports": [{ "file": "data/videos/v1/final-1.mp4", "kind": "final", "duration": 61.2, "edlHash": "…", "captions": "track+srt", "srt": "data/videos/v1/final-1.srt", "at": 0 }],
     "notes": "", "createdAt": 0, "updatedAt": 0
@@ -153,12 +155,40 @@ Script text is Markdown with a light convention the viewer understands:
 
 The footage is referenced by `path`, never copied; `hash` notices a changed
 file. `phrases` is the packed view (word-level times live in
-`data/videos/<id>/transcript.json` as `{ words: [{ w, s, e }] }`, one shape
+`data/videos/<id>/transcript.json` as `{ words: [{ w, s, e }], silences: [{ s, e }], edits: [{ at, from, was, now, all }] }`
+(the silences measured on the audio by ffmpeg; the words are trimmed to them
+so a pause is a real gap between words; `edits` is the trail of `video word`
+corrections, popped by `--undo`; `transcript.wordsAt` on the take changes
+with every correction so open pages reload the words), one shape
 whatever the engine; `granularity: "cue"` for an imported SRT/VTT). An export
 whose `edlHash` differs from the take's was rendered before the current cut.
 `data/videos/<id>/` also holds `progress.json` (the running render, unlogged)
 and the renders `preview-<n>.mp4` / `final-<n>.mp4`, which the backup skips
-(only `transcript.json` and the `.srt` files travel). `data/secrets.json`
+(only `transcript.json` and the `.srt` files travel). When the Video page
+starts a job through `node serve.js`, the folder gains `render.json` /
+`transcribe.json` (pid, started, finished, exit code) and `render.log` /
+`transcribe.log` (the CLI's output), plus `import.<srt|vtt|json>` for a
+transcript dropped on the page: machine state, unlogged, not backed up.
+The page writes only `activeId`, `edl`, `edlHash`, `cutAt`, `status`, `title`
+(`renamedAt`) and `updatedAt`; the CLI owns the rest and both merge the
+other's copy before writing.
+
+## recordings.json — the recordings folder's memory
+
+```json
+{ "files": { "/Users/me/Movies/Solo Ops takes/take-3.mov": { "size": 0, "mtime": 0, "stable": 2, "tries": 0, "takeId": "v1", "at": 0, "pending": false, "skipped": "" } } }
+```
+
+Written by `node serve.js` (which polls the folder while it runs) and
+`node solo.js video watch`. A path listed with a `takeId` is never added
+twice; one with `skipped` stays out (a take removed later, or a file that
+would not probe after five tries); `pending` marks files that were already
+there when the watcher started (they wait for *Add them* on the Video page
+or `video recordings --add`); `queued` while an add runs. Files under 64 KB,
+dotfiles and audio-only files are ignored; entries for files gone from the
+folder for a week are dropped. `video recordings --forget <path>` lets a
+file in again (the server reloads the file when the CLI wrote it). Machine
+state: unlogged, not backed up. `data/secrets.json`
 (`video key set`) and `data/models/` (the whisper model) stay out of it too.
 
 ## writing.json — drafts / notes

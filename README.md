@@ -88,6 +88,7 @@ the managing. The longer story and what is coming next:
 | **Social Schedule** | A posting arc: date, copy, type, prep checklist, images, video status; mark posted and log engagement. Calendar with a 52-week streak heatmap. |
 | **Script Viewer** | Reels/shorts scripts: hook, numbered beats, inserts, prep. Reader view, 9:16 preview, teleprompter. A library of scripts. |
 | **Writing Viewer** | Drafts with `~~cuts~~`, `++adds++` and `[[notes for the AI]]`. Copy for AI, copy clean, change log view, images. |
+| **Video** | Cut your takes by their words. The footage stays where it is: add a recording by path, get its words with their times (on this computer with whisper.cpp, through ElevenLabs with only the audio leaving, or from an SRT you have), click a sentence to cut it, drop the fillers in one go, render a 720p preview and the full-quality final with captions, link it into a post. Every edge lands on a word, every cut is logged and revertable. See [Video](#video). |
 | **Inspiration** | An inbox for anything worth keeping. A **capture strip sits under the nav on every page**: type or paste anything and press Enter; drag a link, text or image from anywhere toward the page and drop it; paste with nothing focused. Images save the moment they arrive, details are optional. Every item gets basic information for free: a kind tag, the site as a tag for links, and (with the server running) the page's real title and description. Each save shows a toast with Undo. **Assess new inspiration** hands your agent only what you saved since last time. Tag with a workspace, then **Use as** task / post / script / draft, or **Brainstorm with AI** (copies the items plus instructions for your chat). |
 | **Guide** | The panel on the left edge of every page (`?`). **Quick**: daily moves with no AI. **Ask** starts with **Ask your AI**: say it in plain words, tick what goes along (this task, this board, my schedule, recent changes), **Copy for your AI**; the ritual prompts (standup, plan the week, cut scope, fill my calendar…) sit under it. **Reply**: paste the whole answer, preview every change, apply. **Settings**: runs commands or chat only, backup, export / import. Every prompt is also a slash command. |
 
@@ -134,6 +135,8 @@ node solo.js add "Write the launch post" --proj launch --pri high --tags content
 node solo.js start "Write the launch post" ; done t5 ; move t11 later ; check t5 2
 node solo.js social add "Launch day" --at +3d 9:00 --type launch ; social next ; social posted p4 --url …
 node solo.js scripts add "Teaser" --file teaser.md ; notes list
+node solo.js video add "Take 3" --file ~/Movies/take-3.mov --script <script> ; video transcribe <take> ; video cut <take> --tidy ; video word <take> "on shoe lee" "Anshuli" ; video render <take> --preview
+node solo.js link <draft> <script> ; story <script>   # one story: draft → script → takes → posts; the pages show the same line
 node solo.js inspo add "https://… worth stealing #launch"
 node solo.js inspo use "worth stealing" --as task
 node solo.js boards add "Business as usual" --from sample
@@ -146,6 +149,66 @@ node solo.js help
 
 `--json` on anything for machine output. `--ws <id>` and `--board <id>` scope
 any command.
+
+## Video
+
+The promise: **the footage never moves, only its words do.** Descript makes
+you upload a take and cuts a lowered-quality proxy; Solo Ops cuts the file
+on your disk, at its quality, by its transcript.
+
+1. **Record, or add a take.** Record with any app (Recordly, QuickTime, your
+   phone) and save the file into the recordings folder (`~/Movies/Solo Ops
+   takes`; `node solo.js video recordings` prints it): it shows up on the
+   Video page by itself while the server runs. Or drop the recording on the
+   page (it finds it in Movies, Desktop, Downloads or Documents) or paste
+   its path. Nothing is copied. Tick *Get the words this way for every new
+   take* once and new takes get their words by themselves. Terminal:
+   `node solo.js video add "Title" --file ./take.mov`. *Set up video on this computer* in the Guide
+   (`/setup-video`) has your agent install ffmpeg, the words engine, the
+   folder and the recorder in one conversation.
+2. **Get the words.** Three ways, you pick, never a paid one on its own:
+   on this computer (whisper.cpp, free, nothing leaves the machine), ElevenLabs
+   (the audio is sent, the video stays, the price is shown first; the key is
+   pasted once into a field on the page and stays in `data/secrets.json`),
+   or a transcript you already have (SRT, VTT, JSON).
+3. **Cut.** The transcript is the editor and the player follows it: click a
+   word, press Space, and the take plays from there with your cuts skipped; select words
+   (or a sentence) and press Delete, or Cut; select a crossed-out word to
+   put it back. **Remove fillers and pauses** takes um, uh, you know and
+   every pause longer than 0.7 s (`video.pause`) in one click, or *Review
+   first* to untick single ones and see what was said twice; Undo and Redo
+   are there. A misheard word is fixed by selecting it and pressing C (the
+   audio does not change). Every edge lands on a word, padded; pauses are
+   measured on the audio, not guessed from the words. Or *Cut it with my
+   AI*: your agent reads the words, proposes the cut in plain words, waits
+   for your yes, and the cut lands on the page. iPhone footage the browser
+   cannot play gets a 720p copy for the player with one click.
+4. **Render.** A 720p preview first; the final at full quality after you
+   watched it. Captions ride along as a track and a `.srt`. One render at a
+   time; renders are numbered, never overwritten.
+5. **Post.** *Make the post* puts a draft on the schedule with the final
+   linked, never copied; *Post this video* in the Guide writes the copy.
+
+Needs ffmpeg (`brew install ffmpeg` on a Mac, `winget install Gyan.FFmpeg` on
+Windows) and, for the buttons, `node serve.js`. Without the server the page
+still cuts (clicking saves the cut) and shows the terminal line for the rest.
+Renders live in `data/videos/<take>/` and never enter the backup; the words
+and the `.srt` do.
+
+## One story
+
+A draft, its script, the takes and the posts belong together, and every
+page shows it on one line: `Draft: Why we killed onboarding → Script: Why we
+killed onboarding → Take: Take 2 · cut 0:23 → Post: Launch · Fri 09:00 ·
+scheduled`. Each piece is a link to its page.
+On a draft, **Start the script** makes the script from the clean text; on a
+script, **Add the take** opens Video with the recording box and **Make the
+post** puts a draft post on the schedule for tomorrow 09:00; a take's
+**Make the post** links the final. **Connect…** attaches something that
+already exists; × on a piece disconnects it (nothing is deleted). Your
+agent does the same with `node solo.js link <a> <b>` and sees the line in
+`story <id>`, in `show`, and in the Guide's `{{this}}` / `{{take}}`. Nothing
+new to back up: the pieces keep each other's ids.
 
 ## Your AI runs it
 

@@ -64,6 +64,7 @@
     });
   });
   function scheduleWrite(spec) {
+    if (spec.readOnly) return;   // a sibling file mirrored on this page (takes on every page, the story's four): the file always wins, the page never writes it back
     if (mode !== 'server' && mode !== 'folder') return;
     clearTimeout(timers[spec.file]);
     timers[spec.file] = setTimeout(function () { writeOne(spec); }, 400);
@@ -203,7 +204,10 @@
     // spec.keep: keys the file owns (settings.json → config). The file's copy wins every write unless this page changed
     // them (spec.dirty), so a theme click can never drop or roll back what the CLI wrote; spec.kept gets the written body.
     var keepFromFile = (mode === 'server' || mode === 'folder') && spec.keep && spec.keep.length && !(spec.dirty && spec.dirty());
-    var pre = keepFromFile ? readFile(spec.file).catch(function () { return null; }).then(function (f) { spec.keep.forEach(function (k) { if (f && f[k] !== undefined) obj[k] = f[k]; else delete obj[k]; }); }) : Promise.resolve();
+    // spec.reconcile(fileBody): the page owns a few fields per item and the CLI the rest (takes); it merges the file's fresh copy in and returns the body to write
+    var reconcile = (mode === 'server' || mode === 'folder') && typeof spec.reconcile === 'function';
+    var pre = keepFromFile ? readFile(spec.file).catch(function () { return null; }).then(function (f) { spec.keep.forEach(function (k) { if (f && f[k] !== undefined) obj[k] = f[k]; else delete obj[k]; }); })
+      : reconcile ? readFile(spec.file).catch(function () { return null; }).then(function (f) { if (!f) return; var b = spec.reconcile(f) || spec.read() || {}; var stamp = obj.updatedAt; obj = { version: 1, updatedAt: stamp }; Object.keys(b).forEach(function (k) { obj[k] = b[k]; }); }) : Promise.resolve();
     setPillState('busy');
     return pre.then(function () { return mode === 'server' ? serverWrite(spec.file, obj) : mode === 'folder' ? folderWrite(spec.file, obj) : Promise.resolve(); })
       .then(function () { lastSeen[spec.file + ':stamp'] = obj.updatedAt; render(); if (spec.clean) spec.clean(); emit('wrote', { file: spec.file }); if (spec.kept) spec.kept(obj); })
@@ -399,6 +403,13 @@
       return Promise.resolve('');
     },
     attachmentsAvailable: function () { return mode === 'server' || mode === 'folder'; },
+    // a take's own file (data/videos/<id>/transcript.json) parsed as JSON; null where nothing can read it
+    readTakeFile: function (id, name) {
+      if (!/^v[a-z0-9]+$/.test(String(id)) || !/^[a-z0-9.-]+$/i.test(String(name))) return Promise.resolve(null);
+      if (mode === 'server') return fetch('/api/video/' + id + '/' + name, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+      if (mode === 'folder' && dataDir) return dataDir.getDirectoryHandle('videos').then(function (d) { return d.getDirectoryHandle(id); }).then(function (d) { return d.getFileHandle(name); }).then(function (fh) { return fh.getFile(); }).then(function (f) { return f.text(); }).then(function (t) { return JSON.parse(t); }).catch(function () { return null; });
+      return Promise.resolve(null);
+    },
     // read an attachment back as a data URL ('' when it is not on disk here)
     readAttachment: function (name) {
       name = String(name).replace(/[^A-Za-z0-9._-]/g, '-');

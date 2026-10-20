@@ -9,7 +9,7 @@
   function ws() { return Config.ws(); }
   function page() {
     var h = location.pathname.replace(/.*\//, '');
-    return { 'index.html': 'home', '': 'home', 'marathon-board.html': 'board', 'social-board.html': 'social', 'social-calendar.html': 'social', 'calendar.html': 'calendar', 'script-viewer.html': 'scripts', 'writing-viewer.html': 'writing', 'inspiration.html': 'inspo' }[h] || 'home';
+    return { 'index.html': 'home', '': 'home', 'marathon-board.html': 'board', 'social-board.html': 'social', 'social-calendar.html': 'social', 'calendar.html': 'calendar', 'script-viewer.html': 'scripts', 'writing-viewer.html': 'writing', 'video.html': 'video', 'inspiration.html': 'inspo' }[h] || 'home';
   }
   function task(t, bTitle) {
     return '[' + t.id + '] ' + t.title + (bTitle ? ' · board: ' + bTitle : '') + ' · ' + t.col + ' · ' + t.pri + (t.at ? ' · at ' + t.at.replace('T', ' ') + (t.until ? '–' + t.until.slice(11) : '') : '') + (t.due ? ' · due ' + t.due : '') + (t.tags.length ? ' · #' + t.tags.join(' #') : '') + ' · project: ' + t.proj +
@@ -29,11 +29,12 @@
     } },
     this: { label: 'This item', hint: 'what is open on this page', get: function () {
       var pg = page(); var w = ws();
-      if (pg === 'scripts' && typeof library !== 'undefined' && library.scripts) { var s = library.scripts.filter(function (x) { return x.id === library.activeId; })[0]; return s ? '# Script: ' + s.title + '\n\n' + s.text : '(no script open)'; }
-      if (pg === 'writing' && typeof library !== 'undefined' && library.notes) { var n = library.notes.filter(function (x) { return x.id === library.activeId; })[0]; return n ? '# Draft (markup: ~~cut~~ ++add++ [[note for you]])\n\n' + n.text + (Object.keys(n.files || {}).length ? '\n\nimage files: ' + Object.keys(n.files).map(function (k) { return n.files[k]; }).join(', ') : '') : '(no note open)'; }
-      if (pg === 'social') { var ti = document.querySelector('.detail-title'); var posts = Store.getJSON(Config.key('social', w.id), []) || []; var p = ti ? posts.filter(function (x) { return x.title === ti.value; })[0] : null; return p ? '# Post\n' + post(p) : '(no post selected)'; }
+      if (pg === 'scripts' && typeof library !== 'undefined' && library.scripts) { var s = library.scripts.filter(function (x) { return x.id === library.activeId; })[0]; return s ? '# Script: ' + s.title + storyTok('script', s.id) + '\n\n' + s.text : '(no script open)'; }
+      if (pg === 'writing' && typeof library !== 'undefined' && library.notes) { var n = library.notes.filter(function (x) { return x.id === library.activeId; })[0]; return n ? '# Draft (markup: ~~cut~~ ++add++ [[note for you]])' + storyTok('note', n.id) + '\n\n' + n.text + (Object.keys(n.files || {}).length ? '\n\nimage files: ' + Object.keys(n.files).map(function (k) { return n.files[k]; }).join(', ') : '') : '(no note open)'; }
+      if (pg === 'social') { var ti = document.querySelector('.detail-title'); var posts = Store.getJSON(Config.key('social', w.id), []) || []; var p = ti ? posts.filter(function (x) { return x.title === ti.value; })[0] : null; return p ? '# Post' + storyTok('post', p.id) + '\n' + post(p) : '(no post selected)'; }
       if (pg === 'board') { var evs = global.Recent ? Recent.load().slice().reverse().filter(function (e) { return e.kind === 'task' && global.Model && e.key === Model.KEY; }) : []; var t = evs.length ? Model.getState().filter(function (x) { return x.id === evs[0].id; })[0] : null; if (!t) t = Model.getState().filter(function (x) { return x.col === 'doing'; })[0]; return t ? '# Task\n' + task(t, Model.board().title) : C.board.get(); }
       if (pg === 'inspo') return C.inspiration.get();
+      if (pg === 'video') return C.take.get();
       return C.project.get();
     } },
     board: { label: 'This board', hint: 'every task on the open board', get: function () {
@@ -81,14 +82,28 @@
       var w = ws(); var end = new Date(Date.now() + 14 * 86400000); var posts = (Store.getJSON(Config.key('social', w.id), []) || []).filter(function (p) { return p.status !== 'posted' && new Date(p.datetime) <= end; }).sort(function (a, b) { return a.datetime.localeCompare(b.datetime); });
       return posts.length ? '# Upcoming posts (' + posts.length + ')\n\n' + posts.map(post).join('\n\n') : '(no posts in the next 14 days)';
     } },
-    take: { label: 'This take', hint: 'the take you touched last: its words with [start-end] times, the cut, the exports', get: function () {
+    take: { label: 'This take', hint: 'the open take (or the one you touched last): its words with [start-end] times, the cut, the exports', get: function () {
       var w = ws(); var d = Store.getJSON(Config.key('videos', w.id), null); var vids = d && Array.isArray(d.videos) ? d.videos : [];
       if (!d) return '(no take here: start `node serve.js` or link the folder so this page reads data/videos.json, or paste the output of `node solo.js video show <take>`)';
       if (!vids.length) return '(no takes yet — node solo.js video add "Title" --file ./take.mov)';
-      var v = vids.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); })[0];
+      var v = vids.filter(function (x) { return x.id === d.activeId; })[0] || vids.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); })[0];   // the open take on the Video page, else the latest
       var src = (v.sources || [])[0] || {}; var tr = v.transcript || null; var ex = (v.exports || []).filter(function (e) { return e.kind === 'final'; }).slice(-1)[0];
       var L = ['# Take [' + v.id + '] ' + v.title + ' · ' + (v.status || 'recorded') + (src.duration ? ' · ' + tfmt(src.duration) : '') + (src.fps ? ' · ' + src.fps + ' fps' : '') + (src.width ? ' · ' + src.width + '×' + src.height : '') + (tr && tr.words ? ' · ' + tr.words + ' words' : '') + (v.scriptId ? ' · script: ' + v.scriptId : '') + (v.postId ? ' · post: ' + v.postId : ''), ''];
-      if (tr && (v.phrases || []).length) { L.push('## Words ([start-end] in seconds' + (tr.granularity === 'cue' ? ', cue-level: cuts snap to cues' : '') + ')', ''); v.phrases.slice(0, 200).forEach(function (p) { L.push('[' + ttag(p.s) + '-' + ttag(p.e) + '] ' + p.t); }); if (v.phrases.length > 200) L.push('… ' + (v.phrases.length - 200) + ' more: node solo.js video show ' + v.id); L.push(''); }
+      var slT = storyTok('take', v.id); if (slT) L.push(slT.trim());
+      if (tr && (v.phrases || []).length) {
+        // what tidy up would take, so the agent sees it without running anything: fillers counted in the phrases, pauses between phrases over video.pause, a phrase said twice within 20 s
+        var fillers = ['um', 'uh', 'uhm', 'umm', 'erm', 'hmm', 'you know', 'i mean']; var fc = {}; var ftot = 0; var pauseMin = Number(Config.get('video.pause')) > 0.1 ? Number(Config.get('video.pause')) : 0.7;
+        v.phrases.forEach(function (p) { var low = ' ' + p.t.toLowerCase().replace(/[^a-z' ]+/g, ' ').replace(/\s+/g, ' ') + ' '; fillers.forEach(function (f) { var n = low.split(' ' + f + ' ').length - 1; if (n) { fc[f] = (fc[f] || 0) + n; ftot += n; } }); });
+        if (ftot) L.push('Fillers in the words: ' + ftot + ' (' + Object.keys(fc).map(function (f) { return f + ' ×' + fc[f]; }).join(', ') + ') — `video cut ' + v.id + ' --tidy` takes them with the long pauses; the Video page\'s Remove button does the same.');
+        L.push('## Words ([start-end] in seconds' + (tr.granularity === 'cue' ? ', cue-level: cuts snap to cues' : '') + ')', '');
+        var norm = function (t) { return t.toLowerCase().replace(/[^a-z0-9' ]+/g, ' ').replace(/\s+/g, ' ').trim(); };
+        v.phrases.slice(0, 200).forEach(function (p, i) {
+          if (i && p.s - v.phrases[i - 1].e > pauseMin) L.push('[pause ' + (p.s - v.phrases[i - 1].e).toFixed(1) + ' s]');
+          L.push('[' + ttag(p.s) + '-' + ttag(p.e) + '] ' + p.t);
+          var n = norm(p.t); if (n.split(' ').length >= 3) { var twin = v.phrases.slice(i + 1).filter(function (q) { return q.s - p.e <= 3 && norm(q.t) === n; })[0]; if (twin) L.push('[said again at ' + ttag(twin.s) + ': the later one is the keeper; `video cut ' + v.id + ' --retakes` drops this one]'); }   // whole sentences only here; the Video page and `video show` see runs of words
+        });
+        if (v.phrases.length > 200) L.push('… ' + (v.phrases.length - 200) + ' more: node solo.js video show ' + v.id); L.push('');
+      }
       else L.push('(no words yet: node solo.js video transcribe ' + v.id + ')', '');
       if ((v.edl || []).length) { L.push('## Cut (' + v.edl.length + ' piece' + (v.edl.length === 1 ? '' : 's') + ', ' + tfmt(v.edl.reduce(function (a, s) { return a + s.end - s.start; }, 0)) + ')'); v.edl.forEach(function (s, i) { L.push((i + 1) + '. ' + tfmt(s.start) + '-' + tfmt(s.end) + (s.quote ? '  "' + s.quote + '"' : '') + (s.reason ? '  (' + s.reason + ')' : '')); }); L.push(''); }
       if (ex) L.push('## Final: ' + ex.file + ' · ' + tfmt(ex.duration) + (ex.edlHash !== v.edlHash ? ' · rendered before the current cut' : ''));
@@ -98,9 +113,11 @@
   // the take's times, as `node solo.js video show` prints them: 0:02.5 and [002.52-005.36]
   function tfmt(sec) { var s = Math.max(0, Number(sec) || 0); var m = Math.floor(s / 60), r = s - m * 60; var rs = r.toFixed(1); if (rs === '60.0') { rs = '0.0'; m++; } var h = Math.floor(m / 60); m -= h * 60; if (rs.length < 4) rs = '0' + rs; return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + rs; }
   function ttag(sec) { var s = Math.max(0, Number(sec) || 0); return s < 100 ? ('00' + s.toFixed(2)).slice(-6) : s.toFixed(2); }
-  // videos.json reaches the browser read-only until the Studio page comes: the file always wins, this page never writes it back
+  // videos.json reaches every other page read-only (the file always wins, the page never writes it back); the Video page registers it itself, writable
+  function storyTok(kind, id) { var l = global.Story && Story.line ? Story.line(kind, id) : ''; return l ? '\nStory: ' + l : ''; }   // the chain this item belongs to (core/story.js), so the agent sees the draft, the script, the takes and the posts together
   function registerTakes() {
-    if (!global.Sync) return; var w = ws(); var key = Config.key('videos', w.id);
+    if (!global.Sync) return; var w = ws(); var key = Config.key('videos', w.id); var file = Config.file('videos', w.id);
+    if ((Sync.specs || []).some(function (s) { return s.file === file; })) return;   // the Video page registered it itself (writable) at script evaluation
     Sync.register({ file: Config.file('videos', w.id), key: key, label: 'takes', app: 'video', activity: false, readOnly: true, isFresh: function () { return Store.get(key) == null; },
       read: function () { return Store.getJSON(key, null) || { activeId: '', videos: [] }; },
       apply: function (body) { Store.setJSON(key, { activeId: body.activeId || '', videos: Array.isArray(body.videos) ? body.videos : [] }, { silent: true }); } });
@@ -113,6 +130,6 @@
     // replace every {{token}} in a prompt
     fill: function (text) { return String(text).replace(/\{\{(\w+)\}\}/g, function (m, k) { if (k === 'snapshot') k = 'project'; return C[k] ? C[k].get() : m; }); },
     // the Context menu, with what is most useful on this page first
-    menu: function () { var pg = page(); var order = pg === 'board' ? ['this', 'last_task', 'board', 'recent', 'doing', 'project', 'posts', 'inspiration_new', 'inspiration'] : pg === 'social' ? ['this', 'posts', 'recent', 'doing', 'project', 'inspiration_new', 'inspiration', 'last_task', 'board'] : pg === 'scripts' || pg === 'writing' ? ['this', 'recent', 'inspiration_new', 'inspiration', 'project', 'last_task', 'doing', 'posts', 'board'] : pg === 'inspo' ? ['inspiration_new', 'inspiration', 'recent', 'project', 'doing', 'posts', 'last_task', 'this', 'board'] : ['recent', 'project', 'inspiration_new', 'doing', 'last_task', 'posts', 'inspiration', 'this', 'board']; order.splice(order.indexOf('recent') + 1, 0, 'shipped'); order.splice(pg === 'calendar' || pg === 'home' ? 0 : order.indexOf('shipped') + 1, 0, 'schedule'); order.splice(pg === 'scripts' ? 1 : order.length, 0, 'take'); return order.map(function (k) { return { id: k, label: C[k].label, hint: C[k].hint }; }); }
+    menu: function () { var pg = page(); var order = pg === 'board' ? ['this', 'last_task', 'board', 'recent', 'doing', 'project', 'posts', 'inspiration_new', 'inspiration'] : pg === 'social' ? ['this', 'posts', 'recent', 'doing', 'project', 'inspiration_new', 'inspiration', 'last_task', 'board'] : pg === 'scripts' || pg === 'writing' ? ['this', 'recent', 'inspiration_new', 'inspiration', 'project', 'last_task', 'doing', 'posts', 'board'] : pg === 'inspo' ? ['inspiration_new', 'inspiration', 'recent', 'project', 'doing', 'posts', 'last_task', 'this', 'board'] : ['recent', 'project', 'inspiration_new', 'doing', 'last_task', 'posts', 'inspiration', 'this', 'board']; order.splice(order.indexOf('recent') + 1, 0, 'shipped'); order.splice(pg === 'calendar' || pg === 'home' ? 0 : order.indexOf('shipped') + 1, 0, 'schedule'); order.splice(pg === 'video' ? 0 : pg === 'scripts' ? 1 : order.length, 0, 'take'); return order.map(function (k) { return { id: k, label: C[k].label, hint: C[k].hint }; }); }
   };
 })(window);

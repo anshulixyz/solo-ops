@@ -171,6 +171,155 @@ folder: the prompt's own commands cut, preview, render and post it.
 Next: slice 3, the page.
 Slice 2 reviewed 2026-10-19 (fresh-eyes developer + product engineer, 28
 findings), fixes in `b1994da`.
+**Slice 3 shipped 2026-10-19, commit `e293b37`:** the Video page
+(`studio/video.html` + model / view / main, nav "Video", `apps.video`
+switch everywhere a workspace lists its apps, Home chip and Overview
+card, Guide page texts, `{{take}}` reads the open take, Export everything
+carries `videos.json`). Sentences as toggles (click = cut, shift-click a
+run, keyboard), fillers highlighted with *Drop the fillers* and a click to
+spare one, struck words click back in, Undo (⌘Z) and *Keep everything*,
+the next step as a sentence with its button, plain status labels. The
+cut goes through `core/video.js` exactly as the CLI's (`Video.edlHash`
+is now one pure sha1 shared by both sides). serve.js: `/api/video/doctor`
+(the ffmpeg card in the Guide once a take exists, inline on the page),
+`add` (drop the file: `find` looks in Movies/Desktop/Downloads/Documents),
+`transcribe` (three engine cards in the CLI's words, ElevenLabs asks the
+price, import reads the dropped SRT), `render` (detached, 202, 409 while
+one runs, progress polled, the preview plays inline from a Range route),
+`source`, `post`. Two reconcile rules close the page-vs-CLI race: the CLI
+patches a fresh copy of `videos.json` (`patchVideo`) and the page rebuilds
+every write from the file's copy (`Sync` `reconcile` hook) overlaying only
+`edl / edlHash / status`. `core/apply.js` learned `video cut --keep/--drop`
+(never render); `core/test-video-page.js` (51 checks) and test-apply cover
+it; `npm test` green. Verified on a synthetic take in a scratch `SOLO_DATA`
+folder: toggles → EDL on words → preview → final → *Make the post*. Slice
+3 was planned with a page plan reviewed by two agents before building
+(product + tech, 46 findings) and the diff reviewed by two after
+(48 findings: the add route not parsing the CLI's JSON, the race stamp,
+stale job files, hash drift on a cut/keep round trip, CSRF on the new
+routes, all folded in before the commit).
+**Slice 5 shipped 2026-10-20, commit `184091f`: the player follows
+the text.** After a research pass over Descript, Riverside, Opus, Veed,
+CapCut, Premiere and the open-source editors (auto-editor, LosslessCut,
+Kdenlive, Open-Script-Editor, Rescript, CutScript; notes in the side-session
+folder, `video-gap-analysis.md`): one player in the sticky top block, the
+take with the cuts skipped (click a word to play from there, Space, a seek
+into a cut plays it out, the spoken word marked, the text follows unless
+she scrolled), or a render through *Watch*; a 720p copy (`video proxy`) when
+the browser cannot play the original (decided from the stored codecs;
+iPhone HEVC/HDR, PCM audio, .mkv); *Correct* (C) retypes a misheard word
+through `video word` (an edits trail, `--undo`, `--expect`, the EDL quotes
+follow, a cut edge inside the run is refused, cue-level kept whole);
+*Review first* lists fillers, pauses and "said twice" (a run of words
+repeated within 3 s, `Video.retakes`) with checkboxes, the pause length as a
+live setting (`video.*` settings apply in place, no reload), *Remove
+ticked* = `Video.tidy` with `only` (hash parity tested); `video.auto` is
+the one standing yes for words on arrival (serve.js and `video watch
+--transcribe`, capped by `video.autoMaxMin`, the ElevenLabs estimate in
+the card, an off-switch on the card); every `/api/` call is Host/Origin
+checked (GET too: the footage stream); `video cut` writes through
+`patchVideo`; the `{{take}}` token carries pauses, the filler count and
+`[said again at …]`; reply verbs `video title`, `video word`; `?nosw=1`
+skips the service worker for debugging in embedded browsers. Plan and diff
+each reviewed by two agents; from the diff reviews: `video watch
+--transcribe` never falls back to `video.engine` (money only on the
+standing yes), a seek into the trailing cut plays it out, a retake hole
+runs to the second try, `--all` undo restores every place, `video word
+<take> "what it says" "what it should say"` (the agent never sees word
+numbers), the list open folds the player to its bar and hides the strip's
+Remove. Left for slice 6: tests for the skip rule, the word route (409),
+`autoWords` (standing yes, cap) and `/api/video/key`; memoise `tidyCount`
+(retakes run on every paint); audio-only takes; a 409 on `/api/data` PUT;
+stream the ElevenLabs upload instead of holding the WAV in memory (a
+3-hour manual `--yes` is ~700 MB); say in SCHEMA that `import.srt` travels
+with the backup (harmless text). Two branch-wide reviews before main
+(compatibility/data/security, main-readiness/UX) found no leak and no
+unlogged write; their fixes are in: `video recordings` before the first
+take, doctor's tool lines before the first take and no false warnings on
+the machine-only files, the Home chip counts by status, `help` up to date,
+provider errors in plain words, the missing-words card, the stale-server
+card, `--title=`/`--at=`/`--expect=` from the routes, `Sec-Fetch-Site`
+in the Host check, `recordings.json` out of the backup.
+**One story shipped 2026-10-20, commit `3b4c394`.** A draft, its
+script, the takes and the posts as one chain, with no new file or id: the
+downstream item keeps the upstream id (`script.noteId`, `take.scriptId`,
+`post.noteId` / `post.scriptId`; the take → post edge stays on
+`take.postId`, which `video post` wrote first). `core/story.js` (UMD,
+shared with the CLI) walks the pointers both ways, in story order, with
+deleted members shown as *missing*; the four pages draw one line under the
+title (chips that link to each page by `?open=<id>` / `?id=`, the next step
+in its empty slot: *Write the script*, *Add the take*, *Make the post*;
+*Connect…* with a picker of what can connect directly; × disconnects).
+A page writes only its own field in its own file (the Script Viewer's
+`noteId`, the Social board's `noteId`/`scriptId`); every other connection
+goes through `POST /api/story` → `node solo.js link` / `scripts add --draft`
+/ `social add --draft|--script|--take`, so the log and `revert` cover it,
+and without the server the terminal line is copied. The sibling files are
+registered read-only on each page (the file always wins). `story <id>`,
+`link a b [--off]` (ids or a unique title; a wrong pair or an ambiguous
+title is refused in a sentence), the show commands and `{{this}}` /
+`{{take}}` print the same line; `link` works from a pasted reply.
+`core/test-story.js` (31 checks). Also from the owner's asks: More →
+*ElevenLabs key…* replaces the key from any take; the engine card puts
+ElevenLabs first with the three sign-up steps, then "On this computer" says
+what Whisper is and what it downloads; `/setup-video` in the same order.
+Left for later: a Home card "stories in progress"; a `{{story}}` token;
+drag a draft onto a post card to connect; tasks in the chain; the take's
+words back into a script; `inspo use` keeping its link; the post's video
+status derived from the take's; *Add the take* picking a file already in
+the recordings folder.
+**Slice 4 shipped 2026-10-20, commit `1e5ca53`: easy mode.**
+The owner's direction: trim the umms and pauses, edit the transcript as
+text like Descript, record with Recordly and have the recordings land in
+the editor, ElevenLabs easy for the agent, agent-first everywhere,
+cleanup over complication. One editing rule on the screen now: a click
+selects (a word, a pause pill, a sentence by its time); the action is
+**Cut N words / Put back N words** (the button, or Delete), nothing
+happens on a click alone; **Remove 12 fillers, 5 pauses** is one button
+with live counts; Undo, Redo (⌘Z / ⇧⌘Z), Start over; the title renames
+on click; every toast that cut something carries Undo. Pauses are
+measured on the audio (ffmpeg silencedetect during transcribe, backfilled
+on first use; whisper's word times are trimmed to them) and shown as
+pills with their length, struck once shortened to a 0.25 s beat.
+`Video.tidy` is one function for the page's button and the CLI's
+`video cut --tidy` / `--drop-silence`, so both give the same EDL and
+hash; a cut remembers what it removed so a keep restores it exactly.
+Recording: `~/Movies/Solo Ops takes` (`video.recordings`), polled by
+serve.js and `video watch` with state in `data/recordings.json` (stable
+twice, probe-gated with a backoff, pre-existing files wait for *Add
+them*, a removed take stays removed, `video add` dedupes by path/hash);
+the Record card has *Open the folder*. ElevenLabs: a key field on the
+engine card → `POST /api/video/key` → `video key set --stdin`; never in
+a log, a response or the chat. Agent first: every fallback shows *Copy
+for my agent* as the primary door, the terminal line under "Do it
+yourself"; `/setup-video` (Guide → Settings, also a slash command)
+installs ffmpeg, whisper, the folder and the recorder in one
+conversation, with the Homebrew-password warning up front. Writes to
+`/api/` are accepted from this computer only (Host and Origin checks),
+JSON bodies only, capped. Settings `video.pause`, `video.recordings`.
+Reviewed before building (product + tech, 45 findings: audio-measured
+pauses, dedupe, persisted watcher state, the one-rule editing model,
+key-field hygiene) and after (tech: a frame-grid edge entering the
+neighbouring word, a sliver between a pause and a filler, the page not
+trimming its words to the silences; product: the Guide text teaching the
+old gesture, counts by kind, the pill at the end of the sentence it
+follows). `core/test-video-page.js` 68 checks, `core/test-video.js` 143
+(a clip with a real silence, the watcher's pure rules, the edge cases
+above); the key route and the live watcher were exercised by hand on the
+scratch server, not in `npm test` (a server test is a follow-up).
+Not in this slice: a recording button in the page (Recordly has no API),
+*Remember this engine* on the page (`config set video.engine` from the
+terminal does it), several takes per item, a Video line on Home's Today
+strip, the EPIPE and doctor-stale-lock minors, a 409 on `/api/data` PUT
+when the file moved underneath (the watcher's two-minute re-add rule
+covers the one case that matters today), server tests for the key and
+recordings routes, `video add` for audio-only files (the folder watch
+takes video files only; `--drop` on an uncut take keeps the tail to the
+end of the take while a page cut drops wordless tails: two verbs, two
+rules, both logged).
+Known: the Claude desktop Browser pane cannot fetch through the service
+worker (every page there loads only when the worker is unregistered;
+Chrome and Safari are fine).
 
 ### M3 · Collaborators through agents, no shared app
 An editor or writer installs Solo Ops, points their agent at the same
@@ -205,11 +354,19 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Minor / issues
 
-- **`prompts export` with no `data/prompts.json` deletes `mine/`
-  (2026-10-19):** in a worktree or fresh clone that carries copied
-  `.claude/commands/mine/` files but no data folder, the export sees no
-  personal prompts and removes every generated file in `mine/` as stale.
-  It should leave `mine/` alone when `data/prompts.json` is absent.
+- **Studio pages: the capture strip and the Guide handle overlap (2026-10-19):**
+  on Script Viewer, Writing Viewer and Video the Inspiration capture strip
+  (`.studio-nav + .capture`, `top:8px`) sits over the "… · STUDIO" eyebrow,
+  and once the window scrolls the fixed Guide handle (`top:140px`) covers the
+  first letters of the sidebar's active item. The sidebars also size
+  themselves to `calc(100vh - 62px)` as if the header were 62px, so the
+  window scrolls when it should not. One shared fix in theme.css /
+  script-viewer.css.
+
+- **`doctor` does not know the page's job files (2026-10-19):** serve.js
+  writes `data/videos/<id>/render.json` / `transcribe.json` with the pid of
+  the CLI it spawned; `doctor`'s stale-lock check covers `progress.json`
+  only. Extend it, and have `video rm --files` mention them.
 
 - **`video render` dies with EPIPE when stdout closes (2026-10-19):** the
   progress line is written to stdout without an error handler, so
@@ -318,6 +475,10 @@ QR rendered without a dependency, capture strip and boards usable at
   retake with `docs/screenshots` script when M2 lands.
 
 ## Done
+
+- 2026-10-19 · `prompts export` no longer deletes `.claude/commands/mine/`
+  when `data/prompts.json` is absent (a worktree, a fresh clone): the
+  `mine/` cleanup is skipped without a personal prompts file. `e293b37`.
 
 - 2026-10-15 · Your settings out of the public repo: `solo.config.js` is part of the app, the same for everyone; a person's own values (`owner`, `name`, board titles and milestones, post types, any key) live in `data/settings.json` → `config`, written by `node solo.js config set <setting> <value>` (`add <list> a b`, `unset`, `set --file x.json`, `clear`) and by `config set` lines in a pasted reply (core/apply.js, served or linked pages). One shared library in `core/config.js` (`Config.override` · `check` · `mergeOverrides`) checks every value against the shipped one (comma lists, one list entry by id such as `boards.runway.title`, unknown keys refused with a suggestion), merges them over the file for the pages, the CLI and serve.js, and ignores values of another shape so a hand-edited file cannot blank a page (`doctor` reports them). The browser keeps the last copy as `marathon.config`, reloads once when the file changes (not while typing, never without storage), reconciles after the first pull, and the file's `config` wins every write of settings.json unless the page changed it, so a theme click never drops or rolls back what the CLI wrote. `guard` refuses a staged `solo.config.js` whose `owner` is set and warns on other personal-looking values; `template settings --force` keeps the settings; `/setup` uses `config set`. Reviewed by two agents (technical, usability), findings fixed. `core/test-config.js`.
 

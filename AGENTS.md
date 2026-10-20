@@ -106,7 +106,12 @@ remote keeps the block.
    node solo.js social posted <post> --url … ; social prep <post> "item"
    node solo.js scripts add "Title" --file script.md ; notes add "Title" --file draft.md
    node solo.js video add "Title" --file ./take.mov ; video transcribe <v> --engine whisper ; video show <v>   # words with times: the view you read to pick the cut
-   node solo.js video cut <v> --keep "2.4-6.8, 8.1-15.0" | --drop "um, uh" | --edl cut.json ; video render <v> --preview ; video post <v>
+   node solo.js video cut <v> --keep "2.4-6.8, 8.1-15.0" | --drop "um, uh" | --tidy | --drop-silence | --retakes | --edl cut.json ; video render <v> --preview ; video post <v>
+   node solo.js video word <v> "what it says" "what it should say" [--all] | --undo   # a misheard word: the text changes, the audio and the cut do not (never transcribe again for a typo); <n>[-<m>] word numbers work too
+   node solo.js video proxy <v>   # a 720p copy for the page's player when the browser cannot play the original (iPhone HEVC); never posted
+   node solo.js video recordings [--init|--add] ; video watch   # the folder any recorder saves into; what lands there becomes a take (serve.js watches it too)
+   node solo.js link <a> <b> [--off] ; story <id>   # one story: a draft, its script, the takes and the posts (ids or a unique title); never across workspaces
+   node solo.js scripts add --draft <n> ; social add --draft <n> | --script <s> | --take <v> ; video add --script <s>   # the new item remembers where it came from, so the story holds
    node solo.js import list.md           # bulk: "- [ ] item" lines → tasks
    node solo.js inspo list ; inspo add "https://… #tag" --ws <id> ; inspo use <item> --as task|post|script|note
    node solo.js inspo ai --into tasks    # the inbox as a brainstorm prompt
@@ -171,14 +176,49 @@ remote keeps the block.
   and stops: show them, never pick a paid one yourself). `video show` prints
   the phrases with `[start-end]` times: read those, propose the cut in plain
   words (what goes, what stays, the runtime), **wait for a yes**, then
-  `video cut --keep "…"` or `--drop "um, uh"` or `--edl cut.json` (every
-  edge snaps to a word boundary and is padded; the write is logged and
-  `revert` undoes it), `video render --preview` (fast 720p), and only after
+  `video cut --keep "…"` or `--drop "um, uh"` or `--tidy` (fillers and
+  pauses over `video.pause` seconds in one step, pauses measured on the
+  audio: the same function as the page's *Remove fillers and pauses*, so the
+  hash matches) or `--edl cut.json` (every edge snaps to a word boundary and
+  is padded; the write is logged and `revert` undoes it), `video render --preview` (fast 720p), and only after
   they watched it `video render` for the final. One render at a time;
   exports are numbered and never overwritten or deleted by you. Captions
   ride along as a track and a `.srt`; `--burn` burns them when ffmpeg can.
   `video post` links the final into a new post, never copies it. ffmpeg is
-  required; `doctor` says so when it is missing.
+  required; `doctor` says so when it is missing. **The page**
+  (`studio/video.html`, nav "Video") is the same flow for someone who never
+  opens a terminal: the transcript is the editor (select words, Delete or
+  Cut; select a struck word to put it back), *Remove fillers and pauses*
+  is one click, *Cut it with my AI* opens the Guide on `/cut-take` with the
+  take in `{{take}}`, and with `node serve.js` running the buttons run
+  `video add | transcribe | render | post` for her, poll the progress, watch
+  the recordings folder (a file saved there becomes a take) and take the
+  ElevenLabs key into `data/secrets.json`. Every step the page cannot do
+  itself shows *Copy for my agent* first and the terminal line under "Do it
+  yourself"; `/setup-video` is the one-conversation install. The page writes only `edl`, `edlHash`,
+  `cutAt`, `title`, `renamedAt`, `status`, `updatedAt` and `activeId` of `videos.json` (and removes
+  a take on request); everything else is yours (the CLI's), and the page
+  merges your copy in before every write (`cutAt` says whose cut is newer),
+  so write a take through the CLI while the page is open without fear. The
+  page plays the take with the cuts skipped (click a word), corrects words
+  through `video word` (an edits trail in transcript.json, `--undo`), and
+  `video show` prints `[pause 1.3 s]` and `[said twice …]` for runs of words,
+  `{{take}}` the pauses and whole sentences said again, so you see what
+  *Remove fillers and pauses* and `--retakes` would take. A pasted reply's
+  `video cut <take> --keep "…"` / `--drop "…"` lands on the page too (never a
+  render).
+- **One story.** A script keeps the draft it came from (`noteId`), a take its
+  script (`scriptId`) and its post (`postId`), a post its draft or script
+  (`noteId` / `scriptId`). `core/story.js` walks those both ways; the four
+  pages show the chain on one line with *Connect…*, *Write the script*,
+  *Add the take*, *Make the post*; `link a b` / `story <id>` are the same
+  from the terminal and from a pasted reply. When you make a script from a
+  draft, a take from a script or a post from any of them, pass `--draft` /
+  `--script` / `--take` (or `link` afterwards) so the story holds. A deleted
+  member shows as *missing* and is never removed for the user; `link … --off`
+  forgets it. A page writes only its own file; every other connection runs
+  through the server (`POST /api/story` → the CLI), so the log and `revert`
+  cover it. The line never crosses a workspace.
 - **Inspiration flow:** the user drops links/ideas/images into the inbox (often
   by pasting into you first). Items arrive with auto tags (kind, site) and,
   when the server was running, the page's title and description in `meta`.
@@ -237,7 +277,7 @@ not fixing? Add it under *Minor / issues* instead of leaving a TODO.
   a `data/*.json` shape in `SCHEMA.md`, a CLI group in `solo.js`, a card in
   `index.html`.
 - Sanity: `for f in core/*.js runway/*.js social/*.js studio/*.js inspo/*.js calendar/*.js *.js; do node --check "$f"; done`,
-  `node social/test-social-save.js`, `node core/test-prompts.js` and `node core/test-apply.js`.
+  `node social/test-social-save.js`, `node core/test-prompts.js`, `node core/test-apply.js` and `node core/test-story.js`.
 
 ## "What did I just do?"
 

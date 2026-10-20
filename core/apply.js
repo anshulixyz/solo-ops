@@ -45,6 +45,8 @@
   function looksCmd(line) {
     if (/^(\$\s*)?(node\s+solo\.js|node\s+marathon\.js|solo|marathon)\s+/.test(line)) return true;
     if (/^(add|done|start|later|bucket|todo|move|pri|tag|step|check|note|rm|del|social|post|scripts|notes|inspo|config)\s/.test(line)) return true;
+    if (/^video\s+(cut|render|transcribe|add|post|show|list|open|rm|source|key|title|rename|word|correct|proxy)\s/.test(line)) return true;   // "video editing is fun" is prose
+    if (/^(link|connect)\s+("[^"]+"|\S+)\s+("[^"]+"|\S+)(\s+--off)?\s*$/.test(line)) return true;   // link <id> <id> [--off]: one story ("link it with the script" is prose)
     if (/^(at|due)\s/.test(line)) { var toks = line.trim().replace(/\s--\w+(=\S+|\s+\S+)?/g, '').split(/\s+/); /* flags (--until 11:00) do not hide the date */ var last = (toks[toks.length - 1] || '').toLowerCase(); var prev = (toks[toks.length - 2] || '').toLowerCase(); var WD = global.When ? When.WEEKDAY : /^(mon|tue|wed|thu|fri|sat|sun)$/; return toks.length >= 3 && (last === 'clear' || /^\d{4}-\d{2}-\d{2}/.test(last) || /^\+\d+d$/.test(last) || /^(today|tomorrow|now)$/.test(last) || WD.test(last) || (/^\d{1,2}:\d{2}$/.test(last) && (/^\d{4}-\d{2}-\d{2}$/.test(prev) || /^\+\d+d$/.test(prev) || /^(today|tomorrow)$/.test(prev) || WD.test(prev)))); }
     return false;
   }
@@ -194,13 +196,19 @@
             var pw = When.parse(sw.when); if (cmd === 'at') { t.at = pw.stamp; var u8 = a.flags.until ? When.until(t.at, a.flags.until) : ''; if (u8) t.until = u8; else delete t.until; return 'at ' + t.at.replace('T', ' ') + (u8 ? '–' + When.timeOf(u8) : a.flags.until ? ' (end time ignored: before the start)' : '') + ': ' + t.title; }
             t.due = When.dayKey(pw.stamp); return 'due ' + t.due + ': ' + t.title;
           }); (/^no |tasks match/.test(r8) ? skipped : applied).push(r8);
+        } else if (cmd === 'link' || cmd === 'connect') {   // one story: the page writes its own field itself, anything else goes through the server; without it, the terminal
+          if (!global.Story || !Story.connect) skipped.push('link: paste it on the Drafts, Scripts, Video or Schedule page (they show the story), or run it in the terminal');
+          else if (dry) applied.push((a.flags.off ? 'disconnect ' : 'connect ') + (a.pos[0] || '') + ' and ' + (a.pos[1] || ''));
+          else { var lp = a.flags.off ? Story.disconnect(a.pos[0], a.pos[1]) : Story.connect(a.pos[0], a.pos[1]); lp.then(function () { if (global.flash) flash('Connected: ' + a.pos[0] + ' and ' + a.pos[1]); }).catch(function (e) { if (global.flash) flash('link: ' + (e && e.message || e)); }); applied.push('connecting ' + (a.pos[0] || '') + ' and ' + (a.pos[1] || '') + ' (the page shows it when done)'); }
         } else if (cmd === 'rm' || cmd === 'del') {
           skipped.push('not deleting "' + q + '" from a pasted reply — delete it yourself if you agree');
         } else if (cmd === 'social' || cmd === 'post') {
           var sub = (a.pos.shift() || '').toLowerCase(); var sq = a.pos.join(' ');
           if (sub === 'add') {
             var posts = c.sched(); var np = { id: uid('p'), datetime: parseWhen(a.flags.at), title: sq, postType: a.flags.type || 'update', format: a.flags.format || 'text', project: a.flags.project || a.flags.proj || Config.projectNames()[0], copy: a.flags.copy || '', video: { title: '', status: 'none', notes: '', link: '' }, links: [], assets: [], prep: String(a.flags.prep || '').split('|').map(function (s) { return s.trim(); }).filter(Boolean).map(function (s) { return { text: s, done: false, kind: 'content' }; }), notes: a.flags.notes || '', status: 'draft', posted: { url: '', postedAt: '', stats: {}, notes: '', screenshotId: '' } };
+            if (a.flags.draft) np.noteId = String(a.flags.draft); if (a.flags.script) np.scriptId = String(a.flags.script);   // the post remembers the draft or the script it came from
             posts.push(np); c.saveSched(posts); applied.push('scheduled post: ' + sq + ' · ' + np.datetime.replace('T', ' '));
+            if (a.flags.take && !dry && global.Story && Story.connect) Story.connect(String(a.flags.take), np.id).catch(function (e) { if (global.flash) flash('link: ' + (e && e.message || e)); });   // --take: the take's postId lives on the take, written through the server
           } else if (['posted', 'ready', 'draft'].indexOf(sub) >= 0) {
             var pp = c.findPost(sq); if (!pp) skipped.push('no post matches "' + sq + '"'); else { var ps = c.sched(); ps.forEach(function (x) { if (x.id === pp.id) { x.status = sub; if (sub === 'posted') { x.posted = x.posted || {}; x.posted.postedAt = x.posted.postedAt || localDT(new Date()); if (a.flags.url) x.posted.url = a.flags.url; } } }); c.saveSched(ps); applied.push(sub + ': ' + pp.title); }
           } else if (sub === 'copy') {
@@ -216,7 +224,7 @@
           var fence = a.flags.text ? null : bodyAfter(lines, i, inFence); var body = a.flags.text || (fence ? fence.text : '');
           if (cmd === 'scripts') {
             var k = Config.key('scripts', c.ws); var lib = Store.getJSON(k, { activeId: '', scripts: [] }) || { activeId: '', scripts: [] }; lib.scripts = lib.scripts || [];
-            var si = { id: uid('s'), title: title2 || 'Untitled', text: body || ('# ' + title2 + '\n\n## Hook\n\n## Script\n1. \n'), createdAt: Date.now(), updatedAt: Date.now() }; lib.scripts.unshift(si); lib.activeId = si.id; if (!dry) { Store.setJSON(k, lib); c.touched[Config.file('scripts', c.ws)] = 1; } applied.push('script added: ' + si.title + (body ? '' : ' (empty — no code block followed)'));
+            var si = { id: uid('s'), title: title2 || 'Untitled', text: body || ('# ' + title2 + '\n\n## Hook\n\n## Script\n1. \n'), createdAt: Date.now(), updatedAt: Date.now() , noteId: a.flags.draft ? String(a.flags.draft) : '' }; lib.scripts.unshift(si); lib.activeId = si.id; if (!dry) { Store.setJSON(k, lib); c.touched[Config.file('scripts', c.ws)] = 1; } applied.push('script added: ' + si.title + (body ? '' : ' (empty — no code block followed)'));
           } else {
             var k2 = Config.key('writing', c.ws); var nl = Store.getJSON(k2, { activeId: '', notes: [] }) || { activeId: '', notes: [] }; nl.notes = nl.notes || [];
             var ni = { id: uid('n'), text: body || ('# ' + title2 + '\n\n'), images: {}, createdAt: Date.now(), updatedAt: Date.now() }; nl.notes.unshift(ni); nl.activeId = ni.id; if (!dry) { Store.setJSON(k2, nl); c.touched[Config.file('writing', c.ws)] = 1; } applied.push('note added: ' + (title2 || 'untitled'));
@@ -251,7 +259,32 @@
           }
         } else if (['week', 'today', 'list', 'show', 'log', 'activity', 'boards', 'workspaces', 'config', 'help', 'share', 'review'].indexOf(cmd) >= 0) {
           /* read-only commands: nothing to apply */
-        } else if (cmd === 'video') skipped.push('video ' + (a.pos[0] || '') + ': this runs in your terminal, not here — copy the line into Terminal in your Solo Ops folder');
+        } else if (cmd === 'video') {
+          // `video cut <take> --keep "…"` / `--drop "…"` writes the cut (the Video page renders it; a reply never renders). Every other video step needs ffmpeg: the terminal, or the page's buttons.
+          var vsub = (a.pos.shift() || '').toLowerCase(); var vid = a.pos.join(' ');
+          if (vsub === 'title' || vsub === 'rename') {   // video title <take> "New": the take's title
+            var tq = a.pos[0] || ''; var tt = a.pos.slice(1).join(' ') || a.flags.title || ''; var vkT = Config.key('videos', c.ws); var vlT = Store.getJSON(vkT, null); var vtT = vlT && (vlT.videos || []).filter(function (x) { return x.id === tq || (x.title || '').toLowerCase() === tq.toLowerCase(); })[0];
+            if (!vtT) skipped.push('no take matches "' + tq + '"'); else if (!tt.trim()) skipped.push('video title: give the new title'); else { if (!dry) { if (global.VideoModel && VideoModel.rename) VideoModel.rename(vtT, tt); else { vtT.title = tt.trim().slice(0, 120); vtT.renamedAt = Date.now(); vtT.updatedAt = Date.now(); Store.setJSON(vkT, vlT); c.touched[Config.file('videos', c.ws)] = 1; if (global.Sync && Sync.note) Sync.note(Config.file('videos', c.ws), 'video title ' + vtT.id + ': ' + tt); } } applied.push('renamed take: ' + tt.trim()); }
+          }
+          else if (vsub === 'word' || vsub === 'correct') {   // video word <take> <n>[-<m>] "text": only the Video page with the server can write the transcript
+            if (!global.VideoModel || !global.correctWords) skipped.push('video word: open the Video page with node serve.js running and paste this there (it writes the transcript), or run it in the terminal');
+            else if (dry) applied.push('correct word ' + (a.pos[1] || '') + ' → ' + a.pos.slice(2).join(' '));
+            else { try { var pw = global.correctWords(a.pos[0], a.pos[1], a.pos.slice(2).join(' ') || a.flags.text, !!a.flags.all); if (pw && pw.catch) pw.catch(function (e) { if (global.flash) global.flash('video word: ' + (e && e.message || e)); }); applied.push('correcting word ' + (a.pos[1] || '') + ' → ' + a.pos.slice(2).join(' ') + ' (the page shows it when done)'); } catch (e) { skipped.push('video word: ' + e.message); } }
+          }
+          else if (vsub !== 'cut') skipped.push('video ' + vsub + ': this runs in your terminal or from the Video page\'s buttons, not from a reply' + (vsub === 'render' ? ' — the cut is here; press Render a preview on the Video page' : ''));
+          else if (a.flags.edl) skipped.push('video cut --edl: that names a file on disk; run the line in your terminal, or paste the pieces as --keep "start-end, …"');
+          else if (!global.Video) skipped.push('video cut: open the Video page (it has the cut logic) and paste this there, or run the line in your terminal');
+          else if (global.VideoModel) {
+            if (dry) { var dt = VideoModel.get(vid) || VideoModel.list().filter(function (x) { return x.title.toLowerCase() === vid.toLowerCase(); })[0]; if (!dt) skipped.push('no take matches "' + vid + '"'); else if ((a.flags.drop || a.flags.tidy || a.flags['drop-silence']) && !VideoModel.hasWords(dt.id)) skipped.push('video cut --drop / --tidy needs the words: open the Video page with node serve.js running, or run it in the terminal'); else { try { if (a.flags.keep) Video.parseRanges(String(a.flags.keep)); applied.push('cut take: ' + dt.title + ' (' + (a.flags.keep ? 'keep ' + a.flags.keep : a.flags.drop ? 'drop ' + a.flags.drop : a.flags.tidy ? 'remove fillers and pauses' : 'shorten pauses') + ')'); } catch (e) { skipped.push('video cut: ' + e.message); } } }
+            else { try { var vr = VideoModel.cutFromLine(vid, a.flags); applied.push('cut applied: ' + vr.take.title + ' — ' + vr.edl.length + ' piece' + (vr.edl.length === 1 ? '' : 's') + ', ' + VideoModel.fmt(vr.runtime) + '. Next: Render a preview (the reply cannot render)'); } catch (e) { skipped.push('video cut: ' + e.message); } }
+          } else if (a.flags.drop || a.flags.tidy || a.flags['drop-silence']) skipped.push('video cut --drop / --tidy needs the words: paste this on the Video page with node serve.js running, or run it in the terminal');
+          else if (!a.flags.keep) skipped.push('video cut needs --keep "start-end, …" or --drop "um, uh"');
+          else {   // core/video.js without the Video page's model (today only the test sandbox; kept so another page could load core/video.js): --keep lands on the sentences
+            var vk = Config.key('videos', c.ws); var vlib = Store.getJSON(vk, null); var vt = vlib && (vlib.videos || []).filter(function (x) { return x.id === vid || (x.title || '').toLowerCase() === vid.toLowerCase(); })[0];
+            if (!vt) skipped.push('no take matches "' + vid + '"');
+            else { try { var vs = vt.sources && vt.sources[0] || {}; var vres = Video.snap(Video.parseRanges(String(a.flags.keep)), (vt.phrases || []).map(function (p) { return { w: p.t, s: p.s, e: p.e }; }), { fps: vs.fps, duration: vs.duration }); if (!dry) { vt.edl = vres.edl; vt.edlHash = Video.edlHash(vres.edl); if (['recorded', 'transcribed', 'rendered'].indexOf(vt.status) >= 0) vt.status = 'cut'; vt.updatedAt = Date.now(); Store.setJSON(vk, vlib); c.touched[Config.file('videos', c.ws)] = 1; if (global.Sync && Sync.note) Sync.note(Config.file('videos', c.ws), 'video cut ' + vt.id + ' (' + vres.edl.length + ' pieces, from a reply)'); } applied.push('cut applied: ' + vt.title + ' — ' + vres.edl.length + ' piece' + (vres.edl.length === 1 ? '' : 's') + ', ' + Video.fmt(vres.runtime) + '. Next: Render a preview on the Video page'); } catch (e) { skipped.push('video cut: ' + e.message); } }
+          }
+        }
         else skipped.push('unknown command: ' + line.slice(0, 60));
       } catch (e) { skipped.push('could not apply: ' + line.slice(0, 60)); }
       i++;

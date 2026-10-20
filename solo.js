@@ -26,7 +26,7 @@ var OVERRIDES = configOverrides(); var cfg = OVERRIDES ? (CfgLib ? CfgLib.mergeO
 var T = safeRequire(path.join(ROOT, 'core', 'templates.js'));
 var P = safeRequire(path.join(ROOT, 'core', 'prompts.js'));   // the Guide's built-in prompts (shared with the pages)
 var When = safeRequire(path.join(ROOT, 'core', 'when.js'));    // dates: parse, state, label (shared with the pages)
-var RESERVED = ['social', 'scripts', 'writing', 'settings', 'activity', 'boards', 'workspaces', 'calendar', 'home', 'prompts', 'inspiration', 'log', 'attachments', 'backup', 'exports', 'videos', 'video', 'models', 'secrets'];
+var RESERVED = ['social', 'scripts', 'writing', 'settings', 'activity', 'boards', 'workspaces', 'calendar', 'home', 'prompts', 'inspiration', 'log', 'attachments', 'backup', 'exports', 'videos', 'video', 'models', 'secrets', 'recordings'];
 var COLS = ['todo', 'doing', 'done', 'later', 'bucket'];
 var COL_LABEL = { todo: 'To Do', doing: 'Doing', done: 'Done', later: 'Later', bucket: 'Bucket List' };
 var PRI = { high: 0, medium: 1, low: 2 };
@@ -115,10 +115,10 @@ function normBoard(b) { var id = slug(b.id || b.title); if (!id || RESERVED.inde
 /* ---- workspaces: config + data/workspaces.json; primary keeps short file names ---- */
 function normWs(w) {
   if (!w) return null; var id = slug(w.id || w.title); if (!id || RESERVED.indexOf(id) >= 0) return null;
-  var apps = Object.assign({ social: true, scripts: true, writing: true }, w.apps || {});
+  var apps = Object.assign({ social: true, scripts: true, writing: true, video: true }, w.apps || {});
   var boards = (Array.isArray(w.boards) ? w.boards : []).map(normBoard).filter(Boolean);
   if (w.boards === undefined && apps.boards !== false && !boards.length) boards = [normBoard({ id: 'runway', title: 'Launch Runway', sprintLabel: 'Sprint progress' })];
-  return { id: id, title: w.title || id, apps: { social: apps.social !== false, scripts: apps.scripts !== false, writing: apps.writing !== false }, boards: boards };
+  return { id: id, title: w.title || id, apps: { social: apps.social !== false, scripts: apps.scripts !== false, writing: apps.writing !== false, video: apps.video !== false }, boards: boards };
 }
 function configWs() {
   var list = Array.isArray(cfg.workspaces) && cfg.workspaces.length ? cfg.workspaces
@@ -509,15 +509,20 @@ function cmdSocial() {
   if (sub === 'list') return out(['## Posts (' + sorted.length + ')'].concat(sorted.map(postLine)), sorted);
   if (sub === 'next') return un[0] ? out(postLine(un[0]) + (un[0].copy ? '\n\n' + un[0].copy : ''), un[0]) : out('_everything is posted_', null);
   if (sub === 'week') { var end = new Date(Date.now() + (parseInt(flags.days, 10) || 7) * 86400000); var w = un.filter(function (p) { return new Date(p.datetime) <= end; }); return out(['## Posts in the next ' + (parseInt(flags.days, 10) || 7) + ' days (' + w.length + ')'].concat(w.length ? w.map(postLine) : ['_none_']), w); }
-  if (sub === 'show') { var p = find(s.posts, pos.join(' '), 'post'); var md = ['# ' + p.title, '', '- id: ' + p.id, '- when: ' + fmtDT(p.datetime), '- type: ' + p.postType + ' · ' + p.format + ' · ' + p.project, '- status: ' + p.status, '', '## Copy', '', p.copy || '_empty_', '']; if (p.prep && p.prep.length) { md.push('## Prep'); p.prep.forEach(function (x, i) { md.push('- [' + (x.done ? 'x' : ' ') + '] ' + (i + 1) + '. ' + x.text + ' (' + x.kind + ')'); }); md.push(''); } if (p.notes) md.push('## Notes', '', p.notes); return out(md, p); }
+  if (sub === 'show') { var p = find(s.posts, pos.join(' '), 'post'); var md = ['# ' + p.title, '', '- id: ' + p.id, '- when: ' + fmtDT(p.datetime), '- type: ' + p.postType + ' · ' + p.format + ' · ' + p.project, '- status: ' + p.status].concat(storyLine('post', p.id) ? ['- story: ' + storyLine('post', p.id)] : []).concat(['', '## Copy', '', p.copy || '_empty_', '']); if (p.prep && p.prep.length) { md.push('## Prep'); p.prep.forEach(function (x, i) { md.push('- [' + (x.done ? 'x' : ' ') + '] ' + (i + 1) + '. ' + x.text + ' (' + x.kind + ')'); }); md.push(''); } if (p.notes) md.push('## Notes', '', p.notes); return out(md, p); }
   if (sub === 'add') {
-    var title = pos.join(' ').trim() || flags.title; if (!title) fail('Usage: social add "Title" [--at 2026-10-20T09:00 | +3d 17:30] [--type launch] [--project X] [--format text|video|text+video] [--copy "..."] [--prep "a|b"]');
+    var fromK = flags.draft ? 'note' : flags.script ? 'script' : flags.take ? 'take' : ''; var fromFlag = flags.draft || flags.script || flags.take; var fromIt = null; var pf = null;   // social add --draft n1 | --script s1 | --take v1: the post comes from that item and the story holds
+    if (fromK) { var sd = storyData(); fromIt = (sd[fromK] || []).filter(function (x) { return x.id === fromFlag; })[0]; if (!fromIt) fail('No ' + (fromK === 'note' ? 'draft' : fromK) + ' has the id ' + fromFlag); if (ST) pf = ST.postFrom(fromK, fromIt); }
+    var title = pos.join(' ').trim() || flags.title || (pf && pf.title); if (!title) fail('Usage: social add "Title" [--at 2026-10-20T09:00 | +3d 17:30] [--type launch] [--project X] [--format text|video|text+video] [--copy "..."] [--prep "a|b"] [--draft n1 | --script s1 | --take v1]');
     var types = (cfg.social && cfg.social.postTypes) || ['announcement', 'launch', 'update', 'thread', 'teaser'];
-    var np = { id: newId('p'), datetime: parseWhen(flags.at), title: title, postType: types.indexOf(flags.type) >= 0 ? flags.type : (types.indexOf('update') >= 0 ? 'update' : types[0] || 'update'), format: ['text', 'video', 'text+video'].indexOf(flags.format) >= 0 ? flags.format : 'text',
-      project: flags.project || flags.proj || ((cfg.projects || [])[0] || {}).name || 'general', copy: flags.copy || '', video: { title: '', status: 'none', notes: '', link: '' }, links: [], assets: [],
+    var np = { id: newId('p'), datetime: flags.at ? parseWhen(flags.at) : pf ? pf.datetime : parseWhen(flags.at), title: title, postType: types.indexOf(flags.type) >= 0 ? flags.type : (types.indexOf('update') >= 0 ? 'update' : types[0] || 'update'), format: ['text', 'video', 'text+video'].indexOf(flags.format) >= 0 ? flags.format : (pf ? pf.format : 'text'),
+      project: flags.project || flags.proj || ((cfg.projects || [])[0] || {}).name || 'general', copy: flags.copy || (pf ? pf.copy : ''), video: pf ? pf.video : { title: '', status: 'none', notes: '', link: '' }, links: [], assets: [],
       prep: String(flags.prep || '').split('|').map(function (x) { return x.trim(); }).filter(Boolean).map(function (x) { return { text: x, done: false, kind: 'content' }; }),
       notes: flags.notes || '', status: 'draft', posted: { url: '', postedAt: '', stats: {}, notes: '', screenshotId: '' } };
-    s.posts.push(np); write(fileName('social'), s); return out('✓ Scheduled [' + np.id + '] ' + np.title + ' · ' + fmtDT(np.datetime) + (flags.type && types.indexOf(flags.type) < 0 ? '\n  · type "' + flags.type + '" is not in your post types (' + types.join(', ') + '), so it is "' + np.postType + '". Add it: node solo.js config add social.postTypes ' + flags.type : ''), np);
+    if (pf) { if (pf.noteId) np.noteId = pf.noteId; if (pf.scriptId) np.scriptId = pf.scriptId; }
+    s.posts.push(np); write(fileName('social'), s);
+    if (fromK === 'take') { flags.note = 'link: connected take ' + fromIt.id + ' to post ' + np.id + (flags.note ? ' · ' + flags.note : ''); patchVideo(fromIt, function (f) { f.postId = np.id; f.linkedAt = Date.now(); }); }
+    return out('✓ Scheduled [' + np.id + '] ' + np.title + ' · ' + fmtDT(np.datetime) + (fromK ? '\n  Story: ' + storyLine('post', np.id) : '') + (flags.type && types.indexOf(flags.type) < 0 ? '\n  · type "' + flags.type + '" is not in your post types (' + types.join(', ') + '), so it is "' + np.postType + '". Add it: node solo.js config add social.postTypes ' + flags.type : ''), np);
   }
   if (sub === 'posted' || sub === 'ready' || sub === 'draft') {
     var pp = find(s.posts, pos.join(' '), 'post'); pp.status = sub;
@@ -539,11 +544,13 @@ function libCmd(name, key, label, mk) {
     if (!read(fileName(name)) && sub !== 'add') fail(hint(fileName(name)));
     var items = list.map(function (x) { return { id: x.id, title: x.title || titleOf(x.text), updatedAt: x.updatedAt, text: x.text }; });
     if (sub === 'list') return out(['## ' + label + 's (' + items.length + ')'].concat(items.sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); }).map(function (x) { return '- [' + x.id + '] ' + x.title + ' · ' + stamp(x.updatedAt); })), items.map(function (x) { return { id: x.id, title: x.title, updatedAt: x.updatedAt }; }));
-    if (sub === 'show') { var it = find(items, pos.join(' '), label); return out(it.text, it); }
+    if (sub === 'show') { var it = find(items, pos.join(' '), label); var sl = storyLine(name === 'scripts' ? 'script' : 'note', it.id); return out(it.text + (sl ? '\n\n_Story: ' + sl + '_' : ''), it); }
     if (sub === 'add') {
       var title = pos.join(' ').trim() || flags.title; var text = flags.file ? fs.readFileSync(path.resolve(flags.file), 'utf8') : (flags.text || (title ? '# ' + title + '\n\n' : ''));
-      if (!text.trim()) fail('Usage: ' + name + ' add "Title"   or   ' + name + ' add --file draft.md');
-      var item = mk(text); list.unshift(item); d.activeId = item.id; write(fileName(name), d); return out('✓ Added [' + item.id + '] ' + (item.title || titleOf(item.text)), item);
+      var srcN = null; if (name === 'scripts' && flags.draft) { srcN = notes().notes.filter(function (n) { return n.id === flags.draft; })[0]; if (!srcN) fail('No draft has the id ' + flags.draft + ' (node solo.js notes list)'); if (!flags.file && !flags.text && ST) { text = ST.scriptFrom('note', srcN).text; if (title) text = text.replace(/^#\s+.+/m, '# ' + title); } }   // --title only renames; the draft's text still comes along   // scripts add --draft n1: the draft's clean text becomes the script, and the script remembers the draft
+      if (!text.trim()) fail('Usage: ' + name + ' add "Title"   or   ' + name + ' add --file draft.md' + (name === 'scripts' ? '   or   scripts add --draft <draft id>' : ''));
+      var item = mk(text); if (srcN) item.noteId = srcN.id;
+      list.unshift(item); d.activeId = item.id; write(fileName(name), d); return out('✓ Added [' + item.id + '] ' + (item.title || titleOf(item.text)) + (item.noteId ? '\n  Story: ' + storyLine('script', item.id) : ''), item);
     }
     if (sub === 'rm') { var r = find(items, pos.join(' '), label); d[key] = list.filter(function (x) { return x.id !== r.id; }); if (d.activeId === r.id) d.activeId = d[key][0] ? d[key][0].id : ''; write(fileName(name), d); return out('✓ Deleted [' + r.id + '] ' + r.title, r); }
     fail('Unknown ' + name + ' command "' + sub + '". Try: list, show, add, rm');
@@ -557,14 +564,17 @@ var cmdNotes = libCmd('writing', 'notes', 'note', function (text) { return { id:
    captions and the exports. The footage is referenced by path, never copied. */
 var V = safeRequire(path.join(ROOT, 'core', 'video.js'));
 function videos() { var d = read(fileName('videos')); return d && Array.isArray(d.videos) ? d : { activeId: '', videos: [] }; }
-function videoCfg() { return Object.assign({ engine: '', ffmpeg: '', whisper: '', model: 'small.en', captions: { style: 'sentence', burn: false } }, cfg.video || {}); }
+function videoCfg() { return Object.assign({ engine: '', ffmpeg: '', whisper: '', model: 'small.en', captions: { style: 'sentence', burn: false }, pause: 0.7, recordings: '', auto: '', autoMaxMin: 30 }, cfg.video || {}); }
 function videoDir(id) { return path.join(DATA, 'videos', id); }
 function relData(abs) { return 'data/' + path.relative(DATA, abs).split(path.sep).join('/'); }
 function absData(rel) { return path.isAbsolute(rel) ? rel : /^data\//.test(rel) ? path.join(DATA, rel.replace(/^data\//, '')) : path.join(ROOT, rel); }
 function fmtSize(b) { b = b || 0; return b < 1048576 ? Math.max(1, Math.round(b / 1024)) + ' KB' : b < 10 * 1048576 ? (b / 1048576).toFixed(1) + ' MB' : b < 1073741824 ? Math.round(b / 1048576) + ' MB' : (b / 1073741824).toFixed(1) + ' GB'; }
 function requireFfmpeg() { if (!V) fail('core/video.js not found.'); var t = V.node.tools(videoCfg()); if (!t.ffmpeg || !t.ffprobe) fail(V.node.NEED_FFMPEG); return t; }
 function secrets() { try { return JSON.parse(fs.readFileSync(path.join(DATA, 'secrets.json'), 'utf8')) || {}; } catch (e) { return {}; } }
-function edlHash(edl) { return require('crypto').createHash('sha1').update(JSON.stringify((edl || []).map(function (s) { return [s.start, s.end]; }))).digest('hex').slice(0, 10); }
+function edlHash(edl) { return V.edlHash(edl); }   // one function for the CLI and the page (core/video.js)
+// Write one take's fields onto a FRESH copy of videos.json: transcribe and render take minutes, and the Video page
+// (or another command) may have written the file meanwhile. fn(freshTake) patches only what this command owns.
+function patchVideo(v, fn) { var d2 = videos(); var fresh = d2.videos.filter(function (x) { return x.id === v.id; })[0]; if (!fresh) { d2.videos.unshift(v); fresh = v; } fn(fresh); fresh.updatedAt = Date.now(); write(fileName('videos'), d2); Object.assign(v, fresh); return fresh; }
 var NO_LIBASS = 'Burned captions need an ffmpeg built with libass, and Homebrew\'s is not. The captions are in the file as a track and next to it as a .srt, which YouTube, LinkedIn and TikTok read when you upload it. For burned-in captions: brew trust homebrew-ffmpeg/ffmpeg && brew tap homebrew-ffmpeg/ffmpeg && brew install homebrew-ffmpeg/ffmpeg/ffmpeg (it compiles, takes a while), or point video.ffmpeg at another ffmpeg: node solo.js config set video.ffmpeg /path/to/ffmpeg';
 function videoStatus(v, s) {   // posted = the linked post says so
   if (v.postId) { var p = (s || schedule()).posts.filter(function (x) { return x.id === v.postId; })[0]; if (p && p.status === 'posted') return 'posted'; }
@@ -608,16 +618,19 @@ function cmdVideo() {
     var T = requireFfmpeg(); var abs = path.resolve(String(flags.file)); if (!fs.existsSync(abs)) fail('No such file: ' + flags.file);
     var title = pos.join(' ').trim() || flags.title || path.basename(abs).replace(/\.[^.]+$/, '');
     var pr; try { pr = V.node.probe(T, abs); } catch (e) { fail(path.basename(abs) + ' is not a video or audio file ffmpeg can read. Takes are .mov, .mp4, .mkv, .webm (or audio: .wav, .m4a).' + (JSON_OUT ? ' [' + e.message + ']' : '')); }
+    var h0 = V.node.hashFile(abs); var realp = (function () { try { return fs.realpathSync(abs); } catch (e) { return abs; } })();
+    var dup = d.videos.filter(function (x) { return (x.sources || []).some(function (sx) { var sp = sx.path || ''; try { sp = fs.realpathSync(sp); } catch (e) { /* moved */ } return sx.hash === h0 || sp === realp || (process.platform !== 'linux' && sp.toLowerCase() === realp.toLowerCase()); }); })[0];
+    if (dup && !flags.again) return out('✓ Already a take: [' + dup.id + '] ' + dup.title + ' (the same recording; --again adds it once more)', Object.assign({ existing: true }, dup));
     var scriptId = ''; if (flags.script) { var sc = find(scripts().scripts.map(function (x) { return { id: x.id, title: x.title || titleOf(x.text) }; }), String(flags.script), 'script'); scriptId = sc.id; }
-    var v = { id: newId('v'), title: title, scriptId: scriptId, postId: '', status: 'recorded', sources: [{ id: 'a', path: abs, size: pr.size, duration: pr.duration, width: pr.width, height: pr.height, fps: pr.fps, rotation: pr.rotation, hdr: pr.hdr, hasAudio: pr.hasAudio, hash: V.node.hashFile(abs) }], transcript: null, phrases: [], edl: [], edlHash: '', captions: { style: VC.captions.style || 'sentence', burn: !!VC.captions.burn }, exports: [], notes: flags.notes || '', createdAt: Date.now(), updatedAt: Date.now() };
-    note('video add ' + v.id + ' ' + title); d.videos.unshift(v); d.activeId = v.id; write(fileName('videos'), d);
+    var v = { id: newId('v'), title: title, scriptId: scriptId, postId: '', status: 'recorded', sources: [{ id: 'a', path: abs, size: pr.size, duration: pr.duration, width: pr.width, height: pr.height, fps: pr.fps, rotation: pr.rotation, hdr: pr.hdr, hasAudio: pr.hasAudio, vcodec: pr.vcodec || '', acodec: pr.acodec || '', hash: h0 }], transcript: null, phrases: [], edl: [], edlHash: '', captions: { style: VC.captions.style || 'sentence', burn: !!VC.captions.burn }, exports: [], notes: flags.notes || '', createdAt: Date.now(), updatedAt: Date.now() };
+    note('video add ' + v.id + ' ' + title); d.videos.unshift(v); if (!flags['no-open']) d.activeId = v.id; write(fileName('videos'), d);   // --no-open: the watcher adds without switching the open take
     return out(['✓ Added take [' + v.id + '] ' + v.title + (pos.length || flags.title ? '' : '   (title from the file name; rename with --title)'), '  ' + abs, '  ' + V.fmt(pr.duration) + ' · ' + pr.width + '×' + pr.height + ' · ' + pr.fps + ' fps · ' + fmtSize(pr.size) + (pr.hdr ? ' · HDR' : '') + (pr.rotation ? ' · rotated ' + pr.rotation + '°' : '') + (pr.hasAudio ? '' : ' · no audio track (no words to transcribe; --keep trims still work)'), '  The file stays where it is; nothing was copied.', '  Next: ' + videoNext(v)], v);
   }
-  if (!read(fileName('videos'))) fail('No takes yet. Add one: node solo.js video add --file ./take.mov');
+  if (!read(fileName('videos')) && sub !== 'recordings' && sub !== 'watch') fail('No takes yet. Add one: node solo.js video add --file ./take.mov   (or save a recording in the folder: node solo.js video recordings)');
   if (sub === 'show') {
     var v1 = find(d.videos, pos.join(' '), 'take'); var src1 = v1.sources[0] || {}; var s1 = schedule();
-    var md = ['# ' + v1.title, '', '- id: ' + v1.id + ' · status: ' + videoStatus(v1, s1) + (v1.scriptId ? ' · script: ' + v1.scriptId : '') + (v1.postId ? ' · post: ' + v1.postId : ''), '- file: ' + src1.path + (fs.existsSync(src1.path || '') ? '' : '  ⚠ not found (moved? node solo.js video source ' + v1.id + ' <new path>)'), '- ' + V.fmt(src1.duration) + ' · ' + src1.width + '×' + src1.height + ' · ' + src1.fps + ' fps · ' + fmtSize(src1.size) + (src1.hdr ? ' · HDR' : '') + (src1.hasAudio === false ? ' · no audio track' : ''), ''];
-    if (v1.transcript) md.push('## Words (' + v1.transcript.words + ', ' + v1.transcript.engine + (v1.transcript.model ? ' ' + v1.transcript.model : '') + (v1.transcript.granularity === 'cue' ? ', cue-level: cuts snap to cues' : '') + ')', '', V.packed(v1.phrases || []), '');
+    var md = ['# ' + v1.title, '', '- id: ' + v1.id + ' · status: ' + videoStatus(v1, s1) + (v1.scriptId ? ' · script: ' + v1.scriptId : '') + (v1.postId ? ' · post: ' + v1.postId : '')].concat(storyLine('take', v1.id) ? ['- story: ' + storyLine('take', v1.id)] : []).concat([ '- file: ' + src1.path + (fs.existsSync(src1.path || '') ? '' : '  ⚠ not found (moved? node solo.js video source ' + v1.id + ' <new path>)'), '- ' + V.fmt(src1.duration) + ' · ' + src1.width + '×' + src1.height + ' · ' + src1.fps + ' fps · ' + fmtSize(src1.size) + (src1.hdr ? ' · HDR' : '') + (src1.hasAudio === false ? ' · no audio track' : ''), '']);
+    if (v1.transcript) md.push('## Words (' + v1.transcript.words + ', ' + v1.transcript.engine + (v1.transcript.model ? ' ' + v1.transcript.model : '') + (v1.transcript.granularity === 'cue' ? ', cue-level: cuts snap to cues' : '') + ')', '', V.packed(v1.phrases || [], (function () { var trS = readTranscript(v1); var tw = trS ? V.trimToSilences(trS.words, trS.silences || []) : []; return { pauses: trS ? V.pauses(tw, null, { pause: Number(VC.pause) || 0.7, duration: src1.duration }) : [], retakes: trS ? V.retakes(tw) : [] }; })()), '');
     else md.push('_No transcript yet: node solo.js video transcribe ' + v1.id + '_', '');
     if (v1.edl && v1.edl.length) { md.push('## Cut (' + v1.edl.length + ' piece' + (v1.edl.length === 1 ? '' : 's') + ', ' + V.fmt(v1.edl.reduce(function (a, s) { return a + s.end - s.start; }, 0)) + ')'); v1.edl.forEach(function (s, i) { md.push((i + 1) + '. ' + V.fmt(s.start) + '-' + V.fmt(s.end) + (s.quote ? '  "' + s.quote + '"' : '') + (s.reason ? '  (' + s.reason + ')' : '')); }); md.push(''); }
     if (v1.exports && v1.exports.length) { md.push('## Exports'); var lf = latestExport(v1, 'final'), lp = latestExport(v1, 'preview'); v1.exports.forEach(function (e) { var fp = absData(e.file); var there = fs.existsSync(fp); md.push('- ' + e.file + ' · ' + e.kind + ' · ' + V.fmt(e.duration) + (e.aspect ? ' · ' + e.aspect : '') + (e.style && e.style !== 'sentence' ? ' · ' + e.style + ' captions' : '') + (there ? ' · ' + fmtSize(fs.statSync(fp).size) : '  ⚠ file missing') + (e === lf ? '  ← latest final (open / post use this)' : e === lp ? '  ← latest preview' : '') + (e.edlHash !== v1.edlHash ? '  ⚠ rendered before the current cut: node solo.js video render ' + v1.id : '')); }); md.push(''); }
@@ -625,13 +638,72 @@ function cmdVideo() {
     var nx = videoNext(v1, s1); if (nx) md.push('Next: ' + nx);
     return out(md, v1);
   }
+  if (sub === 'proxy' || sub === 'copy') {   // video proxy <take>: a 720p copy that plays in any browser, for the page's player (iPhone HEVC/HDR footage does not)
+    var vx = find(d.videos, pos.join(' '), 'take'); var Tx = requireFfmpeg(); var sx = vx.sources[0]; if (!sx || !fs.existsSync(sx.path)) fail('The file is not where it was: ' + (sx && sx.path));
+    var dx = videoDir(vx.id); var px = Object.assign({ hasAudio: true, hdr: false, height: 0 }, sx, V.node.probe(Tx, sx.path)); var lkx = V.node.lock(dx); if (lkx) fail('A render of this take is running; wait for it.');
+    if (!JSON_OUT) process.stdout.write('Making a copy that plays in the browser (' + Math.min(720, px.height || 720) + 'p) …\n');
+    var rx; try { rx = V.node.proxy({ tools: Tx, src: sx.path, probe: px, dir: dx }); } catch (e) { fail(e.message); }
+    var stx = fs.statSync(rx.file); note('video proxy ' + vx.id); patchVideo(vx, function (f) { f.proxy = { file: relData(rx.file), size: stx.size, hash: sx.hash, at: Date.now() }; });
+    return out('✓ ' + relData(rx.file) + ' · ' + fmtSize(stx.size) + ' · ' + rx.took + ' s. The page plays this copy; renders still come from the original.', { id: vx.id, file: relData(rx.file), size: stx.size, took: rx.took });
+  }
+  if (sub === 'word' || sub === 'correct') {   // video word <take> <n>[-<m>] "text" [--all] [--expect "old"] | --undo: the words change, the audio and the cut do not
+    var vw = find(d.videos, pos[0], 'take'); var trw = readTranscript(vw); if (!trw) fail('No transcript yet: node solo.js video transcribe ' + vw.id);
+    trw.words = V.normalizeWords(trw.words); trw.edits = Array.isArray(trw.edits) ? trw.edits : [];
+    function saveWords(nw2, what) { trw.words = nw2; trw.text = nw2.map(function (x) { return x.w; }).join(' '); trw.correctedAt = Date.now(); fs.writeFileSync(absData(vw.transcript.file), JSON.stringify(trw, null, 1) + '\n'); note('video word ' + vw.id + ': ' + what); patchVideo(vw, function (f) { f.phrases = V.phrases(nw2); f.transcript = Object.assign(f.transcript || {}, { words: nw2.length, wordsAt: trw.correctedAt }); (f.edl || []).forEach(function (sgm) { sgm.quote = nw2.filter(function (w) { return w.s >= sgm.start - 1e-6 && w.e <= sgm.end + 1e-6; }).map(function (w) { return w.w; }).join(' ').slice(0, 80); }); }); }   // wordsAt: the page drops its copy of the words; the EDL's quotes follow
+    if (flags.undo) { var last = trw.edits.pop(); if (!last) fail('Nothing to undo in the words of ' + vw.id); var cur = trw.words.slice(last.from, last.from + last.now.length).map(function (x) { return x.w; }).join(' '); if (cur !== last.now.map(function (x) { return x.w; }).join(' ')) fail('The words changed since that correction; nothing undone.'); var backW = trw.words.slice(0, last.from).concat(last.was, trw.words.slice(last.from + last.now.length)); (last.hits || []).forEach(function (h) { if (backW[h.i] && backW[h.i].w === h.now) backW[h.i] = Object.assign({}, backW[h.i], { w: h.was }); }); saveWords(backW, 'undo ' + last.now.map(function (x) { return x.w; }).join(' ').slice(0, 30) + ' → ' + last.was.map(function (x) { return x.w; }).join(' ').slice(0, 30)); return out('✓ Undone: the words read "' + last.was.map(function (x) { return x.w; }).join(' ') + '" again' + ((last.hits || []).length ? ' (and the ' + last.hits.length + ' other place' + (last.hits.length === 1 ? '' : 's') + ')' : ''), { id: vw.id, undone: last, words: trw.words, silences: trw.silences || [] }); }
+    var rng = String(pos[1] || '').match(/^(\d+)(?:-(\d+))?$/); var fromW, toW; var textW = pos.slice(2).join(' ').trim() || flags.text;
+    if (rng) { fromW = Number(rng[1]); toW = rng[2] !== undefined ? Number(rng[2]) : fromW; }
+    else {   // video word <take> "what it says" "what it should say": the first place those words are said in what plays (else anywhere)
+      var said = String(pos[1] || '').trim(); if (!said || !textW) fail('Usage: video word <take> "what it says" "what it should say" [--all]   or   video word <take> <n>[-<m>] "text"   or   video word <take> --undo');
+      var normW = function (t) { return String(t).toLowerCase().replace(/[^a-z0-9']+/g, ' ').replace(/\s+/g, ' ').trim(); }; var want = normW(said).split(' '); var hitsW = [];
+      for (var wi0 = 0; wi0 + want.length <= trw.words.length; wi0++) { var okW = true; for (var wj = 0; wj < want.length; wj++) if (normW(trw.words[wi0 + wj].w) !== want[wj]) { okW = false; break; } if (okW) hitsW.push(wi0); }
+      if (!hitsW.length) fail('"' + said + '" is not in the words of ' + vw.id + ' (node solo.js video show ' + vw.id + ' prints them).');
+      var plays = function (i) { var w0 = trw.words[i], w1 = trw.words[i + want.length - 1]; return !(vw.edl || []).length || vw.edl.some(function (sgm) { return w0.s >= sgm.start - 1e-6 && w1.e <= sgm.end + 1e-6; }); };
+      fromW = (hitsW.filter(plays)[0] !== undefined ? hitsW.filter(plays)[0] : hitsW[0]); toW = fromW + want.length - 1;
+      if (hitsW.length > 1 && !flags.all) out('"' + said + '" is said ' + hitsW.length + ' times; correcting the first one that plays (--all for every one).');
+    }
+    if (!textW) fail('Give the words as they should read.');
+    if (!(toW < trw.words.length)) fail('Those words are not in the transcript (it has ' + trw.words.length + ')');
+    var before = trw.words.slice(fromW, toW + 1).map(function (x) { return x.w; }).join(' ');
+    if (flags.expect !== undefined && String(flags.expect).trim() !== before) fail('Those words read "' + before + '" now, not "' + flags.expect + '": the transcript moved; reload and try again.');
+    var cueW = vw.transcript && vw.transcript.granularity === 'cue'; if (cueW && flags.all) fail('Correct all needs word-level words; this transcript is caption lines.');
+    var sW = trw.words[fromW].s, eW = trw.words[toW].e; if ((vw.edl || []).some(function (sgm) { return (sgm.start > sW + 1e-6 && sgm.start < eW - 1e-6) || (sgm.end > sW + 1e-6 && sgm.end < eW - 1e-6); })) fail('A cut edge sits inside those words; put them back first, then correct them.');
+    var nw; try { nw = V.correct(trw.words, fromW, toW, textW, !!flags.all, cueW); } catch (e) { fail(e.message); }
+    var nowRun = nw.slice(fromW, fromW + (nw.length - trw.words.length) + (toW - fromW + 1)); var changedN = nw.filter(function (x, i) { return !trw.words[i] || trw.words[i].w !== x.w; }).length;
+    var hitsAll = []; if (flags.all) nw.forEach(function (x, i) { if ((i < fromW || i > toW) && trw.words[i] && trw.words[i].w !== x.w) hitsAll.push({ i: i, was: trw.words[i].w, now: x.w }); });   // --all keeps the run the same length, so the other places keep their index
+    trw.edits.push({ at: Date.now(), from: fromW, was: trw.words.slice(fromW, toW + 1), now: nowRun, all: !!flags.all, hits: hitsAll }); if (trw.edits.length > 100) trw.edits.shift();
+    saveWords(nw, before.slice(0, 30) + ' → ' + textW.slice(0, 30) + (flags.all ? ' (all)' : ''));
+    return out('✓ "' + before + '" → "' + textW + '"' + (changedN > 1 && flags.all ? ' (' + changedN + ' places)' : '') + ' · the audio and the cut are untouched; captions follow at the next render · video word ' + vw.id + ' --undo takes it back (revert restores the phrases only)', { id: vw.id, from: fromW, to: toW, text: textW, changed: changedN, words: nw, silences: trw.silences || [] });
+  }
+  if (sub === 'title' || sub === 'rename') { var vn = find(d.videos, pos[0], 'take'); var nt2 = pos.slice(1).join(' ').trim() || flags.title; if (!nt2) fail('Usage: video title <take> "New title"'); note('video title ' + vn.id + ': ' + nt2); patchVideo(vn, function (f) { f.title = String(nt2).slice(0, 120); f.renamedAt = Date.now(); }); return out('✓ [' + vn.id + '] ' + vn.title, vn); }
+  if (sub === 'recordings' || sub === 'watch') {   // the folder any recorder saves into; `watch` adds what lands there (the server does the same while it runs)
+    var rdir = V.node.recordingsDir(VC);
+    if (flags.set) fail('Set it with: node solo.js config set video.recordings "<folder>"   (then node solo.js video recordings)');
+    if (flags.init || flags.create || sub === 'watch') fs.mkdirSync(rdir, { recursive: true });
+    var state = V.node.recLoad(DATA); if (sub === 'watch' || flags.add) requireFfmpeg();
+    if (flags.forget) { var fp = path.resolve(String(flags.forget)); if (!state.files[fp]) fail('Not in the list: ' + fp); delete state.files[fp]; V.node.recSave(DATA, state); return out('✓ Forgot ' + fp + '; it is added again the next time it is seen', { forgot: fp }); }
+    // add one file as a take (same as `video add`, without switching the open take); dedupe lives in `video add` itself
+    function addOne(fl) { var r4 = null; try { var so4 = require('child_process').spawnSync(process.execPath, [__filename, 'video', 'add', V.node.titleFromFile(fl.name), '--file', fl.path, '--no-open', '--json', '--as', SOURCE, '--note', 'arrived in the recordings folder'].concat(WS_ID === PRIMARY ? [] : ['--ws', WS_ID]), { cwd: ROOT, encoding: 'utf8', env: Object.assign({}, process.env, { SOLO_DATA: DATA }) }).stdout || ''; r4 = JSON.parse(so4.slice(so4.search(/[\[{]/))); } catch (e) { r4 = null; } V.node.recResult(state, fl.path, r4 && r4.id ? r4.id : null, Date.now(), !!(r4 && r4.existing)); V.node.recSave(DATA, state); return r4 && r4.id && !r4.existing ? r4 : null; }
+    if (sub === 'recordings') {
+      var there = []; try { there = fs.readdirSync(rdir).filter(function (n) { return n[0] !== '.' && V.node.MEDIA_RE.test(n); }); } catch (e) { there = []; }
+      var waiting = there.filter(function (n) { var fp3 = path.join(rdir, n); var f = state.files[fp3]; var m3 = 0; try { m3 = fs.statSync(fp3).mtimeMs; } catch (e) { return false; } return !(f && (f.takeId || f.skipped)) && Date.now() - m3 > 5000; });
+      if (flags.add && waiting.length) { var added = waiting.map(function (n) { var fp2 = path.join(rdir, n); if (state.files[fp2]) delete state.files[fp2].pending; var st = fs.statSync(fp2); return addOne({ path: fp2, name: n, size: st.size }); }).filter(Boolean); return out(['✓ Added ' + added.length + ' take' + (added.length === 1 ? '' : 's') + ' from ' + rdir].concat(added.map(function (x) { return '- [' + x.id + '] ' + x.title; })), added); }
+      return out(['## Recordings folder', '', rdir + (fs.existsSync(rdir) ? '' : '   (not there yet: node solo.js video recordings --init)'), '', 'Save a recording into it (Recordly, QuickTime, your phone\'s file) and it becomes a take: by itself while `node serve.js` runs, or with `node solo.js video watch`.', waiting.length ? waiting.length + ' file' + (waiting.length === 1 ? '' : 's') + ' not added yet: ' + waiting.slice(0, 5).join(', ') + '   → node solo.js video recordings --add' : 'Nothing waiting in it.', 'Change it: node solo.js config set video.recordings "<folder>" · a file added by mistake and removed stays out; --forget <path> lets it in again'], { folder: rdir, exists: fs.existsSync(rdir), waiting: waiting });
+    }
+    if (!JSON_OUT) process.stdout.write('Watching ' + rdir + ' — save a recording there and it becomes a take. Ctrl-C to stop.\n');
+    state.firstLook = true; V.node.scanRecordings(rdir, state); state.firstLook = false; V.node.recSave(DATA, state);   // what is there already waits for --add
+    setInterval(function () { V.node.scanRecordings(rdir, state).forEach(function (fl) { var v5 = addOne(fl); if (v5 && !JSON_OUT) process.stdout.write('✓ New take [' + v5.id + '] ' + v5.title + ' · ' + V.fmt(v5.sources[0].duration) + '\n');
+      var eng5 = flags.transcribe && flags.transcribe !== true ? String(flags.transcribe) : VC.auto;   // --transcribe <engine> names one; bare --transcribe = video.auto (the standing yes) and nothing else: video.engine alone never spends
+      if (v5 && eng5 && v5.sources[0].duration <= (Number(VC.autoMaxMin) || 30) * 60) { V.node.job('transcribe', videoDir(v5.id), [__filename, 'video', 'transcribe', v5.id, '--engine', eng5].concat(eng5 === 'elevenlabs' ? ['--yes'] : []).concat(['--json', '--as', SOURCE]).concat(WS_ID === PRIMARY ? [] : ['--ws', WS_ID]), { engine: eng5, auto: true }, Object.assign({}, process.env, { SOLO_DATA: DATA })); if (!JSON_OUT) process.stdout.write('  getting the words (' + eng5 + ') …\n'); } }); }, 4000);
+    return;
+  }
   if (sub === 'rm') { var vr = find(d.videos, pos.join(' '), 'take'); note('video rm ' + vr.id + ' ' + vr.title); d.videos = d.videos.filter(function (x) { return x.id !== vr.id; }); if (d.activeId === vr.id) d.activeId = d.videos[0] ? d.videos[0].id : ''; write(fileName('videos'), d); var dirR = videoDir(vr.id); var hasDir = fs.existsSync(dirR); if (flags.files && hasDir) V.node.rmrf(dirR); return out('✓ Removed take [' + vr.id + '] ' + vr.title + (hasDir ? (flags.files ? ' and deleted ' + relData(dirR) : '. The transcript and exports stay in ' + relData(dirR) + '/ (add --files to delete them). The footage was never touched.') : ''), vr); }
   if (sub === 'source') {
     var vs = find(d.videos, pos[0], 'take'); var np = pos.slice(1).join(' ').trim() || flags.file; if (!np) fail('Usage: video source <take> <new path>');
     var Ts = requireFfmpeg(); var abs2 = path.resolve(np); if (!fs.existsSync(abs2)) fail('No such file: ' + np);
     var pr2; try { pr2 = V.node.probe(Ts, abs2); } catch (e) { fail(path.basename(abs2) + ' is not a video or audio file ffmpeg can read.'); } var h2 = V.node.hashFile(abs2); var same = vs.sources[0] && vs.sources[0].hash === h2;
     vs.sources[0] = { id: 'a', path: abs2, size: pr2.size, duration: pr2.duration, width: pr2.width, height: pr2.height, fps: pr2.fps, rotation: pr2.rotation, hdr: pr2.hdr, hasAudio: pr2.hasAudio, hash: h2 };
-    if (!same) { vs.transcript = null; vs.phrases = []; vs.edl = []; vs.edlHash = ''; vs.status = 'recorded'; }
+    if (!same) { vs.transcript = null; vs.phrases = []; vs.edl = []; vs.edlHash = ''; vs.cutAt = Date.now(); vs.status = 'recorded'; }
     note('video source ' + vs.id + (same ? ' (same file)' : ' (different file)')); vs.updatedAt = Date.now(); write(fileName('videos'), d);
     return out('✓ [' + vs.id + '] now points at ' + abs2 + (same ? ' (same recording: the words and the cut are kept)' : ' (a different recording: transcribe it again; the old words and cut were cleared)'), vs);
   }
@@ -644,24 +716,29 @@ function cmdVideo() {
     if (!engine) return out(['Which way do you want the words? Pick one and run it:', '', '  (1) On this computer: free, nothing leaves your machine, about a minute per 10 minutes of audio on a recent Mac (first time: downloads a 490 MB model into data/models/, once).', '      node solo.js video transcribe ' + vt.id + ' --engine whisper', '  (2) ElevenLabs: the audio (not the video) is sent to them; about $0.40 per hour of audio; needs a key (node solo.js video key set elevenlabs <key>). It shows the price for this take and asks before spending.', '      node solo.js video transcribe ' + vt.id + ' --engine elevenlabs', '  (3) I already have a transcript (an SRT, VTT or JSON from YouTube, Descript or another tool).', '      node solo.js video transcribe ' + vt.id + ' --from captions.srt', '', 'Remember the choice: node solo.js config set video.engine whisper'], { ask: 'engine', options: ['whisper', 'elevenlabs', 'import'] });
     if (['whisper', 'elevenlabs', 'import'].indexOf(engine) < 0) fail('Unknown engine "' + engine + '". Engines: whisper (local) · elevenlabs (audio only leaves the machine) · --from <file> (import)');
     var tFile = path.join(dir, 'transcript.json'); var cached = null; try { cached = JSON.parse(fs.readFileSync(tFile, 'utf8')); } catch (e) { cached = null; }
-    function finish(words, granularity, raw, eng, mdl, langUsed) {
-      var t = { engine: eng, model: mdl || '', lang: langUsed || '', granularity: granularity, source: { hash: src.hash, path: src.path }, words: words, text: words.map(function (w) { return w.w; }).join(' '), createdAt: Date.now() };
+    function finish(words, granularity, raw, eng, mdl, langUsed, silences) {
+      if (silences && silences.length) words = V.trimToSilences(words, silences);   // whisper glues silence into the neighbouring word; the audio knows better
+      var t = { engine: eng, model: mdl || '', lang: langUsed || '', granularity: granularity, source: { hash: src.hash, path: src.path }, words: words, silences: silences || [], text: words.map(function (w) { return w.w; }).join(' '), createdAt: Date.now() };
       fs.writeFileSync(tFile, JSON.stringify(t, null, 1) + '\n'); if (raw) fs.writeFileSync(path.join(dir, 'transcript-raw.json'), JSON.stringify(raw) + '\n');
       var changed = cached && cached.words && JSON.stringify(cached.words) !== JSON.stringify(words); var cutNote = '';
       if (changed && vt.edl && vt.edl.length) { vt.edl = []; vt.edlHash = ''; cutNote = '\n  · the words changed, so the earlier cut (made on the old words) was cleared; node solo.js revert <id> brings it back'; }
-      vt.transcript = { engine: eng, model: mdl || '', lang: langUsed || '', granularity: granularity, words: words.length, file: relData(tFile) }; vt.phrases = V.phrases(words); if (vt.status === 'recorded' || (changed && vt.status === 'cut')) vt.status = 'transcribed'; vt.updatedAt = Date.now();
-      note('video transcribe ' + vt.id + ' (' + words.length + ' words, ' + eng + ')'); write(fileName('videos'), d);
+      note('video transcribe ' + vt.id + ' (' + words.length + ' words, ' + eng + ')');
+      patchVideo(vt, function (f) { f.transcript = { engine: eng, model: mdl || '', lang: langUsed || '', granularity: granularity, words: words.length, file: relData(tFile) }; f.phrases = V.phrases(words); if (changed && f.edl && f.edl.length) { f.edl = []; f.edlHash = ''; f.cutAt = Date.now(); } if (f.status === 'recorded' || (changed && f.status === 'cut')) f.status = 'transcribed'; });
       var md2 = ['✓ ' + words.length + ' words from ' + eng + (mdl ? ' ' + mdl : '') + (granularity === 'cue' ? ' (cue-level: cuts will snap to the cues, not to words)' : '') + ' → ' + relData(tFile) + cutNote, '', V.packed(vt.phrases.slice(0, 12)) + (vt.phrases.length > 12 ? '\n… ' + (vt.phrases.length - 12) + ' more: node solo.js video show ' + vt.id : ''), '', 'Next: say what to keep — ' + videoNext(vt)];
       return out(md2, vt);
     }
+    var editsNote = function () { if (cached && cached.edits && cached.edits.length) out('Note: the words were corrected ' + cached.edits.length + ' time' + (cached.edits.length === 1 ? '' : 's') + ' (video word); getting them again discards those corrections. Keep them with video word, not by transcribing again.'); };
     if (engine === 'import') {
+      editsNote();
       var f = path.resolve(String(flags.from)); if (!fs.existsSync(f)) fail('No such file: ' + flags.from);
       var imp; try { imp = V.importTranscript(fs.readFileSync(f, 'utf8'), path.extname(f)); } catch (e) { fail(e.message); }
-      return finish(imp.words, imp.granularity, null, imp.engine === 'import' ? 'import' : imp.engine, '', lang);
+      var silI = []; try { var tmpI = V.node.tmpDir(); V.node.extractAudio(T2, src.path, path.join(tmpI, 'audio.wav')); silI = V.node.silences(T2, path.join(tmpI, 'audio.wav'), { duration: src.duration }); V.node.rmrf(tmpI); } catch (e) { silI = []; }   // pauses come from the audio even for an imported transcript
+      return finish(imp.words, imp.granularity, null, imp.engine === 'import' ? 'import' : imp.engine, '', lang, silI);
     }
     if (engine === 'whisper' && lang && lang !== 'en' && /\.en$/.test(model) && !flags.model) model = model.replace(/\.en$/, '');   // the .en models are English only
     var langUsed = engine === 'whisper' ? (lang || (/\.en$/.test(model) ? 'en' : 'auto')) : lang;
-    if (cached && cached.source && cached.source.hash === src.hash && cached.engine === engine && (engine !== 'whisper' || cached.model === model) && !flags.force) { vt.transcript = Object.assign(vt.transcript || {}, { engine: cached.engine, model: cached.model, lang: cached.lang || '', granularity: cached.granularity || 'word', words: cached.words.length, file: relData(tFile) }); vt.phrases = V.phrases(cached.words); if (vt.status === 'recorded') vt.status = 'transcribed'; note('video transcribe ' + vt.id + ' (cached)'); write(fileName('videos'), d); return out('✓ Already transcribed with ' + engine + (cached.model ? ' ' + cached.model : '') + ' (cached, the file did not change). --force runs it again.\n\nNext: ' + videoNext(vt), vt); }
+    if (cached && cached.source && cached.source.hash === src.hash && cached.engine === engine && (engine !== 'whisper' || cached.model === model) && !flags.force) { note('video transcribe ' + vt.id + ' (cached)'); patchVideo(vt, function (f) { f.transcript = Object.assign(f.transcript || {}, { engine: cached.engine, model: cached.model, lang: cached.lang || '', granularity: cached.granularity || 'word', words: cached.words.length, file: relData(tFile) }); f.phrases = V.phrases(cached.words); if (f.status === 'recorded') f.status = 'transcribed'; }); return out('✓ Already transcribed with ' + engine + (cached.model ? ' ' + cached.model : '') + ' (cached, the file did not change). --force runs it again.\n\nNext: ' + videoNext(vt), vt); }
+    editsNote();
     var tmp = V.node.tmpDir(); var wav = path.join(tmp, 'audio.wav');
     function say(t) { if (!JSON_OUT) process.stdout.write(t + '\n'); }
     try {
@@ -673,29 +750,41 @@ function cmdVideo() {
         if (!fs.existsSync(mp)) { say('Downloading the ' + model + ' model (once, ' + (model.indexOf('small') === 0 ? '~490 MB' : model.indexOf('base') === 0 ? '~150 MB' : model.indexOf('tiny') === 0 ? '~80 MB' : 'a few hundred MB or more') + ') into data/models/ …'); p0 = V.node.download(V.node.MODEL_URL(model), mp, function (got, total) { if (!JSON_OUT && process.stdout.isTTY && total) process.stdout.write('\r  ' + Math.round(got / total * 100) + '%   '); }).then(function () { if (!JSON_OUT && process.stdout.isTTY) process.stdout.write('\r'); }); }
         return p0.then(function () {
           say('Listening to ' + V.fmt(src.duration) + ' of audio on this computer · about ' + Math.max(1, Math.round(src.duration / 600 + 0.5)) + ' min');
-          V.node.extractAudio(T2, src.path, wav); var r = V.node.whisper({ bin: bin, model: mp, wav: wav, lang: langUsed, outPrefix: path.join(tmp, 'words') }); V.node.rmrf(tmp);
-          return finish(r.words, 'word', r.raw, 'whisper', model, langUsed);
+          V.node.extractAudio(T2, src.path, wav); var silW = V.node.silences(T2, wav, { duration: src.duration }); var r = V.node.whisper({ bin: bin, model: mp, wav: wav, lang: langUsed, outPrefix: path.join(tmp, 'words') }); V.node.rmrf(tmp);
+          return finish(r.words, 'word', r.raw, 'whisper', model, langUsed, silW);
         }).catch(function (e) { V.node.rmrf(tmp); fail(e.message); });
       }
       var key = process.env.ELEVENLABS_API_KEY || secrets().elevenlabs || ''; if (!key) fail('ElevenLabs needs a key: node solo.js video key set elevenlabs <key>  (or set ELEVENLABS_API_KEY). The key stays in data/secrets.json, out of the backup.');
       var est = src.duration / 3600 * 0.40; var estText = est < 0.005 ? 'less than $0.01' : 'about $' + est.toFixed(2);
       if (!flags.yes) fail('ElevenLabs costs credits: ' + estText + ' for ' + V.fmt(src.duration) + ' (the audio is sent to them, the video stays here). Run again with --yes to go ahead.');
       say('Sending ' + V.fmt(src.duration) + ' of audio to ElevenLabs (' + estText + ') …');
-      V.node.extractAudio(T2, src.path, wav);
-      return V.node.elevenlabs({ key: key, wav: wav, lang: lang }).then(function (r) { V.node.rmrf(tmp); return finish(r.words, 'word', r.raw, 'elevenlabs', 'scribe_v1', lang); }).catch(function (e) { V.node.rmrf(tmp); fail(e.message); });
+      V.node.extractAudio(T2, src.path, wav); var silE = V.node.silences(T2, wav, { duration: src.duration });
+      return V.node.elevenlabs({ key: key, wav: wav, lang: lang }).then(function (r) { V.node.rmrf(tmp); return finish(r.words, 'word', r.raw, 'elevenlabs', 'scribe_v1', lang, silE); }).catch(function (e) { V.node.rmrf(tmp); fail(e.message); });
     } catch (e) { V.node.rmrf(tmp); fail(e.message); }
   }
   if (sub === 'cut') {
-    var vc = find(d.videos, pos.join(' '), 'take'); var srcC = vc.sources[0] || {}; var tr = readTranscript(vc); var words = tr ? tr.words : [];
+    var vc = find(d.videos, pos.join(' '), 'take'); var srcC = vc.sources[0] || {}; var tr = readTranscript(vc) || {}; var words = V.trimToSilences(tr.words || [], tr.silences || []);   // word times trimmed to the measured silences, so no edge lands in glued silence
     var opts = { fps: srcC.fps, duration: srcC.duration }; var ranges, notes = []; var had = vc.edl && vc.edl.length ? vc.edl.length : 0;
     if (flags.edl) { var ej; try { ej = JSON.parse(fs.readFileSync(path.resolve(String(flags.edl)), 'utf8')); } catch (e) { fail('Could not read ' + flags.edl + ': ' + e.message); } try { ranges = V.fromEdl(Array.isArray(ej) ? ej : ej.edl, srcC.duration); } catch (e) { fail(e.message); } }
-    else if (flags.drop) { if (!words.length) fail('No transcript yet, so there are no words to drop: node solo.js video transcribe ' + vc.id); if (vc.transcript && vc.transcript.granularity === 'cue') fail('This transcript is cue-level (imported captions), so single words cannot be dropped. Use --keep with the cue times from `video show`, or transcribe with --engine whisper.'); var dr = V.drop(String(flags.drop).split(/[,;]+/), words, had ? vc.edl : null); if (!dr.hits) fail('None of those words are in ' + (had ? 'the current cut' : 'the transcript') + '.'); ranges = dr.ranges; notes.push('dropped ' + dr.hits + ' match' + (dr.hits === 1 ? '' : 'es') + (had ? ' inside the current cut' : '')); }
+    else if (flags['drop-silence'] || flags.tidy || flags.retakes) {   // tidy up: long pauses shortened to a beat (and, with --tidy, the fillers gone; with --retakes, the first of a phrase said twice), inside the current cut
+      if (!words.length) fail('No transcript yet, so there are no pauses to find: node solo.js video transcribe ' + vc.id);
+      var minP = flags['min-pause'] !== undefined ? Number(flags['min-pause']) : Number(VC.pause) || 0.7; if (!(minP > 0.1)) fail('--min-pause is seconds, e.g. 0.7');
+      if (!Array.isArray(tr.silences) && fs.existsSync(srcC.path || '')) {   // an older transcript: measure the silences once and keep them
+        try { var Tb = requireFfmpeg(); var tmpB = V.node.tmpDir(); V.node.extractAudio(Tb, srcC.path, path.join(tmpB, 'audio.wav')); tr.silences = V.node.silences(Tb, path.join(tmpB, 'audio.wav'), { duration: srcC.duration }); V.node.rmrf(tmpB); tr.words = V.trimToSilences(tr.words || [], tr.silences); fs.writeFileSync(absData(vc.transcript.file), JSON.stringify(tr, null, 1) + '\n'); notes.push('measured the silences on the audio (kept in the transcript)'); words = tr.words; patchVideo(vc, function (f) { f.phrases = V.phrases(tr.words); }); } catch (e) { tr.silences = []; }
+      }
+      var keepsNow = had ? vc.edl : null; var cue = !!(vc.transcript && vc.transcript.granularity === 'cue');
+      var onlyRetakes = flags.retakes && !flags.tidy && !flags['drop-silence'];
+      var td = V.tidy(words, tr.silences || [], keepsNow, { pause: onlyRetakes ? 1e9 : minP, duration: srcC.duration, fps: srcC.fps, cue: cue, fillers: flags.tidy ? (flags.tidy === true ? V.FILLERS : String(flags.tidy).split(/[,;]+/)) : false, retakes: !!flags.retakes });
+      if (!td.holes.length) fail('Nothing to tidy: ' + (onlyRetakes ? 'nothing said twice' : 'no pause over ' + minP + ' s' + (flags.tidy ? ' and no fillers' : '') + (flags.retakes ? ', nothing said twice' : '')) + (had ? ' inside the current cut' : '') + '.');
+      ranges = td.ranges; notes.push([td.pauseHits ? 'shortened ' + td.pauseHits + ' pause' + (td.pauseHits === 1 ? '' : 's') + ' over ' + minP + ' s' : '', td.fillerHits ? 'dropped ' + td.fillerHits + ' filler' + (td.fillerHits === 1 ? '' : 's') : '', td.retakeHits ? 'took out ' + td.retakeHits + ' first ' + (td.retakeHits === 1 ? 'try' : 'tries') + ' of something said twice' : ''].filter(Boolean).join(', ') + (had ? ' inside the current cut' : ''));
+    }
+    else if (flags.drop) { if (!words.length) fail('No transcript yet, so there are no words to drop: node solo.js video transcribe ' + vc.id); if (vc.transcript && vc.transcript.granularity === 'cue') fail('This transcript is cue-level (imported captions), so single words cannot be dropped. Use --keep with the cue times from `video show`, or transcribe with --engine whisper.'); var dr = V.drop(String(flags.drop).split(/[,;]+/), words, had ? vc.edl : null, { duration: srcC.duration }); if (!dr.hits) fail('None of those words are in ' + (had ? 'the current cut' : 'the transcript') + '.'); ranges = dr.ranges; notes.push('dropped ' + dr.hits + ' match' + (dr.hits === 1 ? '' : 'es') + (had ? ' inside the current cut' : '')); }
     else if (flags.keep) { try { ranges = V.parseRanges(String(flags.keep)); } catch (e) { fail(e.message); } }
-    else fail('Usage: video cut <take> --keep "2.42-6.85, 8.10-15.00"   or   --drop "um, uh, you know"   or   --edl cut.json   (silence removal comes in the next release)');
+    else fail('Usage: video cut <take> --keep "2.42-6.85, 8.10-15.00"   or   --drop "um, uh, you know"   or   --drop-silence [--min-pause 0.7]   or   --tidy (fillers + pauses)   or   --retakes (the first of a phrase said twice)   or   --edl cut.json');
     var res; try { res = V.snap(ranges, words, opts); } catch (e) { fail(e.message); }
-    if (had && !flags.drop) notes.push('replaced the previous cut (' + had + ' piece' + (had === 1 ? '' : 's') + '); node solo.js revert <id> brings it back (node solo.js log)');
-    note('video cut ' + vc.id + ' (' + res.edl.length + ' piece' + (res.edl.length === 1 ? '' : 's') + ', ' + V.fmt(res.runtime) + (flags.drop ? ', drop ' + String(flags.drop).slice(0, 30) : flags.edl ? ', from an EDL' : '') + ')');
-    vc.edl = res.edl; vc.edlHash = edlHash(res.edl); if (['recorded', 'transcribed', 'rendered'].indexOf(vc.status) >= 0) vc.status = 'cut'; vc.updatedAt = Date.now(); write(fileName('videos'), d);
+    if (had && !flags.drop && !flags['drop-silence'] && !flags.tidy) notes.push('replaced the previous cut (' + had + ' piece' + (had === 1 ? '' : 's') + '); node solo.js revert <id> brings it back (node solo.js log)');
+    note('video cut ' + vc.id + ' (' + res.edl.length + ' piece' + (res.edl.length === 1 ? '' : 's') + ', ' + V.fmt(res.runtime) + (flags.tidy ? ', tidy up' : flags.retakes ? ', retakes' : flags['drop-silence'] ? ', pauses' : flags.drop ? ', drop ' + String(flags.drop).slice(0, 30) : flags.edl ? ', from an EDL' : '') + ')');
+    patchVideo(vc, function (f) { f.edl = res.edl; f.edlHash = edlHash(res.edl); f.cutAt = Date.now(); if (['recorded', 'transcribed', 'rendered'].indexOf(f.status) >= 0) f.status = 'cut'; });   // a fresh copy of the file: a correction or a render may have landed meanwhile; cutAt is the cut's own stamp
     var md3 = ['✓ Cut: ' + res.edl.length + ' piece' + (res.edl.length === 1 ? '' : 's') + ', ' + V.fmt(res.runtime) + ' of ' + V.fmt(srcC.duration) + (words.length ? ' (edges snapped to words, padded)' : '')];
     res.edl.forEach(function (s, i) { md3.push('  ' + (i + 1) + '. ' + V.fmt(s.start) + '-' + V.fmt(s.end) + (s.quote ? '  "' + s.quote + (s.quote.length >= 80 ? '…' : '') + '"' : '') + (s.reason ? '  (' + s.reason + ')' : '')); });
     notes.concat(res.notes).forEach(function (n) { md3.push('  · ' + n); });
@@ -733,8 +822,8 @@ function cmdVideo() {
     if (err) fail(err.message);
     if (!JSON_OUT && process.stdout.isTTY) process.stdout.write('\n');
     var rel = outPath ? outPath : relData(finalFile); var st = fs.statSync(finalFile);
-    vd.exports = vd.exports || []; vd.exports.push({ file: rel, kind: kind, duration: res2.duration, size: st.size, edlHash: vd.edlHash, captions: res2.burned ? 'burned' : res2.softCaptions ? 'track+srt' : 'none', srt: relData(res2.srt), encoder: res2.encoder, aspect: flags.aspect === '9:16' ? '9:16' : '', style: style, at: Date.now() });
-    if (!preview) vd.status = 'rendered'; vd.updatedAt = Date.now(); note('video render ' + vd.id + ' (' + name + ')'); write(fileName('videos'), d);
+    var exportRec = { file: rel, kind: kind, duration: res2.duration, size: st.size, edlHash: vd.edlHash, captions: res2.burned ? 'burned' : res2.softCaptions ? 'track+srt' : 'none', srt: relData(res2.srt), encoder: res2.encoder, aspect: flags.aspect === '9:16' ? '9:16' : '', style: style, at: Date.now() };
+    note('video render ' + vd.id + ' (' + name + ')'); patchVideo(vd, function (f) { f.exports = (f.exports || []).concat([exportRec]); if (!preview && f.edlHash === exportRec.edlHash) f.status = 'rendered'; });   // the cut may have changed on the page while this rendered: then it stays `cut`
     var notes2 = [burnNote, res2.note].filter(Boolean);
     return out(['✓ Done: ' + V.fmt(res2.duration) + ', ' + (preview ? outH + 'p preview' : pr3.width + '×' + pr3.height) + ', ' + fmtSize(st.size) + ', ' + Math.round((Date.now() - t0) / 1000) + ' s' + (res2.burned ? ', captions burned in' : res2.softCaptions ? ', captions as a track + ' + relData(res2.srt) : ''), '  ' + rel].concat(res2.note ? ['  ⚠ ' + res2.note] : []).concat(['  Open it: node solo.js video open ' + vd.id + (preview ? ' --preview' : '') + (preview ? ' · happy? node solo.js video render ' + vd.id + ' for the final' : ' · post it: node solo.js video post ' + vd.id + ' --at "tomorrow 09:00"')]), { id: vd.id, file: rel, duration: res2.duration, size: st.size, preview: preview, captions: res2.burned ? 'burned' : res2.softCaptions ? 'track+srt' : 'none', segments: res2.segments, encoder: res2.encoder, took: Math.round((Date.now() - t0) / 1000), note: notes2.join(' ') });
   }
@@ -751,11 +840,11 @@ function cmdVideo() {
     if (!fs.existsSync(absData(exF.file))) fail('The final is gone: ' + exF.file + '. Render again: node solo.js video render ' + vp.id);
     if (exF.edlHash !== vp.edlHash && !flags.force) fail(path.basename(exF.file) + ' was rendered before the current cut. Render the final again first: node solo.js video render ' + vp.id + '   (or --force to post it anyway)');
     var s2 = schedule(); var types = (cfg.social && cfg.social.postTypes) || ['announcement', 'launch', 'update', 'thread', 'teaser']; var link = require('url').pathToFileURL(absData(exF.file)).href;
-    var np = { id: newId('p'), datetime: parseWhen(flags.at), title: flags.title || vp.title, postType: types.indexOf(flags.type) >= 0 ? flags.type : (types.indexOf('update') >= 0 ? 'update' : types[0] || 'update'), format: 'video', project: flags.project || flags.proj || ((cfg.projects || [])[0] || {}).name || 'general', copy: flags.copy || '', video: { title: vp.title, status: 'edited', notes: 'cut from take ' + vp.id + (vp.scriptId ? ', script ' + vp.scriptId : ''), link: link }, links: [{ id: newId('l'), label: 'the cut (' + V.fmt(exF.duration) + ')', url: link, kind: 'video' }], assets: [], prep: [{ text: 'Watch the cut full-screen, sound off and on', done: false, kind: 'video' }, { text: 'Write the copy', done: !!flags.copy, kind: 'content' }], notes: '', status: 'draft', posted: { url: '', postedAt: '', stats: {}, notes: '', screenshotId: '' } };
-    note('video post ' + vp.id + ' → ' + np.id); s2.posts.push(np); write(fileName('social'), s2); vp.postId = np.id; vp.updatedAt = Date.now(); write(fileName('videos'), d);
+    var np = { id: newId('p'), datetime: parseWhen(flags.at), title: flags.title || vp.title, postType: types.indexOf(flags.type) >= 0 ? flags.type : (types.indexOf('update') >= 0 ? 'update' : types[0] || 'update'), format: 'video', scriptId: vp.scriptId || '', project: flags.project || flags.proj || ((cfg.projects || [])[0] || {}).name || 'general', copy: flags.copy || '', video: { title: vp.title, status: 'edited', notes: 'cut from take ' + vp.id + (vp.scriptId ? ', script ' + vp.scriptId : ''), link: link }, links: [{ id: newId('l'), label: 'the cut (' + V.fmt(exF.duration) + ')', url: link, kind: 'video' }], assets: [], prep: [{ text: 'Watch the cut full-screen, sound off and on', done: false, kind: 'video' }, { text: 'Write the copy', done: !!flags.copy, kind: 'content' }], notes: '', status: 'draft', posted: { url: '', postedAt: '', stats: {}, notes: '', screenshotId: '' } };
+    note('video post ' + vp.id + ' → ' + np.id); s2.posts.push(np); write(fileName('social'), s2); patchVideo(vp, function (f) { f.postId = np.id; });
     return out(['✓ Post [' + np.id + '] ' + np.title + ' · ' + fmtDT(np.datetime) + ' · video linked (not copied): ' + exF.file, '  Copy: node solo.js social copy ' + np.id + ' "…" · mark posted: node solo.js social posted ' + np.id + ' --url … (the take then reads posted)'], { post: np, video: vp.id });
   }
-  fail('Unknown video command "' + sub + '". Try: list, add, show, transcribe, cut, render, open, post, source, rm, key');
+  fail('Unknown video command "' + sub + '". Try: list, add, show, transcribe, cut, word, render, proxy, open, post, title, source, recordings, watch, rm, key');
 }
 /* ---- inspiration --------------------------------------------------------- */
 function inspo() { var d = read('inspiration'); return d && Array.isArray(d.items) ? d : { items: [] }; }
@@ -867,15 +956,16 @@ function exportPrompts() {
   var dirs = { claude: path.join(ROOT, '.claude', 'commands'), cursor: path.join(ROOT, '.cursor', 'commands'), codex: path.join(process.env.CODEX_HOME || path.join(require('os').homedir(), '.codex'), 'prompts') };
   if (!dirs[tool]) fail('--for must be claude (default), cursor, codex or chat');
   var dir = path.resolve(flags.out || dirs[tool]); fs.mkdirSync(dir, { recursive: true });
-  var all = allPrompts('files', { folder: '' }).filter(function (x) { return (x.c !== 'setup' || x.slug === 'setup') && x.slug; });   // no absolute path: a slash command runs inside the folder
+  var all = allPrompts('files', { folder: '' }).filter(function (x) { return (x.c !== 'setup' || /^setup(-video)?$/.test(x.slug)) && x.slug; });   // no absolute path: a slash command runs inside the folder
   var written = [], kept = [], removed = []; var o = promptOpts('files'); o.folder = ''; var rel = path.relative(ROOT, dir); if (rel.indexOf('..') === 0) rel = dir;
   // The shared files are always the built-in text (they are committed with the code). Your own prompts AND your edits of
   // built-ins go to mine/ (git-ignored): /mine:use-inspo is your version, /use-inspo stays the built-in.
-  var pristine = P.build(o).filter(function (x) { return (x.c !== 'setup' || x.slug === 'setup') && x.slug; });
+  var pristine = P.build(o).filter(function (x) { return (x.c !== 'setup' || /^setup(-video)?$/.test(x.slug)) && x.slug; });
   var mine = all.filter(function (x) { return x.custom || x.overridden; });
   var mineDir = path.join(dir, 'mine'); if (mine.length) fs.mkdirSync(mineDir, { recursive: true });
   pristine.concat(mine).forEach(function (x) { var isMine = x.custom || x.overridden; var f = path.join(isMine ? mineDir : dir, x.slug + '.md'); var prev = ''; try { prev = fs.readFileSync(f, 'utf8'); } catch (e) { /* new */ } if (prev && prev.indexOf(P.MARK) < 0) { kept.push(x.slug); return; } fs.writeFileSync(f, P.command(x, o, tool)); written.push((isMine ? 'mine/' : '') + x.slug); });
-  [dir, mineDir].forEach(function (d, isMine) { var names = []; try { names = fs.readdirSync(d); } catch (e) { return; } names.forEach(function (n) { if (!/\.md$/.test(n)) return; var slug = n.slice(0, -3); if ((isMine ? mine : pristine).some(function (x) { return x.slug === slug; })) return; var t = ''; try { t = fs.readFileSync(path.join(d, n), 'utf8'); } catch (e) { return; } if (t.indexOf(P.MARK) >= 0) { fs.unlinkSync(path.join(d, n)); removed.push((isMine ? 'mine/' : '') + slug); } }); });
+  var hasOwn = !!read('prompts');   // no data/prompts.json here (a fresh checkout, a worktree): mine/ belongs to another data folder, leave it alone
+  [dir, mineDir].forEach(function (d, isMine) { if (isMine && !hasOwn) return; var names = []; try { names = fs.readdirSync(d); } catch (e) { return; } names.forEach(function (n) { if (!/\.md$/.test(n)) return; var slug = n.slice(0, -3); if ((isMine ? mine : pristine).some(function (x) { return x.slug === slug; })) return; var t = ''; try { t = fs.readFileSync(path.join(d, n), 'utf8'); } catch (e) { return; } if (t.indexOf(P.MARK) >= 0) { fs.unlinkSync(path.join(d, n)); removed.push((isMine ? 'mine/' : '') + slug); } }); });
   return out(['✓ ' + written.length + ' slash command' + (written.length === 1 ? '' : 's') + ' for ' + tool + ' in ' + rel + '/ (workspace ' + WS_ID + ')', '  ' + written.filter(function (s) { return s.indexOf('mine/') !== 0; }).map(function (s) { return '/' + s; }).join(' ')].concat(written.some(function (s) { return s.indexOf('mine/') === 0; }) ? ['  yours, in ' + rel + '/mine/ (git-ignored): ' + written.filter(function (s) { return s.indexOf('mine/') === 0; }).map(function (s) { return '/' + s.slice(5); }).join(' ')] : []).concat(kept.length ? ['  kept your own: ' + kept.join(', ')] : []).concat(removed.length ? ['  removed stale: ' + removed.join(', ')] : []).concat(tool === 'claude' ? ['Type /standup in Claude Code opened in this folder. Re-run after editing prompts.'] : tool === 'codex' ? ['Codex loads these on start; restart it once.'] : []), { dir: dir, written: written, kept: kept, removed: removed });
 }
 
@@ -919,15 +1009,15 @@ function cmdBoards() {
 function cmdWorkspaces() {
   var sub = (pos.shift() || 'list').toLowerCase(); var rt = read('workspaces') || { workspaces: [] }; rt.workspaces = Array.isArray(rt.workspaces) ? rt.workspaces : [];
   if (sub === 'list') return out(['## Workspaces (' + WORKSPACES.length + ')'].concat(WORKSPACES.map(function (w) {
-    var apps = ['boards'].filter(function () { return w.boards.length; }).concat(['social', 'scripts', 'writing'].filter(function (a) { return w.apps[a]; }));
+    var apps = ['boards'].filter(function () { return w.boards.length; }).concat(['social', 'scripts', 'writing', 'video'].filter(function (a) { return w.apps[a]; }));
     return '- [' + w.id + '] ' + w.title + ' · ' + apps.join(', ') + (w.boards.length ? ' · boards: ' + w.boards.map(function (b) { return b.id; }).join(', ') : '') + (w.id === WS_ID ? ' (default)' : '') + (w.id === PRIMARY ? ' · files: short names' : ' · files: ' + w.id + '-*.json');
   })), WORKSPACES);
   if (sub === 'add') {
-    var title = pos.join(' ').trim() || flags.title; if (!title) fail('Usage: workspaces add "Title" [--apps social,scripts,writing] [--boards "Launch,Ops"] [--sample]');
+    var title = pos.join(' ').trim() || flags.title; if (!title) fail('Usage: workspaces add "Title" [--apps social,scripts,writing,video] [--boards "Launch,Ops"] [--sample]');
     var id = slug(title); if (!id || RESERVED.indexOf(id) >= 0 || WORKSPACES.some(function (w) { return w.id === id; })) fail('Pick a different name.');
-    var apps = flags.apps === undefined ? ['boards', 'social', 'scripts', 'writing'] : split(flags.apps);
+    var apps = flags.apps === undefined ? ['boards', 'social', 'scripts', 'writing', 'video'] : split(flags.apps);
     var boards = (flags.boards === undefined ? (apps.indexOf('boards') >= 0 ? ['Board'] : []) : split(flags.boards)).map(function (t) { return { id: slug(t), title: t, sprintLabel: 'Progress', milestones: [], focus: [] }; });
-    var w = { id: id, title: title, apps: { social: apps.indexOf('social') >= 0, scripts: apps.indexOf('scripts') >= 0, writing: apps.indexOf('writing') >= 0 }, boards: boards, createdAt: Date.now() };
+    var w = { id: id, title: title, apps: { social: apps.indexOf('social') >= 0, scripts: apps.indexOf('scripts') >= 0, writing: apps.indexOf('writing') >= 0, video: apps.indexOf('video') >= 0 }, boards: boards, createdAt: Date.now() };
     rt.workspaces.push(w); write('workspaces', rt);
     var sample = !!flags.sample; var now = new Date(); var pre = id + '-';
     boards.forEach(function (b, i) { write(pre + b.id, { projects: [], tasks: sample && i === 0 && T ? T.runway().tasks : [] }, { noActivity: true }); });
@@ -972,10 +1062,10 @@ function expandHome(p) { return path.resolve(String(p).replace(/^~(?=\/|$)/, req
 // Plain copy of data/ into a folder that syncs (iCloud Drive, Dropbox, Google Drive): no git, no log, no safety copies.
 // What never leaves this computer with a backup: the change log, safety copies, keys, the inbox, the whisper
 // model, and every rendered or temporary video file (data/videos/<id>/ keeps only transcript.json and the .srt).
-var BACKUP_IGNORE = ['log.jsonl', '*.backup-*.json', 'exports/', 'identity.json', 'inbox.json', 'secrets.json', 'models/', 'videos/**', '!videos/*/', '!videos/*/transcript.json', '!videos/*/*.srt'];
+var BACKUP_IGNORE = ['log.jsonl', '*.backup-*.json', 'exports/', 'identity.json', 'inbox.json', 'secrets.json', 'recordings.json', 'models/', 'videos/**', '!videos/*/', '!videos/*/transcript.json', '!videos/*/*.srt'];
 function backupSkip(rel) {   // same rule for the folder copy (rel = path inside data/, forward slashes)
   rel = rel.split(path.sep).join('/');
-  if (/^(\.git|log\.jsonl|exports|models|identity\.json|inbox\.json|secrets\.json)(\/|$)/.test(rel) || /\.(file-)?backup-[\d-]+\.json$/.test(rel)) return true;
+  if (/^(\.git|log\.jsonl|exports|models|identity\.json|inbox\.json|secrets\.json|recordings\.json)(\/|$)/.test(rel) || /\.(file-)?backup-[\d-]+\.json$/.test(rel)) return true;
   var m = rel.match(/^videos\/[^/]+\/(.+)$/); if (m) return !/^(transcript\.json|[^/]+\.srt)$/.test(m[1]);
   return false;
 }
@@ -1164,15 +1254,17 @@ function cmdGuard() {
 function cmdDoctor() {
   var issues = [], notes = [], files = []; var refs = {}; var browserOnly = 0;
   try { files = fs.readdirSync(DATA).filter(function (f) { return /\.json$/.test(f) && !/\.backup-/.test(f); }); } catch (e) { fail('No data/ folder yet. Run: node solo.js template all'); }
-  var shapes = { social: 'posts', scripts: 'scripts', writing: 'notes', inspiration: 'items', boards: 'boards', workspaces: 'workspaces', activity: 'days', settings: 'theme', prompts: null, backup: null, identity: null, contacts: null, shares: 'shares', inbox: 'items', videos: 'videos', secrets: null };
+  var shapes = { social: 'posts', scripts: 'scripts', writing: 'notes', inspiration: 'items', boards: 'boards', workspaces: 'workspaces', activity: 'days', settings: 'theme', prompts: null, backup: null, identity: null, contacts: null, shares: 'shares', inbox: 'items', videos: 'videos', secrets: null, recordings: 'recordings' };
   files.forEach(function (f) {
     var txt, obj; try { txt = fs.readFileSync(path.join(DATA, f), 'utf8'); obj = JSON.parse(txt); } catch (e) { issues.push(f + ': not valid JSON (' + e.message.split('\n')[0] + ')'); return; }
     if (!obj || typeof obj !== 'object') { issues.push(f + ': not an object'); return; }
-    if (!obj.updatedAt) issues.push(f + ': no updatedAt (sync cannot tell which side is newer)'); else if (isNaN(Date.parse(obj.updatedAt))) issues.push(f + ': updatedAt is not an ISO date');
     var base = f.replace(/\.json$/, ''); var kind = Object.keys(shapes).filter(function (k) { return base === k || base.slice(-k.length - 1) === '-' + k; })[0];
+    var machineOnly = ['secrets', 'recordings', 'backup', 'identity'].indexOf(kind) >= 0;   // never synced, so no stamp to check
+    if (!obj.updatedAt) { if (!machineOnly) issues.push(f + ': no updatedAt (sync cannot tell which side is newer)'); } else if (isNaN(Date.parse(obj.updatedAt))) issues.push(f + ': updatedAt is not an ISO date');
     var arrKey = kind ? shapes[kind] : 'tasks';
     if (kind === 'settings') { if (!obj.theme) issues.push(f + ': no theme'); var cp = CfgLib ? CfgLib.check(SHIPPED, obj.config) : []; cp.forEach(function (m) { issues.push(f + ': ' + m + ' (fix: node solo.js config set …; the page ignores it meanwhile)'); }); if (isObj(obj.config) && Object.keys(obj.config).length && !cp.length) notes.push(f + ': your settings: ' + Object.keys(obj.config).join(', ')); }
     else if (kind === 'activity') { if (!obj.days || typeof obj.days !== 'object') issues.push(f + ': no days map'); }
+    else if (kind === 'recordings') { if (!obj.files || typeof obj.files !== 'object' || Array.isArray(obj.files)) issues.push(f + ': no files map (node solo.js video recordings --init rewrites it)'); }
     else if (arrKey) {
       var arr = obj[arrKey]; if (!Array.isArray(arr)) { issues.push(f + ': expected an array "' + arrKey + '"'); return; }
       var seen = {}; arr.forEach(function (x, i) { if (!x || typeof x !== 'object') { issues.push(f + ': ' + arrKey + '[' + i + '] is not an object'); return; } if (x.id == null) issues.push(f + ': ' + arrKey + '[' + i + '] has no id'); else if (seen[x.id]) issues.push(f + ': duplicate id ' + x.id); seen[x.id] = 1;
@@ -1214,11 +1306,12 @@ function cmdDoctor() {
 // Video: the tools, the model, every take's file and exports, stale locks, big files in the backup repo.
 function doctorVideo(files, issues, notes, repo) {
   if (!V) return; var vfiles = files.filter(function (f) { return /(^|-)videos\.json$/.test(f); }); var dirs = []; try { dirs = fs.readdirSync(path.join(DATA, 'videos')).filter(function (f) { return f[0] !== '.'; }); } catch (e) { dirs = []; }
-  if (!vfiles.length && !dirs.length) return;
+  if (!vfiles.length && !dirs.length && cfg.apps && cfg.apps.video === false) return;   // the app is off and was never used: nothing to say; otherwise the tools are worth a line before the first take
   var T = V.node.tools(videoCfg()); var VC = videoCfg();
   if (!T.ffmpeg) issues.push('video: ffmpeg not found. ' + V.node.NEED_FFMPEG); else notes.push('video: ffmpeg ' + T.ffmpeg + (V.node.hasFilter(T.ffmpeg, 'subtitles') ? ', can burn captions' : ', no libass: captions go in as a track + .srt (burned-in ones need another build; `video render --burn` says how)'));
   var wb = V.node.whisperBin(VC); var mp = V.node.modelPath(DATA, VC.model || 'small.en'); var key = !!(process.env.ELEVENLABS_API_KEY || secrets().elevenlabs);
   notes.push('video: engines: ' + [wb ? 'whisper (' + (fs.existsSync(mp) ? 'model ' + path.basename(mp) + ' ready' : 'model downloads on first use') + ')' : '', key ? 'elevenlabs (key set)' : '', 'import'].filter(Boolean).join(' · ') + (VC.engine ? ' · default: ' + VC.engine : ' · no default yet (config set video.engine whisper)'));
+  var rdir2 = V.node.recordingsDir(VC); notes.push('video: recordings folder ' + rdir2 + (fs.existsSync(rdir2) ? '' : ' (not created yet: node solo.js video recordings --init)') + (process.platform === 'darwin' ? ' · Recordly ' + (fs.existsSync('/Applications/Recordly.app') ? 'installed' : 'not installed (recordly.dev; QuickTime works too)') : ''));
   var seen = {}; var size = 0;
   vfiles.forEach(function (f) { var o = null; try { o = JSON.parse(fs.readFileSync(path.join(DATA, f), 'utf8')); } catch (e) { return; } (o.videos || []).forEach(function (v) {
     seen[v.id] = 1; var src = (v.sources || [])[0];
@@ -1316,9 +1409,14 @@ function cmdHelp() {
     'Prompts (built-ins in core/prompts.js, yours in data/prompts.json)', '  prompts builtin [--mode chat|files]   prompts show <title or /slug>   prompts export [--for claude|cursor|codex|chat] [--out dir]', '  prompts list|add "Title" --text "…"|--file p.md [--cat daily] [--desc "…"]|edit <p> …|rm <p>|restore', '',
     'Studio (data/scripts.json, data/writing.json)', '  scripts list|show <s>|add "Title" [--file x.md]|rm <s>', '  notes list|show <n>|add "Title" [--file x.md]|rm <n>', '',
     'Video (data/videos.json + data/videos/<id>/ — cut a take by its words; the footage stays where it is, needs ffmpeg)', '  video add "Title" --file ./take.mov [--script s3]   video list|show <v>|open <v> [--preview]|rm <v> [--files]   video source <v> <new path>',
-    '  video transcribe <v> [--engine whisper|elevenlabs] [--lang en] [--from captions.srt] [--yes]   whisper = on this computer; elevenlabs = audio only leaves (needs video key set elevenlabs <key>)',
-    '  video cut <v> --keep "2.4-6.8, 8.1-15.0" | --drop "um, uh" | --edl cut.json     edges snap to words and are padded; logged, revertable',
+    '  video transcribe <v> [--engine whisper|elevenlabs] [--lang en] [--from captions.srt] [--yes]   whisper = on this computer; elevenlabs = audio only leaves (needs video key set elevenlabs --stdin)',
+    '  video cut <v> --keep "2.4-6.8, 8.1-15.0" | --drop "um, uh" | --tidy | --drop-silence [--min-pause 0.7] | --retakes | --edl cut.json     edges snap to words and are padded; logged, revertable',
+    '  video word <v> "what it says" "what it should say" [--all] | <n>[-<m>] "text" | --undo   a misheard word: the text changes, the audio and the cut do not',
+    '  video title <v> "New title"   video proxy <v> (a 720p copy for the page\'s player)   video key set elevenlabs --stdin',
+    '  video recordings [--init|--add|--forget <path>]   video watch [--transcribe [engine]]   the folder any recorder saves into; what lands there becomes a take (serve.js watches it too)',
     '  video render <v> [--preview] [--burn] [--aspect 9:16] [--style sentence|bold] [--out file]   one encode, captions as a track + .srt (burned with libass)', '  video post <v> [--at <when>] [--type update] [--copy "…"]   a post dated then, in draft, with the cut linked, never copied', '',
+    'Story (a draft, a script, its takes and the posts as one chain; never across workspaces)', '  link <a> <b> [--off]   connect two of them by id or title (draft↔script, draft↔post, script↔take, script↔post, take↔post)   story <id>   print the chain',
+    '  scripts add --draft n1   social add --draft n1 | --script s1 | --take v1   video add --script s1   the new item remembers where it came from; the pages show the same line and a Connect… picker', '',
     'Safety', '  backup setup [--name solo-ops-data] [--no-github]   first time: a PRIVATE GitHub repo via gh, or it tells you the two other ways', '  backup [--remote <private url>] [--to <folder>] [--status]   push data/ to its private repo and/or copy it to a syncing folder; refuses public repos', '  backup --daily [--hour 21] [--dry-run]   run it every evening (launchd / crontab / a schtasks line)', '  guard [--install] [--allow-data]   fail when staged files hold your content; --install = on every commit; --allow-data = your own PRIVATE fork only', '  doctor | health            check every data file, attachments and backup age', '',
     'Setup', '  template [all|board|social|scripts|writing|settings] [--board id] [--force]', '  theme [show|list|set <palette>|mode <auto|light|dark>|font <inter|system|lato|editorial>]', '  config                     the settings in use (solo.config.js + your settings)', '  config set <setting> <value>  your values, kept in data/settings.json: owner "Mara" · name "Pocket Studio" · social.postTypes reel,carousel · boards.runway.title "…"', '  config add <list> a b      add to a list (config unset <setting> · config set --file x.json · config clear)', '  serve [--port 4321]        start the local server (pages write data/ directly)', '',
     'Add --json to any command for machine-readable output. Ids: tasks t…, posts p…, scripts s…, notes n….',
@@ -1596,6 +1694,39 @@ function inboxList(me) {
   });
 }
 
+/* ---- story: one chain across a draft, a script, its takes and the posts (core/story.js) ----
+   `link a b` writes the one pointer the pair needs (script.noteId, take.scriptId, take.postId,
+   post.noteId / post.scriptId); `story <id>` prints the chain. Never across workspaces. */
+var ST = safeRequire(path.join(ROOT, 'core', 'story.js'));
+function storyData() { return { note: notes().notes, script: scripts().scripts, take: videos().videos, post: schedule().posts }; }
+function storyLine(kind, id) { if (!ST) return ''; var ms = ST.of(storyData(), kind, id); return ST.connected(ms) ? ST.text(ms) : ''; }
+function cmdLink() {
+  if (!ST) fail('core/story.js is missing'); function note(t) { flags.note = flags.note ? t + ' · ' + flags.note : t; }
+  var a = pos[0], b = pos[1]; if (!a || !b) fail('Usage: link <id or title> <id or title> [--off]   a draft, a script, a take and a post become one story (node solo.js story <id> shows it)');
+  var p; try { p = ST.pair(storyData(), a, b); } catch (e) { fail(e.message); }
+  var off = !!flags.off; var val = off ? '' : p.target.item.id;
+  if (!off && (p.target.missing || p.holder.missing)) fail('One of those was deleted; it cannot be connected. (--off forgets it.)');
+  if (off && p.holder.missing) fail('That one was deleted; nothing holds the connection any more.');
+  if (off && p.holder.item[p.field] !== p.target.item.id) return out('Not connected: ' + ST.describe(p.up.kind, p.up.item) + ' and ' + ST.describe(p.down.kind, p.down.item) + ' hold no direct link (they may be connected through another piece).', { off: true, changed: false });
+  var wasId = !off && p.holder.item[p.field] && p.holder.item[p.field] !== val ? p.holder.item[p.field] : ''; var was = wasId ? (ST.lookup(storyData(), wasId) || null) : null;
+  if (wasId && !JSON_OUT) out('Note: ' + ST.describe(p.holder.kind, p.holder.item) + ' was connected to ' + (was ? ST.describe(was.kind, was.item) : wasId) + '; now it is this one.');
+  var what = (off ? 'disconnected ' : 'connected ') + ST.WORD[p.holder.kind].toLowerCase() + ' ' + p.holder.item.id + (off ? ' from ' : ' to ') + ST.WORD[p.target.kind].toLowerCase() + ' ' + p.target.item.id;
+  note('link: ' + what);
+  if (p.holder.kind === 'take') patchVideo(p.holder.item, function (f) { f[p.field] = val; f.linkedAt = Date.now(); });
+  else { var app = ST.APP[p.holder.kind]; var d = app === 'scripts' ? scripts() : app === 'writing' ? notes() : schedule(); var arr = app === 'social' ? d.posts : app === 'scripts' ? d.scripts : d.notes; var it = arr.filter(function (x) { return x.id === p.holder.item.id; })[0]; it[p.field] = val; it.updatedAt = Date.now(); write(fileName(app), d); }
+  return out('✓ ' + (off ? 'Disconnected' : 'Connected') + ': ' + ST.describe(p.up.kind, p.up.item) + ' → ' + ST.describe(p.down.kind, p.down.item) + (off ? '' : '\n  Story: ' + storyLine(p.holder.kind, p.holder.item.id)), { up: p.up.item.id, down: p.down.item.id, field: p.field, on: p.holder.item.id, off: off, changed: true, was: wasId });
+}
+function cmdStory() {
+  if (!ST) fail('core/story.js is missing');
+  var q = pos.join(' ').trim(); if (!q) fail('Usage: story <id or title>   prints the draft, script, takes and posts that belong together');
+  var d = storyData(); var hit; try { hit = ST.lookup(d, q); } catch (e) { fail(e.message); } if (!hit) fail('No draft, script, take or post here matches "' + q + '"');
+  var ms = ST.of(d, hit.kind, hit.item.id); var g = ST.byKind(ms); var dup = ST.dupTitles(ms.filter(function (m) { return !m.missing; }), function (m) { return m.kind; });
+  var md = ['# Story of ' + ST.describe(hit.kind, hit.item), ''];
+  ST.KINDS.forEach(function (k) { if (!g[k].length) { md.push('- ' + ST.WORD[k] + ': —'); return; } g[k].forEach(function (m) { md.push('- ' + (m.missing ? ST.WORD[k] + ': missing [' + m.id + '] (deleted; node solo.js link <other> ' + m.id + ' --off forgets it)' : ST.describe(k, m.item) + (dup(k, m.item) && ST.tag(m.item) ? ' · ' + ST.tag(m.item) : '') + ' [' + m.id + ']')); }); });
+  if (!ST.connected(ms)) md.push('', 'Nothing connected yet: node solo.js link ' + hit.item.id + ' <id of the draft, script, take or post it belongs with>');
+  return out(md, { members: ms.map(function (m) { return { kind: m.kind, id: m.id, title: m.title, state: m.state, missing: !!m.missing }; }) });
+}
+
 /* ---- dispatch ------------------------------------------------------------ */
 var commands = {
   id: cmdId, identity: cmdId, contacts: cmdContacts, contact: cmdContacts, inbox: cmdInbox,
@@ -1604,7 +1735,7 @@ var commands = {
   list: cmdList, ls: cmdList, show: cmdShow, add: cmdAdd, edit: cmdEdit,
   done: moveCmd('done', 'Done'), start: moveCmd('doing', 'Started'), later: moveCmd('later', 'Parked'), bucket: moveCmd('bucket', 'Bucketed'), todo: moveCmd('todo', 'Back to To Do'),
   move: cmdMove, pri: cmdPri, tag: cmdTag, at: whenCmd('at'), due: whenCmd('due'), calendar: cmdCalendar, agenda: cmdCalendar, step: cmdStep, check: checkCmd(true), uncheck: checkCmd(false), note: cmdNote, rm: cmdRm, del: cmdRm,
-  share: cmdShare, import: cmdImport,
+  share: cmdShare, import: cmdImport, link: cmdLink, connect: cmdLink, story: cmdStory,
   social: cmdSocial, post: cmdSocial, posts: cmdSocial,
   scripts: cmdScripts, script: cmdScripts, notes: cmdNotes, video: cmdVideo, videos: cmdVideo, take: cmdVideo, takes: cmdVideo,
   inspo: cmdInspo, inspiration: cmdInspo, prompts: cmdPrompts, prompt: cmdPrompts, boards: cmdBoards, board: cmdBoards, activity: cmdActivity, log: cmdLog, history: cmdLog, revert: cmdRevert, undo: cmdRevert, workspaces: cmdWorkspaces, workspace: cmdWorkspaces, ws: cmdWorkspaces,

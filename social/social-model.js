@@ -83,6 +83,7 @@
       title: esc(p.title),
       postType: POST_TYPES.indexOf(p.postType) >= 0 ? p.postType : (POST_TYPES[2] || POST_TYPES[0]),
       format: FORMATS.indexOf(p.format) >= 0 ? p.format : 'text',
+      noteId: esc(p.noteId || ''), scriptId: esc(p.scriptId || ''),   // the draft / the script this post came from (one story; core/story.js)
       project: (typeof p.project === 'string' && p.project.trim()) ? p.project.trim() : PROJECTS[0],
       copy: esc(p.copy),
       video: {
