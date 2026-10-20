@@ -240,7 +240,7 @@ the machine-only files, the Home chip counts by status, `help` up to date,
 provider errors in plain words, the missing-words card, the stale-server
 card, `--title=`/`--at=`/`--expect=` from the routes, `Sec-Fetch-Site`
 in the Host check, `recordings.json` out of the backup.
-**Captions in the player and the trim, 2026-10-20, commit `(captions commit)`.**
+**Captions in the player and the trim, 2026-10-20, commit `197d9ca`.**
 The player carries a caption band (the same chunks the renders' `.srt`
 holds, from the words; a render plays with its own `.srt`, so an older cut
 captions right), Captions on/off and Bigger/Smaller remembered per browser,
