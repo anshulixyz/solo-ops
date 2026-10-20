@@ -100,6 +100,7 @@
       if (typeof t.until === 'string' && t.until) o.until = t.until;
       if (typeof t.due === 'string' && t.due) o.due = t.due;
       if (typeof t.ext === 'string' && t.ext) o.ext = t.ext;
+      ['noteId', 'scriptId', 'takeId', 'postId'].forEach(function (k) { if (typeof t[k] === 'string' && t[k]) o[k] = t[k]; });   // the pieces a task carries (a draft, a script, a take, a post; core/story.js)
       return o;
     });
   }

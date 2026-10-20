@@ -257,34 +257,25 @@ copy yet, and a page with a sync stamp but no copy now takes the file
 page. Left:
 burned-in captions need an ffmpeg with subtitle filters (the owner's has
 none); a `<track>` from the `.srt` for Safari's native captions.
-**One story shipped 2026-10-20, commit `3b4c394`.** A draft, its
-script, the takes and the posts as one chain, with no new file or id: the
-downstream item keeps the upstream id (`script.noteId`, `take.scriptId`,
-`post.noteId` / `post.scriptId`; the take → post edge stays on
-`take.postId`, which `video post` wrote first). `core/story.js` (UMD,
-shared with the CLI) walks the pointers both ways, in story order, with
-deleted members shown as *missing*; the four pages draw one line under the
-title (chips that link to each page by `?open=<id>` / `?id=`, the next step
-in its empty slot: *Write the script*, *Add the take*, *Make the post*;
-*Connect…* with a picker of what can connect directly; × disconnects).
-A page writes only its own field in its own file (the Script Viewer's
-`noteId`, the Social board's `noteId`/`scriptId`); every other connection
-goes through `POST /api/story` → `node solo.js link` / `scripts add --draft`
-/ `social add --draft|--script|--take`, so the log and `revert` cover it,
-and without the server the terminal line is copied. The sibling files are
-registered read-only on each page (the file always wins). `story <id>`,
-`link a b [--off]` (ids or a unique title; a wrong pair or an ambiguous
-title is refused in a sentence), the show commands and `{{this}}` /
-`{{take}}` print the same line; `link` works from a pasted reply.
-`core/test-story.js` (31 checks). Also from the owner's asks: More →
-*ElevenLabs key…* replaces the key from any take; the engine card puts
-ElevenLabs first with the three sign-up steps, then "On this computer" says
-what Whisper is and what it downloads; `/setup-video` in the same order.
-Left for later: a Home card "stories in progress"; a `{{story}}` token;
-drag a draft onto a post card to connect; tasks in the chain; the take's
-words back into a script; `inspo use` keeping its link; the post's video
-status derived from the take's; *Add the take* picking a file already in
-the recordings folder.
+**A task carries its pieces, 2026-10-20, commit `9ced6cc`.** The
+owner found the story chain "too naive" and asked for the simplest unit:
+the task card. A task may hold `noteId`, `scriptId`, `takeId`, `postId`;
+`core/story.js` has the kind `task` first (data from every board of the
+workspace, read-only mirrors on the views), only a content task (tagged
+`writing` / `script` / `video`, or holding a piece) shows pills, one next
+step that follows the tag and what exists, and *attach* in the card foot;
+the views show *Task: …* with the pills or *Connect with a task…* (a
+picker, Doing first, or a new task made in one process with the piece
+attached), and tasks tagged for a view as suggestions at the top of its
+list with the card's own verb. CLI: `link <task> <piece>`, `story <task>`,
+`--task` on `notes|scripts|social add` and `video add`, `add --draft|
+--script|--take|--post`; `/api/story` ops `note|script|post` (with `task`)
+and `task`. Removed from the two story PRs: the chain of chips, the
+per-page Start the script / Add the take / Make the post, the cross-kind
+picker, `storyMake`, the `?add=1&script=` flow, `&made=1`. Kept: the
+piece-to-piece pointers and `link` between pieces, the deep links after
+the first pull, the sync-stamp guard. Left: a Home chip "N content tasks
+waiting"; a `{{task}}` token with the pieces; drag a piece onto a card.
 **Slice 4 shipped 2026-10-20, commit `1e5ca53`: easy mode.**
 The owner's direction: trim the umms and pauses, edit the transcript as
 text like Descript, record with Recordly and have the recordings land in

@@ -340,7 +340,7 @@ function renderItem(item) {
   }
 }
 
-function storyLine() { return window.Story && Story.html && library.activeId ? Story.html('script', library.activeId) : ''; }   // draft → script → takes → posts, with Connect…
+function storyLine() { const slot = $('#storySlot'); if (slot) slot.innerHTML = window.Story && Story.taskLine && library.activeId ? Story.taskLine('script', library.activeId) : ''; return ''; }   // "Task: …" with its pills, or "Connect with a task…", in the toolbar
 function renderReader(doc) {
   if (!doc.spokenLines.length) {
     return `<div class="empty-state"><div class="icon">🎙</div><h2>No spoken lines yet</h2>
@@ -477,7 +477,7 @@ function fmtWhen(ts) {
 function renderList() {
   const list = $('#scriptsList'); if (!list) return;
   const sorted = [...library.scripts].sort((a, b) => b.updatedAt - a.updatedAt);
-  list.innerHTML = sorted.map((s) => {
+  list.innerHTML = (window.Story && Story.suggestionsHtml ? Story.suggestionsHtml('script') : '') + sorted.map((s) => {
     const doc = parseScript(s.text);
     const active = s.id === library.activeId ? ' active' : '';
     return `<button type="button" class="note-item${active}" data-id="${esc(s.id)}">

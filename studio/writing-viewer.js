@@ -576,7 +576,7 @@ function renderNotesList() {
   if (!list) return;
 
   const sorted = [...library.notes].sort((a, b) => b.updatedAt - a.updatedAt);
-  list.innerHTML = sorted.map((n) => {
+  list.innerHTML = (window.Story && Story.suggestionsHtml ? Story.suggestionsHtml('note') : '') + sorted.map((n) => {
     const title = esc(noteTitle(n.text));
     const preview = esc(notePreview(n.text));
     const words = analyzeText(n.text).cleanWords;
@@ -715,8 +715,8 @@ function refreshPreview() {
   const raw = $('#writingInput').value;
   const mode = state.view === 'read' ? 'read' : state.view === 'changes' ? 'changes' : 'draft';
   const images = getActiveNote()?.images || {};
-  const story = window.Story && Story.html && library.activeId ? Story.html('note', library.activeId) : '';   // draft → script → takes → posts, with Connect…
-  $('#preview').innerHTML = story + renderDocument(raw, mode, images);
+  const slot = $('#storySlot'); if (slot) slot.innerHTML = window.Story && Story.taskLine && library.activeId ? Story.taskLine('note', library.activeId) : '';   // "Task: …" with its pills, or "Connect with a task…", in the toolbar
+  $('#preview').innerHTML = renderDocument(raw, mode, images);
 }
 
 function refresh(opts = {}) {

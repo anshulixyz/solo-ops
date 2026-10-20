@@ -7,17 +7,31 @@ var ROOT = path.join(__dirname, '..'); var S = require(path.join(ROOT, 'core', '
 var fails = 0, checks = 0; function ok(c, m) { checks++; if (!c) { fails++; console.error('✗ ' + m); } else console.log('✓ ' + m); }
 
 // ---- the pure part on a fixture ----
-var data = { note: [{ id: 'n1', text: '# Why we killed onboarding\n\nWe built it ~~once~~ ++twice++. [[tighten]]', updatedAt: 1 }],
+var data = { task: [{ id: 't1', title: 'Record the onboarding video', col: 'doing', tags: ['video'], scriptId: 's1', _board: 'runway' }, { id: 't2', title: 'Write the README', col: 'todo', tags: ['docs'] }, { id: 't3', title: 'Second video', col: 'todo', tags: ['video'], _board: 'content' }, { id: 't4', title: 'Essay', col: 'done', tags: ['writing'] }], note: [{ id: 'n1', text: '# Why we killed onboarding\n\nWe built it ~~once~~ ++twice++. [[tighten]]', updatedAt: 1 }],
   script: [{ id: 's1', title: 'Why we killed onboarding', text: '# Why…', noteId: 'n1', createdAt: 2 }, { id: 's9', title: 'Another script', text: '', createdAt: 3 }],
   take: [{ id: 'v1', title: 'Take one', status: 'cut', scriptId: 's1', postId: 'p1', edl: [{ start: 0, end: 23 }], createdAt: 4 }, { id: 'v2', title: 'Take two', status: 'recorded', scriptId: 's1', sources: [{ duration: 40 }], createdAt: 5 }, { id: 'v3', title: 'Orphan', scriptId: 'sGONE', createdAt: 6 }],
   post: [{ id: 'p1', title: 'Why we killed onboarding', datetime: '2099-01-02T09:00', status: 'scheduled' }, { id: 'p2', title: 'Later post', datetime: '2099-01-09T09:00', status: 'draft', scriptId: 's1' }] };
+// the task kind: a task holds its pieces; the story of a piece reaches its task; only tagged tasks (or ones with a piece) are content tasks
+var tm = S.of(data, 'task', 't1'); var tg = S.byKind(tm); ok(tg.task.length === 1 && tg.script.length === 1 && tg.take.length === 2 && tg.post.length === 2, 'from the task: its script and everything that hangs on it (' + tm.length + ' members)');
+ok(S.taskOf(data, 'post', 'p1') && S.taskOf(data, 'post', 'p1').id === 't1', 'a post reaches its task through the take and the script');
+ok(S.taskOf(data, 'script', 's9') === null, 'a script on no task says so');
+var pc = S.piecesOf(data, 't1'); ok(pc.script && pc.script.id === 's1' && pc.take && pc.post && pc.note && pc.note.id === 'n1', 'piecesOf: one per kind; the post through take.postId and the draft through script.noteId count');
+ok(S.isContent(data.task[0]) && !S.isContent(data.task[1]) && S.isContent({ tags: [], noteId: 'n1' }), 'a content task: tagged, or holding a piece; a plain task is not');
+ok(S.nextStep(data, data.task[2]).label === 'Start the script' && S.nextStep(data, data.task[1]) === null && S.nextStep(data, { id: 'tx', tags: ['writing'] }).label === 'Write the draft' && S.nextStep(data, data.task[0]) === null, 'the next step follows the tag and what exists; a video task never starts with a draft; a finished chain has none');
+ok(S.nextStep(data, { id: 'ty', tags: ['video'], scriptId: 's9' }).label === 'Add the take', 'script present: Add the take');
+var sg = S.suggestions(data, 'take', 5); ok(sg.list.length === 1 && sg.list[0].id === 't3' && sg.more === 0, 'suggestions for Video: tagged video, open, without a take (t1 has one, t4 is done)');
+ok(S.suggestions(data, 'note', 5).list.length === 0, 'a done writing task is not suggested');
+var tp = S.pair(data, 't3', 's9'); ok(tp.holder.kind === 'task' && tp.field === 'scriptId', 'task + script: the task holds scriptId');
+ok(/^Task: Record the onboarding video \(Doing\) \[t1\] → Draft: .* → Script:/.test(S.text(tm)), 'the text line starts with the task: ' + S.text(tm).slice(0, 50) + '…');
+ok(S.of(data, 'task', 't3').length === 1 && !S.connected(S.of(data, 'task', 't3')), 'a tagged task with no piece yet stands alone');
+ok(S.scriptFrom('task', data.task[0]).text.indexOf('# Record the onboarding video') === 0 && S.noteFrom({ title: 'X', desc: 'why' }).text === '# X\n\nwhy\n', 'pieces made from a task carry its title and description');
 var ms = S.of(data, 'note', 'n1'); var g = S.byKind(ms);
 ok(g.note.length === 1 && g.script.length === 1 && g.take.length === 2 && g.post.length === 2, 'from the draft: the script, both takes and both posts (' + ms.length + ' members)');
 ok(S.of(data, 'post', 'p1').some(function (m) { return m.id === 'n1'; }), 'from a post: back up through take.postId and take.scriptId to the draft');
 ok(g.take[0].id === 'v2' && g.take[1].id === 'v1', 'takes newest first');
 ok(g.post[0].id === 'p1' && g.post[1].id === 'p2', 'posts by date');
 ok(g.take[0].state === 'no words yet' && g.take[1].state === 'cut 0:23', 'take states read plainly (' + g.take[1].state + ')');
-var txt = S.text(ms); ok(/^Draft: Why we killed onboarding \[n1\] → Script: .* → Takes: .* → Posts: /.test(txt), 'the text line reads in story order: ' + txt.slice(0, 60) + '…');
+var txt = S.text(ms); ok(/^Task: .* → Draft: Why we killed onboarding \[n1\] → Script: .* → Takes: .* → Posts: /.test(txt), 'the text line reads in story order: ' + txt.slice(0, 60) + '…');
 var orphan = S.of(data, 'take', 'v3'); var gone = orphan.filter(function (m) { return m.missing; })[0]; ok(orphan.length === 2 && gone && gone.id === 'sGONE' && gone.kind === 'script', 'a pointer to a deleted script shows as missing, never auto-removed');
 ok(!S.connected(S.of(data, 'script', 's9')), 'a script with nothing around it is not connected');
 ok(S.clean(data.note[0].text) === 'We built it twice.', 'clean(): markup gone, the title line gone, spaces tidy (' + JSON.stringify(S.clean(data.note[0].text)) + ')');
@@ -58,6 +72,18 @@ try {
   var amb = cp.spawnSync(process.execPath, [path.join(ROOT, 'solo.js'), 'story', 'Launch'], { env: env, encoding: 'utf8' }); ok(/Several match/.test(amb.stdout + amb.stderr) && !/at .*solo\.js/.test(amb.stderr), 'story with an ambiguous title answers in a sentence, no stack trace');
   var show = cp.spawnSync(process.execPath, [path.join(ROOT, 'solo.js'), 'social', 'show', po.out.id], { env: env, encoding: 'utf8' }).stdout; ok(/- story: .*Script: Launch day/.test(show), 'social show prints the story line');
   var log = solo(['log']); ok(log.code === 0 && JSON.stringify(log.out).indexOf('link: connected post') >= 0, 'link is in the change log');
+  // tasks: a task on the board, --task on the adds, a task born with a piece, link task↔piece across boards
+  var ta = solo(['add', 'Record the onboarding video', '--tags', 'video', '--desc', 'Two minutes, talking head.']); ok(ta.code === 0 && ta.out.id, 'add a video task');
+  var ts = solo(['scripts', 'add', '--task', ta.out.id]); var bd = JSON.parse(fs.readFileSync(path.join(dir, 'runway.json'), 'utf8')); var t1 = bd.tasks.filter(function (x) { return x.id === ta.out.id; })[0];
+  ok(ts.code === 0 && t1.scriptId === ts.out.id && t1.tags.indexOf('script') >= 0 && /Two minutes/.test(ts.out.text), 'scripts add --task: the task holds the script, gets the tag, the script carries the description');
+  var tn = solo(['notes', 'add', '--task', ta.out.id]); var tpst = solo(['social', 'add', '--task', ta.out.id]); bd = JSON.parse(fs.readFileSync(path.join(dir, 'runway.json'), 'utf8')); t1 = bd.tasks.filter(function (x) { return x.id === ta.out.id; })[0];
+  ok(tn.code === 0 && t1.noteId === tn.out.id && tpst.code === 0 && t1.postId === tpst.out.id && tpst.out.scriptId === ts.out.id, 'notes add --task and social add --task attach too; the post takes the task\'s script');
+  var st4 = solo(['story', ta.out.id]); ok(st4.code === 0 && st4.out.members.filter(function (m) { return m.kind === 'task'; }).length === 1 && st4.out.members.length === 4, 'story <task> lists the task and its three pieces');
+  var tb = solo(['add', 'Second cut', '--script', ts.out.id]); bd = JSON.parse(fs.readFileSync(path.join(dir, 'runway.json'), 'utf8')); var t2 = bd.tasks.filter(function (x) { return x.id === tb.out.id; })[0];
+  ok(tb.code === 0 && t2.scriptId === ts.out.id && t2.tags.indexOf('script') >= 0, 'add --script: a task born with the piece and its tag');
+  var off2 = solo(['link', tb.out.id, ts.out.id, '--off']); bd = JSON.parse(fs.readFileSync(path.join(dir, 'runway.json'), 'utf8')); t2 = bd.tasks.filter(function (x) { return x.id === tb.out.id; })[0]; ok(off2.code === 0 && !t2.scriptId, 'link --off detaches a piece from a task');
+  var two = solo(['boards', 'add', 'Content']); var tc = solo(['add', 'Essay', '--board', 'content', '--tags', 'writing']); var lk = tc.code === 0 ? solo(['link', 'Essay', po.out.id]) : { code: 1 }; var bc = tc.code === 0 ? JSON.parse(fs.readFileSync(path.join(dir, 'content.json'), 'utf8')) : { tasks: [] }; var t3 = bc.tasks.filter(function (x) { return x.id === (tc.out && tc.out.id); })[0];
+  ok(two.code === 0 && tc.code === 0 && lk.code === 0 && t3 && t3.postId === po.out.id, 'a task on a second board is found by title and written through its own file (' + ((lk.out && lk.out.error) || 'ok') + ')');
 } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 
 console.log(fails ? '\n' + fails + ' FAILED of ' + checks : '\n✓ ' + checks + ' story checks passed'); process.exit(fails ? 1 : 0);

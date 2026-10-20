@@ -278,3 +278,11 @@ h1 .dot{color:var(--accent);}
 .when-form input[name=when]{width:190px;} .when-form input[name=due]{width:130px;}
 .when-btns{display:flex; gap:5px; margin-left:auto;}
 .card.flash{box-shadow:0 0 0 2px var(--accent), var(--shadow-lift); transition:box-shadow .3s;}
+
+/* the pieces a content task carries: pills, one next step, the attach picker (core/story.js) */
+.card-pieces{display:flex; align-items:center; gap:5px; flex-wrap:wrap; margin-top:7px;}
+.card-pieces .st-pill{font-size:10px; padding:2px 7px;}
+.btn-next{font-family:var(--mono); font-size:11px; border:1px solid var(--accent); background:var(--accent-soft); color:var(--accent-strong); border-radius:7px; padding:3px 9px; cursor:pointer; font-weight:600;}
+.btn-next:hover{background:var(--accent); color:#fff;}
+.attach-form{min-width:0; width:100%; display:flex; gap:5px; align-items:center; margin-top:8px;}
+.attach-form select{flex:1 1 0; width:0; min-width:0; font:inherit; font-size:12px; padding:3px 6px; border:1px solid var(--line); border-radius:7px; background:var(--panel); color:var(--ink);}

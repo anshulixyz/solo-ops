@@ -61,7 +61,7 @@
 
     /* ---- shared board settings -------------------------------------- */
     board: {
-      tags: ['coding', 'video', 'demo', 'outreach', 'launch', 'research', 'content', 'setup', 'daily'],
+      tags: ['coding', 'video', 'script', 'writing', 'demo', 'outreach', 'launch', 'research', 'content', 'setup', 'daily'],
       // curated tag hues (anything else gets a hashed hue)
       tagHues: { coding: 205, video: 20, demo: 145, outreach: 38, launch: 0, research: 270, content: 320, setup: 95 }
     },

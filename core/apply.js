@@ -171,6 +171,7 @@
           if (a.flags.due && global.When) { var pd = When.parse(a.flags.due); if (pd) nt.due = When.dayKey(pd.stamp); }
           if (a.flags.ext) nt.ext = String(a.flags.ext);
           var same = nt.ext ? tasks2.filter(function (x) { return x.ext === nt.ext; })[0] : null;
+          [['draft', 'noteId', 'writing'], ['script', 'scriptId', 'script'], ['take', 'takeId', 'video'], ['post', 'postId', '']].forEach(function (r) { if (a.flags[r[0]] && typeof a.flags[r[0]] === 'string') { nt[r[1]] = String(a.flags[r[0]]); if (r[2] && nt.tags.indexOf(r[2]) < 0) nt.tags.push(r[2]); } });   // add … --draft n1 | --script s1 | --take v1 | --post p1: the task carries its piece and the tag (core/story.js)
           if (same) { same.title = nt.title; if (nt.at) same.at = nt.at; if (nt.until) same.until = nt.until; if (nt.due) same.due = nt.due; nt.tags.forEach(function (g) { if (same.tags.indexOf(g) < 0) same.tags.push(g); }); c.saveBoard(bid2, tasks2); lastTask = { board: bid2, id: same.id }; applied.push('updated (same ext): ' + same.title); }
           else { tasks2.unshift(nt); c.saveBoard(bid2, tasks2); lastTask = { board: bid2, id: nt.id }; applied.push('added task: ' + q + (nt.at ? ' · ' + nt.at.replace('T', ' ') : '') + (untilDropped ? ' (end time ignored: before the start)' : '')); }
         } else if (['done', 'start', 'later', 'bucket', 'todo'].indexOf(cmd) >= 0) {

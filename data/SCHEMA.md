@@ -59,7 +59,8 @@ Board ids are slugs: lowercase, digits and dashes; `social`, `scripts`,
     "at": "2026-10-15T14:00",                // optional: when (local, no zone); "2026-10-15" alone = all day
     "until": "2026-10-15T14:30",             // optional end, full stamp; meetings have one
     "due": "2026-10-20",                     // optional deadline (date)
-    "ext": "gcal:abc123"                    // optional id from a connected calendar; `add --ext` updates instead of duplicating
+    "ext": "gcal:abc123",                   // optional id from a connected calendar; `add --ext` updates instead of duplicating
+    "noteId": "", "scriptId": "", "takeId": "", "postId": ""   // optional: the pieces this task carries (core/story.js); set by `link`, `--task` on the adds, `add --draft|--script|--take|--post`
   }]
 }
 
