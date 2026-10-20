@@ -198,7 +198,7 @@ folder: toggles → EDL on words → preview → final → *Make the post*. Slic
 (48 findings: the add route not parsing the CLI's JSON, the race stamp,
 stale job files, hash drift on a cut/keep round trip, CSRF on the new
 routes, all folded in before the commit).
-**Slice 4 shipped 2026-10-20, commit `(slice 4 commit)`: easy mode.**
+**Slice 4 shipped 2026-10-20, commit `1e5ca53`: easy mode.**
 The owner's direction: trim the umms and pauses, edit the transcript as
 text like Descript, record with Recordly and have the recordings land in
 the editor, ElevenLabs easy for the agent, agent-first everywhere,
