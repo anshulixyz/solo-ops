@@ -198,7 +198,7 @@ folder: toggles → EDL on words → preview → final → *Make the post*. Slic
 (48 findings: the add route not parsing the CLI's JSON, the race stamp,
 stale job files, hash drift on a cut/keep round trip, CSRF on the new
 routes, all folded in before the commit).
-**Slice 5 shipped 2026-10-20, commit `(slice 5 commit)`: the player follows
+**Slice 5 shipped 2026-10-20, commit `184091f`: the player follows
 the text.** After a research pass over Descript, Riverside, Opus, Veed,
 CapCut, Premiere and the open-source editors (auto-editor, LosslessCut,
 Kdenlive, Open-Script-Editor, Rescript, CutScript; notes in the side-session
