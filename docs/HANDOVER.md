@@ -65,7 +65,11 @@ page is the context around it. Read `AGENTS.md` first if you have not.
 
 ## Launch screenshots
 
-`docs/launch/SHOTLIST.md` is the script; `shoot.js` takes every shot with
+The launch kit (`docs/launch/`: posts, films, deck, slides, charts and the
+screenshot tooling) lives on the owner's computer only and is git-ignored
+since 2026-10-21; earlier versions are in the git history. A fresh clone
+cannot remake the README images in `docs/screenshots/`; that tooling is in the
+local kit. As it works there: `docs/launch/SHOTLIST.md` is the script; `shoot.js` takes every shot with
 headless Chrome against two scratch servers (a seeded copy on 4412, a fresh
 `template all` copy on 4413, both temporary entries in `.claude/launch.json`
 while shooting). Reseed with `seed.js` (Pocket Studio) or `personas.js`

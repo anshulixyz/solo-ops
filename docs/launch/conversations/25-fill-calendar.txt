@@ -1,8 +1,0 @@
-$ node solo.js add "Investor intro (Priya)" --at 2026-10-15T14:00 --until 14:45 --tags meeting --ext gcal:7f3a23 --as agent --note "from Google Calendar"
-✓ Updated [tmv6qelmk99p] Investor intro (Priya) (same --ext gcal:7f3a23) · Thu, Oct 15 14:00–14:45
-$ node solo.js add "Design review: onboarding screens" --at 2026-10-16T11:30 --until 12:15 --tags meeting,design --ext gcal:7f3a24 --as agent --note "from Google Calendar"
-✓ Updated [tmv6qelnqt27] Design review: onboarding screens (same --ext gcal:7f3a24) · Fri, Oct 16 11:30–12:15
-$ node solo.js add "Dentist" --at 2026-10-19 --tags meeting --ext gcal:7f3a30 --as agent --note "from Google Calendar"
-✓ Added [tmv6qeo7ghru] Dentist → To Do · general · medium · Mon, Oct 19
-$ node solo.js add "Weekly check-in with Sam" --at 2026-10-21T10:00 --until 10:30 --tags meeting --ext gcal:7f3a31 --as agent --note "from Google Calendar"
-✓ Added [tmv6qeo8m9xd] Weekly check-in with Sam → To Do · general · medium · Wed, Oct 21 10:00–10:30

@@ -1,4 +1,0 @@
-$ node ~/Documents/pocket-studio/solo.js done "Onboarding email" --as agent --note "shipped, said so in the website chat"
-✓ Done: [tmv6qelgg6un] Onboarding email sequence (3 emails) → Done
-$ node ~/Documents/pocket-studio/solo.js add "Watch the first 20 replies to the onboarding email" --pri medium --tags email --due 2026-10-16 --as agent --note "follow-up"
-✓ Added [tmv6qeo11gow] Watch the first 20 replies to the onboarding email → To Do · general · medium · due Fri, Oct 16

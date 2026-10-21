@@ -474,7 +474,15 @@ QR rendered without a dependency, capture strip and boards usable at
   names `shoot.sh` / `seed.sh` (the files are `.js`), says shots land in
   `docs/screenshots/` (they go to `docs/screenshots/launch/`, git-ignored;
   `shoot.js --out` should default there) and documents `video/` without
-  saying it is local only. Left to the session editing those files.
+  saying it is local only. Left to the session editing those files (the kit
+  is local only since 2026-10-21).
+- **README screenshots need the local launch kit:** `shoot.js`, `seed.js` and
+  `mock/frame.html` remake `docs/screenshots/` and live in the git-ignored
+  `docs/launch/`. If contributors should reshoot them, move those three (with
+  invented content only) into a tracked `tools/screenshots/`.
+- **`core/test-apply.js` depends on `gh`:** "backup setup --name without a
+  name is refused" fails when gh is not logged in, and `npm test` stops at the
+  first failure (`&&` chain). Make it independent of gh.
 
 - **Home, after launch (owner review 2026-10-13):** a layout pass — one header
   row (title · scope · actions), projects as compact rows past two, This week
@@ -564,6 +572,16 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Done
 
+- 2026-10-21 · `d9cd818` · **Sharing off main, launch kit out of the repo.**
+  The two-person sharing commands that `a041d5d` ("keep the executable bit")
+  carried into main by mistake are reverted (they could not run: `core/net.js`
+  was never committed); sharing continues on branch `wip/sharing` (M3). Kept
+  on main: the executable bit, every later change, Share today and the
+  checklist share, and the guards for when sharing lands (doctor knows the
+  sharing files, backups skip keys, imports never make `@person` tags or
+  `share:` ids). `docs/launch/` (posts, films, deck, slides, charts, the
+  screenshot tooling) is git-ignored and untracked; the files stay on the
+  owner's computer, earlier versions in the history.
 - 2026-10-21 · `be8be5f` · **The Guide, audited end to end** (every setting against every
   page, every prompt and its answer; plan reviewed by three agents: the
   project's history, product/UX, staff AI engineering). *Checks first:*
@@ -737,7 +755,7 @@ QR rendered without a dependency, capture strip and boards usable at
   `docs/launch/VIDEO-SCRIPT.md`, reviewed by a tech-marketing and a copy
   reviewer before the build), a 46 s teaser and the earlier 72 s film in
   `docs/launch/video/` (Remotion, synthesised soundtracks). README pass still
-  to come.
+  to come. (All of `docs/launch/` is local only since 2026-10-21.)
 - 2026-10-13 · Calendar: boards created at runtime were missing on a fresh
   browser's first load (the registry `boards.json` lands silently, so the
   calendar never registered their files until a reload). Found while shooting

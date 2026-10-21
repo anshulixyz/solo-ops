@@ -1,3 +1,0 @@
-# doctor — all good
-
-· fresh install: data/ has no files yet. Next: ask your agent for /setup, or `node solo.js template all` for the sample sprint, or `node serve.js` and plan in the app

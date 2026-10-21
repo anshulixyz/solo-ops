@@ -12,7 +12,8 @@ data/*
 .claude/commands/mine/
 .cursor/commands/mine/
 
-# launch material stays local: the film (source, renders, node_modules) and the
-# 57 launch screenshots never enter the repo. README images live in docs/screenshots/.
-docs/launch/video/
+# launch material stays on your computer, never in the repo: posts, films, decks,
+# slides, charts, the launch screenshots and the tooling that makes them.
+# README images live in docs/screenshots/ (tracked).
+docs/launch/
 docs/screenshots/launch/
