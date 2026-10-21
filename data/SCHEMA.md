@@ -245,6 +245,40 @@ leave it empty.
 `inspo use <item> --as task|post|script|note` (CLI) creates the target item and
 records it in `usedAs`. Images are data URLs; agents can ignore them.
 
+## identity.json · contacts.json · shares.json · inbox.json — sharing with other people
+
+Signed updates between two Solo Ops through a relay (`node relay.js`,
+`core/net.js`). Keys never leave `identity.json`; the pages never read it.
+
+```json
+// identity.json — private. Never logged; `backup` keeps it out of the data repo (a new computer means a new card).
+{ "handle": "@mara", "sign": { "pub": "<64 hex>", "priv": "<base64 pkcs8>" }, "enc": { "pub": "<64 hex>", "priv": "<base64 pkcs8>" },
+  "relays": ["http://127.0.0.1:4400"], "createdAt": "…",
+  "box": "https://ohan.live", "registeredAt": "…", "cardExtra": { "listed": true, "profile": { "display_name": "…" }, "apps": ["solo-ops"] } }   // what `id publish` last sent to the box
+
+// contacts.json — the people who may reach me: their card, pinned at add time
+{ "contacts": [{ "handle": "@maya", "sign": "<64 hex>", "enc": "<64 hex>", "relays": ["…"], "addedAt": "…" }] }
+
+// shares.json — one grant per direction
+{ "shares": [{ "id": "sh…", "with": "@maya", "dir": "out|in",
+    "scope": { "ws": "main", "board": "runway", "tag": "@maya" },   // what travels: every task on that board carrying that tag (never `notes`); tagging a contact's handle makes the share
+    "into": { "board": "runway", "tag": "from:mara" }, // dir=in only: where their tasks land on my side, and the tag they get
+    "status": "offered|accepted|declined|revoked", "createdAt": "…", "acceptedAt": "…",
+    "sent": { "<task id>": "…" } }] }   // dir=out: hash of the task as last sent (set at offer time too); dir=in: the status last reported back
+
+// inbox.json — what others sent, waiting for a decision (a cache: not logged, not backed up)
+{ "items": [{ "id": "i…", "evId": "<relay event id>", "from": "@maya", "intent": "offer-share|update|ack", "ts": "…", "receivedAt": "…",
+    "status": "new|unknown|accepted|skipped|applied", "summary": "…", "envelope": { "…openDM intent.v0.1 envelope…" } }],
+  "cursors": { "<relay url>": 123 }, "strangers": { "@eve": { "count": 1, "last": "…" } } }   // people not in contacts: counted, never stored
+```
+
+A landed task keeps `ext: "share:<share id>:<their task id>"`, so a later
+update changes the same card instead of adding one. The offer carries the
+tasks it covers (up to 100), so accepting it lands them at once. What
+travels back from an `in` share is only the status (To Do / Doing / Done),
+never the recipient's notes or other tasks. `inbox accept` is the only way
+anything lands; `log`/`revert` cover it (source `share:@handle`).
+
 ## log.jsonl — change log (append-only, one JSON object per line)
 
 ```json

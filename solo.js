@@ -162,7 +162,8 @@ var BOARD_ID = (function () {
 function boardMeta(id) { return BOARDS.filter(function (b) { return b.id === (id || BOARD_ID); })[0]; }
 function boardFile(id) { return prefix() + (id || BOARD_ID); }
 function board(id) { var d = read(boardFile(id)); return d && Array.isArray(d.tasks) ? d : { projects: [], tasks: [] }; }
-function saveBoard(b, id) { return write(boardFile(id), b); }
+var TOUCHED = {};   // boards written by this command; shares covering them are synced on exit (see autoSync)
+function saveBoard(b, id) { TOUCHED[boardFile(id)] = 1; return write(boardFile(id), b); }
 function schedule() { var d = read(fileName('social')); return d && Array.isArray(d.posts) ? d : { posts: [] }; }
 function scripts() { var d = read(fileName('scripts')); return d && Array.isArray(d.scripts) ? d : { activeId: '', scripts: [] }; }
 function notes() { var d = read(fileName('writing')); return d && Array.isArray(d.notes) ? d : { activeId: '', notes: [] }; }
@@ -337,10 +338,11 @@ function cmdList() {
   });
   out(md, tasks);
 }
+function originLine(t) { var m = typeof t.ext === 'string' && t.ext.match(/^share:([^:]+):/); if (!m) return null; var s = shares().shares.filter(function (x) { return x.id === m[1]; })[0]; return s ? '- from: ' + s.with + ' (share ' + s.id + ')' : null; }
 function cmdShow() {
   var b = board(); var t = find(b.tasks, pos.join(' '), 'task');
   var md = ['# ' + t.title, '', '- id: ' + t.id, '- status: ' + COL_LABEL[t.col], '- project: ' + t.proj, '- priority: ' + t.pri,
-    '- tags: ' + ((t.tags || []).join(', ') || 'none'), ''];
+    '- tags: ' + ((t.tags || []).join(', ') || 'none')].concat(originLine(t) ? [originLine(t)] : []).concat(['']);
   if (t.desc) md.push(t.desc, '');
   if (t.checklist && t.checklist.length) { md.push('## Steps'); t.checklist.forEach(function (c, i) { md.push('- [' + (c.done ? 'x' : ' ') + '] ' + (i + 1) + '. ' + c.text); }); md.push(''); }
   if (t.notes) md.push('## Notes', '', t.notes, '');
@@ -506,6 +508,8 @@ function latestOf(arr) { return arr.slice().sort(function (a, b) { return (b.upd
 var SC = safeRequire(path.join(ROOT, 'core', 'share-card.js'));   // Share today: model + text (shared with the pages)
 function cmdShare() {
   var which = (pos[0] || 'todo').toLowerCase();
+  if (NET_VERBS.indexOf(which) >= 0) return cmdShareNet(which);   // share with|sync|list|revoke: signed updates to another Solo Ops
+  if (which[0] === '@') fail('Did you mean: node solo.js share with ' + which + ' --tag <tag>');
   if (which === 'today') {   // the card's text version: Doing · Schedule · Next up, titles only
     if (!SC) fail('core/share-card.js missing');
     var all = flags.all === true; var tasks = [];
@@ -515,7 +519,7 @@ function cmdShare() {
   }
   var b = board();
   var cols = which === 'all' ? COLS : which === 'board' ? ['todo', 'doing', 'done'] : [which];
-  if (cols.some(function (c) { return COLS.indexOf(c) < 0; })) fail('Usage: share [todo|board|all] (a checklist to paste) · share today (the day card)');
+  if (cols.some(function (c) { return COLS.indexOf(c) < 0; })) fail('Usage: share [todo|board|all] (a checklist to paste) · share today (the day card) · share with @handle --tag x · share list · share sync · share revoke <id>');
   var md = ['# ' + boardMeta().title + ' — ' + cols.map(function (c) { return COL_LABEL[c]; }).join(', '), ''];
   cols.forEach(function (c) {
     var g = b.tasks.filter(function (t) { return t.col === c; }).sort(byPri);
@@ -1603,6 +1607,12 @@ function cmdHelp() {
     'Boards (data/<id>.json — every task command takes --board <id>; default: first board)', '  boards list', '  boards add "Title" [--from blank|sample|<id>]   boards rename <id> "Title"   boards rm <id> --force', '',
     'Tasks', '  list [board|all|todo|doing|done|later|bucket] [--proj X] [--tag Y]', '  show <task>                 full task (id or title fragment)',
     '  add "Title" [--proj X] [--pri high] [--tags a,b] [--col later] [--desc "…"] [--steps "a|b"] [--at <when>] [--until HH:MM] [--due <date>] [--ext <tool>:<id>]', '  at <task> <when|clear> [--until HH:MM]   due <task> <date|clear>      when = 2026-10-15T14:00 · 2026-10-15 (all day) · tomorrow 14:00 · fri 10:00 · +3d 17:30; a meeting = --tags meeting', '  start|done|later|bucket|todo <task>', '  move <task> <column>        pri <task> <high|medium|low>', '  tag <task> +a -b            step <task> "text"   check|uncheck <task> <n>', '  note <task> ["text"]        edit <task> --title … --proj … --pri …', '  rm <task>', '',
+    'With others (send tasks to another Solo Ops; nothing lands on your board until you accept it — relay: node relay.js)',
+    '  id create @you [--relay url]   id | id publish [--listed --name "…" --bio "…"] | id card | id relays <urls>     your handle, registered on the OHAN box (' + BOX + ')',
+    '  contacts add @handle | contacts add "<card>" | contacts list | contacts rm @h           the people you share with; by handle it is looked up on the box',
+    '  tag <task> +@maya                tagging a contact on a task shares it with them (steps, dates, status; never notes); changes follow on their own',
+    '  share list [--all]   share sync [--reoffer]   share revoke <id>   share with @h --tag x     the shares behind the tags; sync sends by hand',
+    '  inbox [--all]   inbox accept <id|all> [--board id]   inbox skip <id|all>            what others sent you; accept = it lands on your board', '',
     'Share', '  share today [--all]         today as a short card: Doing · Schedule · Next up (the page copies it as an image)', '  share [todo|board|all]      markdown checklist (paste anywhere)', '  import <list.md> [--col]    "- [ ] item" lines become tasks, indented lines become steps', '  import <items.json> [--dry-run]   what your agent brings in from Notion, Linear…: same ext = update, never a duplicate; one write per board', '  done ext:<tool>:<id>        any task command takes ext:<id> (the task an import made, on any board)', '',
     'Posts (data/social.json)', '  social list|next|week|show <post>', '  social add "Title" [--at 2026-10-20T09:00 | +3d 17:30] [--type launch] [--project X] [--copy "…"] [--prep "a|b"]', '  social posted|ready|draft <post> [--url …]   social move <post> <when>', '  social prep <post> "item"   social check <post> <n>   social copy <post> ["text"]   social rm <post>', '',
     'Inspiration (data/inspiration.json — links, ideas, images; tag with a workspace)', '  inspo list [--ws] [--tag x] [--status new|used|archived]   inspo show <item>', '  inspo add [--file <path>] "https://… or an idea #tag" [--ws <id>] [--tags a,b]   inspo tag <item> +a -b   inspo ws <item> <workspace>', '  inspo use <item> --as task|post|script|note [--ws] [--board]   inspo ai [--into tasks] (prompt to paste into an AI)   inspo archive|rm <item>', '',
@@ -1622,6 +1632,277 @@ function cmdHelp() {
     'Setup', '  template blank [--name "My project"]   empty files for this project (never overwrites); --name names it and its first board', '  template sample            a separate Sample project to look around (left out of "all projects")', '  template [all|board|social|scripts|writing|settings] [--board id] [--force]   sample content into this project (fills empty files)', '  theme [show|list|set <palette>|mode <auto|light|dark>|font <inter|system|lato|editorial>]', '  config                     the settings in use (solo.config.js + your settings)', '  config set <setting> <value>  your values, kept in data/settings.json: owner "Mara" · name "Pocket Studio" · social.postTypes reel,carousel · boards.runway.title "…"', '  config add <list> a b      add to a list (config unset <setting> · config set --file x.json · config clear)', '  serve [--port 4321]        start the local server (pages write data/ directly)', '',
     'Add --json to any command for machine-readable output. Ids: tasks t…, posts p…, scripts s…, notes n….',
     'Agents: add --as agent (and --note "why") so the change log attributes the edit to you.'], null);
+}
+
+/* ---- network: identity · contacts · shares · inbox ------------------------
+   Signed updates between two Solo Ops through a dumb relay (core/net.js,
+   relay.js). Nothing lands on a board without `inbox accept`. ------------- */
+var Net = safeRequire(path.join(ROOT, 'core', 'net.js'));
+var BOX = process.env.OHAN_BOX || (cfg.network && cfg.network.box) || 'http://127.0.0.1:4400';   // the OHAN box: directory of cards + relay (node box/ohan.js in the ohan repo; ohan.live once live)
+var DEFAULT_RELAYS = (cfg.network && Array.isArray(cfg.network.relays) && cfg.network.relays.length) ? cfg.network.relays : [BOX];
+var NET_VERBS = ['with', 'sync', 'list', 'revoke', 'status'];
+function identity() { var d = read('identity'); return d && d.handle && d.sign && d.enc ? d : null; }
+function needId() { var id = identity(); if (!id) fail('No identity yet. Create one: node solo.js id create @yourname [--relay http://127.0.0.1:4400]'); if (!Net) fail('core/net.js missing'); return id; }
+function contacts() { var d = read('contacts'); return d && Array.isArray(d.contacts) ? d : { contacts: [] }; }
+function contactOf(handle) { return contacts().contacts.filter(function (c) { return c.handle === handle; })[0] || null; }
+function shares() { var d = read('shares'); return d && Array.isArray(d.shares) ? d : { shares: [] }; }
+function saveShares(s) { return write('shares', s, { noActivity: true }); }
+function inboxData() { var d = read('inbox'); return d && Array.isArray(d.items) ? d : { items: [], cursors: {} }; }
+function saveInbox(d) { return write('inbox', d, { noLog: true, noActivity: true }); }
+function shareLine(s) { return '- [' + s.id + '] ' + (s.dir === 'out' ? 'to ' : 'from ') + s.with + ' · tasks tagged "' + s.scope.tag + '"' + (s.dir === 'out' ? ' on ' + s.scope.board : s.into ? ' → my board ' + s.into.board + ', tagged ' + s.into.tag : '') + ' · ' + shareStatus(s); }
+function shareFile(sc) { return prefix(sc.ws || PRIMARY) + sc.board; }   // a share remembers its workspace; never the current --ws
+function shareBoard(sc) { var d = read(shareFile(sc)); return d && Array.isArray(d.tasks) ? d : { projects: [], tasks: [] }; }
+function saveShareBoard(b, sc) { TOUCHED[shareFile(sc)] = 1; return write(shareFile(sc), b); }
+function clean(v, max) { return typeof v === 'string' ? v.replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, max || 200) : ''; }
+function validStamp(v) { return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(v) && !isNaN(Date.parse(v.length === 10 ? v + 'T00:00' : v)); }
+var CLI_SOURCE = SOURCE;
+function shareStatus(s) { return s.status === 'offered' ? (s.dir === 'out' ? 'waiting for ' + s.with + ' to accept' : 'waiting for you') : s.status === 'revoked' ? 'stopped' : s.status; }
+function sharedView(t) {   // what travels: never `notes` (private rough notes), never UI state
+  var c = { id: t.id, title: t.title, desc: t.desc || '', proj: t.proj || '', col: t.col, pri: t.pri, tags: t.tags || [], checklist: (t.checklist || []).map(function (s) { return { text: s.text, done: !!s.done }; }) };
+  ['at', 'until', 'due'].forEach(function (k) { if (t[k]) c[k] = t[k]; }); return c;
+}
+function taskHash(t) { return Net.sha256(Net.canonical(sharedView(t))); }
+function sendTo(id, contact, intent, content, opts) {   // publish one sealed envelope to every relay the contact listens on
+  var env = Net.envelope(id, contact, intent, content, opts); var ev = Net.seal(id, contact, env);
+  var relays = contact.relays && contact.relays.length ? contact.relays : id.relays;
+  if (!relays.length) return Promise.reject(new Error(contact.handle + ' lists no relay and neither do you.'));
+  var errors = [];
+  return Promise.all(relays.map(function (r) { return Net.publish(r, ev).then(function () { return true; }, function (e) { errors.push(e.message); return false; }); })).then(function (oks) {
+    var n = oks.filter(Boolean).length; if (!n) throw new Error('Could not reach ' + relays.join(' or ') + '. Is node relay.js running? (your relays: node solo.js id)');
+    return { env: env, relays: n, errors: errors };
+  });
+}
+function publishCard(id, extra, oldPriv) { var prev = read('identity') || {}; var card = Net.card(id, Object.assign({ listed: false, apps: ['solo-ops'], accepts: ['message', 'offer-share', 'update', 'ack'] }, prev.cardExtra || {}, extra || {})); if (oldPriv) card.rotation = { signature: Net.rotationSignature(oldPriv, card) }; return Net.register(BOX, card).then(function (r) { var stored = read('identity'); if (stored) { stored.cardExtra = Object.assign({}, stored.cardExtra || {}, extra || {}); stored.registeredAt = new Date().toISOString(); stored.box = BOX; write('identity', stored, { noLog: true, noActivity: true }); } return r; }); }
+function cmdId() {
+  if (!Net) fail('core/net.js missing');
+  var sub = (pos[0] || 'show').toLowerCase();
+  if (sub === 'create') {
+    var h = String(pos[1] || '').toLowerCase(); if (!h) fail('Usage: id create @yourname [--relay http://host:4400,…]');
+    if (identity() && flags.force !== true) fail('You already are ' + identity().handle + '. Add --force to replace the key (every contact will have to re-add you).');
+    var prevId = identity(); var oldPriv = prevId && prevId.handle === h ? prevId.sign.priv : null;   // same handle, new key: the box wants the old key's signature
+    var id; try { id = Net.createIdentity(h, flags.relay ? split(flags.relay) : DEFAULT_RELAYS); } catch (e) { fail(e.message); }
+    write('identity', id, { noLog: true, noActivity: true }); try { fs.chmodSync(fileOf('identity'), 0o600); } catch (e) { /* windows */ }
+    var loop = id.relays.every(function (r) { return /\/\/(127\.0\.0\.1|localhost|\[::1\])/.test(r); });
+    return publishCard(id, {}, oldPriv).then(function (r) { return r.ok ? ['✓ Registered on ' + BOX + ' as ' + id.handle + '. Anyone can now: node solo.js contacts add ' + id.handle + (r.page ? ' · page: ' + r.page : '')] : ['⚠ ' + BOX + ' answered: ' + JSON.stringify(r)]; }, function (e) { return ['⚠ Could not register on ' + BOX + ' (' + e.message + '). Your identity works locally; register later with: node solo.js id publish']; }).then(function (reg) {
+    return out(reg.concat(['']).concat(loop ? ['⚠ Your relay is this computer only (' + id.relays[0] + '). People on other machines cannot reach you until you set a real one: node solo.js id relays https://…', ''] : []).concat(['✓ You are ' + id.handle + '. Your keys stay on this computer (data/identity.json, kept out of backups): a new computer means a new card.', '  Relay: ' + id.relays.join(', '), '', 'Send this card to the people you want to share with. They run: node solo.js contacts add "<card>"', '', Net.cardString(Net.cardOf(id))]), Net.cardOf(id)); });
+  }
+  var me = needId();
+  if (sub === 'card') return out([Net.cardString(Net.cardOf(me))], Net.cardOf(me));
+  if (sub === 'publish') {   // (re)register my card on the box: id publish [--listed] [--name "…"] [--bio "…"] [--apps solo-ops,opendm]
+    var extra = {}; if (flags.listed === true) extra.listed = true; if (flags.unlisted === true) extra.listed = false;
+    var profile = {}; if (flags.name) profile.display_name = String(flags.name).slice(0, 80); if (flags.bio) profile.bio = String(flags.bio).slice(0, 600); if (Object.keys(profile).length) extra.profile = profile;
+    extra.apps = flags.apps ? split(flags.apps) : ['solo-ops'];
+    return publishCard(me, extra).then(function (r) { out('✓ Card published on ' + BOX + ' as ' + me.handle + (extra.listed ? ' (listed)' : '') + (r.page ? ' · ' + r.page : ''), r); });
+  }
+  if (sub === 'relays') { if (!pos[1]) fail('Usage: id relays http://host:4400,https://relay.example'); me.relays = split(pos.slice(1).join(',')).filter(function (r) { return /^https?:\/\//.test(r); }); write('identity', me, { noLog: true, noActivity: true }); return out('✓ Relays: ' + me.relays.join(', '), me.relays); }
+  var sh = shares().shares, cs = contacts().contacts, waiting = inboxData().items.filter(function (i) { return i.status === 'new'; }).length;
+  out(['# ' + me.handle, '- relay: ' + (me.relays.join(', ') || 'none'), '- contacts: ' + cs.length + (cs.length ? ' (' + cs.map(function (c) { return c.handle; }).join(', ') + ')' : ' — swap cards: node solo.js id card'), '- shares: ' + sh.length + (sh.length ? ' (' + sh.filter(function (s) { return s.status === 'accepted'; }).length + ' accepted)' : ''), '- waiting for you: ' + (waiting ? waiting + ' item(s) (node solo.js inbox)' : 'nothing'), '', 'Card: node solo.js id card · Share: node solo.js share with @handle --tag x · From others: node solo.js inbox'], Object.assign(Net.cardOf(me), { contacts: cs.length, shares: sh.length, waiting: waiting }));
+}
+function cmdContacts() {
+  needId(); var sub = (pos[0] || 'list').toLowerCase(); var d = contacts();
+  if (sub === 'add') {
+    var raw = pos.slice(1).join(' '); if (!raw) fail('Usage: contacts add @handle   (looked up on ' + BOX + ')  ·  or contacts add "solo-card:…" / a file holding the card');
+    if (/^@[a-z0-9.-]+$/.test(raw)) return Net.resolve(BOX, raw.toLowerCase()).then(function (c) { return addContact(d, Net.cardFromCard(c), BOX); }, function (e) { fail('Could not find ' + raw + ' on ' + BOX + ' (' + e.message + '). Ask them for their card string instead: node solo.js id card'); });
+    if (fs.existsSync(raw)) raw = fs.readFileSync(raw, 'utf8');
+    var card; try { card = Net.parseCard(raw); } catch (e) { fail(e.message.replace('Not a card.', 'Not a card (and not a file).')); }
+    return addContact(d, card, null);
+  }
+  if (sub === 'rm') { var h = String(pos[1] || ''); if (!d.contacts.some(function (c) { return c.handle === h; })) fail('No contact ' + h); d.contacts = d.contacts.filter(function (c) { return c.handle !== h; }); flags.note = 'removed ' + h + ' from contacts'; write('contacts', d, { noActivity: true }); return out('✓ Removed ' + h, null); }
+  out(['# Contacts (' + d.contacts.length + ')'].concat(d.contacts.length ? d.contacts.map(function (c) { return '- ' + c.handle + ' · added ' + localStamp(c.addedAt) + (c.via ? ' · via ' + c.via : '') + ' · ' + c.relays.join(', '); }) : ['_none yet — add by handle: node solo.js contacts add @theirname_']), d.contacts);
+}
+function addContact(d, card, via) {
+  {
+    if (card.handle === identity().handle) fail('That is your own card.');
+    var old = d.contacts.filter(function (c) { return c.handle === card.handle; })[0];
+    if (old && old.sign !== card.sign && flags.force !== true) fail(card.handle + ' is already pinned with a different key. If they really made a new identity, add --force.');
+    d.contacts = d.contacts.filter(function (c) { return c.handle !== card.handle; }).concat([Object.assign(card, { addedAt: new Date().toISOString() }, via ? { via: via } : {})]);
+    flags.note = 'added ' + card.handle + ' to contacts'; write('contacts', d, { noActivity: true });
+    return out('✓ Added ' + card.handle + ' to your contacts' + (via ? ' (card verified from ' + via + ')' : '') + '. Tag them on a task to share it: node solo.js tag <task> +' + card.handle, card);
+  }
+}
+function cmdShareNet(which) {
+  var me = needId(); var S = shares();
+  if (which === 'list' || which === 'status') { var vis = S.shares.filter(function (x) { return flags.all === true || (x.status !== 'revoked' && x.status !== 'declined'); }); return out(['# Shares (' + vis.length + ')'].concat(vis.length ? vis.map(shareLine) : ['_none — node solo.js share with @handle --tag x_']).concat(vis.length < S.shares.length ? ['', '(' + (S.shares.length - vis.length) + ' stopped or declined; --all shows them)'] : []), vis); }
+  if (which === 'with') {
+    var h = String(pos[1] || '').toLowerCase(); var tag = String(flags.tag || '').toLowerCase();
+    if (!h || !tag) fail('Usage: share with @handle --tag <tag> [--board <id>]   (every task carrying that tag travels to them; new tasks with the tag follow on share sync)');
+    var c = contactOf(h); if (!c) fail('No contact ' + h + '. Ask for their card and run: node solo.js contacts add "<card>"');
+    var bid = BOARD_ID; var b = board(bid);
+    if (S.shares.some(function (s) { return s.dir === 'out' && s.with === h && s.scope.tag === tag && s.scope.board === bid && (s.scope.ws || PRIMARY) === WS_ID && s.status !== 'revoked' && s.status !== 'declined'; })) fail('That share already exists (node solo.js share list).');
+    var sh = { id: newId('sh'), with: h, dir: 'out', scope: { ws: WS_ID, board: bid, tag: tag }, status: 'offered', createdAt: new Date().toISOString(), sent: {} };
+    var now = b.tasks.filter(function (t) { return (t.tags || []).indexOf(tag) >= 0; }); var n = now.length;
+    if (n > 100) fail('That tag is on ' + n + ' tasks; a share starts with at most 100. Use a narrower tag.');
+    return offerFor(me, c, sh, now)
+      .then(function () { S.shares.push(sh); flags.note = 'share offered to ' + h; saveShares(S); out(['✓ Asked ' + h + ' to receive your tasks tagged "' + tag + '"' + (n ? ' (' + n + ' right now)' : ' (no task carries "' + tag + '" yet; tag some with: node solo.js tag <task> +' + tag + ')') + '.', '  They see it with node solo.js inbox and accept with inbox accept. After that, every change to a "' + tag + '" task reaches them.'], sh); });
+  }
+  if (which === 'revoke') {
+    var sid = pos[1]; var s = S.shares.filter(function (x) { return x.id === sid; })[0]; if (!s) fail('No share ' + sid + ' (node solo.js share list)');
+    var cr = contactOf(s.with); s.status = 'revoked'; s.revokedAt = new Date().toISOString(); flags.note = 'share ' + s.id + ' revoked'; saveShares(S);
+    var done = function () { out('✓ Stopped sharing with ' + s.with + ' (' + s.id + '). Nothing else travels; what already landed stays where it is.', s); };
+    return cr ? sendTo(me, cr, 'ack', { body: 'share revoked', context: [Net.dataItem({ op: 'revoke', shareId: s.id }, 'solo-ops')] }, { thread: s.id }).then(done, function (e) { out('✓ Stopped on your side; could not tell ' + s.with + ' (' + e.message + ')', s); }) : done();
+  }
+  if (which === 'sync') return inboxFetch(me).then(function () { return shareSync(me, shares()); });   // fetch first: an acceptance that just arrived counts
+}
+function autoSync() {   // a task command touched a board that an accepted share covers → send, quietly, before exiting
+  if (!Net || ['share', 'inbox', 'id', 'contacts', 'revert', 'undo', 'template', 'boards', 'board', 'workspaces', 'workspace', 'ws'].indexOf(cmd) >= 0) return;
+  var boardsTouched = Object.keys(TOUCHED); if (!boardsTouched.length) return; var me = identity(); if (!me) return; var S = shares();
+  if (!contacts().contacts.length) return;
+  return shareSync(me, S, { silent: true }).catch(function (e) { process.stderr.write('⚠ could not send shared updates: ' + e.message + '\n'); });
+}
+var REOFFER_MS = 3600000;
+function offerFor(me, c, sh, now) {   // the offer carries the tasks it covers, so accepting lands them at once
+  now.forEach(function (t) { sh.sent[t.id] = taskHash(t); }); sh.offeredAt = new Date().toISOString();
+  return sendTo(me, c, 'offer-share', { body: me.handle + ' wants to send you tasks tagged "' + sh.scope.tag + '" (' + now.length + ' now). Accept to receive them on your board.', context: [Net.dataItem({ op: 'offer', share: { id: sh.id, scope: { tag: sh.scope.tag, board: sh.scope.board, boardTitle: (boardMeta(sh.scope.board) || {}).title || sh.scope.board }, items: now.length, tasks: now.slice(0, 100).map(sharedView) } }, 'solo-ops share by ' + me.handle)] }, { thread: sh.id, urgency: 'med' });
+}
+function handleShares(me, S, lines, jobs) {   // a task tagged @maya, where @maya is a contact, is shared with her: make the share if it is missing, and repeat an unanswered offer once an hour
+  var files = {}; S.shares.forEach(function (x) { files[shareFile(x.scope)] = 1; });
+  BOARDS.forEach(function (bm) { var sc = { ws: WS_ID, board: bm.id }; var b = shareBoard(sc); var byHandle = {};
+    b.tasks.forEach(function (t) { if (typeof t.ext === 'string' && t.ext.indexOf('share:') === 0) return; (t.tags || []).forEach(function (g) { if (g[0] === '@' && contactOf(g)) (byHandle[g] = byHandle[g] || []).push(t); }); });
+    Object.keys(byHandle).forEach(function (h) {
+      var sh = S.shares.filter(function (x) { return x.dir === 'out' && x.with === h && x.scope.tag === h && x.scope.board === bm.id && (x.scope.ws || PRIMARY) === WS_ID && x.status !== 'revoked'; })[0];
+      if (sh && sh.status === 'declined') return;
+      if (!sh) { sh = { id: newId('sh'), with: h, dir: 'out', scope: { ws: WS_ID, board: bm.id, tag: h }, status: 'offered', createdAt: new Date().toISOString(), sent: {} }; S.shares.push(sh); }
+      else if (sh.status !== 'offered') return;
+      else { var fresh = byHandle[h].some(function (t) { return !sh.sent[t.id]; }); if (!fresh && Date.now() - Date.parse(sh.offeredAt || 0) < REOFFER_MS && flags.reoffer !== true) return; }
+      jobs.push(offerFor(me, contactOf(h), sh, byHandle[h]).then(function () { lines.push('- → ' + h + ': asked to receive ' + byHandle[h].length + ' task(s) tagged ' + h + (sh.acceptedAt ? '' : ' (waiting for them to accept)')); }, function (e) { lines.push('- ✗ ' + h + ': ' + e.message); }));
+    });
+  });
+}
+function shareSync(me, S, o) {
+  var jobs = [], lines = [];
+  handleShares(me, S, lines, jobs);
+  S.shares.filter(function (s) { return s.status === 'accepted'; }).forEach(function (s) {
+    var c = contactOf(s.with); if (!c) { lines.push('- ' + s.id + ': ' + s.with + ' is no longer a contact, skipped'); return; }
+    s.sent = s.sent || {};
+    if (s.dir === 'out') {
+      var b = shareBoard(s.scope); var live = {};
+      b.tasks.filter(function (t) { return (t.tags || []).indexOf(s.scope.tag) >= 0; }).forEach(function (t) {
+        live[t.id] = 1; var h = taskHash(t); if (s.sent[t.id] === h) return;
+        jobs.push(sendTo(me, c, 'update', { body: (s.sent[t.id] ? 'Changed: ' : 'New: ') + t.title, context: [Net.dataItem({ op: 'upsert', shareId: s.id, task: sharedView(t) }, 'solo-ops task ' + t.id + ' by ' + me.handle)] }, { thread: s.id })
+          .then(function () { s.sent[t.id] = h; lines.push('- → ' + s.with + ': ' + (h ? '' : '') + '"' + t.title + '"'); }, function (e) { lines.push('- ✗ ' + s.with + ': "' + t.title + '" (' + e.message + ')'); }));
+      });
+      Object.keys(s.sent).forEach(function (tid) { if (live[tid] || s.sent[tid] === 'removed') return;
+        jobs.push(sendTo(me, c, 'update', { body: 'No longer shared', context: [Net.dataItem({ op: 'remove', shareId: s.id, taskId: tid }, 'solo-ops')] }, { thread: s.id }).then(function () { s.sent[tid] = 'removed'; lines.push('- → ' + s.with + ': one task left the share'); }, function (e) { lines.push('- ✗ ' + s.with + ': remove (' + e.message + ')'); })); });
+    } else {   // only the column travels back: "done" on my side becomes "done" on theirs, nothing else of mine
+      var ib = shareBoard(s.into); var pre = 'share:' + s.id + ':';
+      ib.tasks.filter(function (t) { return typeof t.ext === 'string' && t.ext.indexOf(pre) === 0; }).forEach(function (t) {
+        var steps = (t.checklist || []).map(function (c) { return !!c.done; }); var key = t.col + '|' + steps.map(function (d) { return d ? 1 : 0; }).join('');
+        if (s.sent[t.id] === key) return; var remoteId = t.ext.slice(pre.length); var p = progress(t.checklist);
+        jobs.push(sendTo(me, c, 'update', { body: 'Status: ' + t.title + ' → ' + COL_LABEL[t.col] + (p ? ' · ' + p + ' steps' : ''), context: [Net.dataItem({ op: 'status', shareId: s.id, taskId: remoteId, col: t.col, steps: steps, title: t.title }, 'solo-ops task ' + t.id + ' by ' + me.handle)] }, { thread: s.id })
+          .then(function () { s.sent[t.id] = key; lines.push('- → ' + s.with + ': "' + t.title + '" is ' + COL_LABEL[t.col] + (p ? ', ' + p + ' steps' : '')); }, function (e) { lines.push('- ✗ ' + s.with + ': "' + t.title + '" (' + e.message + ')'); }));
+      });
+    }
+  });
+  return Promise.all(jobs).then(function () {
+    if (jobs.length || S.shares.some(function (x) { return x.offeredAt && !x.savedOffer; })) { S.shares.forEach(function (x) { if (x.offeredAt) x.savedOffer = true; }); flags.note = 'sent ' + jobs.length + ' shared update(s)'; saveShares(S); }
+    if (o && o.silent) { if (jobs.length) process.stderr.write('↗ ' + lines.map(function (l) { return l.replace(/^- /, ''); }).join('\n↗ ') + '\n'); return; }
+    if (flags.quiet === true && !jobs.length) return;
+    out(['# Shared updates', ''].concat(lines.length ? lines : ['_nothing new to send_']), { sent: jobs.length, lines: lines });
+  });
+}
+function inboxSummary(env) {
+  var d = Net.dataOf(env) || {};
+  if (env.intent === 'offer-share') { var tl = (d.share && Array.isArray(d.share.tasks) ? d.share.tasks : []).map(function (t) { return t && typeof t.title === 'string' ? '"' + clean(t.title, 60) + '"' : null; }).filter(Boolean); var n = d.share ? d.share.items : '?'; return env.from + ' sent you ' + n + (n === 1 ? ' task' : ' tasks') + (tl.length ? ': ' + tl.slice(0, 3).join(', ') + (tl.length > 3 ? ' and ' + (tl.length - 3) + ' more' : '') : ' tagged "' + (d.share && d.share.scope ? d.share.scope.tag : '?') + '"') + ', with steps and dates. Accept to put them on your board, tagged from:' + env.from.replace(/^@/, '') + '.'; }
+  if (env.intent === 'update' && d.op === 'upsert') return 'task from ' + env.from + ': "' + (d.task ? clean(d.task.title, 80) : '?') + '"' + (d.task && d.task.checklist && d.task.checklist.length ? ' · ' + progress(d.task.checklist) + ' steps' : '') + (d.task && d.task.due ? ' · due ' + d.task.due : '') + '. Accepting lands it on your board (or updates the card you already have).';
+  if (env.intent === 'update' && d.op === 'status') return env.from + ' marked "' + (clean(d.title, 80) || 'a task you sent') + '" ' + (COL_LABEL[d.col] || d.col) + (Array.isArray(d.steps) && d.steps.length ? ', ' + d.steps.filter(Boolean).length + '/' + d.steps.length + ' steps' : '') + '. Accepting updates your card too.';
+  if (env.intent === 'update' && d.op === 'remove') return env.from + ' stopped sharing a task. Accepting tags your copy "unshared" and keeps it.';
+  return env.intent + ' from ' + env.from + ': ' + clean(env.content && env.content.body, 80);
+}
+function inboxFetch(me) {
+  var D = inboxData(); D.cursors = D.cursors || {}; var S = shares(); var seen = {}; D.items.forEach(function (i) { seen[i.evId] = 1; });
+  D.items.forEach(function (i) { if (i.status !== 'unknown') return; var c = contactOf(i.from); if (c && i.envelope && i.envelope.sender && c.sign === i.envelope.sender.key) i.status = 'new'; });   // their card arrived after their message
+  var added = [], acks = [], errors = [], sharesChanged = false;
+  function page(r, n) { return Net.fetch(r, me.enc.pub, D.cursors[r] || 0).then(function (res) { handle(r, res); return res.more && n < 10 ? page(r, n + 1) : null; }); }
+  function handle(r, res) {
+      (res.events || []).forEach(function (ev) {
+        D.cursors[r] = Math.max(D.cursors[r] || 0, ev.seq || 0);
+        if (seen[ev.id]) return; seen[ev.id] = 1;
+        var env; try { env = Net.open(me, ev); } catch (e) { errors.push(r + ': ' + e.message); return; }
+        if (!/^@[a-z0-9][a-z0-9-]{0,30}(\.[a-z0-9-]{1,20})?$/.test(env.from)) return;   // a handle that is not a handle is not worth a line
+        var c = contactOf(env.from); var known = !!(c && c.sign === env.sender.key);
+        if (!known) { D.strangers = D.strangers || {}; var st = D.strangers[env.from] || { count: 0 }; st.count++; st.last = env.ts; D.strangers[env.from] = st; return; }   // not added = not stored, not shown; their offer repeats once they are
+        var item = { id: newId('i'), evId: ev.id, from: env.from, intent: env.intent, ts: env.ts, receivedAt: new Date().toISOString(), status: known ? 'new' : 'unknown', summary: inboxSummary(env), envelope: env };
+        if (env.intent === 'offer-share') { var od = Net.dataOf(env) || {}; D.items.forEach(function (x) { if (x.status === 'new' && x.intent === 'offer-share' && x.from === env.from && ((Net.dataOf(x.envelope) || {}).share || {}).id === (od.share || {}).id) x.status = 'superseded'; }); }   // the offer grew: one row, the latest
+        if (known && env.intent === 'ack') {   // acks need no decision: they close the loop on something I did
+          var d = Net.dataOf(env) || {}; var s = S.shares.filter(function (x) { return x.id === d.shareId; })[0];
+          if (s && s.with === env.from) { if (d.op === 'accept' && s.dir === 'out') { s.status = 'accepted'; s.acceptedAt = env.ts; } else if (d.op === 'decline' && s.dir === 'out') s.status = 'declined'; else if (d.op === 'revoke') s.status = 'revoked'; sharesChanged = true; acks.push('- ' + env.from + ' ' + (d.op === 'accept' ? 'accepted' : d.op === 'decline' ? 'declined' : 'stopped') + ' the share of tasks tagged ' + s.scope.tag); }
+          item.status = 'applied';
+        }
+        D.items.push(item); added.push(item);
+      });
+  }
+  return Promise.all(me.relays.map(function (r) { return page(r, 0).catch(function (e) { errors.push(e.message); }); })).then(function () {
+    var unknown = D.items.filter(function (i) { return i.status === 'unknown'; }); if (unknown.length > 20) { var drop = {}; unknown.slice(0, unknown.length - 20).forEach(function (i) { drop[i.id] = 1; }); D.items = D.items.filter(function (i) { return !drop[i.id]; }); }
+    if (D.items.length > 500) D.items = D.items.slice(-500);
+    saveInbox(D); if (sharesChanged) { flags.note = acks.map(function (a) { return a.replace(/^- /, ''); }).join('; '); saveShares(S); }
+    return { D: D, added: added, acks: acks, errors: errors };
+  });
+}
+function landTask(me, from, s, r, ts) {   // a task from an accepted in-share → a task on my board, tagged with the sender; re-sends update the same card (ext). Every remote field is checked before it touches the board.
+  if (!r || typeof r.id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(r.id)) return null;
+  s.applied = s.applied || {}; if (ts && s.applied[r.id] && s.applied[r.id] >= ts) return null;   // older than what already landed (a replay): ignore
+  var b = shareBoard(s.into); var ext = 'share:' + s.id + ':' + r.id;
+  var t = b.tasks.filter(function (x) { return x.ext === ext; })[0]; var isNew = !t;
+  var proj = slug(clean(r.proj, 32)) || 'general';
+  if (isNew) { t = { id: newId('t'), title: '', desc: '', proj: proj, col: 'todo', pri: 'medium', tags: [], notes: '', collapsed: true, checklist: [], ext: ext }; }
+  t.title = clean(r.title, 200).trim() || 'Untitled'; t.desc = clean(r.desc, 4000); t.pri = PRI.hasOwnProperty(r.pri) ? r.pri : t.pri;
+  t.tags = (Array.isArray(r.tags) ? r.tags : []).filter(function (g) { return typeof g === 'string' && g[0] !== '@'; }).map(function (g) { return slug(g); }).filter(function (g) { return g && g !== s.scope.tag; }).slice(0, 20).concat([s.into.tag]).filter(function (g, i, a) { return a.indexOf(g) === i; });
+  t.checklist = (Array.isArray(r.checklist) ? r.checklist : []).filter(function (c) { return c && typeof c.text === 'string'; }).slice(0, 50).map(function (c) { return { text: clean(c.text, 300), done: !!c.done }; });
+  ['at', 'until', 'due'].forEach(function (k) { if (validStamp(r[k])) t[k] = r[k]; else delete t[k]; });
+  if (isNew) { if (b.projects.indexOf(t.proj) < 0 && !(cfg.projects || []).some(function (p) { return (typeof p === 'string' ? p : p.name) === t.proj; })) b.projects.push(t.proj); b.tasks.unshift(t); }
+  SOURCE = 'share:' + from; flags.note = (isNew ? 'landed' : 'updated') + ' "' + t.title + '" from ' + from + ' (share ' + s.id + ')';
+  saveShareBoard(b, s.into); SOURCE = CLI_SOURCE; if (ts) s.applied[r.id] = ts; if (isNew) { s.sent = s.sent || {}; s.sent[t.id] = t.col + '|' + (t.checklist || []).map(function (c) { return c.done ? 1 : 0; }).join(''); } return { task: t, isNew: isNew };
+}
+function cmdInbox() {
+  var me = needId(); var sub = (pos[0] || 'fetch').toLowerCase();
+  if (sub === 'accept' || sub === 'skip') return inboxFetch(me).then(function () { return inboxDecide(me, sub); });
+  return inboxList(me);
+}
+function inboxDecide(me, sub) {
+  {
+    var D = inboxData(); var S = shares(); var want = pos.slice(1); if (!want.length) fail('Usage: inbox ' + sub + ' <item id | all>');
+    var items = D.items.filter(function (i) { return (i.status === 'new' || (sub === 'skip' && i.status === 'unknown')) && (want[0] === 'all' || want.indexOf(i.id) >= 0); });
+    if (!items.length) fail('Nothing to ' + sub + '. node solo.js inbox shows what is waiting' + (D.items.some(function (i) { return i.status === 'unknown'; }) ? '; an item from someone not in your contacts becomes acceptable once you add their card (contacts add "<card>")' : '') + '.');
+    var lines = [], jobs = [];
+    items.forEach(function (i) { try { decide(i); } catch (e) { i.status = 'skipped'; lines.push('- ✗ could not apply (' + clean(e.message, 120) + '): ' + i.summary); } });
+    function decide(i) {
+      var env = i.envelope, d = Net.dataOf(env) || {}; var c = contactOf(env.from);
+      if (sub === 'skip') { i.status = 'skipped'; lines.push('- skipped (nothing changed): ' + i.summary); if (env.intent === 'offer-share' && c && d.share) jobs.push(sendTo(me, c, 'ack', { body: 'declined', context: [Net.dataItem({ op: 'decline', shareId: d.share.id }, 'solo-ops')] }, { thread: d.share.id }).catch(function () { })); return; }
+      if (env.intent === 'offer-share' && d.share && typeof d.share.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(d.share.id) && d.share.scope && typeof d.share.scope.tag === 'string' && typeof d.share.scope.board === 'string') {
+        var ex = S.shares.filter(function (x) { return x.id === d.share.id; })[0];
+        if (ex && !(ex.dir === 'in' && ex.with === env.from)) { i.status = 'skipped'; lines.push('- ✗ ' + env.from + ' reused a share id that is not theirs; skipped'); return; }
+        if (!ex) { ex = { id: d.share.id, with: env.from, dir: 'in', scope: { board: slug(d.share.scope.board) || 'board', tag: (d.share.scope.tag[0] === '@' ? '@' : '') + (slug(d.share.scope.tag) || 'shared') }, status: 'accepted', createdAt: env.ts, acceptedAt: new Date().toISOString(), into: { ws: WS_ID, board: BOARD_ID, tag: 'from:' + env.from.replace(/^@/, '') }, sent: {} }; S.shares.push(ex); } else { ex.status = 'accepted'; }
+        if (c) jobs.push(sendTo(me, c, 'ack', { body: 'accepted', context: [Net.dataItem({ op: 'accept', shareId: ex.id }, 'solo-ops')] }, { thread: ex.id }).catch(function (e) { lines.push('  ✗ could not tell ' + env.from + ': ' + e.message); }));
+        var landed = (Array.isArray(d.share.tasks) ? d.share.tasks.slice(0, 100) : []).map(function (r) { var l = landTask(me, env.from, ex, r, env.ts); return l ? l.task : null; }).filter(Boolean);
+        i.status = 'accepted'; lines.push('- ✓ Accepted: ' + env.from + '\'s tasks tagged "' + ex.scope.tag + '" land on your board ' + ex.into.board + ', tagged ' + ex.into.tag + '. ' + (landed.length ? 'Landed now: ' + landed.map(function (t) { return '"' + t.title + '"'; }).join(', ') + '.' : 'Nothing there yet; their tasks arrive as they change.')); return;
+      }
+      if (env.intent === 'update') {
+        var s = S.shares.filter(function (x) { return x.id === d.shareId && x.with === env.from && x.status === 'accepted'; })[0];
+        if (!s) { i.status = 'skipped'; lines.push('- ✗ ' + i.summary + ' (no accepted share ' + d.shareId + ' with ' + env.from + ')'); return; }
+        if (d.op === 'upsert' && s.dir === 'in' && d.task) { var l = landTask(me, env.from, s, d.task, env.ts); i.status = l ? 'accepted' : 'skipped'; lines.push(l ? '- ✓ ' + (l.isNew ? 'landed' : 'updated') + ' [' + l.task.id + '] "' + l.task.title + '" on your board ' + s.into.board : '- ✗ ' + i.summary + ' (malformed or older than what you already have)'); return; }
+        if (d.op === 'status' && s.dir === 'out') { var ob = shareBoard(s.scope); var t = ob.tasks.filter(function (x) { return x.id === d.taskId && (x.tags || []).indexOf(s.scope.tag) >= 0; })[0];   // only a task the share covers
+          if (t && COLS.indexOf(d.col) >= 0) { t.col = d.col; if (Array.isArray(d.steps) && t.checklist && d.steps.length === t.checklist.length) t.checklist.forEach(function (c, k) { c.done = !!d.steps[k]; }); SOURCE = 'share:' + env.from; flags.note = env.from + ' moved "' + t.title + '" to ' + COL_LABEL[d.col]; saveShareBoard(ob, s.scope); SOURCE = CLI_SOURCE; s.sent[t.id] = taskHash(t); i.status = 'accepted'; lines.push('- ✓ [' + t.id + '] "' + t.title + '" → ' + COL_LABEL[d.col] + (progress(t.checklist) ? ', ' + progress(t.checklist) + ' steps' : '') + ' (by ' + env.from + ')'); } else { i.status = 'skipped'; lines.push('- ✗ status for a task this share does not cover; ignored'); } return; }
+        if (d.op === 'remove' && s.dir === 'in') { var rb = shareBoard(s.into); var rt = typeof d.taskId === 'string' ? rb.tasks.filter(function (x) { return x.ext === 'share:' + s.id + ':' + d.taskId; })[0] : null; if (rt) { rt.tags = (rt.tags || []).filter(function (g) { return g !== s.into.tag; }).concat(['unshared']); SOURCE = 'share:' + env.from; flags.note = env.from + ' stopped sharing "' + rt.title + '"'; saveShareBoard(rb, s.into); SOURCE = CLI_SOURCE; } i.status = 'accepted'; lines.push('- ✓ ' + (rt ? '"' + rt.title + '" is no longer shared (tagged unshared, kept on your board)' : 'a task that never landed here is no longer shared')); return; }
+      }
+      i.status = 'skipped'; lines.push('- ✗ cannot apply: ' + i.summary);
+    }
+    return Promise.all(jobs).then(function () { saveInbox(D); flags.note = 'from others: ' + sub + ' ' + items.length + ' item(s)'; saveShares(S); out(['# From others · ' + sub, ''].concat(lines), { items: items.map(function (i) { return { id: i.id, status: i.status, summary: i.summary }; }) }); });
+  }
+}
+function inboxList(me) {
+  return inboxFetch(me).then(function (r) {
+    var D = r.D; var list = D.items.filter(function (i) { return flags.all === true || i.status === 'new' || i.status === 'unknown'; }).slice(-50);
+    var waiting = list.filter(function (i) { return i.status === 'new'; }).length;
+    var md = ['# From others · ' + me.handle + (waiting ? ' · ' + waiting + ' waiting' : ''), ''];
+    if (r.acks.length) md = md.concat(r.acks, ['']);
+    if (!list.length) md.push('_nothing waiting_');
+    Object.keys(D.strangers || {}).forEach(function (h) { if (!contactOf(h)) md.push('- not shown: ' + D.strangers[h].count + ' message(s) from ' + h + ', who you have not added. Add their card (contacts add "<card>") and their offer repeats within the hour.'); });
+    list.forEach(function (i) { md.push('- [' + i.id + '] ' + localStamp(i.ts) + ' · ' + i.summary + (i.status === 'unknown' ? '  ⚠ ' + i.from + ' is not in your contacts yet. Add their card (node solo.js contacts add "<card>") and this becomes acceptable; or: inbox skip ' + i.id : i.status !== 'new' ? ' · ' + i.status : '')); });
+    if (waiting) md.push('', 'Accept: node solo.js inbox accept <id|all> [--board <id>] · Skip: node solo.js inbox skip <id|all> · Nothing lands until you accept.');
+    if (r.errors.length) md.push('', 'Could not reach: ' + r.errors.map(function (e) { return e.replace(/^relay unreachable: /, '').replace(/ \(ECONNREFUSED\)/, ''); }).join(' · ') + '. Is node relay.js running? (your relays: node solo.js id)');
+    if (flags.quiet === true && !r.added.length && !r.errors.length) return;
+    out(md, { new: list.filter(function (i) { return i.status === 'new'; }).length, items: list.map(function (i) { var dd = Net.dataOf(i.envelope) || {}; return { id: i.id, from: i.from, intent: i.intent, ts: i.ts, status: i.status, summary: i.summary, count: i.intent === 'offer-share' && dd.share && dd.share.items ? dd.share.items : 1 }; }), strangers: D.strangers || {}, acks: r.acks, errors: r.errors });
+  });
 }
 
 /* ---- story: one chain across a draft, a script, its takes and the posts (core/story.js) ----
@@ -1671,6 +1952,7 @@ function cmdStory() {
 
 /* ---- dispatch ------------------------------------------------------------ */
 var commands = {
+  id: cmdId, identity: cmdId, contacts: cmdContacts, contact: cmdContacts, inbox: cmdInbox,
   help: cmdHelp, '--help': cmdHelp, '-h': cmdHelp,
   today: cmdToday, week: cmdWeek, review: cmdWeek,
   list: cmdList, ls: cmdList, show: cmdShow, add: cmdAdd, edit: cmdEdit,
@@ -1687,4 +1969,5 @@ var commands = {
   BOARDS.some(function (bm) { var bf = read(boardFile(bm.id)); if (bf && Array.isArray(bf.tasks) && bf.tasks.some(function (t) { return t.ext && String(t.ext).toLowerCase() === want; })) { BOARD_ID = bm.id; return true; } return false; }); })();
 var fn = commands[cmd];
 if (!fn) fail('Unknown command "' + cmd + '". Run: node solo.js help');
-Promise.resolve(fn()).catch(function (e) { fail(e && e.message ? e.message : String(e)); });
+var ret = fn();
+Promise.resolve(ret).then(autoSync).catch(function (e) { fail(e && e.message ? e.message : String(e)); });

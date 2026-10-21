@@ -369,6 +369,27 @@
     }).join('') + '</ul>' : '<div class="empty" style="color:var(--faint);font-size:13px">Nothing new. Press ⌘⇧I anywhere, or the + in the nav.</div>') +
       '<div class="stat" style="margin-top:10px"><span><b>' + all + '</b> saved</span><span><b>' + InspoModel.list({ status: 'new' }).length + '</b> unused</span><button class="btn small" style="margin-left:auto" onclick="InspoQuick.open()">+ Add</button></div>';
   }
+  // From others: what people sent me through the network (node serve.js fetches through the CLI; nothing lands until Accept)
+  var othersTimer = null;
+  function renderOthers() {
+    var wrap = $('othersWrap'), card = $('othersCard'); if (!wrap || !card || !window.Sync || !Sync.getMode || Sync.getMode() !== 'server') return;
+    fetch('/api/inbox', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (o) {
+      if (!o || o.none) { wrap.style.display = 'none'; return; }
+      var items = (o.items || []).filter(function (i) { return i.status === 'new'; });
+      var strangers = Object.keys(o.strangers || {});
+      if (!items.length && !strangers.length) { wrap.style.display = 'none'; return; }
+      wrap.style.display = '';
+      var by = {}; items.forEach(function (i) { (by[i.from] = by[i.from] || []).push(i); });
+      var hint = $('othersHint'); if (hint) hint.textContent = Object.keys(by).map(function (h) { var n = by[h].reduce(function (a, i) { return a + (i.count || 1); }, 0); return n + ' from ' + h; }).join(' · ') || 'nothing waiting';
+      card.innerHTML = (items.length ? '<ul class="others-list">' + items.map(function (i) {
+        return '<li><span class="src agent">' + esc(i.from.replace(/^@/, '')) + '</span><span class="what">' + esc(i.summary) + ' <small>' + esc(Activity.ago(i.ts)) + '</small></span><span class="acts"><button class="btn small" onclick="othersDecide(\'accept\',\'' + esc(i.id) + '\')">Accept</button><button class="btn small ghost" onclick="othersDecide(\'skip\',\'' + esc(i.id) + '\')">Skip</button></span></li>';
+      }).join('') + '</ul>' + (items.length > 1 ? '<div class="stat" style="margin-top:10px"><button class="btn small" onclick="othersDecide(\'accept\',\'all\')">Accept all</button><span style="color:var(--faint);font-size:13px">Accepted items land on your board tagged with the sender. Skipped ones change nothing.</span></div>' : '') : '') +
+        (strangers.length ? '<div class="empty" style="color:var(--faint);font-size:13px;margin-top:8px">Not shown: messages from ' + esc(strangers.join(', ')) + ', who you have not added. Add their card and their offer repeats within the hour.</div>' : '');
+    }).catch(function () { wrap.style.display = 'none'; });
+  }
+  window.othersDecide = function (what, id) {
+    fetch('/api/inbox/' + what, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [id] }) }).then(function (r) { return r.json(); }).then(function () { renderOthers(); setTimeout(function () { wsStats = {}; loadFiles().then(render).then(loadProjects); }, 400); });
+  };
   function human(what) {   // "finished: Title" → <i>Finished</i> Title
     var m = String(what || '').match(/^([^:]+): (.*)$/); if (!m) return esc(what);
     return '<i>' + esc(m[1].charAt(0).toUpperCase() + m[1].slice(1)) + '</i> ' + esc(m[2]);
@@ -404,7 +425,7 @@
     var hs = $('homeSub'); if (hs) hs.textContent = many() ? scopeTitle() : W.title;
     var wh = $('weekHead'); if (wh) wh.textContent = 'This week · ' + (many() ? scopeTitle() : W.title);
     var unknown = $('wsUnknown'); if (unknown) { var asked = Config.slug(new URLSearchParams(location.search).get('ws') || ''); unknown.style.display = (!Config.workspace(W.id) || (asked && asked !== W.id)) ? '' : 'none'; }
-    renderProjects(); renderInspo(); renderLog();
+    renderProjects(); renderInspo(); renderLog(); renderOthers(); if (!othersTimer) othersTimer = setInterval(renderOthers, 6000);
     document.title = (PAGE === 'overview' ? W.title + ' — ' : '') + (W.title === Config.get('name') || PAGE === 'overview' ? Config.get('name') : W.title + ' — ' + Config.get('name'));
     var note = $('note'); if (note) note.textContent = (fromFiles ? 'Counts read from data/*.json' : 'Counts read from this browser') + ' · ⌘K to jump anywhere · open project "' + W.title + '"';
     Config.applyDOM();

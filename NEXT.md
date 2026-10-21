@@ -329,12 +329,32 @@ Known: the Claude desktop Browser pane cannot fetch through the service
 worker (every page there loads only when the worker is unregistered;
 Chrome and Safari are fine).
 
-### M3 · Collaborators through agents, no shared app
-An editor or writer installs Solo Ops, points their agent at the same
-private data repo (`node solo.js backup --remote …`), and the two agents
-hand work back and forth through the files. Needs: per-person `source`
-in the log, a "mine / theirs" filter on Home, conflict rule when both push
-(last writer wins per file + a note in the log), and M5.
+### M3 · Collaborators through agents, no shared app (work in progress on branch `wip/sharing`)
+Design: `docs/share-flow.md` (what the person sees). Built so far on the branch: `core/net.js` (ed25519 +
+x25519 + AES-GCM, openDM-shaped `intent.v0.1` envelopes, sealed relay
+events), `relay.js` (dumb HTTP relay, 30-day queue), CLI `id` · `contacts` ·
+`share with|sync|list|revoke` · `inbox [accept|skip]`; the offer carries its
+tasks so accepting lands them; changes are sent on their own after page
+edits (serve.js) and after CLI task commands; serve.js polls for what others
+sent; `SOLO_DATA` for a second identity on one machine. Nothing lands
+without `inbox accept`; `notes` never travel; only the status travels back;
+unknown senders wait until their card is added; keys and the inbox stay out
+of the backup repo.
+2026-10-14, later: `id create` registers the card on the OHAN box
+(`OHAN_BOX` / `network.box`), `id publish`
+updates it (listed, name, bio), `contacts add @handle` resolves and verifies
+the card from the box, tagging a contact on a task is the share.
+Also 2026-10-14, later: the **From others** block on Home (reads the inbox
+through serve.js, Accept / Skip per item and Accept all, hides when nothing
+waits; `GET /api/inbox`, `POST /api/inbox/accept|skip`); offers carry their
+tasks and a grown offer replaces the earlier one; `id create --force`
+rotates the key with the old key's signature.
+Still to do, in order: the box live on ohan.live (count + accept/skip
+from the page, reading `inbox.json`); the Guide prompt *What's new from
+others*; gift-wrap so the relay does not see the sender key; a `/setup-share`
+prompt that walks two people through cards; attachments on shared tasks by
+hash; a hosted default relay and the Schnorr wrapper for public Nostr relays;
+the MCP tools (M9) `send` / `inbox` / `accept` so a chat agent does it.
 
 ### M4 · Pull from the apps the agent is connected to
 **Started 2026-10-21 (onboarding pass):** *Bring in my work* (`/bring-in`: Notion, Linear, Todoist, Asana, Trello, Jira, GitHub, Google Tasks, Reminders or a list, only the person's open work, one `import <file>.json`, re-runs update by `ext`), *Start my day* (`/start-day`: calendar + what changed in `bringIn.sources` + the day), *Wrap up the day* gathers from the conversation and `git log`. Still open below: mail and meeting notes as sources, the cross-project weekly prompt.

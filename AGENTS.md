@@ -15,7 +15,8 @@ document is the whole contract; read it once and you can operate the system.
 | `data/scripts.json` (`<ws>-scripts.json`) | video scripts (Markdown text) | `scripts …` |
 | `data/writing.json` (`<ws>-writing.json`) | drafts / notes with `~~cut~~ ++add++ [[note]]` markup | `notes …` |
 | `data/videos.json` (`<ws>-videos.json`) + `data/videos/<id>/` | takes: the footage by path (never copied), its words with times, the cut (EDL), the exports. The folder holds `transcript.json`, the `.srt` and the renders; only the first two are backed up | `video …` |
-| `data/inspiration.json` | the inbox: links, ideas, images the user wants to keep, tagged with a workspace | `inspo …` |
+| `data/inspiration.json` | the inspiration inbox: links, ideas, images the user wants to keep, tagged with a workspace | `inspo …` |
+| `data/identity.json` `contacts.json` `shares.json` `inbox.json` | sharing with other people: my keys (private, kept out of backups), my contacts, each share and its direction, what others sent that waits for a decision | `id …` `contacts …` `share with|sync|list|revoke` `inbox …` |
 | `data/log.jsonl` | every change with who/when/what + previous content; revertable | `log`, `revert <id>` |
 | `data/activity.json` | per-day change counts, last-active stamps (written automatically) | `activity` |
 | `data/prompts.json` | the user's own Guide prompts and edits to built-ins (built-ins live in `core/prompts.js`) | `prompts …` |
@@ -331,6 +332,38 @@ remote keeps the block.
   asked to "turn inspiration into…", read `inspo list --ws <id>`, propose
   concrete items, then create them with `inspo use` (keeps the link back) or
   `add` / `social add` / `scripts add`.
+- **Sharing with others.** A share sends every task on one board carrying
+  one tag to one contact, signed and encrypted, through the **OHAN box**
+  (directory of cards + relay; `network.box` in `solo.config.js` or
+  `OHAN_BOX`; default `http://127.0.0.1:4400`, which `node relay.js` or the
+  ohan repo's `node box/ohan.js` serves locally; `https://ohan.live` once
+  live). The words: `id create @me` registers a *card* on the box; the other
+  side runs `contacts add @me` and gets it verified against the key (a
+  pasted `id card` string still works when there is no box); a
+  *share* happens by tagging a contact on a task (`tag <task> +@maya`, or
+  `--tags @maya` on `add`; the page's tag field works too): the first tag
+  sends an offer carrying the tasks, later changes follow on their own.
+  `share with @them --tag x` is the same thing with a tag of your choosing.
+  The other side *accepts* with `inbox accept`; `inbox` is **from others**, the
+  inspiration inbox is a different thing. The card swap is out of band:
+  hand the `solo-card:…` string to the user to send, and ask them for the
+  other person's card. Accepting an offer lands the tasks it carries right
+  away; after that, every change made in the pages (node serve.js) or by a
+  CLI task command is sent on its own, and `share sync` sends by hand.
+  Nothing lands on a board without `inbox accept`. Messages from people
+  not in contacts are never stored or shown, only counted ("not shown: 1
+  from @eve"); once their card is added, their offer repeats within the
+  hour (`share sync --reoffer` on their side forces it).
+  `notes` never travel; only the status (To Do / Doing / Done) and ticked
+  steps travel back, never anything typed on their copy. Landings are logged with source
+  `share:@handle` (even when you pass `--as agent`) and `revert` undoes
+  them. When the user asks "what's new from others" or "what's up for me",
+  run `node solo.js inbox` (read-only, safe any time) and say, per item: who
+  sent it, what it is (an offer to receive their tasks · a task "title" with
+  n steps and a due date · a status change on a task you sent) and exactly
+  what accepting does (lands on board X tagged from:handle · moves your
+  card to Done). Never `inbox accept all` without listing first and getting
+  a yes; accept or skip only what they say.
 - Never delete or reset without the user asking. Every write is logged and
   `revert <id>` undoes it, but say what you changed anyway.
 
@@ -383,7 +416,7 @@ not fixing? Add it under *Minor / issues* instead of leaving a TODO.
 - Add a new app by: a Store key, a `Sync.register({ file, key, read, apply })`,
   a `data/*.json` shape in `SCHEMA.md`, a CLI group in `solo.js`, a card in
   `index.html`.
-- Sanity: `for f in core/*.js runway/*.js social/*.js studio/*.js inspo/*.js calendar/*.js *.js; do node --check "$f"; done`,
+- Sanity: `for f in core/*.js runway/*.js social/*.js studio/*.js inspo/*.js calendar/*.js *.js; do node --check "$f"; done`, `node core/test-net.js`,
   `node social/test-social-save.js`, `node core/test-prompts.js`, `node core/test-apply.js`, `node core/test-story.js`,
   `node core/test-blank.js` and `node core/test-config.js` (`npm test` runs them all).
 - A first open is blank (`core/templates.js` `FIRST_OPEN`; `Store.firstOpen` in every loader). A page's "is this

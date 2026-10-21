@@ -405,6 +405,22 @@ var server = http.createServer(function (req, res) {
     var dirty = g(['status', '--porcelain']);
     return json(res, 200, Object.assign({ repo: true, remote: g(['remote', 'get-url', 'origin']), lastAt: g(['log', '-1', '--format=%cI']), dirty: dirty ? dirty.split('\n').length : 0 }, fold));
   }
+  // From others: what people sent me, waiting for a decision (the CLI does the fetching and the rules; the page only shows and decides)
+  if (url === '/api/inbox' && req.method === 'GET') {
+    if (!hasIdentity()) return json(res, 200, { none: true });
+    return solo(['inbox', '--json', '--as', 'ui'], function (err, o) { json(res, 200, o || { items: [], errors: ['could not read the inbox'] }); });
+  }
+  var ib = url.match(/^\/api\/inbox\/(accept|skip)$/);
+  if (ib && req.method === 'POST') {
+    if (!hasIdentity()) return json(res, 400, { error: 'no identity' });
+    var ichunks = []; req.on('data', function (c) { ichunks.push(c); });
+    req.on('end', function () {
+      var ids = []; try { ids = (JSON.parse(Buffer.concat(ichunks).toString('utf8')).ids || []).filter(function (x) { return /^[a-z0-9]+$/.test(String(x)); }).slice(0, 50); } catch (e) { /* bad */ }
+      if (!ids.length) return json(res, 400, { error: 'ids' });
+      solo(['inbox', ib[1]].concat(ids, ['--json', '--as', 'ui']), function (err, o) { json(res, 200, o || { ok: false }); if (ib[1] === 'accept') scheduleShareSync(); });
+    });
+    return;
+  }
   if (url === '/api/log') {
     var n = parseInt((req.url.split('?')[1] || '').replace(/.*n=(\d+).*/, '$1'), 10) || 40;
     return json(res, 200, readLog().slice(-n).reverse().map(function (r) { return { id: r.id, ts: r.ts, file: r.file, source: r.source, note: r.note, canRevert: r.prev != null }; }));
@@ -483,6 +499,7 @@ var server = http.createServer(function (req, res) {
           fs.writeFile(file, body.replace(/\n?$/, '\n'), 'utf8', function (err) {
             if (err) return json(res, 500, { error: err.code });
             json(res, 200, { ok: true });
+            if (!/^(inbox|shares|contacts|identity|activity|settings|boards|workspaces|prompts|backup|inspiration)\.json$/.test(m[1]) && !/-?(social|scripts|writing)\.json$/.test(m[1])) scheduleShareSync();   // a board changed: send what the shares cover
           });
         });
       });
@@ -516,6 +533,21 @@ var server = http.createServer(function (req, res) {
     });
   });
 });
+
+/* ---- shares: the server is the always-on hand on the relay --------------------
+   With an identity (node solo.js id create …) it fetches the inbox every few
+   seconds and, after a board write, sends the updates the accepted shares
+   cover. Both go through the CLI so the rules and the log are the same. */
+var execFile = require('child_process').execFile;
+var NET_POLL_MS = 5000, syncTimer = null, polling = false, syncing = false, lastRelayError = '';
+function hasIdentity() { try { return !!JSON.parse(fs.readFileSync(path.join(DATA, 'identity.json'), 'utf8')).handle; } catch (e) { return false; } }
+function solo(args, cb) { execFile(process.execPath, [path.join(ROOT, 'solo.js')].concat(args), { cwd: ROOT, timeout: 20000 }, function (err, stdout) { var o = null, txt = String(stdout || '').trim(); try { o = JSON.parse(txt); } catch (e) { try { o = JSON.parse(txt.split('\n').pop()); } catch (e2) { /* no json */ } } cb(err, o); }); }
+function scheduleShareSync() { if (!hasIdentity()) return; clearTimeout(syncTimer); syncTimer = setTimeout(function () { if (syncing) return scheduleShareSync(); syncing = true; solo(['share', 'sync', '--quiet', '--json', '--as', 'ui'], function (err, o) { syncing = false; if (o && o.sent) console.log('↗ sent to others: ' + o.sent + ' update(s)' + (o.lines ? '\n  ' + o.lines.join('\n  ') : '')); }); }, 2000); }
+function pollInbox() {
+  if (polling || !hasIdentity()) return; polling = true;
+  solo(['inbox', '--quiet', '--json', '--as', 'ui'], function (err, o) { polling = false; if (!o) return; if (o.acks && o.acks.length) { console.log(o.acks.join('\n')); scheduleShareSync(); } if (o.new) console.log('✉ from others: ' + o.new + ' waiting → node solo.js inbox'); var err = (o.errors || []).join(' · '); if (err !== lastRelayError) { lastRelayError = err; if (err) console.log('⚠ could not reach a relay: ' + err + ' (is node relay.js running?)'); else console.log('✓ relay reachable again'); } });
+}
+setInterval(pollInbox, NET_POLL_MS).unref();
 
 server.on('error', function (e) {
   if (e.code === 'EADDRINUSE') { console.error('Port ' + PORT + ' is already in use (another Solo Ops or another app). Try: node serve.js --port ' + (PORT + 1)); process.exit(1); }

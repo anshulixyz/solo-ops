@@ -17,3 +17,5 @@ data/*
 # README images live in docs/screenshots/ (tracked).
 docs/launch/
 docs/screenshots/launch/
+
+relay-data/
