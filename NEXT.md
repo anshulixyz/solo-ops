@@ -564,7 +564,7 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Done
 
-- 2026-10-21 · **The Guide, audited end to end** (every setting against every
+- 2026-10-21 · `be8be5f` · **The Guide, audited end to end** (every setting against every
   page, every prompt and its answer; plan reviewed by three agents: the
   project's history, product/UX, staff AI engineering). *Checks first:*
   `core/test-guide.js` (in `npm test`) runs every page's real scripts in Node
@@ -613,7 +613,7 @@ QR rendered without a dependency, capture strip and boards usable at
   `core/prompts.js` (`PAGES`, `catalogue()`) and byte-checked by
   `core/test-prompts.js`. A third "No AI" switch was not added (owner's call):
   Quick and the page buttons are that path, documented.
-- 2026-10-21 · **Onboarding: blank works, your work comes in, one menu, a
+- 2026-10-21 · `3b0b5b0` · **Onboarding: blank works, your work comes in, one menu, a
   faster setup** (planned, reviewed by three agents: the project's history,
   product/UX, staff AI engineering; then built in four parts). *Blank:* a
   first open starts empty on every page (`Store.seedBlank`, flag `blank`,
