@@ -52,12 +52,14 @@ for (var i = 0; i < argv.length; i++) {
     if (eq > -1) flags[a.slice(2, eq)] = a.slice(eq + 1);
     else if (i + 1 < argv.length && argv[i + 1].indexOf('--') !== 0) {
       flags[a.slice(2)] = argv[++i];
-      if (a === '--at' && i + 1 < argv.length && /^\d{1,2}:\d{2}$/.test(argv[i + 1])) flags.at += ' ' + argv[++i];   // --at +3d 9:00 without quotes
+      if (/^--(at|due|until)$/.test(a) && i + 1 < argv.length && /^(\d{1,2}:\d{2}|\d{1,2}(:\d{2})?\s*[ap]\.?m\.?)$/i.test(argv[i + 1])) flags[a.slice(2)] += ' ' + argv[++i];   // --at +3d 9:00 without quotes; --at sat 9am stays whole (and is refused whole)
     } else flags[a.slice(2)] = true;
   } else pos.push(a);
 }
 var JSON_OUT = !!flags.json;
 var cmd = pos.shift() || 'help';
+// --as can come twice: `inspo use i1 --as post … --as agent` names the kind and who made the change. Keep every value.
+var AS_ALL = []; argv.forEach(function (x, j) { if (x === '--as' && j + 1 < argv.length && argv[j + 1].indexOf('--') !== 0) AS_ALL.push(String(argv[j + 1]).toLowerCase()); else if (x.indexOf('--as=') === 0) AS_ALL.push(x.slice(5).toLowerCase()); });
 
 /* ---- io ------------------------------------------------------------------ */
 function fileOf(name) { return path.join(DATA, name + '.json'); }
@@ -66,7 +68,7 @@ function read(name) {
 }
 var LOG = path.join(DATA, 'log.jsonl');
 var LOG_MAX = 400, SNAP_MAX = 2 * 1024 * 1024;
-var SOURCE = (flags.as && ['agent', 'cli', 'ui'].indexOf(String(flags.as)) >= 0) ? String(flags.as) : (process.env.MARATHON_AGENT ? 'agent' : 'cli');
+var SOURCE = AS_ALL.filter(function (v) { return ['agent', 'cli', 'ui'].indexOf(v) >= 0; })[0] || (process.env.MARATHON_AGENT ? 'agent' : 'cli');
 function logChange(file, prevText, note) {
   var rec = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ts: new Date().toISOString(), file: file, source: SOURCE, note: note || flags.note || (cmd + ' ' + pos.join(' ')).trim().slice(0, 120),
     prev: prevText && prevText.length <= SNAP_MAX ? prevText : null, prevBytes: prevText ? prevText.length : 0 };
@@ -254,6 +256,11 @@ function taskLine(t) {
 function whenCmd(kind) {
   return function () {
     var b = board(); var q = null, when = null;
+    if (pos.length >= 2 && /^(\[?(t\d+|t(?=[a-z0-9]*\d)[a-z0-9]{8,})\]?|ext:\S+)$/i.test(pos[0])) {   // at t3 <when>: everything after the id is the date ("due t1 next friday" is a date it cannot read, not a task called "t1 next")
+      q = pos[0].replace(/^\[|\]$/g, ''); var rest = pos.slice(1).join(' ');
+      if (rest.toLowerCase() !== 'clear' && !(When && When.parse(rest))) fail('Could not read the date "' + rest + '". Use 2026-10-15T14:00, 2026-10-15, +3d 17:30, tomorrow 14:00 or fri 10:00.');
+      when = rest;
+    }
     for (var n = Math.min(2, pos.length - 1); n >= 1 && !when; n--) { var tail = pos.slice(-n).join(' '); if (tail.toLowerCase() === 'clear' || (When && When.parse(tail))) { q = pos.slice(0, -n).join(' '); when = tail; } }
     if (!when) fail('Usage: ' + kind + ' <task> <' + (kind === 'at' ? 'when' : 'date') + '|clear>' + (kind === 'at' ? ' [--until 15:00]' : '') + '   e.g. ' + kind + ' t3 tomorrow 14:00');
     var t = find(b.tasks, q, 'task'); var f = {}; f[kind] = when; if (flags.until !== undefined) f.until = flags.until; applyDates(t, f); saveBoard(b);
@@ -659,8 +666,15 @@ function libCmd(name, key, label, mk) {
       if (forTask) attachToTask(forTask.task.id, name === 'scripts' ? 'scriptId' : 'noteId', item.id, name === 'scripts' ? 'script' : 'writing', 'for task ' + forTask.task.id);
       return out('✓ Added [' + item.id + '] ' + (item.title || titleOf(item.text)) + (forTask ? '\n  For task: ' + forTask.task.title + ' [' + forTask.task.id + ']' : '') + (item.noteId ? '\n  Story: ' + storyLine(name === 'scripts' ? 'script' : 'note', item.id) : ''), item);
     }
+    if (sub === 'set') {   // scripts set <s> --file x.md | --text "…": the new text replaces the script's or draft's text (Improve, Edit this draft, Ten hooks); logged, revertable
+      var tq = pos.join(' ').trim(); if (!tq) fail('Usage: ' + name + ' set <id or title> --file new.md   (or --text "…")');
+      var hitS = find(items, tq, label); var nt = flags.file ? fs.readFileSync(path.resolve(String(flags.file)), 'utf8') : (flags.text !== undefined && flags.text !== true ? String(flags.text) : '');
+      if (!nt.trim()) fail(name + ' set needs the new text: --file new.md or --text "…"');
+      var row = list.filter(function (x) { return x.id === hitS.id; })[0]; row.text = nt; if (name === 'scripts') row.title = titleOf(nt); row.updatedAt = Date.now(); write(fileName(name), d);
+      return out('✓ Rewrote [' + row.id + '] ' + (row.title || titleOf(nt)) + ' (' + nt.split('\n').length + ' lines; `node solo.js log` shows it, `revert` undoes it)', row);
+    }
     if (sub === 'rm') { var r = find(items, pos.join(' '), label); d[key] = list.filter(function (x) { return x.id !== r.id; }); if (d.activeId === r.id) d.activeId = d[key][0] ? d[key][0].id : ''; write(fileName(name), d); return out('✓ Deleted [' + r.id + '] ' + r.title, r); }
-    fail('Unknown ' + name + ' command "' + sub + '". Try: list, show, add, rm');
+    fail('Unknown ' + name + ' command "' + sub + '". Try: list, show, add, set, rm');
   };
 }
 var cmdScripts = libCmd('scripts', 'scripts', 'script', function (text) { return { id: newId('s'), title: titleOf(text), text: text, createdAt: Date.now(), updatedAt: Date.now() }; });
@@ -980,7 +994,7 @@ function inspoLine(x) { return '- [' + x.id + '] ' + (x.title || x.url || 'untit
 function cmdInspo() {
   var sub = (pos.shift() || 'list').toLowerCase(); var d = inspo();
   if (sub === 'list') {
-    var items = d.items.filter(function (x) { return (!flags.ws || x.ws === WS_ID) && (flags.status ? x.status === flags.status : x.status !== 'archived') && (!flags.tag || x.tags.indexOf(flags.tag) >= 0); });
+    var items = d.items.filter(function (x) { return (!flags.ws || !x.ws || x.ws === WS_ID) && (flags.status ? x.status === flags.status : x.status !== 'archived') && (!flags.tag || x.tags.indexOf(flags.tag) >= 0); });
     return out(['## Inspiration (' + items.length + ')'].concat(items.length ? items.map(inspoLine) : ['_empty — inspo add "https://… #tag" or a note_']), items);
   }
   if (sub === 'show') { var x = find(d.items, pos.join(' '), 'inspiration item'); return out(['# ' + (x.title || x.url), '', x.url ? x.url + '\n' : '', x.text || '', x.file ? '\nattachment: ' + x.file : (x.image ? '\n(image stored in the browser only — open the app with node serve.js to export it)' : ''), '', 'tags: ' + x.tags.join(', ') + ' · workspace: ' + (x.ws || '—') + ' · ' + x.status + ' · ' + x.source].filter(function (l) { return l !== undefined; }), x); }
@@ -995,7 +1009,8 @@ function cmdInspo() {
   if (sub === 'archive' || sub === 'unarchive') { var xa = find(d.items, pos.join(' '), 'inspiration item'); xa.status = sub === 'archive' ? 'archived' : 'new'; xa.updatedAt = Date.now(); write('inspiration', d); return out('✓ [' + xa.id + '] ' + xa.status, xa); }
   if (sub === 'rm') { var xr = find(d.items, pos.join(' '), 'inspiration item'); d.items = d.items.filter(function (y) { return y.id !== xr.id; }); write('inspiration', d); return out('✓ Deleted [' + xr.id + '] ' + (xr.title || xr.url), xr); }
   if (sub === 'use') {
-    var as = (flags.as && ['task', 'post', 'script', 'note'].indexOf(flags.as) >= 0) ? flags.as : (flags.task ? 'task' : flags.post ? 'post' : flags.script ? 'script' : flags.note ? 'note' : null);
+    var as = AS_ALL.map(function (v) { return v === 'draft' ? 'note' : v; }).filter(function (v) { return ['task', 'post', 'script', 'note'].indexOf(v) >= 0; })[0]   // never --note: that is the log's note
+      || (flags.task === true ? 'task' : flags.post === true ? 'post' : flags.script === true ? 'script' : flags.draft === true ? 'note' : null);
     if (!as) fail('Usage: inspo use <item> --as task|post|script|note [--ws <id>] [--board <id>]');
     var xu = find(d.items, pos.join(' '), 'inspiration item'); var title = xu.title || xu.url || 'From inspiration'; var body = [xu.url, xu.text].filter(Boolean).join('\n'); var created;
     if (as === 'task') { var b = board(); var t = { id: newId('t'), title: title, desc: body, proj: ((cfg.projects || [])[0] || {}).name || 'general', col: 'todo', pri: 'medium', tags: xu.tags.slice(), notes: 'From inspiration ' + xu.id, collapsed: true, checklist: [] }; b.tasks.unshift(t); saveBoard(b); created = t.id + ' on ' + BOARD_ID; }
@@ -1023,7 +1038,7 @@ function allPrompts(mode, over) {   // built-ins with your edits applied, plus y
   var d = read('prompts') || {}; var ov = d.overrides || {}, hidden = d.hidden || [], custom = d.custom || [];
   if (!P) fail('core/prompts.js is missing');
   var o = Object.assign(promptOpts(mode), over || {}); var list = P.build(o); var head = P.head(o);
-  list.forEach(function (x) { if (ov[x.t]) { if (ov[x.t].d) x.d = ov[x.t].d; if (ov[x.t].p) x.p = ov[x.t].p; x.overridden = true; } });
+  list.forEach(function (x) { if (ov[x.t] && (!ov[x.t].mode || ov[x.t].mode === o.mode)) { if (ov[x.t].d) x.d = ov[x.t].d; if (ov[x.t].p) x.p = ov[x.t].p; x.overridden = true; } });   // an edit belongs to the mode it was made in (older edits: both)
   list = list.filter(function (x) { return hidden.indexOf(x.t) < 0; });
   custom.forEach(function (c) { list.push({ c: c.c || 'projects', t: c.t || 'My prompt', d: c.d || '', p: String(c.p || '').split('{{head}}').join(head), pages: c.pages || [], custom: true, id: c.id, slug: P.slugOf(c.t) }); });
   return list;
@@ -1052,8 +1067,10 @@ function cmdPrompts() {
     return out('✓ Prompt [' + c.id + '] ' + title + ' added to ' + c.c + ' — it shows in the Guide on every page (prompts export adds it as /' + P.slugOf(title) + ')', c);
   }
   if (sub === 'edit') { var e = find(d.custom, pos.join(' '), 'prompt'); if (flags.title) e.t = flags.title; if (flags.desc !== undefined) e.d = flags.desc; if (flags.cat) e.c = flags.cat; if (flags.text) e.p = flags.text; if (flags.file) e.p = fs.readFileSync(path.resolve(flags.file), 'utf8'); write('prompts', d); return out('✓ [' + e.id + '] ' + e.t + ' updated', e); }
-  if (sub === 'rm') { var r = find(d.custom, pos.join(' '), 'prompt'); d.custom = d.custom.filter(function (c) { return c.id !== r.id; }); write('prompts', d); return out('✓ Deleted [' + r.id + '] ' + r.t, r); }
-  if (sub === 'restore') { d.hidden = []; d.overrides = flags.all ? {} : d.overrides; write('prompts', d); return out('✓ Built-in prompts restored' + (flags.all ? ' (edits cleared too)' : ''), d); }
+  if (sub === 'rm') { var r = find(d.custom, pos.join(' '), 'prompt'); d.custom = d.custom.filter(function (c) { return c.id !== r.id; }); d.removed = (d.removed || []).concat([r.id]); write('prompts', d); return out('✓ Deleted [' + r.id + '] ' + r.t, r); }   // removed: an open page's merge never brings it back
+  if (sub === 'restore') { d.shown = (d.shown || []).concat(d.hidden).filter(function (h, i, a) { return a.indexOf(h) === i; }); d.hidden = [];
+    if (flags.all) { d.reset = d.reset || {}; Object.keys(d.overrides).forEach(function (t) { d.reset[t] = Date.now(); }); d.overrides = {}; }   // reset: an open page's older copy of an edit never comes back
+    write('prompts', d); return out('✓ Built-in prompts restored' + (flags.all ? ' (edits cleared too)' : ''), d); }
   fail('Unknown prompts command "' + sub + '". Try: builtin, show, export, list, add, edit, rm, restore');
 }
 // prompts export: every prompt as a slash command for the agent that runs commands, or the chat bootstrap.
@@ -1076,13 +1093,17 @@ function cmdMenu() {
 function exportPrompts() {
   if (!P) fail('core/prompts.js is missing');
   var tool = String(flags['for'] || 'claude').toLowerCase();
+  if (tool === 'docs') {   // docs/guide-prompts.md: the catalogue of every built-in prompt and page, from core/prompts.js (never from your edits)
+    var df = path.resolve(flags.out || path.join(ROOT, 'docs', 'guide-prompts.md')); fs.mkdirSync(path.dirname(df), { recursive: true }); fs.writeFileSync(df, P.catalogue() + '\n');
+    return out('✓ ' + path.relative(ROOT, df) + ' written (every prompt, page and the reply format, from core/prompts.js)', { file: df });
+  }
   if (tool === 'chat' || tool === 'bootstrap') {
     var bf = path.resolve(flags.out || path.join(ROOT, 'prompts', 'agent-bootstrap.md')); fs.mkdirSync(path.dirname(bf), { recursive: true });
     fs.writeFileSync(bf, '# Paste this once into a ChatGPT or Claude Project (no file access needed)\n\n<!-- ' + P.MARK + ' -->\n\n' + P.bootstrap(flags.out ? promptOpts('chat') : Object.assign(sharedPromptOpts(), { mode: 'chat' })) + '\n\nReady? I will paste my snapshot next.\n');
     return out('✓ ' + path.relative(ROOT, bf) + ' written (the Guide\'s "Set up this chat" prompt, as a file)', { file: bf });
   }
   var dirs = { claude: path.join(ROOT, '.claude', 'commands'), cursor: path.join(ROOT, '.cursor', 'commands'), codex: path.join(process.env.CODEX_HOME || path.join(require('os').homedir(), '.codex'), 'prompts') };
-  if (!dirs[tool]) fail('--for must be claude (default), cursor, codex or chat');
+  if (!dirs[tool]) fail('--for must be claude (default), cursor, codex, chat or docs');
   var dir = path.resolve(flags.out || dirs[tool]); fs.mkdirSync(dir, { recursive: true });
   if (tool === 'claude' && !flags.out) writeAgentsMenu();
   var all = allPrompts('files', { folder: '' }).filter(function (x) { return (x.c !== 'setup' || x.slash) && x.slug; });   // no absolute path: a slash command runs inside the folder
@@ -1596,7 +1617,7 @@ function cmdHelp() {
     'Posts (data/social.json)', '  social list|next|week|show <post>', '  social add "Title" [--at 2026-10-20T09:00 | +3d 17:30] [--type launch] [--project X] [--copy "…"] [--prep "a|b"]', '  social posted|ready|draft <post> [--url …]   social move <post> <when>', '  social prep <post> "item"   social check <post> <n>   social copy <post> ["text"]   social rm <post>', '',
     'Inspiration (data/inspiration.json — links, ideas, images; tag with a workspace)', '  inspo list [--ws] [--tag x] [--status new|used|archived]   inspo show <item>', '  inspo add [--file <path>] "https://… or an idea #tag" [--ws <id>] [--tags a,b]   inspo tag <item> +a -b   inspo ws <item> <workspace>', '  inspo use <item> --as task|post|script|note [--ws] [--board]   inspo ai [--into tasks] (prompt to paste into an AI)   inspo archive|rm <item>', '',
     'Prompts (built-ins in core/prompts.js, yours in data/prompts.json)', '  menu                       what you can ask your agent, by moment of the day (the same as /menu)', '  prompts builtin [--mode chat|files]   prompts show <title or /slug>   prompts export [--for claude|cursor|codex|chat] [--out dir]', '  prompts list|add "Title" --text "…"|--file p.md [--cat daily] [--desc "…"]|edit <p> …|rm <p>|restore', '',
-    'Studio (data/scripts.json, data/writing.json)', '  scripts list|show <s>|add "Title" [--file x.md]|rm <s>', '  notes list|show <n>|add "Title" [--file x.md]|rm <n>', '',
+    'Studio (data/scripts.json, data/writing.json)', '  scripts list|show <s>|add "Title" [--file x.md]|set <s> --file x.md|--text "…"|rm <s>', '  notes list|show <n>|add "Title" [--file x.md]|set <n> --file x.md|--text "…"|rm <n>', '',
     'Video (data/videos.json + data/videos/<id>/ — cut a take by its words; the footage stays where it is, needs ffmpeg)', '  video add "Title" --file ./take.mov [--script s3]   video list|show <v>|open <v> [--preview]|rm <v> [--files]   video source <v> <new path>',
     '  video transcribe <v> [--engine whisper|elevenlabs] [--lang en] [--from captions.srt] [--yes]   whisper = on this computer; elevenlabs = audio only leaves (needs video key set elevenlabs --stdin)',
     '  video cut <v> --keep "2.4-6.8, 8.1-15.0" | --drop "um, uh" | --tidy | --drop-silence [--min-pause 0.7] | --retakes | --edl cut.json     edges snap to words and are padded; logged, revertable',

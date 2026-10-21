@@ -11,7 +11,8 @@ that way.
 - Each app keeps `model` (data + mutations) / `view` (render only) / `main`
   (handlers, sync registration, palette commands).
 - Run `npm test` (syntax check of every script, the prompt catalogue, the
-  reply applier, the date rules and the social round-trip) and click through
+  reply applier, every Guide prompt on every page, the date rules and the
+  social round-trip) and click through
   the page you changed with `node serve.js` running.
 - Run `node solo.js guard --install` once; the hook blocks any commit that
   stages `data/`, exports or personal prompts (`node solo.js guard` runs it
@@ -21,6 +22,10 @@ that way.
   `data/` content, `data/attachments/`, `data/log.jsonl` or `data/prompts.json`.
 - Keep the Guide's built-in prompts short and specific; they are the first
   thing non-technical users see.
+- A Guide prompt lives in `core/prompts.js`; after changing one run
+  `node solo.js prompts export && node solo.js prompts export --for cursor && node solo.js prompts export --for chat && node solo.js prompts export --for docs`
+  (slash commands, the chat bootstrap, `docs/guide-prompts.md`), then `npm test`
+  and `npm run test:guide`. How the Guide works: `docs/guide.md`.
 
 Good first contributions: a new palette, a new Guide prompt, a new context
 token in `core/context.js`, or a CLI verb in `solo.js` that mirrors a UI action.

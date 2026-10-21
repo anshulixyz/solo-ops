@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Guide check</title>
+<!-- core/guide-check.html — used by core/test-guide-browser.js only (not linked from any page): loads each real page in a
+     same-origin iframe, opens the Guide, and drives it the way a person would. Writes JSON results into #result. -->
+</head>
+<body>
+<pre id="result">running</pre>
+<iframe id="f" style="width:1280px;height:900px;border:0"></iframe>
+<script>
+(function () {
+  'use strict';
+  var q = new URLSearchParams(location.search); var pages = (q.get('pages') || '').split(',').filter(Boolean); var mode = q.get('mode') || 'chat';
+  var frame = document.getElementById('f'); var out = [];
+  var replies = (q.get('reply') || '').split(',').filter(Boolean);   // pages where an answer is pasted into Reply and applied
+  var MARK = 'From the browser check';
+  var REPLY = {   // what a chat would answer on each page (the sample project's ids)
+    'runway/marathon-board.html': 'Here is the move:\n```\nstart [t2]\nnote t2 "' + MARK + '"\n```',
+    'studio/script-viewer.html': 'Tightened it:\n```\nscripts set s1\n```\n```markdown\n# Browser check script\n\n## Hook\n' + MARK + '\n```',
+    'studio/writing-viewer.html': 'Edited:\n```\nnotes set n1\n```\n```markdown\n# Browser check draft\n\n' + MARK + '\n```',
+    'social/social-calendar.html': 'The hook you picked:\n```\nsocial copy p1 "' + MARK + '"\n```',
+    'index.html': 'Your week:\n```\npri t4 high\nsocial copy p2 "' + MARK + '"\n```',   // Home saves the board; the post copy goes on to the Calendar
+    'inspo/inspiration.html': 'Turn it into a script:\n```\ninspo use i2 --as script\n```',   // marked used here; the script is made on the Script Viewer
+    'overview.html': 'One move:\n```\npri t3 high\n```'   // Overview saves nothing: the line goes to Home in one click
+  };
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function until(fn, ms) { var t0 = Date.now(); return new Promise(function (r) { (function poll() { var v = null; try { v = fn(); } catch (e) { v = null; } if (v || Date.now() - t0 > (ms || 6000)) r(v); else setTimeout(poll, 100); })(); }); }
+  function load(src) { return new Promise(function (r) { frame.onload = function () { frame.onload = null; r(); }; frame.src = src; }); }
+  async function one(pg) {
+    var r = { page: pg, mode: mode, errors: [], clip: [] };
+    localStorage.setItem('marathon.guide.mode', mode); localStorage.setItem('marathon.guide.seen', '1'); localStorage.setItem('marathon.guide.tab', 'ask');
+    await load('/' + pg + (pg.indexOf('?') < 0 ? '?' : '&') + 'nosw=1&guide=ask');   // from the site root (this page lives in core/)
+    var w = frame.contentWindow, d = w.document;
+    w.addEventListener('error', function (e) { r.errors.push(String(e.message)); });
+    var ce = w.console.error; w.console.error = function () { r.errors.push(Array.prototype.join.call(arguments, ' ')); return ce.apply(w.console, arguments); };
+    Object.defineProperty(w.navigator, 'clipboard', { configurable: true, value: { writeText: function (t) { r.clip.push(t); return Promise.resolve(); } } });
+    r.open = !!(await until(function () { return d.querySelector('aside.guide.open'); }));
+    if (!r.open) return r;
+    await wait(600);   // the Guide re-renders once the backup status and the folder arrive
+    r.tabs = d.querySelectorAll('.guide-tab').length;
+    r.start = d.querySelectorAll('.guide-start-b').length;
+    r.cards = d.querySelectorAll('#guideList .guide-prompt').length;
+    r.chips = d.querySelectorAll('.guide-chip').length;
+    var sb = d.querySelector('.guide-start-b'); if (sb) { sb.click(); await wait(300); }
+    r.startCopied = r.clip.length;
+    r.startEffect = r.startCopied ? 'copied' : d.querySelector('.guide-prompt .gp-form .gp-field') ? 'form' : sb && /first/i.test(sb.textContent) ? 'needs' : 'nothing';   // a prompt with blanks opens its form; one that needs an open item says so
+    var card = Array.prototype.filter.call(d.querySelectorAll('#guideList .guide-prompt .gp-main'), function (b) { return !/needs|first/i.test(b.parentNode.textContent); })[0]; if (card) { card.click(); await wait(300); var fc = card.parentNode.querySelector('.gp-form .gp-copy'); if (fc) { Array.prototype.forEach.call(card.parentNode.querySelectorAll('.gp-field input, .gp-field textarea'), function (x) { x.value = x.value || 'Something to work on'; }); fc.click(); await wait(300); } }
+    r.cardCopied = r.clip.length - r.startCopied;
+    r.tokensLeft = r.clip.filter(function (t) { return /\{\{\w+\}\}/.test(t); }).length;
+    var ask = d.querySelector('.guide-ask-in'); if (ask) { ask.value = 'Move the landing page to Doing'; ask.dispatchEvent(new w.Event('input')); d.querySelector('.guide-ask-copy').click(); await wait(300); r.askCopied = /WHAT I WANT:\nMove the landing page to Doing/.test(r.clip[r.clip.length - 1] || ''); }
+    d.querySelector('.guide-tab[data-tab="settings"]').click(); await wait(200);
+    r.settings = !!d.querySelector('.guide-modes') && !!d.querySelector('#guideBackup');
+    d.querySelector('.guide-tab[data-tab="quick"]').click(); await wait(200);
+    r.quick = !!d.querySelector('.qk-now');
+    if (replies.indexOf(pg) >= 0 && REPLY[pg]) {   // paste an answer into Reply, preview, apply
+      d.querySelector('.guide-tab[data-tab="reply"]').click(); await wait(200);
+      var ta = d.querySelector('.guide-reply'); ta.value = REPLY[pg]; ta.dispatchEvent(new w.Event('input'));
+      d.querySelector('.guide-preview').click(); await wait(200);
+      r.previewUnits = d.querySelectorAll('.guide-plan .guide-unit input:checked').length;
+      var ap = d.querySelector('.guide-apply'); if (ap) { ap.click(); await wait(1200); }   // past the file write (400 ms), before the page's own reload (2.5 s)
+      r.applied = (d.querySelector('.guide-result') || {}).textContent || '';
+    }
+    r.clip = r.clip.length;
+    var carry = d.querySelector('.guide-carry'); r.carry = !!carry;
+    if (carry && replies.indexOf(pg) >= 0) {   // Continue on Home: the next page opens its Guide on Reply with the line previewed; Apply there
+      var landed = new Promise(function (res) { frame.onload = function () { frame.onload = null; res(); }; }); carry.click(); await landed;
+      var d2 = frame.contentWindow.document;
+      r.carriedUnits = (await until(function () { var n = d2.querySelectorAll('.guide-plan .guide-unit input:checked').length; return n || null; }, 8000)) || 0;
+      await wait(1000);   // the panel re-renders once the backup status arrives; the preview stays (it is kept across re-renders)
+      var ap2 = await until(function () { return d2.querySelector('.guide-apply'); }, 4000); r.carriedPlan = ((d2.querySelector('.guide-plan') || {}).textContent || '').slice(0, 200);
+      if (ap2) { ap2.click(); await wait(1200); }
+      r.carriedApplied = (d2.querySelector('.guide-result') || {}).textContent || '';
+    }
+    return r;
+  }
+  (async function () {
+    for (var i = 0; i < pages.length; i++) { try { out.push(await one(pages[i])); } catch (e) { out.push({ page: pages[i], mode: mode, crash: String(e && e.stack || e) }); } }
+    document.getElementById('result').textContent = 'RESULT ' + JSON.stringify(out) + ' END';
+  })();
+})();
+</script>
+</body>
+</html>

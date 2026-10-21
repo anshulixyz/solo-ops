@@ -100,7 +100,7 @@ ok(plan.length === 37, 'preview finds 37 units (bare `week` is prose) (got ' + p
 var bad = plan.filter(function (u) { return !u.ok; }).map(function (u) { return u.label; });
 ok(bad.length === 4, 'preview marks exactly 4 units as not applicable: ' + bad.join(' | '));
 ok(!plan.some(function (u) { return /^At this point|^Due to time/.test(u.text); }), 'prose starting with at/due is not a command');
-ok(plan.some(function (u) { return /ambiguous|2 tasks match/.test(u.label); }), 'ambiguous title fragment is reported');
+ok(plan.some(function (u) { return /ambiguous|2 tasks match/.test(u.label + ' ' + u.reason); }), 'ambiguous title fragment is reported (the reason sits beside the line)');
 
 // 2. apply for real
 seed(); touched = []; var res = Apply.run(REPLY, { ws: 'main' });
@@ -127,7 +127,7 @@ var nt = mem['marathon.writing'].notes[0]; ok(nt && /~~world~~ \+\+everyone\+\+/
 ok(inspo.length === 2 && inspo[1].url === 'https://example.com/post' && inspo[1].tags.indexOf('hooks') >= 0, 'inspo add');
 var i1 = inspo[0]; ok(i1.tags.indexOf('ai') >= 0 && i1.tags.indexOf('video') >= 0 && i1.ws === 'launch' && i1.status === 'archived', 'inspo tag / ws / archive');
 ok(res.skipped.some(function (s) { return /not deleting "t1"/.test(s); }) && T('t1'), 'rm is refused and the task stays');
-ok(res.skipped.some(function (s) { return /unknown command: .*frobnicate/.test(s); }), 'unknown verb skipped');
+ok(res.skipped.some(function (s) { return /not a command a reply knows: .*frobnicate/.test(s); }), 'unknown verb skipped, and says so');
 var rd = byTitle('Record the demo'); ok(rd && rd.pri === 'high' && rd.col === 'todo' && rd.checklist.length === 2 && rd.checklist[1].done, 'checklist item with (high) and indented steps');
 ok(byTitle('Already done thing') && byTitle('Already done thing').col === 'done', 'checked checklist item lands in done');
 ok(touched.indexOf('runway.json') >= 0 && touched.indexOf('content.json') >= 0 && touched.indexOf('social.json') >= 0 && touched.indexOf('scripts.json') >= 0 && touched.indexOf('writing.json') >= 0, 'sync is told about every touched file: ' + touched.filter(function (x, i, a) { return a.indexOf(x) === i; }).join(', '));

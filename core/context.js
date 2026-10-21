@@ -2,14 +2,15 @@
    core/context.js — things you can hand to an agent, as text. Each one is
    a {{token}} usable inside any prompt and an entry in the Guide's Context
    menu. Global `Context`.
-     recent · shipped · last_task · this · project · doing · inspiration · board · take
+     recent · shipped · last_task · this · project (snapshot) · doing · board · posts · schedule ·
+     inspiration · inspiration_new · take   (what each sends: docs/guide.md → Tokens)
    ========================================================================= */
 (function (global) {
   'use strict';
   function ws() { return Config.ws(); }
   function page() {
     var h = location.pathname.replace(/.*\//, '');
-    return { 'index.html': 'home', '': 'home', 'marathon-board.html': 'board', 'social-board.html': 'social', 'social-calendar.html': 'social', 'calendar.html': 'calendar', 'script-viewer.html': 'scripts', 'writing-viewer.html': 'writing', 'video.html': 'video', 'inspiration.html': 'inspo' }[h] || 'home';
+    return { 'index.html': 'home', '': 'home', 'overview.html': 'overview', 'about.html': 'about', 'marathon-board.html': 'board', 'social-board.html': 'social', 'social-calendar.html': 'streak', 'calendar.html': 'calendar', 'script-viewer.html': 'scripts', 'writing-viewer.html': 'writing', 'video.html': 'video', 'inspiration.html': 'inspo' }[h] || 'home';
   }
   function task(t, bTitle) {
     return '[' + t.id + '] ' + t.title + (bTitle ? ' · board: ' + bTitle : '') + ' · ' + t.col + ' · ' + t.pri + (t.at ? ' · at ' + t.at.replace('T', ' ') + (t.until ? '–' + t.until.slice(11) : '') : '') + (t.due ? ' · due ' + t.due : '') + (t.tags.length ? ' · #' + t.tags.join(' #') : '') + ' · project: ' + t.proj + (t.ext && !/^share:/.test(t.ext) ? ' · ext ' + t.ext : '') +
@@ -29,11 +30,12 @@
     } },
     this: { label: 'This item', hint: 'what is open on this page', get: function () {
       var pg = page(); var w = ws();
-      if (pg === 'scripts' && typeof library !== 'undefined' && library.scripts) { var s = library.scripts.filter(function (x) { return x.id === library.activeId; })[0]; return s ? '# Script: ' + s.title + storyTok('script', s.id) + '\n\n' + s.text : '(no script open)'; }
-      if (pg === 'writing' && typeof library !== 'undefined' && library.notes) { var n = library.notes.filter(function (x) { return x.id === library.activeId; })[0]; return n ? '# Draft (markup: ~~cut~~ ++add++ [[note for you]])' + storyTok('note', n.id) + '\n\n' + n.text + (Object.keys(n.files || {}).length ? '\n\nimage files: ' + Object.keys(n.files).map(function (k) { return n.files[k]; }).join(', ') : '') : '(no note open)'; }
+      if (pg === 'scripts' && typeof library !== 'undefined' && library.scripts) { var s = library.scripts.filter(function (x) { return x.id === library.activeId; })[0]; return s ? '# Script [' + s.id + ']: ' + s.title + storyTok('script', s.id) + '\n\n' + s.text : '(no script open)'; }
+      if (pg === 'writing' && typeof library !== 'undefined' && library.notes) { var n = library.notes.filter(function (x) { return x.id === library.activeId; })[0]; return n ? '# Draft [' + n.id + ']: ' + (((n.text || '').match(/^#\s+(.+)/m) || [])[1] || 'untitled') + ' (markup: ~~cut~~ ++add++ [[note for you]])' + storyTok('note', n.id) + '\n\n' + n.text + (Object.keys(n.files || {}).length ? '\n\nimage files: ' + Object.keys(n.files).map(function (k) { return n.files[k]; }).join(', ') : '') : '(no note open)'; }
       if (pg === 'social') { var ti = document.querySelector('.detail-title'); var posts = Store.getJSON(Config.key('social', w.id), []) || []; var p = ti ? posts.filter(function (x) { return x.title === ti.value; })[0] : null; return p ? '# Post' + storyTok('post', p.id) + '\n' + post(p) : '(no post selected)'; }
       if (pg === 'board') { var evs = global.Recent ? Recent.load().slice().reverse().filter(function (e) { return e.kind === 'task' && global.Model && e.key === Model.KEY; }) : []; var t = evs.length ? Model.getState().filter(function (x) { return x.id === evs[0].id; })[0] : null; if (!t) t = Model.getState().filter(function (x) { return x.col === 'doing'; })[0]; return t ? '# Task\n' + task(t, Model.board().title) : C.board.get(); }
       if (pg === 'inspo') return C.inspiration.get();
+      if (pg === 'streak') return C.posts.get();   // the streak page: the posts of the coming days
       if (pg === 'video') return C.take.get();
       return C.project.get();
     } },
@@ -52,12 +54,12 @@
     inspiration: { label: 'Inspiration inbox', hint: 'unused items with links and image files', get: function () {
       if (!global.InspoModel) return ''; if (!InspoModel._inited) { InspoModel.init(); InspoModel._inited = true; }
       var w = ws(); var items = InspoModel.list({ status: 'new' }).filter(function (x) { return !x.ws || x.ws === w.id; });
-      return items.length ? InspoModel.forAI(items, 'next steps') : '(inbox is empty)';
+      return items.length ? '# Inspiration inbox (unused, ' + items.length + ')\n\n' + InspoModel.forAI(items, '', { data: true }) : '(inbox is empty)';
     } },
     inspiration_new: { label: 'New inspiration', hint: 'saved since your last assessment', get: function () {
       if (!global.InspoModel) return ''; if (!InspoModel._inited) { InspoModel.init(); InspoModel._inited = true; }
       var items = InspoModel.listNew(ws().id); var since = InspoModel.reviewedAt();
-      return items.length ? '# New inspiration since ' + (since ? Activity.ago(since) : 'the start') + ' (' + items.length + ')\n\n' + InspoModel.forAI(items, 'assessment').split('\n').slice(2).join('\n') : '(nothing new since ' + (since ? Activity.ago(since) : 'the start') + ')';
+      return items.length ? '# New inspiration since ' + (since ? Activity.ago(since) : 'the start') + ' (' + items.length + ')\n\n' + InspoModel.forAI(items, '', { data: true }) : '(nothing new since ' + (since ? Activity.ago(since) : 'the start') + ')';
     } },
     shipped: { label: 'What I shipped', hint: 'tasks finished and posts published recently', get: function () {
       var evs = global.Recent ? Recent.load().slice().reverse().filter(function (e) { return /^(finished|post posted|new script|new note):/.test(e.what || '') && !e.gone; }) : [];
@@ -84,7 +86,7 @@
     } },
     take: { label: 'This take', hint: 'the open take (or the one you touched last): its words with [start-end] times, the cut, the exports', get: function () {
       var w = ws(); var d = Store.getJSON(Config.key('videos', w.id), null); var vids = d && Array.isArray(d.videos) ? d.videos : [];
-      if (!d) return '(no take here: start `node serve.js` or link the folder so this page reads data/videos.json, or paste the output of `node solo.js video show <take>`)';
+      if (!d) return global.Sync && Sync.exportsOnDisk && Sync.exportsOnDisk() ? '(no takes yet: add one on the Video page, or node solo.js video add "Title" --file ./take.mov)' : '(no take here: start `node serve.js` or link the folder so this page reads data/videos.json, or paste the output of `node solo.js video show <take>`)';
       if (!vids.length) return '(no takes yet — node solo.js video add "Title" --file ./take.mov)';
       var v = vids.filter(function (x) { return x.id === d.activeId; })[0] || vids.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); })[0];   // the open take on the Video page, else the latest
       var src = (v.sources || [])[0] || {}; var tr = v.transcript || null; var ex = (v.exports || []).filter(function (e) { return e.kind === 'final'; }).slice(-1)[0];
@@ -114,7 +116,7 @@
   function tfmt(sec) { var s = Math.max(0, Number(sec) || 0); var m = Math.floor(s / 60), r = s - m * 60; var rs = r.toFixed(1); if (rs === '60.0') { rs = '0.0'; m++; } var h = Math.floor(m / 60); m -= h * 60; if (rs.length < 4) rs = '0' + rs; return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + rs; }
   function ttag(sec) { var s = Math.max(0, Number(sec) || 0); return s < 100 ? ('00' + s.toFixed(2)).slice(-6) : s.toFixed(2); }
   // videos.json reaches every other page read-only (the file always wins, the page never writes it back); the Video page registers it itself, writable
-  function storyTok(kind, id) { if (!global.Story || !Story.taskText) return ''; var t = Story.taskText(kind, id); var l = Story.line ? Story.line(kind, id) : ''; return '\n' + (t === 'no task yet' ? 'Task: none yet (node solo.js link <task> ' + id + ' connects one)' : t) + (l ? '\nStory: ' + l : ''); }   // the task this item belongs to and what else hangs together (core/story.js)
+  function storyTok(kind, id) { if (!global.Story || !Story.taskText) return ''; var t = Story.taskText(kind, id); var l = Story.line ? Story.line(kind, id) : ''; return '\n' + (t === 'no task yet' ? 'Task: none yet (`node solo.js link <task> ' + id + '` connects one)' : t) + (l ? '\nStory: ' + l : ''); }   // the task this item belongs to and what else hangs together (core/story.js)
   function registerTakes() {
     if (!global.Sync) return; var w = ws(); var key = Config.key('videos', w.id); var file = Config.file('videos', w.id);
     if ((Sync.specs || []).some(function (s) { return s.file === file; })) return;   // the Video page registered it itself (writable) at script evaluation

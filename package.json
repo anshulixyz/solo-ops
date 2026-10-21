@@ -4,11 +4,27 @@
   "description": "Solo founder ops in plain files: boards, posting schedule, scripts, drafts and an inspiration inbox — local, installable, and native to your AI agent.",
   "license": "MIT",
   "private": false,
-  "bin": { "solo": "./solo.js" },
+  "bin": {
+    "solo": "./solo.js"
+  },
   "scripts": {
     "start": "node serve.js",
-    "test": "node social/test-social-save.js && node core/test-prompts.js && node core/test-apply.js && node core/test-when.js && node core/test-video.js && node core/test-video-page.js && node core/test-story.js && node core/test-blank.js && node core/test-config.js && for f in core/*.js runway/*.js social/*.js studio/*.js inspo/*.js calendar/*.js *.js; do node --check \"$f\" || exit 1; done && echo ok"
+    "test": "node social/test-social-save.js && node core/test-prompts.js && node core/test-apply.js && node core/test-when.js && node core/test-video.js && node core/test-video-page.js && node core/test-story.js && node core/test-blank.js && node core/test-config.js && node core/test-guide.js && for f in core/*.js runway/*.js social/*.js studio/*.js inspo/*.js calendar/*.js *.js; do node --check \"$f\" || exit 1; done && echo ok",
+    "test:guide": "node core/test-guide-browser.js"
   },
-  "engines": { "node": ">=18" },
-  "keywords": ["kanban", "solo-founder", "indie-hacker", "local-first", "pwa", "ai-agent", "claude", "chatgpt", "content-calendar", "teleprompter"]
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "kanban",
+    "solo-founder",
+    "indie-hacker",
+    "local-first",
+    "pwa",
+    "ai-agent",
+    "claude",
+    "chatgpt",
+    "content-calendar",
+    "teleprompter"
+  ]
 }

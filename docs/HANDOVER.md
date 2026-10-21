@@ -33,7 +33,7 @@ page is the context around it. Read `AGENTS.md` first if you have not.
   node core/test-when.js && node core/test-prompts.js && node social/test-social-save.js && node solo.js doctor
   ```
   After touching `core/prompts.js`:
-  `node solo.js prompts export && node solo.js prompts export --for cursor && node solo.js prompts export --for chat`.
+  `node solo.js prompts export && node solo.js prompts export --for cursor && node solo.js prompts export --for chat && node solo.js prompts export --for docs`.
 
 ## What shipped on 2026-10-13 (all on `main`)
 

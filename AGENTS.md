@@ -75,7 +75,7 @@ Keep it safe:
   /backup         Back up now
   /undo-agent     Undo what the agent just did
 
-All 38 commands: node solo.js prompts builtin
+All 39 commands: node solo.js prompts builtin
 The pages: node serve.js, then the Guide (? on the left edge).
 ```
 <!-- menu:end -->
@@ -172,6 +172,7 @@ remote keeps the block.
    node solo.js social add "Title" --at 2026-10-20T09:00 --type launch --copy "…"
    node solo.js social posted <post> --url … ; social prep <post> "item"
    node solo.js scripts add "Title" --file script.md ; notes add "Title" --file draft.md
+   node solo.js scripts set <s> --file new.md ; notes set <n> --file new.md   # replace the text of one you already have (Improve, Edit this draft, Ten hooks write back with these, after a yes)
    node solo.js video add "Title" --file ./take.mov ; video transcribe <v> --engine whisper ; video show <v>   # words with times: the view you read to pick the cut
    node solo.js video cut <v> --keep "2.4-6.8, 8.1-15.0" | --drop "um, uh" | --tidy | --drop-silence | --retakes | --edl cut.json ; video render <v> --preview ; video post <v>
    node solo.js video word <v> "what it says" "what it should say" [--all] | --undo   # a misheard word: the text changes, the audio and the cut do not (never transcribe again for a typo); <n>[-<m>] word numbers work too
@@ -364,9 +365,12 @@ not fixing? Add it under *Minor / issues* instead of leaving a TODO.
   every render step checks its element exists). Load order inside a page:
   `solo.config.js → theme-boot → … → store → config → templates → prompts → theme → sync → activity → palette → app scripts`.
 - Changing a Guide prompt = editing `core/prompts.js`, then
-  `node solo.js prompts export && node solo.js prompts export --for cursor && node solo.js prompts export --for chat`
-  so `.claude/commands/`, `.cursor/commands/` and `prompts/agent-bootstrap.md`
-  follow, and `node core/test-prompts.js`. Titles are the key for the user's
+  `node solo.js prompts export && node solo.js prompts export --for cursor && node solo.js prompts export --for chat && node solo.js prompts export --for docs`
+  so `.claude/commands/`, `.cursor/commands/`, `prompts/agent-bootstrap.md`
+  and `docs/guide-prompts.md` (the catalogue) follow, and `node core/test-prompts.js`
+  (it fails when the catalogue is stale). How the Guide works end to end, its
+  settings and the reply contract: `docs/guide.md`; `npm run test:guide` runs
+  it in headless Chrome. Titles are the key for the user's
   overrides in `data/prompts.json` and for the Guide's next-best-moves, so
   rename with care.
 - Sync rules worth knowing: a file newer than the browser wins; a browser
@@ -412,9 +416,16 @@ The user pastes a SNAPSHOT (boards, posts, scripts, notes, inspiration) and
 expects back ONE code block of `node solo.js …` lines (`add`, `done`,
 `start`, `move`, `pri`, `step`, `check`, `note`, `social add|copy|prep|posted|move`,
 `scripts add "title"` + a ``` block with the script, `notes add "title"` +
-a ``` block, `inspo add`). The app applies that block directly. Keep titles
-short, no ids for new items, never `rm` (it is ignored). A plain
-`- [ ] task` checklist with indented steps also works.
+a ``` block, `scripts set <id>` / `notes set <id>` + a ``` block with the new
+text, `inspo add|tag|use`). The user pastes it into the Guide's Reply on any
+page: lines that page saves apply there, and *Continue on …* carries the rest
+to the page that saves them (tasks and posts: the Calendar; inspiration: Home;
+scripts and drafts: their viewers). They see a preview of every line (with the reason for any it skips: an unknown id, a
+date it cannot read, a command only a terminal can run) and applies it; each
+change is logged as source `reply` and `revert` undoes it. Keep titles short,
+no ids for new items, never `rm` (it is ignored). A plain `- [ ] task`
+checklist with indented steps also works. The full format:
+`docs/guide-prompts.md` → The reply format.
 
 ## Per-folder docs
 

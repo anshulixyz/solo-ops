@@ -744,6 +744,15 @@ function onEdit() {
 }
 
 /* ---- Sync + palette ---- */
+// A pasted reply (Guide → Reply, core/apply.js) writes the browser copy directly. Take it before the file write
+// (400 ms later) reads this page's library, or the old text goes back to the file. The Guide calls this after Apply.
+window.refreshNotes = function () {
+  const saved = Store.getJSON(LIBRARY_KEY, null); if (!saved || !Array.isArray(saved.notes)) return;
+  library = normalizeLibrary(saved);
+  const n = getActiveNote(); const ta = $('#writingInput');
+  if (!n) { ta.value = ''; resetEditorHistory(''); } else if (ta.value !== n.text) { ta.value = n.text; resetEditorHistory(n.text); }
+  renderNotesList(); refresh({ skipFlush: true });
+};
 function registerSync() {
   Sync.register({
     file: Config.file('writing'), key: LIBRARY_KEY, label: 'notes', isFresh: () => Store.isFresh(LIBRARY_KEY),   // the shared flag only: cleared by the first real write

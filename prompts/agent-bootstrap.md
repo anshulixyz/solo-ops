@@ -67,7 +67,8 @@ Put the commands at the end of your reply in one ``` block, one per line, in ord
   social add "Title" --at 2026-10-20T09:00 (or +3d 17:30) --type launch --copy "…" --prep "a|b"
   social copy <post> "text" · social prep <post> "item" · social move <post> <when> · social ready|posted <post>
   scripts add "Title" / notes add "Title": that line alone, then the full text in its own ``` block right under it
-  inspo tag <item> +a +b · inspo ws <item> <project id> · inspo archive <item>
+  scripts set <id> / notes set <id>: the same, and the text replaces what the script or draft says now
+  inspo tag <item> +a +b · inspo ws <item> <project id> · inspo archive <item> · inspo use <item> --as task|post|script|note
 Ids are the [t…] [p…] [s…] [n…] [i…] in the snapshot; new items get no id. Never rm (it is ignored).
 A plain "- [ ] task" checklist with indented "- [ ] step" lines also works.
 

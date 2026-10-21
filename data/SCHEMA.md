@@ -272,22 +272,39 @@ automatically; `backup` commits it with the rest of `data/`.
 
 ```json
 { "custom": [{ "id": "c…", "t": "Monday planning", "d": "one line", "p": "{{head}}Plan my Monday…", "c": "weekly", "pages": [] }],
-  "overrides": { "Daily standup": { "d": "…", "p": "…" } },
-  "hidden": ["Undo what the agent just did"] }
+  "overrides": { "Daily standup": { "d": "…", "p": "…", "mode": "chat", "at": 1792500000000 } },
+  "hidden": ["Undo what the agent just did"],
+  "removed": ["c…"],
+  "shown": ["Clean up the board"],
+  "reset": { "Wrap up the day": 1792600000000 } }
 ```
 
 Built-in prompts are not in this file: they live in `core/prompts.js` and are
 keyed by title here. `node solo.js prompts export` writes built-ins and your
-own as slash commands (`.claude/commands/`, yours under `mine/`).
+own as slash commands (`.claude/commands/`, yours under `mine/`). How the
+Guide uses all of this: `docs/guide.md`.
 
-`custom` are your own prompts (`c` is daily | weekly | projects | content |
-fix). `overrides` replace a built-in's text by its title; `hidden` removes
-built-ins from the Guide. In a prompt, `{{head}}` inserts the agent preamble
-(workspace, how to reply); context tokens insert data: `{{recent}}` (last 10
-changes with state), `{{last_task}}`, `{{this}}` (what is open on the page),
-`{{project}}` (full snapshot; `{{snapshot}}` is an alias), `{{board}}`,
-`{{doing}}`, `{{posts}}`, `{{inspiration}}`; `<blank>` becomes a field to
-fill. Merged on sync.
+- `custom`: your own prompts. `c` is daily | weekly | projects | content |
+  bringin | setup | fix; `pages` are the pages it shows on first (empty: its
+  group only).
+- `overrides`: your text for a built-in, by its title. `mode` (files | chat)
+  is the mode it was edited in and the only one it changes; without it (older
+  edits) it applies to both.
+- `hidden`: built-in titles kept out of the Guide, ⌘K and the menu's moves.
+- `removed` / `shown` / `reset`: tombstones, so a merge never brings back a
+  deleted custom prompt (`removed`, by id), re-hides a built-in you showed
+  again (`shown`, by title) or restores an edit you reset (`reset`, title →
+  when, ms; an edit whose `at` is newer than its reset still counts).
+
+In a prompt, `{{head}}` inserts the agent preamble (workspace, how to reply);
+context tokens insert data: `{{recent}}` (last 10 changes with state),
+`{{last_task}}`, `{{this}}` (what is open on the page), `{{project}}` (full
+snapshot; `{{snapshot}}` is an alias), `{{board}}`, `{{doing}}`, `{{posts}}`,
+`{{schedule}}` (the next 7 days), `{{shipped}}`, `{{inspiration}}`,
+`{{inspiration_new}}` (since the last assessment), `{{take}}` (a take's words
+with times); `<blank>` becomes a field to fill. Merged on sync: custom and
+the tombstones are unions (`reset` keeps the latest time per title), overrides
+by title with the newer `at` winning (the incoming side on a tie).
 
 ## settings.json — theme and your personal config
 

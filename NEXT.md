@@ -363,6 +363,39 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Minor / issues
 
+- **From the Guide audit (2026-10-21), not done:** (1) *Next* has no overdue
+  move: Move what's overdue is first on the Calendar's list whether or not
+  anything is overdue, and Home does not mention overdue work. (2) An edited
+  built-in keeps the mode it was edited in rather than a mode-neutral text
+  with `{{head}}` (the plan's first idea): simpler, but an edit made in chat
+  mode does nothing in Runs commands mode. (3) From Reply, `link` works only on
+  the pages that show the story (Drafts, Scripts, Video, Schedule) and
+  `config set` only with the server or a linked folder; elsewhere they are
+  skipped with the reason (run them in a terminal). (4) `npm run test:guide` needs Chrome on the
+  machine and is skipped (exit 0) without it. (5) Found, older: the Writing
+  page drops a draft's `files` (its attachment links, `data/attachments/
+  note-<id>-<n>.<ext>`) when it loads, because `normalizeLibrary`
+  (`studio/writing-viewer.js`) keeps only id, text, images and the dates; the
+  next write leaves them out of `writing.json`. Keep `files` there (and in the
+  Sync apply) and add a test. (6) ⌘K's *Ask: …* entries register once per
+  page, so a prompt hidden in the Guide stays in ⌘K until a reload. (7) Hide /
+  show have no times (unlike `reset`): with two copies (file:// and the
+  server, or two browsers) a later hide can be undone by an older `shown`.
+  (8) Dates: `9am`, `Oct 30`, `next friday` are refused with the formats that
+  work; teaching `core/when.js` am/pm and month names would let them through
+  (CLI and Reply share it). (9) An edit saved before edits had a mode applies
+  to both modes, including a files-mode preamble in chat mode: re-save it.
+  (10) Reply edges from the second technical review: `'tis the season
+  --pri high` swallows the flag into the text; a quote nested inside curly
+  quotes loses one mark; a task id with no digit (about 1 in 100 generated
+  ids) is not recognised as an id in a numbered line outside a block or before
+  an unreadable date (it still works as a title match); a second reply with an
+  identical note while the first file write is in flight is logged as `ui`.
+  (11) `inspo use` from a chat marks the item used before the piece is made on
+  its page: if the person never presses Continue, the item says used with no
+  piece (Continue stays offered on that page until another preview).
+  (12) A Week review on Home with post lines takes two Applies (Home, then
+  the Calendar); an *Apply all on the Calendar* button would make it one.
 - **From the onboarding reviews (2026-10-21), not done:**
   (1) *Connect my other agents*: a paragraph for the global agent instructions
   (`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`) so the agent you code with
@@ -531,6 +564,55 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Done
 
+- 2026-10-21 · **The Guide, audited end to end** (every setting against every
+  page, every prompt and its answer; plan reviewed by three agents: the
+  project's history, product/UX, staff AI engineering). *Checks first:*
+  `core/test-guide.js` (in `npm test`) runs every page's real scripts in Node
+  and copies every prompt on every page in both modes, empty / sample / an
+  item open; feeds a realistic chat answer for every prompt that asks for
+  lines through the Guide's own Reply path, plus messy answers and refusals;
+  runs every `node solo.js` line a files-mode prompt names in a scratch copy
+  with a flag audit. `npm run test:guide` does the same in headless Chrome on
+  every page (Reply reaches the file and the log). *Reply:* numbered and
+  bulleted lines, `[t7]`, smart quotes, CRLF, multi-line copy all read; prose
+  bullets are not tasks; a date it cannot read is a skipped line with the
+  reason; preview = apply (`Apply.reply`); applied lines log as source
+  `reply`; `--task` links; `inspo use`. Fixed on the way: a reply applied on
+  the Script, Writing or Streak page was overwritten by the page's own copy
+  a moment later (the file write reads the page, not the browser store);
+  they now take the reply first (`refreshScripts`, `refreshNotes`,
+  `refreshSchedule`, called by the Guide like `refreshBoard`). *After two
+  reviews (staff engineering, product/UX):* with files on disk a line is applied
+  only by a page that saves its file (elsewhere it could never reach the file,
+  or overwrite newer work; a page still never writes another page's file); the
+  rest goes on with **Continue on …**, previewed on the page that saves it and
+  chained when a reply needs several pages (tasks with posts: the Calendar in
+  one hop); `inspo use` marks the item used where inspiration is saved and
+  hands the piece, with its id reserved, to its page as data (`inspo make`,
+  once only); each line shows
+  what it will do there; Overview and About say to paste on Home; script and draft bodies
+  are copied as typed (quotes, numbers, bullets); quotes delimit only where a
+  value starts, so curly quotes and apostrophes stay; `9am` stays with its
+  date and is refused whole; `at`/`due <id> <date>` refuse an unreadable date
+  (CLI too); steps inside a block survive the apply; numbered prose outside a
+  block is not a command; `inspo use … --as post --as agent` reads both (CLI
+  and Reply); every reply write is logged `reply` and the note is cleared
+  after; prompt resets stick (`reset`); Streak no longer offers prompts that
+  need an open item; an empty Overview starts like Home; the Reply text and
+  preview survive a re-render. *Write back:* `scripts set` / `notes
+  set` (CLI and Reply), so Improve, Edit this draft and Ten hooks land in the
+  item after a yes. *New:* Move what's overdue (first on the Calendar). *Pages:*
+  Overview, About and Streak have their own help and prompts; cards that
+  need an open item say what to open; hidden prompts leave no dead end;
+  edits belong to the mode they were made in; `prompts rm` / `restore` stick
+  (`removed` / `shown`); chat-mode Settings label terminal prompts, Undo is a
+  link; the schema link works; a `?guide=` link no longer picks the mode.
+  *Docs:* `docs/guide.md` (the three paths, every setting and its storage key,
+  tokens, the reply contract, tests, troubleshooting, what changed) and
+  `docs/guide-prompts.md`, generated by `prompts export --for docs` from
+  `core/prompts.js` (`PAGES`, `catalogue()`) and byte-checked by
+  `core/test-prompts.js`. A third "No AI" switch was not added (owner's call):
+  Quick and the page buttons are that path, documented.
 - 2026-10-21 · **Onboarding: blank works, your work comes in, one menu, a
   faster setup** (planned, reviewed by three agents: the project's history,
   product/UX, staff AI engineering; then built in four parts). *Blank:* a

@@ -38,6 +38,7 @@
       read: function () { return { posts: SocialModel.getState() }; },
       apply: function (body) { if (Array.isArray(body.posts)) { SocialModel.replaceAll(body.posts, { silent: true }); render(); } }
     });
+    global.refreshSchedule = function () { SocialModel.replaceAll(Store.getJSON(SocialModel.KEY, []) || [], { silent: true }); render(); };   // after a pasted reply (the Guide): the file write reads the model, so it takes the browser copy first
     Palette.init({ root: '../' });
     Palette.register([
       { label: 'Previous month', hint: 'calendar', run: global.calPrev },

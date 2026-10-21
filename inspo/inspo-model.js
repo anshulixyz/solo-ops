@@ -111,11 +111,15 @@
   function listNew(ws) { var since = new Date(reviewedAt() || 0).getTime(); return state.filter(function (x) { return x.status === 'new' && x.createdAt > since && (!ws || !x.ws || x.ws === ws); }); }
 
   // text block for pasting into an agent chat
-  function forAI(items, intent) {
-    var ws = global.Config ? Config.ws() : null;
-    var lines = ['# Inspiration → ' + (intent || 'ideas'), '',
-      'Workspace: ' + (ws ? ws.title + ' (' + ws.id + ')' : 'n/a') + '. Turn the items below into concrete ' + (intent || 'next steps') + '.',
-      'Give me back CLI commands I can run (node solo.js …) or a short list I can paste into the right app. Keep ids out, keep titles short.', ''];
+  // forAI(items, intent): the Inspiration page's own prompt (Brainstorm, → tasks…), in the Guide's mode, with the ids the answer uses.
+  // forAI(items, '', { data: true }): only the items, for the {{inspiration}} tokens inside other prompts.
+  function forAI(items, intent, o) {
+    var ws = global.Config ? Config.ws() : null; var data = o && o.data;
+    var ask = 'Turn the items below into concrete ' + (intent || 'next steps') + ' for "' + (ws ? ws.title : 'my project') + '". Propose them as a short table first (item, what it becomes, the title), and wait for my yes. ' +
+      (global.Guide && Guide.mode && Guide.mode() === 'files'
+        ? 'Then run `node solo.js inspo use <id> --as task|post|script|note' + (ws ? ' --ws ' + ws.id : '') + ' --as agent` for each, so every piece keeps its link back and the item counts as used.'
+        : 'Then end your reply with one `inspo use <id> --as task|post|script|note` line per item: I paste them into Reply and each piece keeps its link back.');
+    var lines = data ? [] : ['# Inspiration → ' + (intent || 'ideas'), ''];
     items.forEach(function (x, i) {
       lines.push('## ' + (i + 1) + '. ' + (x.title || x.url || 'untitled') + (x.tags.length ? '  #' + x.tags.join(' #') : ''));
       if (x.url) lines.push(x.url + (x.meta && x.meta.site ? ' (' + x.meta.site + ')' : ''));
@@ -124,7 +128,8 @@
       if (x.kind === 'image' || x.kind === 'file') lines.push(x.file ? '(' + x.kind + ': ' + x.file + (x.size ? ', ' + Math.round(x.size / 1024) + ' KB' : '') + ' — open it if you can read files; otherwise ask me to upload it)' : x.kind === 'file' && !x.stored ? '(file "' + (x.name || '') + '" was too large to copy; ask me for its path)' : '(' + x.kind + ' kept in the app only — ask me to upload it if it matters)');
       lines.push('');
     });
-    return lines.join('\n');
+    if (data) return lines.join('\n').replace(/\n+$/, '');
+    return global.Guide && Guide.compose ? Guide.compose(ask + '\n\n' + lines.join('\n'), { writes: true }) : ask + '\n\n' + lines.join('\n');
   }
   global.InspoModel = {
     KEY: KEY, KINDS: KINDS, STATUSES: STATUSES,

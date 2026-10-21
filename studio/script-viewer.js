@@ -587,6 +587,14 @@ function flash(msg) {
 }
 
 /* ---- Sync + palette ---- */
+// A pasted reply (Guide → Reply, core/apply.js) writes the browser copy directly. Take it before the file write
+// (400 ms later) reads this page's library, or the old text goes back to the file. The Guide calls this after Apply.
+window.refreshScripts = function () {
+  const saved = Store.getJSON(KEY, null); if (!saved || !Array.isArray(saved.scripts)) return;
+  library = normalizeLib(saved);   // keeps the reply's activeId: the new script after an add, the same one after a set
+  const s = getActive(); $('#scriptInput').value = s ? s.text : '';
+  renderList(); updatePreview({ skipSave: true });
+};
 function registerSync() {
   Sync.register({
     file: Config.file('scripts'), key: KEY, label: 'scripts', isFresh: () => Store.isFresh(KEY),   // the shared flag only: cleared by the first real write

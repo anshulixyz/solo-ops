@@ -34,6 +34,7 @@
   var fsSupported = typeof global.showDirectoryPicker === 'function';
   var listeners = [];
   var lastNote = {};                            // file → short description of the latest local change
+  var lastSource = {};                          // file → 'reply' when the next write is a pasted reply (Recent changes and undo tell it apart); 'ui' otherwise
 
   function meta() { return Store.getJSON(META_KEY, {}); }
   function setMeta(file, updatedAt) {
@@ -103,7 +104,7 @@
     });
   }
   function serverWrite(file, obj) {
-    return fetch('/api/data/' + file, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Marathon-Source': 'ui', 'X-Marathon-Note': (lastNote[file] || '').slice(0, 120) }, body: JSON.stringify(obj, null, 2) })
+    return fetch('/api/data/' + file, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Marathon-Source': lastSource[file] === 'reply' ? 'reply' : 'ui', 'X-Marathon-Note': (lastNote[file] || '').slice(0, 120) }, body: JSON.stringify(obj, null, 2) })
       .then(function (r) { if (!r.ok) throw new Error('write failed'); });
   }
   function staticRead(file) {
@@ -156,7 +157,7 @@
   // folder mode keeps the same data/log.jsonl the server and CLI use
   function folderLog(file, prevText) {
     if (/^(activity|log)\.json$/.test(file)) return Promise.resolve();
-    var rec = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ts: now(), file: file, source: 'ui', note: (lastNote[file] || '').slice(0, 120), prev: prevText && prevText.length <= 2 * 1024 * 1024 ? prevText : null, prevBytes: prevText ? prevText.length : 0 };
+    var rec = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ts: now(), file: file, source: lastSource[file] === 'reply' ? 'reply' : 'ui', note: (lastNote[file] || '').slice(0, 120), prev: prevText && prevText.length <= 2 * 1024 * 1024 ? prevText : null, prevBytes: prevText ? prevText.length : 0 };
     return dataDir.getFileHandle('log.jsonl', { create: true }).then(function (fh) { return fh.getFile().then(function (f) { return f.text(); }).then(function (t) {
       var lines = t.split('\n').filter(Boolean); lines.push(JSON.stringify(rec)); if (lines.length > 400) lines = lines.slice(lines.length - 400);
       return fh.createWritable().then(function (w) { return w.write(lines.join('\n') + '\n').then(function () { return w.close(); }); });
@@ -200,7 +201,7 @@
   }
   var lastWriteAt = '';
   function writeOne(spec) {
-    var obj = body(spec); lastWriteAt = now();
+    var obj = body(spec); lastWriteAt = now(); var sentNote = lastNote[spec.file], sentSource = lastSource[spec.file];   // what this write is labelled with: cleared once written, unless a newer change set its own
     // spec.keep: keys the file owns (settings.json → config). The file's copy wins every write unless this page changed
     // them (spec.dirty), so a theme click can never drop or roll back what the CLI wrote; spec.kept gets the written body.
     var keepFromFile = (mode === 'server' || mode === 'folder') && spec.keep && spec.keep.length && !(spec.dirty && spec.dirty());
@@ -210,7 +211,7 @@
       : reconcile ? readFile(spec.file).catch(function () { return null; }).then(function (f) { if (!f) return; var b = spec.reconcile(f) || spec.read() || {}; var stamp = obj.updatedAt; obj = { version: 1, updatedAt: stamp }; Object.keys(b).forEach(function (k) { obj[k] = b[k]; }); }) : Promise.resolve();
     setPillState('busy');
     return pre.then(function () { return mode === 'server' ? serverWrite(spec.file, obj) : mode === 'folder' ? folderWrite(spec.file, obj) : Promise.resolve(); })
-      .then(function () { lastSeen[spec.file + ':stamp'] = obj.updatedAt; render(); if (spec.clean) spec.clean(); emit('wrote', { file: spec.file }); if (spec.kept) spec.kept(obj); })
+      .then(function () { lastSeen[spec.file + ':stamp'] = obj.updatedAt; if (lastSource[spec.file] === sentSource) delete lastSource[spec.file]; if (lastNote[spec.file] === sentNote) delete lastNote[spec.file]; render(); if (spec.clean) spec.clean(); emit('wrote', { file: spec.file }); if (spec.kept) spec.kept(obj); })
       .catch(function (e) { render(); emit('error', { file: spec.file, error: e }); });
   }
   // Compare file vs local: newer file → apply; newer local (or no file) → write.
@@ -425,7 +426,7 @@
     // link metadata via the server (title, description); null elsewhere
     meta: function (url) { if (mode !== 'server') return Promise.resolve(null); return fetch('/api/meta?url=' + encodeURIComponent(url), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (j && j.redirect && !j.title) return fetch('/api/meta?url=' + encodeURIComponent(j.redirect)).then(function (r2) { return r2.ok ? r2.json() : null; }); return j; }).catch(function () { return null; }); },
     // describe the latest local change so the log can show "done: Write the README"
-    note: function (file, text) { lastNote[file] = text || ''; },
+    note: function (file, text, source) { lastNote[file] = text || ''; lastSource[file] = source === 'reply' ? 'reply' : 'ui'; },
     // change log (server mode only in the browser; the CLI covers every mode)
     log: function (n) { if (mode !== 'server') return Promise.resolve(null); return fetch('/api/log?n=' + (n || 20), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); },
     revert: function (id) { if (mode !== 'server') return Promise.resolve(false); return fetch('/api/revert/' + id, { method: 'POST' }).then(function (r) { return r.ok; }).then(function (ok) { if (ok) return pullAll(false).then(function () { return true; }); return false; }); },

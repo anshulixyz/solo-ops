@@ -479,7 +479,7 @@ var server = http.createServer(function (req, res) {
         try { JSON.parse(body); } catch (e) { return json(res, 400, { error: 'invalid json' }); }
         fs.mkdir(DATA, { recursive: true }, function () {
           var prev = ''; try { prev = fs.readFileSync(file, 'utf8'); } catch (e) { /* new file */ }
-          if (prev !== body && !/^(activity|log)\.json$/.test(m[1]) && !sameButStamp(prev, body)) logChange(m[1], prev, req.headers['x-marathon-source'] || 'ui', req.headers['x-marathon-note'] || '');
+          if (prev !== body && !/^(activity|log)\.json$/.test(m[1]) && !sameButStamp(prev, body)) logChange(m[1], prev, req.headers['x-marathon-source'] === 'reply' ? 'reply' : 'ui', req.headers['x-marathon-note'] || '');
           fs.writeFile(file, body.replace(/\n?$/, '\n'), 'utf8', function (err) {
             if (err) return json(res, 500, { error: err.code });
             json(res, 200, { ok: true });
@@ -507,7 +507,7 @@ var server = http.createServer(function (req, res) {
   var abs = path.normalize(path.join(ROOT, rel));
   if (abs !== ROOT && abs.indexOf(ROOT + path.sep) !== 0) return send(res, 403, 'forbidden', 'text/plain');
   var inside = path.relative(ROOT, abs).split(path.sep).join('/');   // after normalising, so /./data, //data and ..%2F cannot slip past
-  if (/^data(\/|$)/i.test(inside) && !/^data\/(attachments|exports)\/[^/]+$/i.test(inside)) return send(res, 403, 'data files go through /api/data/', 'text/plain');   // never identity.json, secrets.json, log.jsonl or a take's folder by URL
+  if (/^data(\/|$)/i.test(inside) && !/^data\/(attachments|exports)\/[^/]+$/i.test(inside) && !/^data\/SCHEMA\.md$/i.test(inside)) return send(res, 403, 'data files go through /api/data/', 'text/plain');   // never identity.json, secrets.json, log.jsonl or a take's folder by URL
   fs.stat(abs, function (err, st) {
     if (!err && st.isDirectory()) abs = path.join(abs, 'index.html');
     fs.readFile(abs, function (err2, buf) {

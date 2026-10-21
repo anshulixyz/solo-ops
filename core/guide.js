@@ -4,27 +4,35 @@
      exports them as slash commands). Agent mode: "runs commands" (Claude
      Code, Cursor, Codex) or "chat only" (ChatGPT, Claude.ai). Chat mode packs
      a snapshot of your data and the reply format into every prompt.
-   • Paste the reply → Apply (core/apply.js) updates boards, posts, scripts,
-     notes and inspiration right here. No terminal needed.
+   • Paste the reply → Preview → Apply (core/apply.js Apply.reply: preview and
+     apply share one path) updates boards, posts, scripts, notes and
+     inspiration right here, logged as source "reply". No terminal needed.
    • Tabs by intent: Quick (five-second actions across all projects, no
-     agent), Ask (search + prompts, this page first, groups collapsed),
-     Reply (paste → preview → apply), Settings. Blanks become a
-     small form before copying; a visible switch says how the agent works.
+     agent), Ask (Start here / Start with one, Ask your AI with its chips,
+     Next, For this page, the groups, search; the first open lands here),
+     Reply (paste → preview → apply), Settings. Blanks become a small form
+     before copying; a prompt that needs an open item says what to open; the
+     mode is guessed from how the page is open until you pick one.
    Opens from the left-edge handle, the nav button, or the ? key.
+   How it all works, every setting and its storage key: docs/guide.md.
    ========================================================================= */
 (function (global) {
   'use strict';
   var panel = null; var MODE_KEY = 'marathon.guide.mode'; var SEEN_KEY = 'marathon.guide.seen';
-  var PKEY = 'marathon.prompts';   // { custom:[{id,t,d,c,p,pages}], overrides:{ title:{t,d,p} }, hidden:[titles] } ↔ data/prompts.json
-  function pstore() { var v = Store.getJSON(PKEY, null); return v && typeof v === 'object' ? { custom: v.custom || [], overrides: v.overrides || {}, hidden: v.hidden || [] } : { custom: [], overrides: {}, hidden: [] }; }
+  var PKEY = 'marathon.prompts';   // { custom:[{id,t,d,c,p,pages}], overrides:{ title:{d,p,mode,at} }, hidden:[titles], removed:[custom ids], shown:[titles], reset:{ title: when } } ↔ data/prompts.json
+  function pstore() { var v = Store.getJSON(PKEY, null); return v && typeof v === 'object' ? { custom: v.custom || [], overrides: v.overrides || {}, hidden: v.hidden || [], removed: v.removed || [], shown: v.shown || [], reset: v.reset || {} } : { custom: [], overrides: {}, hidden: [], removed: [], shown: [], reset: {} }; }   // removed: ids of deleted prompts, shown: built-ins shown again, reset: when an edit was reset (so a merge never brings any of them back)
   function psave(v) { Store.setJSON(PKEY, v); }
   function registerPromptsSync() {
     if (!global.Sync) return;
     Sync.register({ file: 'prompts.json', key: PKEY, label: 'prompts', activity: false, merge: true,
       read: function () { return pstore(); },
-      apply: function (body) { var cur = pstore(); var inc = { custom: body.custom || [], overrides: body.overrides || {}, hidden: body.hidden || [] };
-        var seen = {}; var custom = inc.custom.concat(cur.custom).filter(function (c) { if (!c || !c.id || seen[c.id]) return false; seen[c.id] = 1; return true; });
-        Store.setJSON(PKEY, { custom: custom, overrides: Object.assign({}, cur.overrides, inc.overrides), hidden: inc.hidden.concat(cur.hidden).filter(function (h, i, a) { return a.indexOf(h) === i; }) }, { silent: true }); } });
+      apply: function (body) { var cur = pstore(); var inc = { custom: body.custom || [], overrides: body.overrides || {}, hidden: body.hidden || [], removed: body.removed || [], shown: body.shown || [], reset: body.reset || {} };
+        var reset = {}; [cur.reset, inc.reset].forEach(function (r) { Object.keys(r).forEach(function (t) { reset[t] = Math.max(reset[t] || 0, +r[t] || 0); }); });
+        var ovs = {}; [cur.overrides, inc.overrides].forEach(function (o) { Object.keys(o).forEach(function (t) { if (!ovs[t] || (+o[t].at || 0) >= (+ovs[t].at || 0)) ovs[t] = o[t]; }); });   // the newer edit of a title wins (the file's on a tie)
+        Object.keys(ovs).forEach(function (t) { if (reset[t] && reset[t] >= (+ovs[t].at || 0)) delete ovs[t]; });   // a reset (here, in another browser or `prompts restore --all`) beats every older edit
+        var uniq = function (a) { return a.filter(function (h, i) { return a.indexOf(h) === i; }); }; var removed = uniq(inc.removed.concat(cur.removed)); var shown = uniq(inc.shown.concat(cur.shown));
+        var seen = {}; var custom = inc.custom.concat(cur.custom).filter(function (c) { if (!c || !c.id || seen[c.id] || removed.indexOf(c.id) >= 0) return false; seen[c.id] = 1; return true; });
+        Store.setJSON(PKEY, { custom: custom, overrides: ovs, hidden: uniq(inc.hidden.concat(cur.hidden)).filter(function (h) { return shown.indexOf(h) < 0; }), removed: removed, shown: shown, reset: reset }, { silent: true }); } });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', registerPromptsSync); else setTimeout(registerPromptsSync, 0);
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -37,18 +45,9 @@
   function root() { var n = document.querySelector('[data-nav]'); return (n && n.getAttribute('data-root')) || './'; }
   function page() {
     var h = location.pathname.replace(/.*\//, '');
-    return { 'index.html': 'home', '': 'home', 'marathon-board.html': 'board', 'social-board.html': 'social', 'social-calendar.html': 'social', 'calendar.html': 'calendar', 'script-viewer.html': 'scripts', 'writing-viewer.html': 'writing', 'video.html': 'video', 'inspiration.html': 'inspo' }[h] || 'home';
+    return { 'index.html': 'home', '': 'home', 'overview.html': 'overview', 'about.html': 'about', 'marathon-board.html': 'board', 'social-board.html': 'social', 'social-calendar.html': 'streak', 'calendar.html': 'calendar', 'script-viewer.html': 'scripts', 'writing-viewer.html': 'writing', 'video.html': 'video', 'inspiration.html': 'inspo' }[h] || 'home';
   }
-  var ABOUT = {
-    home: ['Today across your projects: what is on now, what is in Doing, the week, your inbox and what changed. Each project card opens its Overview (boards, apps, rename).', 'The quick add puts a task in the open project; the Workspace menu in the nav switches it. Your AI: Start with one at the top of Ask, or /menu in your agent.'],
-    board: ['One board = one kanban: To Do → Doing → Done, a Later parking lot and a Bucket List for ideas. Cards carry checklists, priority, project, tags and private notes. A card tagged writing, script or video also carries its pieces: Draft, Script, Take and Post as pills, one next step that makes the piece for it, and attach for one that exists.', 'n adds a task · 1 / 2 / 3 switch views · ⌘K runs "add Fix the hero @launch #copy !high".'],
-    social: ['Above the copy: the task this post belongs to, with its pills, or Connect with a task…. A posting arc: each post has a date, copy, type, prep checklist, images and video status. Mark it posted to log engagement. Status: draft → ready → scheduled → posted.'],
-    scripts: ['Connect with a task… (in the toolbar) puts this script on a board card; the card then shows it as a pill with the draft, the take and the post. Tasks tagged script show at the top of the list as suggestions. Short-form scripts with a light structure: # Title, ## Hook, ## Script (numbered beats), ## Inserts, ## Prep. Reader shows spoken lines only; 9:16 previews the phone; Teleprompter scrolls at your pace.'],
-    writing: ['Connect with a task… (in the toolbar) puts this draft on a board card; tasks tagged writing show at the top of the list as suggestions, with Write the draft. Drafts with track changes you and your agent both read: ~~cut~~, ++add++, [[note for the AI]]. Copy for AI sends the markup; Copy clean sends the final text.'],
-    video: ['In the toolbar: the task this take belongs to, with its pills, or Connect with a task… (pick a board, find the task, or make a new one); tasks tagged video show at the top of the list with Add the take. Click a word and press Space: the take plays from there with your cuts skipped, the captions on it. Select the part you want and press K (Keep only this): the trim. Remove fillers and pauses takes um, uh and the long pauses in one click; Review first lists each one, and what was said twice, before you remove them. A misheard word: select it, press C, retype it. Render a preview, then the final with captions, and watch them in the same player. Every cut is saved and logged; Undo takes it back.', 'Cut it with my AI: the words go to your agent, it proposes the cut, you say yes, and the cut lands here. Terminal: `node solo.js video show <take>` prints the same words.'],
-    calendar: ['Everything with a date, in one place: tasks with a time or a deadline, meetings (a task with a time and the tag meeting), and posts. Agenda shows today onward with overdue first; Month shows the grid. Filter by board, meetings, posts; tick to finish; click to open the item where it lives.', 'Three ways in: + Add here, the + date chip on any card, or an agent: Ask → Fill my calendar reads the calendar it is connected to. Terminal: `node solo.js add "Call with X" --at tomorrow 14:00 --until 14:30 --tags meeting`; `node solo.js calendar` prints this agenda.'],
-    inspo: ['Everything worth keeping lands here. Tag with a project, then Use as task / post / script / draft, or tick a few and Brainstorm with AI. The capture strip on every page saves here.']
-  };
+  var ABOUT = {}; Object.keys((global.MARATHON_PROMPTS || {}).PAGES || {}).forEach(function (k) { ABOUT[k] = MARATHON_PROMPTS.PAGES[k].about; });   // the page help lives with the prompts (core/prompts.js PAGES), so docs/guide-prompts.md shows the same
   var GO = { calendar: ['calendar/calendar.html', 'the Calendar'], board: ['runway/marathon-board.html', 'the board'], social: ['social/social-board.html', 'the schedule'], scripts: ['studio/script-viewer.html', 'the Script Viewer'], writing: ['studio/writing-viewer.html', 'the Writing Viewer'], video: ['studio/video.html', 'Video'], inspo: ['inspo/inspiration.html', 'Inspiration'], home: ['index.html', 'Home'] };
 
   /* ---- snapshot of the open workspace (chat mode pastes this) ---------- */
@@ -93,10 +92,10 @@
     var list = P ? P.build(o) : []; var head = P ? P.head(o) : ''; if (!P) return list;
     // your edits (data/prompts.json): overrides of built-ins, hidden built-ins, your own prompts
     var ps = pstore();
-    list.forEach(function (x) { var ov = ps.overrides[x.t]; if (ov) { if (ov.d) x.d = ov.d; if (ov.p) x.p = ov.p; x.overridden = true; } });
+    list.forEach(function (x) { var ov = ps.overrides[x.t]; if (ov && (!ov.mode || ov.mode === o.mode)) { if (ov.d) x.d = ov.d; if (ov.p) x.p = ov.p; x.overridden = true; } });   // an edit made in one mode leaves the other mode's text alone (older edits, without a mode, apply to both)
     list = list.filter(function (x) { return ps.hidden.indexOf(x.t) < 0; });
-    ps.custom.forEach(function (c) { list.push({ c: c.c || 'projects', t: c.t || 'My prompt', d: c.d || '', p: c.p || '', pages: c.pages || [], custom: true, id: c.id, go: c.go }); });
-    list.forEach(function (x) { x.p = x.p.split('{{head}}').join(head); if (!files && (x.custom || x.overridden)) { if (x.p.indexOf('{{snapshot}}') < 0 && x.p.indexOf('{{recent}}') < 0 && x.p.indexOf('HOW TO REPLY') < 0) x.p += P.tail(o, { snap: true }); if (x.p.indexOf('HOW TO REPLY') < 0) x.p += P.tail(o, { writes: true }); } });   // your own prompts: snapshot when they carry no context, the reply legend always
+    ps.custom.forEach(function (c) { list.push({ c: c.c || 'projects', t: c.t || 'My prompt', d: c.d || '', p: c.p || '', pages: c.pages || [], custom: true, id: c.id, go: c.go, reply: files ? 'agent' : 'lines' }); });
+    list.forEach(function (x) { x.p = x.p.split('{{head}}').join(head); if (!files && (x.custom || (x.overridden && x.reply === 'lines'))) { if (x.custom && !/\{\{\w+\}\}/.test(x.p) && x.p.indexOf('HOW TO REPLY') < 0) x.p += P.tail(o, { snap: true }); if (x.p.indexOf('HOW TO REPLY') < 0) x.p += P.tail(o, { writes: true }); } });   // your own prompts: the snapshot when they carry no context, the reply legend; an edited built-in keeps what it was
     return list;
   }
   var I = {
@@ -144,17 +143,18 @@
     return '<span><b>Backup ' + (days === null ? 'set up' : days === 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago') + '</b>' + (backup.remote ? ' → ' + esc(backup.remote.replace(/^.*github\.com[:\/]/, '').replace(/\.git$/, '')) : ' (local repo only, no remote)') + (backup.dirty ? ' · ' + backup.dirty + ' file' + (backup.dirty === 1 ? '' : 's') + ' changed since' : '') + '</span>';
   }
   function backupDays() { return backup.state === 'ok' && backup.repo && backup.lastAt ? Math.floor((Date.now() - Date.parse(backup.lastAt)) / 86400000) : null; }
-  // tabs are named by intent: Do (what to ask) · Reply (bring the answer back) · Settings
+  // tabs are named by intent: Quick (no AI) · Ask (what to ask) · Reply (bring the answer back) · Settings
   var TAB_MAP = { moves: 'ask', prompts: 'ask', do: 'ask', apply: 'reply', setup: 'settings' };
   function tab() { var t = Store.get(TAB_KEY) || 'quick'; return TAB_MAP[t] || t; }
   var CAT_KEY = 'marathon.guide.cats';        // { daily: true, … } which groups are open
+  var CARRY_KEY = 'marathon.guide.carry';     // { text, ws, at }: reply lines handed to the page that saves their file (Continue on Home)
   var LAST_KEY = 'marathon.guide.lastCopy';   // { t, at, ws } the last prompt copied (Reply shows it)
   var query = '';
   function ago(ts) { return global.Activity && Activity.ago ? Activity.ago(ts) : 'a moment ago'; }
   function openCats() { return Store.getJSON(CAT_KEY, null) || {}; }
   function matches(x, q) { q = q.toLowerCase(); var cat = (CATS.filter(function (c) { return c[0] === x.c; })[0] || [])[1] || ''; return (x.t + ' ' + x.d + ' ' + cat + ' ' + x.p).toLowerCase().indexOf(q) >= 0; }
 
-  /* ---- render: tabs → Do · Reply · Settings ----------------------------- */
+  /* ---- render: tabs → Quick · Ask · Reply · Settings ----------------------- */
   function render() {
     var pg = page(); var w = Config.ws(); var m = effMode(); var guessed = !mode(); var r = root();
     var all = prompts(); var here = forPage(all, pg);
@@ -172,11 +172,12 @@
       '<div class="guide-body">' +
       (t === 'quick' ? quickSection() : '') +
       (t === 'ask' ? askSection(all, pg) + '<div class="guide-search-wrap">' + I.search + '<input type="search" class="guide-search" placeholder="Search prompts" value="' + esc(query) + '" aria-label="Search prompts"></div><div id="guideList"></div>' : '') +
-      (t === 'reply' ? '<div class="guide-status ' + (lc ? 'ok' : '') + '"><span class="dot"></span><span>' + (m === 'files' ? 'Your agent changes the files itself, so there is nothing to paste back. This tab is for an answer it gave as text.' : lc ? '<b>' + esc(lc.t) + '</b> copied ' + esc(ago(lc.at)) + '. Paste ' + who(m) + '\'s answer below.' : 'Ask something in <b>Ask</b>, send it to ' + who(m) + ', then paste the answer here.') + '</span></div>' +
+      (t === 'reply' ? '<div class="guide-status ' + (lc || carried && !carried.expired ? 'ok' : '') + '"><span class="dot"></span><span>' + (carried && carried.expired ? 'The lines handed to this page came too late (after 30 minutes) or for another project: paste the answer again.' : carried ? '<b>' + carried.n + ' line' + (carried.n === 1 ? '' : 's') + ' from your reply on ' + esc(carried.from) + '</b>: check ' + (carried.n === 1 ? 'it' : 'them') + ' and press Apply.' : m === 'files' ? 'Your agent changes the files itself, so there is nothing to paste back. This tab is for an answer it gave as text.' : lc ? '<b>' + esc(lc.t) + '</b> copied ' + esc(ago(lc.at)) + '. Paste ' + who(m) + '\'s answer below.' : 'Ask something in <b>Ask</b>, send it to ' + who(m) + ', then paste the answer here.') + '</span></div>' +
         (m === 'files' ? '<p class="guide-note">Your agent writes the files itself, so you rarely need this. Use it when it answers in the chat instead.</p>' : '') +
-        '<textarea class="guide-reply" rows="8" placeholder="Paste the whole answer here. The changes are picked out for you, and nothing happens until you press Preview."></textarea>' +
+        (['overview', 'about'].indexOf(pg) >= 0 ? '<p class="guide-note">This page shows your project but does not save it: paste the answer on the <a href="' + r + 'calendar/calendar.html">Calendar</a> (tasks and posts), on <a href="' + r + 'index.html">Home</a> (inspiration), or on the page it is about.</p>' : '') +
+        '<textarea class="guide-reply" rows="8" placeholder="Paste the whole answer here. The changes are picked out for you, and nothing happens until you press Preview.">' + esc(replyDraft.text) + '</textarea>' +
         '<div class="guide-row"><button type="button" class="gp-copy guide-preview">Preview changes</button><button type="button" class="guide-snap guide-snapbtn" title="Copy a text snapshot of this workspace for any chat">Copy project</button></div>' +
-        '<div class="guide-plan"></div><div class="guide-result"></div>' +
+        '<div class="guide-plan"></div><div class="guide-result"></div><div class="guide-away"></div>' +
         '<details class="guide-sec small"><summary>How this works</summary><p>Your agent answers with a list of changes (or a plain checklist). Paste it here and press <b>Preview</b>: you see every change before anything happens, untick what you do not want, then <b>Apply</b>. The changes land in this workspace. Nothing runs on your computer, nothing is deleted, and every change shows in Home → Recent changes where it can be reverted.</p></details>' +
         (m === 'files' && global.Sync && Sync.getMode() === 'server' ? '<h4>Recent agent changes</h4><div class="guide-agentlog">Loading…</div>' : '') : '') +
       (t === 'settings' ? '<h4>How does your AI agent work?</h4><div class="guide-modes">' +
@@ -193,10 +194,11 @@
           '<div class="guide-opt"><b>3 · No GitHub: a folder that syncs</b><span>iCloud Drive, Dropbox or Google Drive. A plain copy, no git.</span><div class="guide-cmd"><code>node solo.js backup --to "' + esc(navigator.platform.indexOf('Mac') >= 0 ? '~/Library/Mobile Documents/com~apple~CloudDocs/Solo Ops backup' : '~/Dropbox/Solo Ops backup') + '"</code><button type="button" class="guide-snap gd-copy" data-copy="' + esc('node solo.js backup --to "' + (navigator.platform.indexOf('Mac') >= 0 ? '~/Library/Mobile Documents/com~apple~CloudDocs/Solo Ops backup' : '~/Dropbox/Solo Ops backup') + '"') + '">Copy</button></div></div>' +
           '<p class="guide-note">Then once: <code>node solo.js backup --daily</code> and it repeats every evening.' + (backup.state === 'n/a' ? ' Already keep a copy another way? <button type="button" class="guide-link gd-ack">Mark as done</button>' : '') + '</p>') +
         (backupDone() ? '<p>Every change is logged and can be reverted from Home → Recent changes. A pasted reply never deletes anything. Your tasks never enter the public Solo Ops repo; the backup above is their private home. <code>node solo.js backup</code> runs it again, <code>--daily</code> schedules it.' + (Store.get(ACK_KEY) && !backupOk() ? ' <button type="button" class="guide-link gd-unack">Show the setup again</button>' : '') + '</p>' : '') +
-        all.filter(function (x) { return x.c === 'fix' && x.t !== 'Set up a private backup'; }).map(function (x) { return row(all, x, pg); }).join('') +
+        all.filter(function (x) { return x.c === 'fix' && x.t !== 'Set up a private backup' && !(m === 'chat' && x.slug === 'undo-agent'); }).map(function (x) { return row(all, x, pg); }).join('') +
+        (m === 'chat' ? '<p class="guide-note">Undo a change: <a href="' + r + 'index.html">Home</a> → Recent changes → Restore (with <code>node serve.js</code> running), or <code>node solo.js revert &lt;id&gt;</code> in a terminal.</p>' : '') +
         (pstore().hidden.length ? '<p><button type="button" class="guide-snap pe-restore">Show ' + pstore().hidden.length + ' hidden built-in prompt' + (pstore().hidden.length === 1 ? '' : 's') + '</button></p>' : '') +
         '<h4>Your data</h4>' + dataSection() +
-        '<h4>Read more</h4><p><a href="' + r + 'about.html">About Solo Ops: why, how, what is next</a> · <a href="' + r + 'README.md" target="_blank">README</a> · <a href="' + r + 'AGENTS.md" target="_blank">AGENTS.md</a> · <a href="' + r + 'prompts/agent-bootstrap.md" target="_blank">bootstrap prompt</a> · <a href="' + r + 'data/SCHEMA.md" target="_blank">data schema</a> · <a href="' + r + 'NEXT.md" target="_blank">what is next</a></p>' : '') +
+        '<h4>Read more</h4><p><a href="' + r + 'about.html">About Solo Ops: why, how, what is next</a> · <a href="' + r + 'README.md" target="_blank">README</a> · <a href="' + r + 'AGENTS.md" target="_blank">AGENTS.md</a> · <a href="' + r + 'prompts/agent-bootstrap.md" target="_blank">bootstrap prompt</a> · <a href="' + r + 'data/SCHEMA.md" target="_blank">data schema</a> · <a href="' + r + 'docs/guide.md" target="_blank">how the Guide works</a> · <a href="' + r + 'NEXT.md" target="_blank">what is next</a></p>' : '') +
       '</div>';
     panel.querySelector('.guide-close').onclick = close;
     Array.prototype.forEach.call(panel.querySelectorAll('.guide-tab'), function (b) { b.onclick = function () { Store.set(TAB_KEY, b.dataset.tab, { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); render(); }; });
@@ -221,7 +223,10 @@
     if (t === 'settings') bindList(all);
     if (t === 'reply') {
       panel.querySelector('.guide-reply').addEventListener('input', function () { panel.querySelector('.guide-plan').innerHTML = ''; });
-      panel.querySelector('.guide-preview').onclick = previewReply; var sb = panel.querySelector('.guide-snapbtn'); sb.onclick = function () { copyText(snapshot(), sb, 'Copied'); };
+      panel.querySelector('.guide-preview').onclick = previewReply; var rta = panel.querySelector('.guide-reply'); rta.oninput = function () { replyDraft.text = rta.value; replyDraft.previewed = false; };
+      if (replyDraft.previewed && replyDraft.text.trim()) setTimeout(previewReply, 0);   // a re-render (the backup status arriving) keeps the preview
+      fillAway();
+      var sb = panel.querySelector('.guide-snapbtn'); sb.onclick = function () { copyText(snapshot(), sb, 'Copied'); };
       var al = panel.querySelector('.guide-agentlog');
       if (al) Sync.log(12).then(function (recs) { var rows = (recs || []).filter(function (x) { return x.source === 'agent'; }).slice(0, 6); al.innerHTML = rows.length ? '<ul class="guide-log">' + rows.map(function (x) { return '<li><b>' + esc(x.note || x.file) + '</b><span>' + esc(x.file) + ' · ' + esc(ago(x.ts)) + '</span></li>'; }).join('') + '</ul><p class="guide-note">Revert any of them from Home → Recent changes.</p>' : '<p class="guide-note">No agent changes yet. Open the folder in your agent and ask for a standup.</p>'; });
     }
@@ -269,8 +274,9 @@
       '<p class="guide-foot-note">Doing first, then To Do by priority. ▶ starts a task, ✓ finishes it, the badge changes priority. Every change is logged like any other.' + (pg !== 'board' ? ' Boards update when you open them.' : '') + '</p>';
   }
   /* ---- Ask: one box, what you want in plain words, with the context attached ------ */
+  var replyDraft = { text: '', previewed: false };   // Reply's pasted answer, kept across re-renders like the Ask box
   var ask = { text: '', chips: null, focus: false, more: false };   // survives the re-renders (open() re-renders twice while the backup status and folder arrive)
-  var ASK_DEFAULT = { board: ['this', 'board'], social: ['this', 'posts'], scripts: ['this'], writing: ['this'], video: ['take'], inspo: ['inspiration_new'], calendar: ['schedule', 'recent'], home: ['recent', 'schedule'] };
+  var ASK_DEFAULT = {}; Object.keys((global.MARATHON_PROMPTS || {}).PAGES || {}).forEach(function (k) { ASK_DEFAULT[k] = MARATHON_PROMPTS.PAGES[k].chips; });   // what "Sends along" ticks first on each page
   function who(m) { return m === 'files' ? 'your agent' : 'your AI'; }
   function askChips(pg) {
     if (!ask.chips) { var d = (ASK_DEFAULT[pg] || ASK_DEFAULT.home).slice(); if (d.indexOf('this') >= 0 && !hasThis()) { d = d.filter(function (c) { return c !== 'this'; }); if (!d.length) d = ['recent']; } ask.chips = d; }
@@ -291,8 +297,10 @@
   }
   function startSlugs() {   // Home, Board, Calendar: getting started, then the moment of the day; the other pages: their own first three
     var P = global.MARATHON_PROMPTS; if (!P || !P.startWith) return []; var pg = page();
-    if (['home', 'board', 'calendar'].indexOf(pg) < 0 && P.FOR_PAGE && P.FOR_PAGE[pg]) return P.FOR_PAGE[pg].slice(0, 3);
-    return P.startWith(projectEmpty(), new Date().getHours());
+    var hidden = pstore().hidden; var titles = startSlugs.titles || (startSlugs.titles = (function () { var m = {}; P.build({ mode: 'chat' }).forEach(function (y) { m[y.slug] = y.t; }); return m; })()); var ok = function (sl) { return hidden.indexOf(titles[sl]) < 0; };   // titles do not change with the mode
+    var gettingStarted = ['home', 'board', 'calendar'].indexOf(pg) >= 0 || (pg === 'overview' && projectEmpty());   // an empty Overview starts like Home
+    if (!gettingStarted && P.FOR_PAGE && P.FOR_PAGE[pg]) return P.FOR_PAGE[pg].filter(ok).slice(0, 3);
+    return P.startWith(projectEmpty(), new Date().getHours()).filter(ok);   // a hidden prompt is never offered
   }
   function startSection(all) {   // "Start with one": an empty project gets Get started; otherwise the moment of the day (core/prompts.js startWith)
     var m = effMode(); var list = startSlugs().map(function (sl) { return all.filter(function (x) { return x.slug === sl; })[0]; }).filter(Boolean); if (!list.length) return '';
@@ -317,7 +325,7 @@
     ta.onkeydown = function (e) { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); copyAsk(pg); } };
     if (ask.focus) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
     Array.prototype.forEach.call(panel.querySelectorAll('.guide-chip'), function (b) { b.onclick = function () { if (b.dataset.more) { ask.more = true; render(); return; } var c = askChips(pg); var i = c.indexOf(b.dataset.chip); if (i >= 0) c.splice(i, 1); else c.push(b.dataset.chip); render(); }; });
-    Array.prototype.forEach.call(panel.querySelectorAll('.guide-start-b'), function (b) { b.onclick = function () { var x = all.filter(function (y) { return y.slug === b.dataset.slug; })[0]; if (!x) return; if (blanks(x).length) { openPrompt(x.slug); return; } copyPrompt(x, b); }; });
+    Array.prototype.forEach.call(panel.querySelectorAll('.guide-start-b'), function (b) { b.onclick = function () { var x = all.filter(function (y) { return y.slug === b.dataset.slug; })[0]; if (!x) return; var nd = needs(x); if (nd) { var bt = b.querySelector('.gp-t'); var was = bt.textContent; bt.textContent = nd; setTimeout(function () { bt.textContent = was; }, 2200); return; } if (blanks(x).length) { openPrompt(x.slug, { form: true }); return; } copyPrompt(x, b); }; });
     panel.querySelector('.guide-ask-copy').onclick = function () { copyAsk(pg); };
     var tc = panel.querySelector('.guide-teach-copy'); if (tc) tc.onclick = function () { copyText(global.Context ? Context.fill(all[+tc.dataset.i].p) : all[+tc.dataset.i].p, tc, 'Copied'); };   // not finish(): nothing to paste back after the setup text
   }
@@ -373,10 +381,12 @@
   }
   // the Ask tab's list: search results, or nudges + this page + groups + about
   function forPage(all, pg) {
-    var P = global.MARATHON_PROMPTS || {}; var order = (projectEmpty() && ['home', 'board', 'calendar'].indexOf(pg) >= 0 ? (P.GET_STARTED || []) : []).concat((P.FOR_PAGE || {})[pg] || []);
+    var P = global.MARATHON_PROMPTS || {}; var order = (projectEmpty() && ['home', 'board', 'calendar', 'overview'].indexOf(pg) >= 0 ? (P.GET_STARTED || []) : []).concat((P.FOR_PAGE || {})[pg] || []);
     var rank = function (x) { var i = order.indexOf(x.slug); return i < 0 ? 1000 + all.indexOf(x) : i; };
-    return all.filter(function (x) { return x.pages.indexOf(pg) >= 0; }).sort(function (a, b) { return rank(a) - rank(b); });
+    var empty = projectEmpty() && ['home', 'board', 'calendar', 'overview'].indexOf(pg) >= 0;   // nothing on the board yet: only what works without tasks
+    return all.filter(function (x) { return x.pages.indexOf(pg) >= 0 && (!empty || x.custom || (P.EMPTY_OK || []).indexOf(x.slug) >= 0); }).sort(function (a, b) { return rank(a) - rank(b); });
   }
+  // the groups never repeat what Start shows, except the prompt being opened (Start here on a prompt with blanks opens its form there)
   function renderList(all, here, pg) {
     var el = panel.querySelector('#guideList'); var m = effMode(); var sw = startSlugs(); here = here.filter(function (x) { return sw.indexOf(x.slug) < 0; });
     if (query) {
@@ -388,7 +398,7 @@
     var top = here.slice(0, 5); var open = openCats();
     el.innerHTML = '<div class="guide-moves compact" id="guideMoves"></div>' +
       (top.length ? '<div class="guide-cat"><span class="cat-ic">' + I.link + '</span><b>For this page</b></div>' + top.map(function (x) { return row(all, x, pg); }).join('') : '') +
-      CATS.filter(function (c) { return ASK.indexOf(c[0]) >= 0; }).map(function (c) { var g = all.filter(function (x) { return x.c === c[0] && top.indexOf(x) < 0; }); if (!g.length) return ''; return '<details class="guide-sec" data-cat="' + c[0] + '"' + (open[c[0]] ? ' open' : '') + '><summary><span class="cat-ic">' + I[c[0]] + '</span><b>' + esc(c[1]) + '</b><span class="cat-sub">' + esc(c[2]) + '</span><span class="guide-hint">' + g.length + '</span><button type="button" class="cat-add" data-cat="' + c[0] + '" title="Add my own prompt here">+</button></summary>' + g.map(function (x) { return row(all, x, pg); }).join('') + '<div class="gp-new" data-cat="' + c[0] + '"></div></details>'; }).join('') +
+      CATS.filter(function (c) { return ASK.indexOf(c[0]) >= 0; }).map(function (c) { var g = all.filter(function (x) { return x.c === c[0] && top.indexOf(x) < 0 && (startSlugs().indexOf(x.slug) < 0 || x.slug === pendingSlug); }); if (!g.length) return ''; return '<details class="guide-sec" data-cat="' + c[0] + '"' + (open[c[0]] ? ' open' : '') + '><summary><span class="cat-ic">' + I[c[0]] + '</span><b>' + esc(c[1]) + '</b><span class="cat-sub">' + esc(c[2]) + '</span><span class="guide-hint">' + g.length + '</span><button type="button" class="cat-add" data-cat="' + c[0] + '" title="Add my own prompt here">+</button></summary>' + g.map(function (x) { return row(all, x, pg); }).join('') + '<div class="gp-new" data-cat="' + c[0] + '"></div></details>'; }).join('') +
       '<details class="guide-sec" data-cat="about"' + (open.about ? ' open' : '') + '><summary><span class="cat-ic">' + I.moves + '</span><b>This page</b><span class="cat-sub">what it does · shortcuts</span></summary>' + (ABOUT[pg] || []).map(function (x) { return '<p>' + esc(x) + '</p>'; }).join('') + '<p>⌘K commands · ⌘⇧I capture · ? this guide · n add · 1/2/3 board views</p></details>' +
       '<p class="guide-foot-note">Click a prompt to copy it' + (m === 'chat' ? '; it carries a snapshot of this workspace and the reply format, so a fresh chat needs no setup' : m === 'files' ? '; it tells the agent what to read and change. The same prompts are slash commands in Claude Code and Cursor: type /menu there for the list by moment of the day' : '') + '. ✎ edits a prompt, + adds your own.</p>';
     bindList(all); focusPending(all);
@@ -403,7 +413,7 @@
   function row(all, x, pg) {
     var i = all.indexOf(x); var bl = blanks(x); var m = effMode();
     var tip = (bl.length ? 'Asks for ' + bl.join(', ') + ', then copies' : 'Copies this prompt') + (m === 'chat' ? ' with a snapshot of this workspace' : '') + '.';
-    return '<div class="guide-prompt row' + (x.custom ? ' custom' : '') + '" data-i="' + i + '"><button type="button" class="gp-main" title="' + esc(tip) + '"><span class="gp-t">' + esc(x.t) + '</span>' + (m === 'files' && x.builtin && !x.overridden && x.slug && (x.c !== 'setup' || x.slash) ? '<code class="gp-slash" title="Type this in Claude Code or Cursor">/' + esc(x.slug) + '</code>' : '') + (x.custom ? '<span class="gp-mine">mine</span>' : x.overridden ? '<span class="gp-mine">edited</span>' : '') + '</button><button type="button" class="gp-edit" title="Edit this prompt" data-i="' + i + '"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button><div class="gp-d">' + esc(x.d) + (x.go && x.go !== pg ? ' <span class="gp-go">Then open ' + esc(GO[x.go] ? GO[x.go][1] : x.go) + '.</span>' : '') + '</div><div class="gp-form"></div></div>';
+    return '<div class="guide-prompt row' + (x.custom ? ' custom' : '') + '" data-i="' + i + '"><button type="button" class="gp-main" title="' + esc(tip) + '"><span class="gp-t">' + esc(x.t) + '</span>' + (m === 'files' && x.builtin && !x.overridden && x.slug && (x.c !== 'setup' || x.slash) ? '<code class="gp-slash" title="Type this in Claude Code or Cursor">/' + esc(x.slug) + '</code>' : '') + (x.custom ? '<span class="gp-mine">mine</span>' : x.overridden ? '<span class="gp-mine">edited</span>' : '') + '</button><button type="button" class="gp-edit" title="Edit this prompt" data-i="' + i + '"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button><div class="gp-d">' + esc(x.d) + (x.go && x.go !== pg ? ' <span class="gp-go">Then open ' + esc(GO[x.go] ? GO[x.go][1] : x.go) + '.</span>' : '') + (m === 'chat' && x.reply === 'terminal' ? ' <span class="gp-go">Ends in commands you run yourself, in a terminal in your Solo Ops folder (or paste it into Claude Code or Cursor, which run them).</span>' : '') + (needs(x) ? ' <span class="gp-go">' + esc(needs(x)) + '.</span>' : '') + '</div><div class="gp-form"></div></div>';
   }
 
   /* ---- your data: where it is, auto-save, export / import, backups ---- */
@@ -487,7 +497,7 @@
     if (!anyFresh && tasks.length > 3 && backup.state !== 'unknown') {
       if (backupDone() && backup.state === 'ok' && backup.repo && backupDays() !== null && backupDays() >= 7) out.push({ s: 'Last backup was ' + backupDays() + ' days ago.', p: by('Back up now') });
     }
-    var sw = startSlugs(); out = out.filter(function (mv) { return !mv.p || sw.indexOf(mv.p.slug) < 0; });   // never twice: Start here already shows it
+    var sw = startSlugs(); out = out.filter(function (mv) { return mv.open || (mv.p && sw.indexOf(mv.p.slug) < 0); });   // never twice (Start here shows it), never a move whose prompt is hidden
     return out.slice(0, 4);
   }
   function renderMoves(all) {
@@ -517,7 +527,7 @@
       '<label>Category<select class="pe-c">' + CATS.map(function (c) { return '<option value="' + c[0] + '"' + ((x ? x.c : cat) === c[0] ? ' selected' : '') + '>' + esc(c[1]) + '</option>'; }).join('') + '</select></label>' +
       '<label>One line, what it does<input class="pe-d" value="' + esc(x ? x.d : '') + '"></label>' +
       '<label>Prompt<textarea class="pe-p" rows="8">' + esc(x ? x.p : '{{head}}') + '</textarea></label>' +
-      '<div class="pe-hint">Blanks like <code>&lt;idea&gt;</code> become fields. <code>{{head}}</code> = agent preamble. Context tokens: <code>{{recent}}</code> <code>{{last_task}}</code> <code>{{this}}</code> <code>{{project}}</code> <code>{{board}}</code> <code>{{doing}}</code> <code>{{posts}}</code> <code>{{inspiration}}</code> <code>{{inspiration_new}}</code> <code>{{shipped}}</code> <code>{{take}}</code> — the same things as the Copy context menu.</div>' +
+      '<div class="pe-hint">Blanks like <code>&lt;idea&gt;</code> become fields. <code>{{head}}</code> = agent preamble. Context tokens: <code>{{recent}}</code> <code>{{last_task}}</code> <code>{{this}}</code> <code>{{project}}</code> <code>{{board}}</code> <code>{{doing}}</code> <code>{{posts}}</code> <code>{{inspiration}}</code> <code>{{inspiration_new}}</code> <code>{{shipped}}</code> <code>{{schedule}}</code> <code>{{take}}</code> — the same things as the Copy context menu. An edit of a built-in applies to the mode you are in.</div>' +
       '<div class="guide-row"><button type="button" class="gp-copy pe-save">Save</button>' + (x && x.builtin && x.overridden ? '<button type="button" class="guide-snap pe-reset">Reset to default</button>' : '') + (x && x.custom ? '<button type="button" class="guide-snap pe-del">Delete</button>' : x && x.builtin ? '<button type="button" class="guide-snap pe-hide" title="Hide this built-in prompt">Hide</button>' : '') + '<button type="button" class="guide-snap pe-cancel">Cancel</button></div></div>';
   }
   function editPrompt(x, card) {
@@ -527,12 +537,12 @@
     form.querySelector('.pe-save').onclick = function () {
       var ps = pstore(); var v = { t: form.querySelector('.pe-t').value.trim() || x.t, d: form.querySelector('.pe-d').value.trim(), p: form.querySelector('.pe-p').value, c: form.querySelector('.pe-c').value };
       if (x.custom) { ps.custom = ps.custom.map(function (c) { return c.id === x.id ? Object.assign({}, c, v) : c; }); }
-      else { ps.overrides[x.t] = { d: v.d, p: v.p }; if (v.c !== x.c || v.t !== x.t) { ps.hidden.push(x.t); ps.custom.push({ id: 'c' + Date.now().toString(36), t: v.t, d: v.d, p: v.p, c: v.c, pages: x.pages }); delete ps.overrides[x.t]; } }
+      else { ps.overrides[x.t] = { d: v.d, p: v.p, mode: mode() || envMode(), at: Date.now() }; if (v.c !== x.c || v.t !== x.t) { ps.hidden.push(x.t); ps.custom.push({ id: 'c' + Date.now().toString(36), t: v.t, d: v.d, p: v.p, c: v.c, pages: x.pages }); delete ps.overrides[x.t]; ps.reset[x.t] = Date.now(); } }
       psave(ps); if (global.Sync) Sync.note('prompts.json', 'edited prompt: ' + v.t); render();
     };
-    var rs = form.querySelector('.pe-reset'); if (rs) rs.onclick = function () { var ps = pstore(); delete ps.overrides[x.t]; psave(ps); render(); };
-    var dl = form.querySelector('.pe-del'); if (dl) dl.onclick = function () { if (!confirm('Delete "' + x.t + '"?')) return; var ps = pstore(); ps.custom = ps.custom.filter(function (c) { return c.id !== x.id; }); psave(ps); render(); };
-    var hd = form.querySelector('.pe-hide'); if (hd) hd.onclick = function () { var ps = pstore(); ps.hidden.push(x.t); psave(ps); render(); };
+    var rs = form.querySelector('.pe-reset'); if (rs) rs.onclick = function () { var ps = pstore(); delete ps.overrides[x.t]; ps.reset[x.t] = Date.now(); psave(ps); render(); };
+    var dl = form.querySelector('.pe-del'); if (dl) dl.onclick = function () { if (!confirm('Delete "' + x.t + '"?')) return; var ps = pstore(); ps.custom = ps.custom.filter(function (c) { return c.id !== x.id; }); ps.removed.push(x.id); psave(ps); render(); };
+    var hd = form.querySelector('.pe-hide'); if (hd) hd.onclick = function () { var ps = pstore(); ps.hidden.push(x.t); ps.shown = ps.shown.filter(function (h) { return h !== x.t; }); psave(ps); render(); };
   }
   function newPrompt(cat, slot) {
     if (slot.innerHTML) { slot.innerHTML = ''; return; }
@@ -545,11 +555,20 @@
     };
     slot.querySelector('.pe-t').focus();
   }
-  function restoreHidden() { var ps = pstore(); ps.hidden = []; psave(ps); render(); }
+  function restoreHidden() { var ps = pstore(); ps.shown = ps.shown.concat(ps.hidden); ps.hidden = []; psave(ps); render(); }
 
+  // what a prompt needs before it can copy something useful: an open item, a task, a take. '' when it is ready.
+  function needs(x) {
+    if (!x || !x.arg || !global.Context) return '';
+    if (x.arg === 'item') return hasThis() ? '' : (page() === 'board' ? 'Open a task first' : 'Open a script, draft or post first');
+    if (x.arg === 'task') return /^\(/.test(Context.get('last_task')) ? 'Open or start a task first' : '';
+    if (x.arg === 'take') return /^\(/.test(Context.get('take')) ? 'Add a take first (the Video page)' : '';
+    return '';
+  }
   function bindCard(card, x) {
     var form = card.querySelector('.gp-form'); var main = card.querySelector('.gp-main'); var desc = card.querySelector('.gp-d'); if (desc) { desc.style.cursor = 'pointer'; desc.onclick = function (e) { if (e.target.closest && e.target.closest('a,button')) return; main.click(); }; }
     main.onclick = function () {
+      var nd = needs(x); if (nd) { var tt = card.querySelector('.gp-t'); var was = tt.textContent; tt.textContent = nd; card.classList.add('copied'); setTimeout(function () { tt.textContent = was; card.classList.remove('copied'); }, 2200); return; }
       var bl = blanks(x);
       if (!bl.length) { finish(x.p, card, x); return; }
       if (form.innerHTML) { form.innerHTML = ''; card.classList.remove('open'); return; }
@@ -560,55 +579,104 @@
     };
   }
   function finish(text, card, x) {
-    if (x && x.reviews && global.InspoModel) setTimeout(function () { InspoModel.markReviewed(); }, 0);
+    if (x && x.reviews && global.InspoModel && effMode() === 'files') setTimeout(function () { InspoModel.markReviewed(); }, 0);   // the agent assesses right away; a chat's assessment counts when its answer is applied
     if (x && x.t) Store.setJSON(LAST_KEY, { t: x.t, at: Date.now(), ws: Config.activeWs() }, { silent: true });
     text = global.Context ? Context.fill(text) : text.replace('{{snapshot}}', snapshot());
     copyText(text, card, 'Copied — paste into ' + who(mode()) + (x.go && x.go !== page() ? ' · then open ' + GO[x.go][1] : ''));
   }
   function copyPrompt(x, el) {   // copy one prompt now, with the next step in the message (Start here, Home's welcome card)
+    if (needs(x)) return Promise.resolve(false);
     var files = effMode() === 'files';
-    if (x.reviews && global.InspoModel) setTimeout(function () { InspoModel.markReviewed(); }, 0);
+    if (x.reviews && global.InspoModel && files) setTimeout(function () { InspoModel.markReviewed(); }, 0);
     Store.setJSON(LAST_KEY, { t: x.t, at: Date.now(), ws: Config.activeWs() }, { silent: true });
     var text = global.Context ? Context.fill(x.p) : x.p.replace('{{snapshot}}', snapshot());
-    return copyText(text, el || document.body, files ? 'Copied. Or just type /' + x.slug + ' in your agent.' : 'Copied: paste it into ChatGPT or Claude, then bring the answer back in Reply.');
+    return copyText(text, el || null, files ? 'Copied. Or just type /' + x.slug + ' in your agent.' : (['overview', 'about'].indexOf(page()) >= 0 ? 'Copied: paste it into ChatGPT or Claude, then bring the answer back to the Reply on the Calendar (tasks and posts) or Home (inspiration).' : 'Copied: paste it into ChatGPT or Claude, then bring the answer back in Reply.'));
   }
   function prefillOf(x) { if (typeof x.prefill === 'function') return x.prefill(); if (typeof x.prefill === 'string') { var e = document.getElementById(x.prefill); return e ? e.value : ''; } return ''; }
   function blanks(x) { return global.MARATHON_PROMPTS && MARATHON_PROMPTS.blanks ? MARATHON_PROMPTS.blanks(x.p) : []; }   // real <blanks> only: the reply legend and `CLI examples` are notation (core/prompts.js)
-  function copyText(text, el, msg) {   // → Promise<boolean>: true when the clipboard took it
+  function copyText(text, el, msg) {   // → Promise<boolean>: true when the clipboard took it; el null = no flash (the caller says it)
     return navigator.clipboard.writeText(text).then(function () {
+      if (!el) return true;
       var t = el.querySelector ? (el.querySelector('.gp-t') || el) : el; var old = t.textContent; el.classList.add('copied'); t.textContent = msg;
       setTimeout(function () { el.classList.remove('copied'); t.textContent = old; }, 2200); return true;
     }).catch(function () { try { prompt('Copy this:', text); } catch (e) { /* embedded browsers */ } return false; });
   }
   function previewReply() {
     var ta = panel.querySelector('.guide-reply'); var out = panel.querySelector('.guide-result'); var planEl = panel.querySelector('.guide-plan'); var text = ta.value.trim();
+    replyDraft.text = ta.value; replyDraft.previewed = !!text; stillAway = []; fillAway();
     out.innerHTML = '';
     if (!text) { out.textContent = 'Paste the agent\'s reply first.'; return; }
     if (!global.Apply) { out.textContent = 'Apply is not loaded on this page.'; return; }
-    var units = Apply.plan(text, { ws: Config.activeWs() });
-    if (!units.length) { out.textContent = 'No commands or checklist items found in that text.'; return; }
-    planEl.innerHTML = '<div class="guide-plan-h">' + units.filter(function (u) { return u.ok; }).length + ' change' + (units.length === 1 ? '' : 's') + ' found — untick anything you do not want</div>' +
-      units.map(function (u, i) { return '<label class="guide-unit' + (u.ok ? '' : ' off') + '"><input type="checkbox" data-i="' + i + '"' + (u.ok ? ' checked' : ' disabled') + '><span>' + esc(u.label) + (u.ok ? '' : ' <em>' + esc(u.reason) + '</em>') + '</span></label>'; }).join('') +
-      '<button type="button" class="gp-copy guide-apply">Apply selected to ' + esc(Config.ws().title) + '</button>';
-    planEl.querySelector('.guide-apply').onclick = function () {
-      var chosen = Array.prototype.filter.call(planEl.querySelectorAll('input[type=checkbox]'), function (c) { return c.checked && !c.disabled; }).map(function (c) { return units[+c.dataset.i].text; });
-      if (!chosen.length) { out.textContent = 'Nothing selected.'; return; }
-      applyReply(chosen.join('\n'));
+    var rep2 = Apply.reply(text, { ws: Config.activeWs() }); var units = rep2.units;
+    if (!units.length) { out.textContent = 'No command lines or "- [ ]" checklist items in that text. Ask your AI to end with the lines in one ``` block.'; return; }
+    var nOk = units.filter(function (u) { return u.ok; }).length; var away = mergeGroups(awayGroups(units), carried && carried.rest || []); var names = away.map(function (g) { return g.name; }).join(' and ');
+    var nAwayLines = units.filter(function (u) { return !u.ok && u.away; }).length;
+    planEl.innerHTML = '<div class="guide-plan-h">' + (nOk ? nOk + ' change' + (nOk === 1 ? '' : 's') + ' here' + (nAwayLines ? ' · ' + nAwayLines + ' more on ' + esc(names) + ', after you apply these' : ' — untick anything you do not want') : nAwayLines ? 'These changes are saved on ' + esc(names) : 'Nothing here can be applied: the reason is under each line') + '</div>' +
+      units.map(function (u, i) { var g = u.away ? groupOf(away, u) : null; return '<label class="guide-unit' + (u.ok ? '' : ' off') + '"><input type="checkbox" data-i="' + i + '"' + (u.ok ? ' checked' : ' disabled') + '><span>' + esc(u.label) + (u.ok ? '' : ' <em>' + esc(g ? 'saved on ' + g.name + ' · Continue on ' + g.name + ' below' : u.reason) + '</em>') + '</span></label>'; }).join('') +
+      (nOk ? '<button type="button" class="gp-copy guide-apply">Apply selected to ' + esc(Config.ws().title) + '</button>' : '') +
+      (!nOk && away.length ? '<div class="guide-row">' + carryButtons(away) + '</div>' : '');
+    if (nOk) planEl.querySelector('.guide-apply').onclick = function () {
+      var picks = Array.prototype.filter.call(planEl.querySelectorAll('input[type=checkbox]'), function (c) { return c.checked && !c.disabled; }).map(function (c) { return +c.dataset.i; });
+      if (!picks.length) { out.textContent = 'Nothing selected.'; return; }
+      applyReply(rep2, picks, away);
     };
+    else wireCarry(planEl, away, 0);
   }
-  function applyReply(text) {
+  var NAME = { home: 'Home', calendar: 'the Calendar', board: 'the Board', social: 'the Schedule', streak: 'the Posting streak', scripts: 'the Script Viewer', writing: 'the Writing Viewer', video: 'the Video page', inspo: 'the Inspiration page', overview: 'Overview', about: 'About' };
+  var carried = null; var origin = '';   // origin: the page the reply was pasted on first (kept through every hop)   // { from, n, rest: [groups] } on the page lines were handed to; { expired: true } when they came too late
+  // Lines another page saves (core/apply.js "paste this line on …"): grouped by the page that saves them, carried there in one click.
+  // Lines another page saves (core/apply.js marks them with the file they need): one group per page that saves them, carried
+  // there in one click. A page never writes another page's file (core/story.js), so the lines travel instead.
+  var DEST = { home: { file: 'index.html', name: 'Home' }, calendar: { file: 'calendar/calendar.html', name: 'the Calendar' }, scripts: { file: 'studio/script-viewer.html', name: 'the Script Viewer' }, writing: { file: 'studio/writing-viewer.html', name: 'the Writing Viewer' }, videos: { file: 'studio/video.html', name: 'the Video page' } };
+  function kindOf(f) { var w = Config.activeWs(); return f === Config.file('social', w) ? 'social' : f === Config.file('scripts', w) ? 'scripts' : f === Config.file('writing', w) ? 'writing' : f === Config.file('videos', w) ? 'videos' : f === 'inspiration.json' ? 'inspiration' : 'board'; }
+  function awayGroups(units) {
+    var kinds = {}; units.forEach(function (u) { if (!u.ok && u.away) kinds[kindOf(u.away)] = 1; });
+    var dest = function (k) { return k === 'social' ? 'calendar' : k === 'board' ? (kinds.social ? 'calendar' : 'home') : k === 'inspiration' ? 'home' : k; };   // tasks with posts: the Calendar saves both
+    var by = {}; units.forEach(function (u) { if (u.ok || !u.away) return; var d = DEST[dest(kindOf(u.away))]; (by[d.file] = by[d.file] || { file: d.file, name: d.name, texts: [] }).texts.push(u.text); });
+    return ['home', 'calendar', 'scripts', 'writing', 'videos'].map(function (k) { return by[DEST[k].file]; }).filter(Boolean).filter(function (g) { return location.pathname.slice(-g.file.length) !== g.file; });   // never back to this page
+  }
+  function mergeGroups(a, b) { var out = []; a.concat(b).forEach(function (g) { var same = out.filter(function (x) { return x.file === g.file; })[0]; if (same) same.texts = same.texts.concat(g.texts.filter(function (t) { return same.texts.indexOf(t) < 0; })); else out.push({ file: g.file, name: g.name, texts: g.texts.slice() }); }); return out.filter(function (g) { return location.pathname.slice(-g.file.length) !== g.file; }); }
+  var stillAway = [];   // after Apply: the lines other pages save, still to go (kept across re-renders)
+  function fillAway() { var el = panel && panel.querySelector('.guide-away'); if (!el) return; el.innerHTML = stillAway.length ? '<p class="guide-note">Still to apply on another page:</p><div class="guide-row">' + carryButtons(stillAway) + '</div>' : ''; if (stillAway.length) wireCarry(el, stillAway, 1200); }
+  function groupOf(groups, u) { return groups.filter(function (g) { return g.texts.indexOf(u.text) >= 0; })[0] || null; }
+  function carryButtons(groups) { return groups.map(function (g, i) { return '<button type="button" class="gp-copy guide-carry" data-g="' + i + '">Continue on ' + esc(g.name) + ': ' + g.texts.length + ' line' + (g.texts.length === 1 ? '' : 's') + ' →</button>'; }).join(''); }
+  function wireCarry(el, groups, delay) {   // delay: let this page's own file writes (400 ms after a change) finish before leaving
+    Array.prototype.forEach.call(el.querySelectorAll('.guide-carry'), function (b) { b.onclick = function () {
+      var g = groups[+b.dataset.g]; if (!g) return; var order = [g].concat(groups.filter(function (x) { return x !== g; }));   // the rest rides along: offered on that page once you apply there
+      Store.setJSON(CARRY_KEY, { groups: order, from: origin || NAME[page()] || 'another page', ws: Config.activeWs(), at: Date.now() }, { silent: true });
+      b.disabled = true; b.textContent = 'Opening ' + g.name + '…'; setTimeout(function () { location.href = root() + g.file + '?ws=' + encodeURIComponent(Config.activeWs()); }, delay);
+    }; });
+  }
+  function takeCarry() {   // on the page the lines were handed to: the Guide opens on Reply with them, previewed (Apply is still yours)
+    var c = Store.getJSON(CARRY_KEY, null); if (!c || !c.groups || !c.groups.length) return;
+    var mine = c.groups[0]; if (location.pathname.slice(-mine.file.length) !== mine.file) return;   // only the page the lines were sent to takes them (another tab or page leaves them alone)
+    Store.remove(CARRY_KEY); var late = Date.now() - (+c.at || 0) > 30 * 60000 || (c.ws && c.ws !== Config.activeWs());
+    Store.set(TAB_KEY, 'reply', { silent: true }); Store.set(SEEN_KEY, '1', { silent: true });
+    carried = late ? { expired: true } : { from: c.from, n: mine.texts.length, rest: c.groups.slice(1) }; if (!late) origin = c.from;
+    var tries = 0; (function go() { if (global.Sync && Sync.ready && !Sync.ready() && tries++ < 40) return setTimeout(go, 100);   // this page's files first, so the preview reads them
+      setTimeout(function () { open(); if (late) return; var ta = panel && panel.querySelector('.guide-reply'); if (ta) { ta.value = mine.texts.join('\n'); previewReply(); } }, 300); })();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(takeCarry, 0); }); else setTimeout(takeCarry, 0);
+  function applyReply(rep2, picks, away) {
     var ta = panel.querySelector('.guide-reply'); var out = panel.querySelector('.guide-result'); var planEl = panel.querySelector('.guide-plan');
-    var res = Apply.run(text, { ws: Config.activeWs() });
+    var res = rep2.apply(picks);
     planEl.innerHTML = '';
     out.innerHTML = (res.applied.length ? '<b>Applied ' + res.applied.length + ':</b><ul>' + res.applied.map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('') + '</ul>' : '<b>Nothing applied.</b> ') +
       (res.skipped.length ? '<b>Skipped ' + res.skipped.length + ':</b><ul>' + res.skipped.map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('') + '</ul>' : '') +
-      (res.applied.length ? '<p>Every applied change is in Home → Recent changes and can be reverted.' + ((page() === 'board' || page() === 'social') ? '' : ' Reloading in a moment…') + '</p>' : '');
+      (res.applied.length ? '<p>Every applied change is in Home → Recent changes and can be reverted.' + (['board', 'social', 'streak', 'scripts', 'writing', 'video'].indexOf(page()) >= 0 || (away && away.length) || (res.spawn || []).length ? '' : ' Reloading in a moment…') + '</p>' : '') +
+      '';
+    var spawned = awayGroups((res.spawn || []).map(function (sp) { return { ok: false, away: sp.file, text: sp.text }; }));   // inspo use: the piece is made on its own page
+    stillAway = mergeGroups(away || [], spawned); fillAway();
+    if (carried && !carried.expired) carried = null;   // what was carried here is done; the rest travels with the buttons
+    replyDraft.text = ''; replyDraft.previewed = false;   // applied (or all skipped): a re-render starts clean
     if (res.applied.length) {
       ta.value = '';
       if (global.refreshBoard) refreshBoard();
       if (global.refreshSchedule) refreshSchedule();
-      var pg = page(); if ((pg === 'scripts' || pg === 'writing' || pg === 'inspo' || pg === 'home')) setTimeout(function () { location.reload(); }, 2500);
-      if (global.Sync) Sync.note('inspiration.json', 'agent reply applied');
+      if (global.refreshScripts) refreshScripts();   // the Script and Writing pages answer the file write from their own copy: they take the reply's first
+      if (global.refreshNotes) refreshNotes();
+      var pg = page(); if (['inspo', 'home', 'overview', 'about', 'calendar'].indexOf(pg) >= 0 && !stillAway.length) setTimeout(function () { location.reload(); }, 2500);   // pages without a live refresh reload once the files are written (Board, Schedule, Streak, Scripts and Writing refresh in place)
+      if (global.InspoModel && InspoModel.markReviewed && res.applied.some(function (a) { return /^tags #|^used as |^project |^archived: /.test(a); })) InspoModel.markReviewed();   // an assessment counts once its answer is applied, not when it is copied
     }
   }
   function open() { if (!panel) { panel = document.createElement('aside'); panel.className = 'guide'; document.body.appendChild(panel); } render(); panel.classList.add('open'); document.body.classList.add('guide-open'); var before = backup.at; backupStatus().then(function () { if (backup.at !== before && panel.classList.contains('open')) render(); }); var ffBefore = ffmpeg.at; ffmpegStatus().then(function () { if (ffmpeg.at !== ffBefore && ffmpegCardDue() && panel.classList.contains('open')) render(); }); fetchFolder().then(function (got) { if (got && panel.classList.contains('open')) render(); }); }
@@ -617,7 +685,7 @@
   function registerPalette() {   // ⌘K → "Ask: Bring in my work" opens the Guide on that prompt (the menu, core/prompts.js)
     var P = global.MARATHON_PROMPTS; if (!global.Palette || !Palette.register || !P || !P.MENU || registerPalette.done) return; registerPalette.done = true;
     var all = P.build({ title: '', id: 'main', mode: 'chat' }); var by = {}; all.forEach(function (x) { by[x.slug] = x; });
-    P.MENU.forEach(function (g) { g[2].forEach(function (sl) { if (by[sl]) Palette.register({ label: 'Ask: ' + by[sl].t, hint: 'guide', keywords: '/' + sl + ' ' + g[1] + ' prompt agent ai', run: function () { openPrompt(sl); } }); }); });
+    var hid = pstore().hidden; P.MENU.forEach(function (g) { g[2].forEach(function (sl) { if (by[sl] && hid.indexOf(by[sl].t) < 0) Palette.register({ label: 'Ask: ' + by[sl].t, hint: 'guide', keywords: '/' + sl + ' ' + g[1] + ' prompt agent ai', run: function () { openPrompt(sl); } }); }); });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', registerPalette); else setTimeout(registerPalette, 0);
   function mountHandle() {
@@ -633,17 +701,19 @@
   });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountHandle); else mountHandle();
   // ?guide=quick|ask|reply|settings (old names still work) opens the panel on load (used for screenshots and deep links)
-  (function () { var g = new URLSearchParams(location.search).get('guide'); if (!g) return; if (['moves', 'prompts', 'apply', 'setup', 'do', 'quick', 'ask', 'reply', 'settings'].indexOf(g) >= 0) Store.set(TAB_KEY, TAB_MAP[g] || g, { silent: true }); if (!Store.get(MODE_KEY)) Store.set(MODE_KEY, 'chat', { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); setTimeout(open, 400); })();
+  (function () { var g = new URLSearchParams(location.search).get('guide'); if (!g) return; if (['moves', 'prompts', 'apply', 'setup', 'do', 'quick', 'ask', 'reply', 'settings'].indexOf(g) >= 0) Store.set(TAB_KEY, TAB_MAP[g] || g, { silent: true }); Store.set(SEEN_KEY, '1', { silent: true }); setTimeout(open, 400); })();
   // open the panel on a prompt card by slug (falls back to the Ask tab when the page does not list it)
   var pendingSlug = null;
+  var pendingForm = false;
   function focusPending(all) {   // after every list render while a slug is pending (open() re-renders when the backup status and folder arrive)
     if (!pendingSlug || !panel) return; var x = all.filter(function (p) { return p.slug === pendingSlug; })[0]; if (!x) { pendingSlug = null; return; }
     var card = panel.querySelector('.guide-prompt[data-i="' + all.indexOf(x) + '"]'); if (!card) return;
     var det = card.closest('details'); if (det && !det.open) det.open = true;
     card.scrollIntoView({ block: 'center' }); card.classList.add('flash');
+    if (pendingForm && !card.querySelector('.gp-field')) { pendingForm = false; var mn = card.querySelector('.gp-main'); if (mn) mn.click(); }   // a prompt with blanks: its form, open
   }
-  function openPrompt(slug) {   // the Video page opens Cut this take here; the open take rides along through the {{take}} token
-    Store.set(TAB_KEY, 'ask', { silent: true }); query = ''; pendingSlug = slug; open();
+  function openPrompt(slug, o2) {   // the Video page opens Cut this take here; the open take rides along through the {{take}} token
+    Store.set(TAB_KEY, 'ask', { silent: true }); query = ''; pendingSlug = slug; pendingForm = !!(o2 && o2.form); open();
     setTimeout(function () { pendingSlug = null; var f = panel && panel.querySelector('.guide-prompt.flash'); if (f) f.classList.remove('flash'); }, 2500);
   }
   /* ---- ffmpeg (server mode only): a pending card while Video cannot work, once a take exists; the Video page shows its own card instead ---- */
@@ -658,6 +728,9 @@
     var mac = navigator.platform.indexOf('Mac') >= 0; var line = mac ? 'brew install ffmpeg' : 'winget install Gyan.FFmpeg';
     return '<div class="guide-pending ffmpeg-card" title="Video needs ffmpeg"><span class="dot"></span><span><b>Video needs ffmpeg</b>, a free tool that reads and writes video files. ' + (mac ? 'Mac (needs Homebrew, brew.sh): ' : 'Windows: ') + '<code>' + line + '</code>. Or ask your agent: <button type="button" class="guide-link gd-ffsetup">Set up video on this computer</button>. Then Check again.</span><span class="go"><button type="button" class="guide-link gd-ffcopy" data-copy="' + line + '">Copy</button> · <button type="button" class="guide-link gd-ffcheck">Check again</button></span></div>';
   }
-  global.Guide = { open: open, close: close, toggle: toggle, snapshot: snapshot, mode: mode, openPrompt: openPrompt,
+  global.Guide = { open: open, close: close, toggle: toggle, snapshot: snapshot, mode: effMode, modeChosen: mode, openPrompt: openPrompt,
+    // a page's own prompt (the Inspiration page's Brainstorm…) in the Guide's mode: the preamble, then the body, then (chat) the reply format
+    compose: function (body, o2) { var P = global.MARATHON_PROMPTS; if (!P) return body; var o = opts(); return P.head(o) + body + (o.mode === 'chat' && o2 && o2.writes ? '\n\n' + P.cheatsheet() : ''); },
+    _t: { awayGroups: awayGroups, mergeGroups: mergeGroups, page: page, startSlugs: startSlugs, projectEmpty: projectEmpty, prompts: prompts, needs: function (slug) { return needs(prompts().filter(function (y) { return y.slug === slug; })[0]); }, forPage: function (pg) { return forPage(prompts(), pg || page()).map(function (x) { return x.slug; }); }, about: ABOUT, chips: ASK_DEFAULT },
     copyPrompt: function (slug, el) { var x = prompts().filter(function (y) { return y.slug === slug; })[0]; return x ? copyPrompt(x, el) : Promise.resolve(false); } };
 })(window);
