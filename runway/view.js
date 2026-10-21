@@ -192,9 +192,15 @@
   // An empty board in a workspace that is not the only one: say where the other tasks live (the app switched here after a project was
   // created). A count shows only when this browser has seen that board.
   function elsewhereHint() {
-    var w = Config.ws(); var others = Config.workspaces().filter(function (x) { return x.id !== w.id && Config.boards(x.id).length; });
-    if (!others.length) return 'All clear.';
+    var w = Config.ws(); var others = Config.workspaces().filter(function (x) { return x.id !== w.id && !x.sample && Config.boards(x.id).length; });
+    if (!others.length) return firstHint();
     return 'This board belongs to <b>' + esc(w.title) + '</b>.<br>Looking for your other tasks? ' + others.map(function (x) { var b = Config.boards(x.id)[0]; var n = 0, known = false; Config.boards(x.id).forEach(function (bb) { var bt = Store.getJSON(Config.boardKey(bb.id, x.id), null); if (bt) { known = true; bt.forEach(function (t) { if (t.col !== 'done') n++; }); } }); return '<a href="marathon-board.html?ws=' + encodeURIComponent(x.id) + '&board=' + encodeURIComponent(b.id) + '">' + esc(x.title) + (known ? ' (' + n + ' open)' : '') + '</a>'; }).join(' · ') + '<br>Or add the first task above.';
+  }
+  // the very first empty board: the two ways in, and where the tasks are saved when the files are not connected yet
+  function firstHint() {
+    var m = global.Sync ? Sync.getMode() : 'manual';
+    return 'Empty, ready for your work.<br><a href="#" onclick="if(window.toggleAdd)toggleAdd(true);return false;">+ Add a task</a> (or press n), or let your AI <a href="#" onclick="if(window.Guide)Guide.openPrompt(\'bring-in\');return false;">bring your tasks in</a> from Notion, Linear, Todoist or a list.' +
+      (m === 'manual' ? '<br>Saved in this browser only until you link the folder or run node serve.js.' : '');
   }
   function render(view, visible, selectedProjects, selectedTags, notesOpen, whenOpen) {
     var state = Model.getState();

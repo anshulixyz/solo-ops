@@ -49,8 +49,9 @@ page is the context around it. Read `AGENTS.md` first if you have not.
 
 ## Agenda (mirror of NEXT.md → Release 1)
 
-- **Must before launch:** offer the backup repo name during setup
-  (`backup setup --name` exists; the prompts and the Guide should ask).
+- ~~**Must before launch:** offer the backup repo name during setup~~ —
+  done 2026-10-21 (onboarding pass: /setup, /backup-setup, the Guide and
+  `backup setup` itself say the name).
 - **Moved after launch (owner's call, 2026-10-13):** M1 undo/redo in the
   browser; the trimmed design is written under NEXT.md → Release 1.
 - **Later:** meetings grouped under a strip at the bottom of To Do; Calendar
@@ -81,9 +82,16 @@ are wiped per run so stale ids never show as deletions.
   be added there or the first browser edit silently erases it from every
   task (and the file follows). `core/apply.js add`, `cmdEdit`, `Quick`
   build tasks too.
-- **Pages mirror `data/settings.json` as `{ theme }` only.** Anything else
-  kept there is overwritten on the next theme change. CLI-only config goes
-  to its own file: backup and guard live in `data/backup.json`.
+- **Pages mirror `data/settings.json` as `{ theme }` plus your `config`**
+  (since 9f06efe the file's `config` wins every write unless the page itself
+  changed it, through a pasted `config set`). Anything else kept there is
+  overwritten on the next theme change. CLI-only config goes to its own
+  file: backup and guard live in `data/backup.json`.
+- **"Fresh" has two meanings, kept apart (onboarding pass, 2026-10-21).**
+  `Store.isFresh(key)` is the sync meaning: no real copy in this browser,
+  so any file wins. `Store.isSample(key)` is what a page tells a person
+  ("this is the sample board"). A first open seeds blank (`seedBlank`, flag
+  `blank`); the sample, when seeded, keeps the old flag `1`.
 - **Dates are local stamps without a zone**, `YYYY-MM-DDTHH:MM` or a date
   alone for all-day; `core/when.js` is the only parser. Overdue = deadline
   passed, or a timed item in the past with no end; an ended meeting is

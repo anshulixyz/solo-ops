@@ -69,7 +69,7 @@
 
   function timelineHTML(posts, selectedId) {
     if (!posts.length) {
-      return '<div class="empty">No posts yet — add your first scheduled tweet.</div>';
+      return '<div class="empty">No posts yet. + Add post, or ask your AI to brainstorm ten from what you are building (Guide → Brainstorm 10 post ideas).</div>';
     }
     var html = '';
     for (var i = 0; i < posts.length; i++) {

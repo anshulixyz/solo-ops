@@ -76,10 +76,10 @@ function logChange(file, prevText, note) {
 }
 function readLog() { try { return fs.readFileSync(LOG, 'utf8').split('\n').filter(Boolean).map(function (l) { try { return JSON.parse(l); } catch (e) { return null; } }).filter(Boolean); } catch (e) { return []; } }
 function write(name, body, opts) {
-  body.version = 1; body.updatedAt = new Date().toISOString();
+  body.version = 1; body.updatedAt = (opts && opts.stamp) || new Date().toISOString();   // opts.stamp: an empty file from template blank is stamped 1970, so a browser that already holds real work still wins
   fs.mkdirSync(DATA, { recursive: true });
   var text = JSON.stringify(body, null, 2) + '\n';
-  if (name !== 'activity' && !(opts && opts.noLog)) { var prev = ''; try { prev = fs.readFileSync(fileOf(name), 'utf8'); } catch (e) { /* new */ } if (prev !== text) logChange(name + '.json', prev); }
+  if (name !== 'activity' && !(opts && opts.noLog)) { var prev = ''; try { prev = fs.readFileSync(fileOf(name), 'utf8'); } catch (e) { /* new */ } if (prev !== text) logChange(name + '.json', prev, opts && opts.note); }
   fs.writeFileSync(fileOf(name), text);
   if (!(opts && opts.noActivity) && ['activity', 'boards', 'workspaces', 'settings', 'prompts', 'backup'].indexOf(name) < 0) logActivity(name);
   return body;
@@ -118,7 +118,7 @@ function normWs(w) {
   var apps = Object.assign({ social: true, scripts: true, writing: true, video: true }, w.apps || {});
   var boards = (Array.isArray(w.boards) ? w.boards : []).map(normBoard).filter(Boolean);
   if (w.boards === undefined && apps.boards !== false && !boards.length) boards = [normBoard({ id: 'runway', title: 'Launch Runway', sprintLabel: 'Sprint progress' })];
-  return { id: id, title: w.title || id, apps: { social: apps.social !== false, scripts: apps.scripts !== false, writing: apps.writing !== false, video: apps.video !== false }, boards: boards };
+  return { id: id, title: w.title || id, apps: { social: apps.social !== false, scripts: apps.scripts !== false, writing: apps.writing !== false, video: apps.video !== false }, boards: boards, sample: w.sample === true };
 }
 function configWs() {
   var list = Array.isArray(cfg.workspaces) && cfg.workspaces.length ? cfg.workspaces
@@ -175,7 +175,7 @@ function fail(msg) { if (JSON_OUT) out('', { error: msg }); else process.stderr.
 function hint(name) { return 'No data/' + name + '.json yet. Open the app once, or run: node solo.js template ' + (RESERVED.indexOf(name) < 0 ? 'board --board ' + name : name); }
 
 /* ---- helpers ------------------------------------------------------------- */
-function newId(prefix) { return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
+function newId(prefix) { return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 function pad(n) { return n < 10 ? '0' + n : '' + n; }
 function localDT(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 function fmtDT(s) {
@@ -193,7 +193,41 @@ function applyDates(t, f) {   // --at --until --due --ext from flags onto a task
   if (f.at !== undefined) { var a = parseAt(f.at, 'time'); if (a) t.at = a; else { delete t.at; delete t.until; } }
   if (f.until !== undefined) { if (!t.at || String(f.until).toLowerCase() === 'clear') delete t.until; else { var u = When.until(t.at, f.until); if (!u) fail('Could not read --until "' + f.until + '". Use 15:00 or a full date-time.'); if (u < t.at) fail('--until is before --at'); t.until = u; } }
   if (f.due !== undefined) { var d = parseAt(f.due, 'due date'); if (d) t.due = When.dayKey(d); else delete t.due; }
-  if (f.ext !== undefined) { if (String(f.ext).toLowerCase() === 'clear' || !f.ext) delete t.ext; else t.ext = String(f.ext); }
+  if (f.ext !== undefined) { if (String(f.ext).toLowerCase() === 'clear' || !f.ext) delete t.ext; else { var xe = extProblem(f.ext); if (xe) fail(xe); t.ext = String(f.ext); } }
+}
+// --ext is where an imported item came from (gcal:<event>, notion:<page>, linear:<issue>, github:<owner>/<repo>#<n>…): the same ext
+// on any board of the workspace is the same item, so a re-run updates instead of duplicating. share: ids belong to the share code.
+function extProblem(x) {
+  x = String(x); if (/^share:/i.test(x)) return '--ext share:… is reserved for tasks that arrived through a share; pick another source name.';
+  if (/\s/.test(x) || x.length > 200) return '--ext takes one id without spaces, at most 200 characters, like notion:<page id> or github:owner/repo#12.';
+  return '';
+}
+function cleanTag(g) { return String(g || '').toLowerCase().trim().replace(/^@+/, '').replace(/\s+/g, '-'); }   // an imported label: never an @contact (that shares the task), never spaces
+function findExt(ext) {   // → { id: board id, b: board, t: task } across every board of the workspace
+  var hit = null; BOARDS.forEach(function (bm) { if (hit) return; var bb = board(bm.id); var t = bb.tasks.filter(function (x) { return x.ext === ext; })[0]; if (t) hit = { id: bm.id, b: bb, t: t }; }); return hit;
+}
+// the update rule for a re-import (core/apply.js has the same; core/test-apply.js checks they agree)
+// Status and priority follow the source only when the SOURCE changed them since the last import (extCol / extPri remember what
+// it said): a task you finished here stays finished while it is still open there, and is named in `notes` instead.
+function extMerge(same, t, f, notes) {
+  var ch = [];
+  if (same.title !== t.title) { same.title = t.title; ch.push('title'); }
+  if (f.at !== undefined) { if (t.at) { if (same.at !== t.at) ch.push('time'); else if ((same.until || '') !== (t.until || '')) ch.push('end'); same.at = t.at; if (t.until) same.until = t.until; else delete same.until; } else if (same.at) { delete same.at; delete same.until; ch.push('time removed'); } }
+  if (f.due !== undefined) { if (t.due) { if (same.due !== t.due) ch.push('due'); same.due = t.due; } else if (same.due) { delete same.due; ch.push('due removed'); } }
+  if (f.col !== undefined && COLS.indexOf(f.col) >= 0) {
+    var moved = same.extCol !== undefined ? same.extCol !== f.col : (same.col !== 'done' && same.col !== 'later');   // never recorded: move unless it is finished or parked here
+    if (moved && same.col !== f.col) { ch.push('moves ' + COL_LABEL[same.col] + ' \u2192 ' + COL_LABEL[f.col]); same.col = f.col; }
+    else if (same.col !== f.col && notes) notes.push(same.title + ': ' + COL_LABEL[same.col] + ' here, still ' + COL_LABEL[f.col] + ' there');
+    if (same.extCol !== f.col) { same.extCol = f.col; if (!ch.length) ch.push('source status noted'); }
+  }
+  if (f.pri !== undefined && PRI.hasOwnProperty(f.pri)) {
+    if ((same.extPri === undefined || same.extPri !== f.pri) && same.pri !== f.pri) { ch.push(same.pri + ' \u2192 ' + f.pri); same.pri = f.pri; }
+    if (same.extPri !== f.pri) same.extPri = f.pri;
+  }
+  if (t.desc && same.desc !== t.desc) { same.desc = t.desc; ch.push('description'); }
+  if (t.notes && !same.notes) { same.notes = t.notes; ch.push('notes'); }
+  t.tags.map(cleanTag).filter(Boolean).forEach(function (g) { if (same.tags.indexOf(g) < 0) { same.tags.push(g); ch.push('#' + g); } });
+  return ch;
 }
 function tomorrow9() { var d = new Date(); d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0); return d; }
 function progress(items) { var n = (items || []).length, d = (items || []).filter(function (c) { return c.done; }).length; return n ? d + '/' + n : ''; }
@@ -202,6 +236,7 @@ function find(list, q, label) {
   if (!q) fail('Which ' + label + '? Give an id or part of the title.');
   var exact = list.filter(function (x) { return x.id === q; });
   if (exact.length) return exact[0];
+  if (/^ext:/i.test(q)) { var xq = q.slice(4).toLowerCase(); var xh = list.filter(function (x) { return x.ext && String(x.ext).toLowerCase() === xq; }); if (xh.length) return xh[0]; fail('No ' + label + ' carries --ext ' + q.slice(4) + (BOARDS.length > 1 ? ' on any board of this workspace.' : '.')); }
   var l = q.toLowerCase();
   var m = list.filter(function (x) { return (x.title || '').toLowerCase().indexOf(l) >= 0; });
   if (m.length === 1) return m[0];
@@ -213,7 +248,7 @@ function find(list, q, label) {
 function whenText(t) { if (!When || (!t.at && !t.due)) return ''; var st = When.state(t); return (t.at ? ' · ' + When.label(t.at) + (t.until && When.dayKey(t.until) === When.dayKey(t.at) ? '–' + When.timeOf(t.until) : '') : '') + (t.due ? ' · due ' + When.label(t.due) : '') + (st === 'overdue' ? ' · OVERDUE' : ''); }
 function taskLine(t) {
   var p = progress(t.checklist);
-  return '- [' + t.id + ']' + (t._board ? ' (' + t._board + ')' : '') + ' ' + t.title + ' · ' + t.proj + ' · ' + t.pri + whenText(t) + (t.tags && t.tags.length ? ' · #' + t.tags.join(' #') : '') + (p ? ' · ' + p + ' steps' : '');
+  return '- [' + t.id + ']' + (t._board ? ' (' + t._board + ')' : '') + ' ' + t.title + ' · ' + t.proj + ' · ' + t.pri + whenText(t) + (t.tags && t.tags.length ? ' · #' + t.tags.join(' #') : '') + (p ? ' · ' + p + ' steps' : '') + (t.ext && !/^share:/.test(t.ext) ? ' · ext ' + t.ext : '');   // ext: an imported task's source id, so a re-run updates it
 }
 // at <task> <when|clear> [--until HH:MM] · due <task> <date|clear>: the date is the trailing one or two words
 function whenCmd(kind) {
@@ -225,6 +260,7 @@ function whenCmd(kind) {
     out('✓ [' + t.id + '] ' + t.title + (when.toLowerCase() === 'clear' ? (kind === 'at' ? ' · time removed' : ' · due date removed') : whenText(t)), t);
   };
 }
+function realWorkspaces() { return WORKSPACES.filter(function (w) { return !w.sample; }); }   // "all projects" never mixes the sample project in
 // every dated item of a workspace (tasks with at/due on any of its boards + posts), for today / week / calendar
 function boardsOf(wsId) {
   var w = WORKSPACES.filter(function (x) { return x.id === wsId; })[0]; if (!w) return []; var seen = {}, outB = []; var rt = read('boards');
@@ -233,7 +269,7 @@ function boardsOf(wsId) {
 }
 function datedItems(all) {
   var items = []; var now = new Date();
-  (all ? WORKSPACES : [WS]).forEach(function (w) {
+  (all ? realWorkspaces() : [WS]).forEach(function (w) {
     var wb = boardsOf(w.id); if (!wb.length) wb = [{ id: 'runway', title: 'Launch Runway' }];   // a workspace with no boards still has the default file (same fallback as BOARD_ID)
     wb.forEach(function (bm) { var bf = read(prefix(w.id) + bm.id); ((bf && bf.tasks) || []).forEach(function (t) { if (t.at || t.due) items.push({ kind: 'task', id: t.id, title: t.title, at: t.at || '', until: t.until || '', due: t.due || '', col: t.col, pri: t.pri, tags: t.tags || [], meeting: (t.tags || []).indexOf('meeting') >= 0, board: bm.id, boardTitle: bm.title, ws: w.id, ext: t.ext || '' }); }); });
     if (w.apps.social !== false) { var sfile = read(prefix(w.id) + 'social'); ((sfile && sfile.posts) || []).forEach(function (p) { if (p.datetime) items.push({ kind: 'post', id: p.id, title: p.title, at: p.datetime.slice(0, 16), until: '', due: '', status: p.status, ws: w.id, board: '' }); }); }
@@ -307,7 +343,7 @@ function cmdShow() {
 }
 function cmdAdd() {
   var title = pos.join(' ').trim() || flags.title;
-  if (!title) fail('Usage: add "Task title" [--proj X] [--pri high|medium|low] [--tags a,b] [--col todo|doing|later|bucket] [--desc "..."] [--steps "a|b|c"] [--at <when>] [--until <HH:MM>] [--due <date>] [--ext <calendar id>]');
+  if (!title) fail('Usage: add "Task title" [--proj X] [--pri high|medium|low] [--tags a,b] [--col todo|doing|later|bucket] [--desc "..."] [--steps "a|b|c"] [--at <when>] [--until <HH:MM>] [--due <date>] [--ext <tool>:<id>]');
   var b = board();
   var projects = ((cfg.projects || []).map(function (p) { return typeof p === 'string' ? p : p.name; })).concat(b.projects || []);
   var t = {
@@ -322,11 +358,15 @@ function cmdAdd() {
       if (!flags[r[0]]) return; sdA = sdA || storyData(); var it = (sdA[r[1]] || []).filter(function (x) { return x.id === String(flags[r[0]]); })[0]; if (!it) fail('No ' + (r[1] === 'note' ? 'draft' : r[1]) + ' has the id ' + flags[r[0]]);
       t[r[2]] = it.id; if (r[3] && t.tags.indexOf(r[3]) < 0) t.tags.push(r[3]); });
   })();
-  // --ext: the id a connected calendar gave this item. Same ext on the board → update it, never a duplicate (safe re-import).
-  var same = t.ext ? b.tasks.filter(function (x) { return x.ext === t.ext; })[0] : null;
-  if (same) {
-    same.title = t.title; if (t.at) same.at = t.at; if (t.until) same.until = t.until; else if (t.at) delete same.until; if (t.due) same.due = t.due; if (t.desc) same.desc = t.desc; t.tags.forEach(function (g) { if (same.tags.indexOf(g) < 0) same.tags.push(g); });
-    saveBoard(b); return out('✓ Updated [' + same.id + '] ' + same.title + ' (same --ext ' + same.ext + ')' + whenText(same), same);
+  // --ext: where the item came from (a calendar event, a Notion page, a Linear issue…). The same ext on any board of this
+  // workspace → update that task, never a duplicate (safe re-import). What the source says wins for the title, the times and
+  // what was passed explicitly (--col, --pri, --due, --desc); steps, your notes and the board stay yours.
+  if (t.ext) t.tags = t.tags.map(cleanTag).filter(Boolean);   // an import's labels: no @contact, no spaces
+  if (t.ext && flags.col !== undefined && COLS.indexOf(flags.col) >= 0) t.extCol = flags.col; if (t.ext && flags.pri !== undefined && PRI.hasOwnProperty(flags.pri)) t.extPri = flags.pri;   // what the source said, so a re-run moves it only when the source changes
+  var hitX = t.ext ? findExt(t.ext) : null;
+  if (hitX) {
+    var same = hitX.t; var nts = []; var ch = extMerge(same, t, flags, nts);
+    if (ch.length) saveBoard(hitX.b, hitX.id); return out('✓ ' + (ch.length ? 'Updated' : 'Up to date:') + ' [' + same.id + '] ' + same.title + ' (same --ext ' + same.ext + (ch.length ? ': ' + ch.join(', ') : '') + ')' + whenText(same) + (nts.length ? '\n  check: ' + nts.join('; ') + ' (close it there, or move it here)' : ''), same);
   }
   if (projects.indexOf(t.proj) < 0) { b.projects = (b.projects || []).concat([t.proj]); }
   b.tasks.unshift(t); saveBoard(b);
@@ -402,7 +442,7 @@ function allTasks() {
   ids.forEach(function (id) { board(id).tasks.forEach(function (t) { out.push(ids.length > 1 ? Object.assign({ _board: id }, t) : t); }); });
   return out;
 }
-var EMPTY_NUDGE = '_Nothing here yet. Ask your agent for /setup · sample sprint: `node solo.js template all` · plan your own: /plan-project (Guide → Plan a project from scratch) · open the app: `node serve.js`_';
+var EMPTY_NUDGE = '_Nothing here yet. Bring your work in: /bring-in (Notion, Linear, Todoist, a list…) · plan something new: /plan-project · everything you can ask: /menu · first time: /setup' + (WORKSPACES.some(function (w) { return w.sample; }) ? '' : ' · look around a sample project: `node solo.js template sample`') + '_';
 function cmdToday() {
   var tasks = appOn('boards') ? allTasks() : [], s = appOn('social') ? schedule() : { posts: [] };
   var now = new Date(); var end = new Date(now); end.setHours(23, 59, 59, 999);
@@ -466,7 +506,7 @@ function cmdShare() {
   if (which === 'today') {   // the card's text version: Doing · Schedule · Next up, titles only
     if (!SC) fail('core/share-card.js missing');
     var all = flags.all === true; var tasks = [];
-    (all ? WORKSPACES : [WS]).forEach(function (w) { var wb = boardsOf(w.id); if (!wb.length) wb = [{ id: 'runway' }]; wb.forEach(function (bm) { var bf = read(prefix(w.id) + bm.id); ((bf && bf.tasks) || []).forEach(function (t) { tasks.push(t); }); }); });
+    (all ? realWorkspaces() : [WS]).forEach(function (w) { var wb = boardsOf(w.id); if (!wb.length) wb = [{ id: 'runway' }]; wb.forEach(function (bm) { var bf = read(prefix(w.id) + bm.id); ((bf && bf.tasks) || []).forEach(function (t) { tasks.push(t); }); }); });
     var m = SC.model({ now: new Date(), scope: all ? 'All projects' : WS.title, tasks: tasks, streak: activitySummary().streak });
     return out(SC.markdown(m), m);
   }
@@ -488,8 +528,61 @@ function cmdShare() {
 }
 // import a markdown checklist: top-level "- [ ] Title" lines become tasks,
 // indented "  - [ ] step" lines become checklist steps of the task above.
+// import <items.json> [--dry-run]: what an agent brings in from Notion, Linear, Todoist, GitHub… as one JSON file it writes with
+// its file tool (no imported title ever passes through a shell). Each item: { title, ext, col, pri, due, at, until, tags, notes,
+// desc, steps, board }. The same ext anywhere in the workspace updates that task (the rule of add --ext); a missing ext becomes
+// <source>:<hash of the title>, so a re-run never duplicates. Nothing is deleted. One write per board file = one log entry,
+// one `revert`. --dry-run prints what would change and writes nothing.
+function importJson(file) {
+  var raw; try { raw = JSON.parse(fs.readFileSync(path.resolve(file), 'utf8')); } catch (e) { fail('Cannot read ' + file + ' as JSON: ' + e.message.split('\n')[0]); }
+  var items = Array.isArray(raw) ? raw : raw && Array.isArray(raw.items) ? raw.items : null; if (!items) fail('The file needs { "items": [ { "title": "…", "ext": "notion:<page id>" } ] } (or a plain list of items).');
+  if (items.length > 200) fail(items.length + ' items is more than one import takes (200). Split it, or bring in the open ones first.');
+  var source = slug((raw && raw.source) || 'import') || 'import'; var dry = !!flags['dry-run'];
+  var crypto = require('crypto'); var boards = {}; function bd(id) { return boards[id] || (boards[id] = board(id)); }
+  var ids = {}; BOARDS.forEach(function (bm) { bd(bm.id).tasks.forEach(function (x) { ids[x.id] = 1; }); }); function freshId() { var x; do { x = newId('t'); } while (ids[x]); ids[x] = 1; return x; }   // never two tasks with one id
+  var added = [], updated = [], same = [], skipped = [], checks = [];
+  items.forEach(function (it, n) {
+    var why = function (m) { skipped.push('#' + (n + 1) + ' ' + (it && it.title ? '"' + String(it.title).slice(0, 60) + '"' : '') + ': ' + m); };
+    if (!it || typeof it !== 'object') return why('not an object');
+    var title = String(it.title || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 200); if (!title) return why('no title');
+    ['col', 'pri', 'due', 'at', 'until', 'board', 'ext'].forEach(function (k) { if (it[k] === null || it[k] === '') delete it[k]; });   // null is absent
+    var ext = it.ext ? String(it.ext) : source + ':' + crypto.createHash('sha1').update(title.toLowerCase()).digest('hex').slice(0, 12);
+    if (ext.indexOf(':') < 0 || /^clear$/i.test(ext)) ext = source + ':' + ext;   // an id without its tool gets the source in front
+    var xp = extProblem(ext); if (xp) return why(xp);
+    var bid = it.board ? slug(it.board) : BOARD_ID; if (!BOARDS.some(function (b) { return b.id === bid; })) return why('no board "' + it.board + '" (boards: ' + BOARDS.map(function (b) { return b.id; }).join(', ') + ')');
+    if (it.col !== undefined && COLS.indexOf(it.col) < 0) return why('col must be one of ' + COLS.join(', '));
+    if (it.pri !== undefined && !PRI.hasOwnProperty(it.pri)) return why('pri must be high, medium or low');
+    var f = {}; ['at', 'until', 'due', 'col', 'pri'].forEach(function (k) { if (it[k] !== undefined && it[k] !== null && it[k] !== '') f[k] = String(it[k]); });
+    var t = { id: freshId(), title: title, desc: String(it.desc || '').slice(0, 2000), proj: ((cfg.projects || [])[0] || {}).name || 'general', col: f.col || 'todo', pri: f.pri || 'medium',
+      tags: (Array.isArray(it.tags) ? it.tags : split(it.tags)).map(cleanTag).filter(Boolean).slice(0, 12), notes: String(it.notes || '').slice(0, 2000), collapsed: true,
+      checklist: (Array.isArray(it.steps) ? it.steps : []).map(function (x) { return { text: String(x).slice(0, 200), done: false }; }).filter(function (c) { return c.text.trim(); }).slice(0, 30) };
+    try { var ff = Object.assign({}, f); delete ff.col; delete ff.pri; applyDatesSoft(t, ff); } catch (e) { return why(e.message); }
+    t.ext = ext; if (f.col) t.extCol = f.col; if (f.pri) t.extPri = f.pri;
+    var hit = null; BOARDS.forEach(function (bm) { if (hit) return; var x = bd(bm.id).tasks.filter(function (y) { return y.ext === ext; })[0]; if (x) hit = { id: bm.id, t: x }; });
+    if (hit) { var ch = extMerge(hit.t, t, f, checks); if (ch.length) { updated.push({ id: hit.t.id, title: hit.t.title, board: hit.id, changes: ch }); bd(hit.id)._dirty = true; } else same.push(hit.t.title); return; }
+    bd(bid).tasks.unshift(t); bd(bid)._dirty = true; added.push({ id: t.id, title: t.title, board: bid, col: t.col });
+  });
+  var lines = ['# Import' + (dry ? ' (dry run: nothing written)' : '') + ' · ' + WS.title, '',
+    added.length + ' new · ' + updated.length + ' updated · ' + same.length + ' unchanged · ' + skipped.length + ' skipped', ''];
+  if (added.length) lines.push('## New'), added.forEach(function (a) { lines.push('- ' + a.title + ' → ' + COL_LABEL[a.col] + (BOARDS.length > 1 ? ' (' + a.board + ')' : '')); });
+  if (updated.length) lines.push('', '## Updated'), updated.forEach(function (u) { lines.push('- [' + u.id + '] ' + u.title + ': ' + u.changes.join(', ')); });
+  if (checks.length) lines.push('', '## Check (left as they are here)'), checks.forEach(function (x) { lines.push('- ' + x + ': close it there, or move it here'); });
+  if (skipped.length) lines.push('', '## Skipped'), skipped.forEach(function (x) { lines.push('- ' + x); });
+  if (!dry) Object.keys(boards).forEach(function (id) { if (boards[id]._dirty) { delete boards[id]._dirty; saveBoard(boards[id], id); } });
+  if (!dry && (added.length || updated.length)) lines.push('', 'Logged as one change per board file: `node solo.js log` shows it, `revert <id>` undoes it.');
+  out(lines, { dryRun: dry, added: added, updated: updated, unchanged: same.length, skipped: skipped, check: checks });
+}
+function applyDatesSoft(t, f) {   // applyDates, but a bad date is a reason to skip one item, not to stop the import
+  var clear = function (v) { return String(v).toLowerCase() === 'clear'; };
+  var pa = f.at !== undefined && !clear(f.at) && When ? When.parse(f.at) : null;
+  if (f.at !== undefined && !clear(f.at) && When && !pa) throw new Error('could not read the time "' + f.at + '"');
+  if (f.until !== undefined && pa && !clear(f.until) && (!When.until(pa.stamp, f.until) || When.until(pa.stamp, f.until) < pa.stamp)) throw new Error('could not read the end "' + f.until + '" (or it is before the start)');
+  if (f.due !== undefined && !clear(f.due) && When && !When.parse(f.due)) throw new Error('could not read the due date "' + f.due + '"');
+  applyDates(t, f);
+}
 function cmdImport() {
-  var file = pos[0]; if (!file) fail('Usage: import <list.md> [--col todo] [--proj X] [--pri medium]');
+  if (pos[0] && /\.json$/i.test(pos[0])) return importJson(pos[0]);
+  var file = pos[0]; if (!file) fail('Usage: import <list.md> [--col todo] [--proj X] [--pri medium]   ·   import <items.json> [--dry-run] (what your agent brings in from another tool)');
   var text; try { text = fs.readFileSync(path.resolve(file), 'utf8'); } catch (e) { fail('Cannot read ' + file); }
   var b = board(); var col = COLS.indexOf(flags.col) >= 0 ? flags.col : 'todo'; var added = [];
   text.split('\n').forEach(function (line) {
@@ -923,6 +1016,9 @@ function cmdInspo() {
 
 /* ---- prompts: built-ins in core/prompts.js, yours in data/prompts.json ------- */
 function promptOpts(mode) { return { title: WS.title, id: WS_ID, board: BOARDS[0] ? BOARDS[0].id : 'runway', mode: mode === 'chat' ? 'chat' : 'files', folder: ROOT }; }
+// the shared slash commands are committed with the code: they carry the shipped names, never your project's name (that stays in mine/)
+function sharedPromptOpts() { var sw = Array.isArray(SHIPPED.workspaces) && SHIPPED.workspaces[0]; var sb = Array.isArray(SHIPPED.boards) && SHIPPED.boards[0];
+  return { title: (sw && sw.title) || SHIPPED.name || 'Solo Ops', id: (sw && slug(sw.id || sw.title)) || 'main', board: (sb && slug(sb.id || sb.title)) || 'runway', mode: 'files', folder: '' }; }
 function allPrompts(mode, over) {   // built-ins with your edits applied, plus your own — the list the Guide shows
   var d = read('prompts') || {}; var ov = d.overrides || {}, hidden = d.hidden || [], custom = d.custom || [];
   if (!P) fail('core/prompts.js is missing');
@@ -962,25 +1058,41 @@ function cmdPrompts() {
 }
 // prompts export: every prompt as a slash command for the agent that runs commands, or the chat bootstrap.
 // Only files carrying the generated marker are overwritten or removed; a hand-written command with the same name is left alone.
+// AGENTS.md carries the menu between <!-- menu:begin --> and <!-- menu:end -->; prompts export rewrites it from core/prompts.js
+function writeAgentsMenu() {
+  var f = path.join(ROOT, 'AGENTS.md'); var t; try { t = fs.readFileSync(f, 'utf8'); } catch (e) { return false; }
+  var a = t.indexOf('<!-- menu:begin'), b = t.indexOf('<!-- menu:end -->'); if (a < 0 || b < a) return false;
+  var head = t.slice(a, t.indexOf('-->', a) + 3);
+  var next = t.slice(0, a) + head + '\n```\n' + P.menuText(Object.assign(sharedPromptOpts(), { mode: 'files' })) + '\n```\n' + t.slice(b);
+  if (next !== t) fs.writeFileSync(f, next); return next !== t;
+}
+// menu: what you can ask, by moment of the day (core/prompts.js MENU; the same list as /menu and the Guide's Start with one)
+function cmdMenu() {
+  if (!P) fail('core/prompts.js is missing');
+  var list = allPrompts('files'); var by = {}; list.forEach(function (x) { by[x.slug] = x; });
+  var groups = P.MENU.map(function (g) { return { id: g[0], title: g[1], items: g[2].filter(function (sl) { return by[sl]; }).map(function (sl) { return { slug: sl, title: by[sl].t, d: by[sl].d }; }) }; });
+  out(P.menuText({ mode: 'files', title: WS.title, id: WS_ID }), { groups: groups });
+}
 function exportPrompts() {
   if (!P) fail('core/prompts.js is missing');
   var tool = String(flags['for'] || 'claude').toLowerCase();
   if (tool === 'chat' || tool === 'bootstrap') {
     var bf = path.resolve(flags.out || path.join(ROOT, 'prompts', 'agent-bootstrap.md')); fs.mkdirSync(path.dirname(bf), { recursive: true });
-    fs.writeFileSync(bf, '# Paste this once into a ChatGPT or Claude Project (no file access needed)\n\n<!-- ' + P.MARK + ' -->\n\n' + P.bootstrap(promptOpts('chat')) + '\n\nReady? I will paste my snapshot next.\n');
+    fs.writeFileSync(bf, '# Paste this once into a ChatGPT or Claude Project (no file access needed)\n\n<!-- ' + P.MARK + ' -->\n\n' + P.bootstrap(flags.out ? promptOpts('chat') : Object.assign(sharedPromptOpts(), { mode: 'chat' })) + '\n\nReady? I will paste my snapshot next.\n');
     return out('✓ ' + path.relative(ROOT, bf) + ' written (the Guide\'s "Set up this chat" prompt, as a file)', { file: bf });
   }
   var dirs = { claude: path.join(ROOT, '.claude', 'commands'), cursor: path.join(ROOT, '.cursor', 'commands'), codex: path.join(process.env.CODEX_HOME || path.join(require('os').homedir(), '.codex'), 'prompts') };
   if (!dirs[tool]) fail('--for must be claude (default), cursor, codex or chat');
   var dir = path.resolve(flags.out || dirs[tool]); fs.mkdirSync(dir, { recursive: true });
-  var all = allPrompts('files', { folder: '' }).filter(function (x) { return (x.c !== 'setup' || /^setup(-video)?$/.test(x.slug)) && x.slug; });   // no absolute path: a slash command runs inside the folder
+  if (tool === 'claude' && !flags.out) writeAgentsMenu();
+  var all = allPrompts('files', { folder: '' }).filter(function (x) { return (x.c !== 'setup' || x.slash) && x.slug; });   // no absolute path: a slash command runs inside the folder
   var written = [], kept = [], removed = []; var o = promptOpts('files'); o.folder = ''; var rel = path.relative(ROOT, dir); if (rel.indexOf('..') === 0) rel = dir;
   // The shared files are always the built-in text (they are committed with the code). Your own prompts AND your edits of
   // built-ins go to mine/ (git-ignored): /mine:use-inspo is your version, /use-inspo stays the built-in.
-  var pristine = P.build(o).filter(function (x) { return (x.c !== 'setup' || /^setup(-video)?$/.test(x.slug)) && x.slug; });
+  var inRepo = !flags.out && tool !== 'codex'; var oS = inRepo ? sharedPromptOpts() : o; var pristine = P.build(oS).filter(function (x) { return (x.c !== 'setup' || x.slash) && x.slug; });
   var mine = all.filter(function (x) { return x.custom || x.overridden; });
   var mineDir = path.join(dir, 'mine'); if (mine.length) fs.mkdirSync(mineDir, { recursive: true });
-  pristine.concat(mine).forEach(function (x) { var isMine = x.custom || x.overridden; var f = path.join(isMine ? mineDir : dir, x.slug + '.md'); var prev = ''; try { prev = fs.readFileSync(f, 'utf8'); } catch (e) { /* new */ } if (prev && prev.indexOf(P.MARK) < 0) { kept.push(x.slug); return; } fs.writeFileSync(f, P.command(x, o, tool)); written.push((isMine ? 'mine/' : '') + x.slug); });
+  pristine.concat(mine).forEach(function (x) { var isMine = x.custom || x.overridden; var f = path.join(isMine ? mineDir : dir, x.slug + '.md'); var prev = ''; try { prev = fs.readFileSync(f, 'utf8'); } catch (e) { /* new */ } if (prev && prev.indexOf(P.MARK) < 0) { kept.push(x.slug); return; } fs.writeFileSync(f, P.command(x, isMine ? o : oS, tool)); written.push((isMine ? 'mine/' : '') + x.slug); });
   var hasOwn = !!read('prompts');   // no data/prompts.json here (a fresh checkout, a worktree): mine/ belongs to another data folder, leave it alone
   [dir, mineDir].forEach(function (d, isMine) { if (isMine && !hasOwn) return; var names = []; try { names = fs.readdirSync(d); } catch (e) { return; } names.forEach(function (n) { if (!/\.md$/.test(n)) return; var slug = n.slice(0, -3); if ((isMine ? mine : pristine).some(function (x) { return x.slug === slug; })) return; var t = ''; try { t = fs.readFileSync(path.join(d, n), 'utf8'); } catch (e) { return; } if (t.indexOf(P.MARK) >= 0) { fs.unlinkSync(path.join(d, n)); removed.push((isMine ? 'mine/' : '') + slug); } }); });
   return out(['✓ ' + written.length + ' slash command' + (written.length === 1 ? '' : 's') + ' for ' + tool + ' in ' + rel + '/ (workspace ' + WS_ID + ')', '  ' + written.filter(function (s) { return s.indexOf('mine/') !== 0; }).map(function (s) { return '/' + s; }).join(' ')].concat(written.some(function (s) { return s.indexOf('mine/') === 0; }) ? ['  yours, in ' + rel + '/mine/ (git-ignored): ' + written.filter(function (s) { return s.indexOf('mine/') === 0; }).map(function (s) { return '/' + s.slice(5); }).join(' ')] : []).concat(kept.length ? ['  kept your own: ' + kept.join(', ')] : []).concat(removed.length ? ['  removed stale: ' + removed.join(', ')] : []).concat(tool === 'claude' ? ['Type /standup in Claude Code opened in this folder. Re-run after editing prompts.'] : tool === 'codex' ? ['Codex loads these on start; restart it once.'] : []), { dir: dir, written: written, kept: kept, removed: removed });
@@ -1027,7 +1139,7 @@ function cmdWorkspaces() {
   var sub = (pos.shift() || 'list').toLowerCase(); var rt = read('workspaces') || { workspaces: [] }; rt.workspaces = Array.isArray(rt.workspaces) ? rt.workspaces : [];
   if (sub === 'list') return out(['## Workspaces (' + WORKSPACES.length + ')'].concat(WORKSPACES.map(function (w) {
     var apps = ['boards'].filter(function () { return w.boards.length; }).concat(['social', 'scripts', 'writing', 'video'].filter(function (a) { return w.apps[a]; }));
-    return '- [' + w.id + '] ' + w.title + ' · ' + apps.join(', ') + (w.boards.length ? ' · boards: ' + w.boards.map(function (b) { return b.id; }).join(', ') : '') + (w.id === WS_ID ? ' (default)' : '') + (w.id === PRIMARY ? ' · files: short names' : ' · files: ' + w.id + '-*.json');
+    return '- [' + w.id + '] ' + w.title + (w.sample ? ' (sample)' : '') + ' · ' + apps.join(', ') + (w.boards.length ? ' · boards: ' + w.boards.map(function (b) { return b.id; }).join(', ') : '') + (w.id === WS_ID ? ' (default)' : '') + (w.id === PRIMARY ? ' · files: short names' : ' · files: ' + w.id + '-*.json');
   })), WORKSPACES);
   if (sub === 'add') {
     var title = pos.join(' ').trim() || flags.title; if (!title) fail('Usage: workspaces add "Title" [--apps social,scripts,writing,video] [--boards "Launch,Ops"] [--sample]');
@@ -1151,10 +1263,12 @@ function backupSetup() {
   if ((isRepo && remote) || B.to) return out(['✓ Backup is already set up.', remote ? '- private repo: ' + remote : '', B.to ? '- copy folder: ' + B.to + ' (last ' + whenLocal(B.lastAt) + ')' : '', 'Run `node solo.js backup` any time; `node solo.js backup --daily` schedules it.'].filter(Boolean), { done: true, remote: remote || null, folder: B.to || null });
   var gh = false; if (!flags['no-github']) { try { cp.execFileSync('gh', ['auth', 'status'], { stdio: 'ignore', timeout: 8000 }); gh = true; } catch (e) { gh = false; } }
   if (gh) {
+    if (flags.name !== undefined && (flags.name === true || !/^[A-Za-z0-9._-]{1,100}$/.test(String(flags.name)))) fail('--name takes a repository name: letters, digits, dots, dashes and underscores, e.g. --name solo-ops-data');
     var name = String(flags.name || 'solo-ops-data'); var info = null;
     function view() { try { return JSON.parse(cp.execFileSync('gh', ['repo', 'view', name, '--json', 'url,isPrivate,nameWithOwner'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 15000 })); } catch (e) { return null; } }
     info = view();
     if (info && !info.isPrivate) fail('A repo called ' + name + ' already exists in your GitHub account and it is PUBLIC. Make it private (gh repo edit ' + info.nameWithOwner + ' --visibility private) or pick another name: node solo.js backup setup --name <name>');
+    if (!info && !JSON_OUT) process.stdout.write('Creating a PRIVATE GitHub repo called ' + name + (flags.name ? '' : ' (another name: node solo.js backup setup --name <name>)') + '\n');   // say the name before anything is created
     if (!info) { try { cp.execFileSync('gh', ['repo', 'create', name, '--private'], { stdio: 'ignore', timeout: 30000 }); } catch (e) { fail('Could not create a private repo with gh (' + ((e.stderr || e.message) + '').trim().split('\n')[0] + '). Create it at https://github.com/new (Private) and run: node solo.js backup --remote <its url>'); } info = view(); if (!info) fail('Created ' + name + ' but could not read it back; run: node solo.js backup --remote https://github.com/<you>/' + name + '.git'); }
     if (!JSON_OUT) process.stdout.write('✓ Private GitHub repo ' + info.nameWithOwner + '\n');
     flags.remote = info.url.replace(/\/?$/, '.git'); return cmdBackup();
@@ -1244,7 +1358,7 @@ function cmdGuard() {
     }
   }
   // a shared slash command that carries an edited prompt is personal text too: it must equal the built-in export
-  var po = promptOpts('files'); po.folder = '';
+  var po = sharedPromptOpts();
   var edited = P ? staged.filter(function (f) {
     var m = f.match(/^\.(claude|cursor)\/commands\/([a-z0-9-]+)\.md$/); if (!m) return false;
     var x = P.build(po).filter(function (y) { return y.slug === m[2]; })[0]; if (!x) return false;
@@ -1307,14 +1421,15 @@ function cmdDoctor() {
   }); });
   var repo = fs.existsSync(path.join(DATA, '.git')); var lastBackup = null;
   if (repo) { try { lastBackup = require('child_process').execFileSync('git', ['-C', DATA, 'log', '-1', '--format=%cI'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch (e) { /* none */ } }
-  var realData = files.some(function (f) { return !/^(settings|activity|boards|workspaces|prompts|backup)\.json$/.test(f); });
+  var samplePre = WORKSPACES.filter(function (w) { return w.sample; }).map(function (w) { return w.id + '-'; });
+  var realData = files.some(function (f) { return !/^(settings|activity|boards|workspaces|prompts|backup)\.json$/.test(f) && !samplePre.some(function (p) { return f.indexOf(p) === 0; }) && hasContent(f.replace(/\.json$/, '')); });   // empty files and the Sample project are not your data yet   // empty files from a blank start are not data yet
   var BC = backupCfg(); var bfolder = BC.to || ''; var bAt = BC.lastAt || ''; var WEEK = 7 * 86400000;
   if (!repo && !bfolder && realData) issues.push('no backup: your data lives only on this computer. Run: node solo.js backup setup');
   else if (repo && lastBackup && Date.now() - Date.parse(lastBackup) > WEEK) issues.push('last backup was ' + Math.round((Date.now() - Date.parse(lastBackup)) / 86400000) + ' days ago. Run: node solo.js backup');
   else if (!repo && bfolder && (!bAt || Date.now() - Date.parse(bAt) > WEEK)) issues.push('last copy to ' + bfolder + ' was ' + (bAt ? Math.round((Date.now() - Date.parse(bAt)) / 86400000) + ' days ago' : 'never') + '. Run: node solo.js backup');
   else if (repo || bfolder) notes.push('backup: ' + [repo ? 'private repo, last ' + (lastBackup || 'never') : '', bfolder ? 'folder ' + bfolder + ', last ' + whenLocal(bAt) : ''].filter(Boolean).join(' · '));
   doctorVideo(files, issues, notes, repo);
-  if (!files.length) notes.push('fresh install: data/ has no files yet. Next: ask your agent for /setup, or `node solo.js template all` for the sample sprint, or `node serve.js` and plan in the app');
+  if (!realData) notes.push('fresh install: no tasks, posts, scripts or notes yet. Next: ask your agent for /setup (or /bring-in to bring your work in from Notion, Linear, Todoist…), or open the app with `node serve.js`. A sample to look around: `node solo.js template sample`');
   if (fs.existsSync(path.join(ROOT, '.git'))) { var hk = ''; try { hk = fs.readFileSync(path.join(ROOT, '.git', 'hooks', 'pre-commit'), 'utf8'); } catch (e) { /* none */ } if (!/solo\.js"? guard/.test(hk)) notes.push('commit guard not installed: `node solo.js guard --install` makes git refuse commits that contain data/ or personal prompts'); }
   out(['# doctor — ' + (issues.length ? issues.length + ' issue' + (issues.length === 1 ? '' : 's') : 'all good'), ''].concat(issues.map(function (i) { return '⚠ ' + i; })).concat(issues.length ? [''] : []).concat(notes.map(function (n) { return '· ' + n; })), { ok: !issues.length, issues: issues, notes: notes, orphans: orphans, missing: missing, browserOnly: browserOnly, repo: repo, lastBackup: lastBackup });
   if (issues.some(function (i) { return i.indexOf('no backup') !== 0; }) && !JSON_OUT) process.exitCode = 2;   // a missing backup is a reminder, not a broken install
@@ -1346,20 +1461,77 @@ function doctorVideo(files, issues, notes, repo) {
 }
 
 /* ---- template / theme / config / serve ----------------------------------- */
+// A data file "has content" when one of its lists holds something; empty files (a blank start) do not count.
+function hasContent(name) { var d = read(name); return !!d && ['tasks', 'posts', 'scripts', 'notes', 'items', 'videos'].some(function (k) { return Array.isArray(d[k]) && d[k].length > 0; }); }
+var SAMPLE_WS = { id: 'sample-project', title: 'Sample project' };
 function cmdTemplate() {
   if (!T) fail('core/templates.js not found.');
   var which = (pos[0] || 'all').toLowerCase(); var all = ['board', 'social', 'scripts', 'writing', 'inspiration', 'settings'];
   if (which === 'runway') which = 'board';
-  var targets = which === 'all' ? all : [which]; if (targets.some(function (t) { return all.indexOf(t) < 0; })) fail('Usage: template [board|social|scripts|writing|settings|all] [--board id] [--force]');
+  if (which === 'blank') return templateBlank();
+  if (which === 'sample') return templateSample();
+  var targets = which === 'all' ? all : [which]; if (targets.some(function (t) { return all.indexOf(t) < 0; })) fail('Usage: template blank [--name "My project"] (empty files, never overwrites) · template sample (a separate Sample project) · template [board|social|scripts|writing|settings|all] [--board id] [--force] (sample content into this project)');
   var done = [];
   targets.forEach(function (t) {
     var name = t === 'board' ? boardFile() : (t === 'settings' || t === 'inspiration') ? t : fileName(t);
-    if (fs.existsSync(fileOf(name)) && !flags.force) { done.push('- data/' + name + '.json exists — skipped (use --force to overwrite)'); return; }
+    if (fs.existsSync(fileOf(name)) && !flags.force && (t === 'settings' || hasContent(name))) { done.push('- data/' + name + '.json has content — skipped (use --force to overwrite)'); return; }   // an empty file (a blank start) is filled
     var body = t === 'board' ? T.runway() : t === 'social' ? T.social(new Date()) : t === 'scripts' ? T.scripts(new Date()) : t === 'writing' ? T.writing(new Date()) : t === 'inspiration' ? T.inspiration(new Date()) : T.settings();
     if (t === 'settings') { var curS = read('settings'); if (curS && isObj(curS.config)) body.config = curS.config; }   // the sample theme never drops your settings
     write(name, body, { noActivity: true }); done.push('- wrote data/' + name + '.json (sample content)');
   });
   out(done, { written: targets });
+}
+// template blank: the open project starts empty on purpose. Writes an empty file for each of its boards and apps (and the
+// inspiration inbox) where none exists, so every page shows it empty instead of a first-open sample; never overwrites.
+// --name "My project" (the first project only) names the project and its first board and drops the sample sprint framing,
+// through your settings (data/settings.json), never solo.config.js.
+function templateBlank() {
+  var made = [], kept = [];
+  function blank(name, body) { if (fs.existsSync(fileOf(name))) { kept.push('data/' + name + '.json'); return; } write(name, body, { noActivity: true, note: 'blank start', stamp: '1970-01-01T00:00:00.000Z' }); made.push('data/' + name + '.json'); }   // the oldest stamp: never newer than a browser's real copy
+  BOARDS.forEach(function (b) { blank(prefix() + b.id, { projects: [], tasks: [] }); });
+  if (appOn('social')) blank(fileName('social'), { posts: [] });
+  if (appOn('scripts')) blank(fileName('scripts'), { activeId: '', scripts: [] });
+  if (appOn('writing')) blank(fileName('writing'), { activeId: '', notes: [] });
+  if (appOn('video')) blank(fileName('videos'), { activeId: '', videos: [] });
+  blank('inspiration', { items: [] });
+  var nameNew = flags.name !== undefined && flags.name !== true ? String(flags.name).trim() : '';
+  var lines = ['# Blank start · ' + (nameNew && WS_ID === PRIMARY ? nameNew : WS.title), ''].concat(made.length ? made.map(function (f) { return '- wrote ' + f + ' (empty)'; }) : ['- nothing to write']).concat(kept.length ? ['- kept ' + kept.join(', ') + ' (already there, never overwritten)'] : []);
+  var name = flags.name !== undefined && flags.name !== true ? String(flags.name).trim() : '';
+  if (name) {
+    if (WS_ID !== PRIMARY) lines.push('', '--name names the first project only. For this one: node solo.js workspaces rename ' + WS_ID + ' "' + name + '"');
+    else {
+      if (!CfgLib) fail('core/config.js not found.');
+      var s = read('settings') || { theme: cfg.theme || { mode: 'auto', palette: 'mono' } }; var o = isObj(s.config) ? s.config : {}; var b0 = BOARDS[0];
+      var steps = [['name', name]].concat(b0 ? [['boards.' + b0.id + '.title', name], ['boards.' + b0.id + '.sprintLabel', 'Progress'], ['boards.' + b0.id + '.milestones', '[]'], ['boards.' + b0.id + '.focus', '[]']] : []);
+      steps.forEach(function (st) { try { o = CfgLib.override(SHIPPED, o, 'set', st[0], st[1], {}).config; } catch (e) { fail(e.message); } });
+      s.config = o; write('settings', s, { note: 'blank start: project named ' + name });
+      lines.push('- named the project and its board "' + name + '" (data/settings.json; the sample sprint cards are gone)');
+    }
+  }
+  lines.push('', 'Next: bring your work in (/bring-in), or plan something new (/plan-project). Everything you can ask: /menu.');
+  out(lines, { made: made, kept: kept, name: name || null });
+}
+// template sample: a separate "Sample project" with the sample sprint, schedule, scripts and drafts, so it never mixes into
+// your own work. Marked sample: true (left out of "all projects" views); remove it any time: workspaces rm sample-project.
+function templateSample() {
+  var rt = read('workspaces') || { workspaces: [] }; rt.workspaces = Array.isArray(rt.workspaces) ? rt.workspaces : [];
+  var had = WORKSPACES.filter(function (w) { return w.id === SAMPLE_WS.id; })[0];
+  if (had && had.boards[0] && hasContent(SAMPLE_WS.id + '-' + had.boards[0].id)) return out('· The Sample project is already there: node solo.js week --ws ' + SAMPLE_WS.id + ' · open: index.html?ws=' + SAMPLE_WS.id, { id: SAMPLE_WS.id, existed: true });
+  if (had) {   // made in a browser without the server: the entry is there, the files are not yet
+    var hb = had.boards[0] || { id: 'runway' }; var nw = new Date(); var hp = SAMPLE_WS.id + '-';
+    if (!hasContent(hp + hb.id)) write(hp + hb.id, { projects: [], tasks: T.runway().tasks }, { noActivity: true }); if (!hasContent(hp + 'social')) write(hp + 'social', { posts: T.social(nw).posts }, { noActivity: true });
+    if (!hasContent(hp + 'scripts')) write(hp + 'scripts', T.scripts(nw), { noActivity: true }); if (!hasContent(hp + 'writing')) write(hp + 'writing', T.writing(nw), { noActivity: true });
+    return out('✓ The Sample project now has its files too: node solo.js week --ws ' + SAMPLE_WS.id, { id: SAMPLE_WS.id, filled: true });
+  }
+  var sb = (SHIPPED.boards && SHIPPED.boards[0]) || { id: 'runway', title: 'Launch Runway', sprintLabel: 'Sprint progress', milestones: [], focus: [] };
+  var w = { id: SAMPLE_WS.id, title: SAMPLE_WS.title, apps: { social: true, scripts: true, writing: true, video: true }, boards: [{ id: slug(sb.id || sb.title), title: sb.title, sprintLabel: sb.sprintLabel || 'Progress', milestones: sb.milestones || [], focus: sb.focus || [] }], sample: true, createdAt: Date.now() };
+  rt.workspaces.push(w); write('workspaces', rt, { note: 'sample project added' });
+  var pre = w.id + '-'; var now = new Date();
+  write(pre + w.boards[0].id, { projects: [], tasks: T.runway().tasks }, { noActivity: true });
+  write(pre + 'social', { posts: T.social(now).posts }, { noActivity: true });
+  write(pre + 'scripts', T.scripts(now), { noActivity: true });
+  write(pre + 'writing', T.writing(now), { noActivity: true });
+  out(['✓ Sample project added: a two-week sprint, a posting arc, scripts and drafts to look around.', '  It is its own project, so nothing mixes into yours; "all projects" views leave it out.', '  Look: node solo.js week --ws ' + w.id + '   ·   open: index.html?ws=' + w.id, '  Remove it: node solo.js workspaces rm ' + w.id + ' (its files stay in data/ until you delete them)'], w);
 }
 function cmdTheme() {
   var sub = (pos.shift() || 'show').toLowerCase(); var s = read('settings') || { theme: (cfg.theme || { mode: 'auto', palette: 'mono' }) };
@@ -1413,17 +1585,17 @@ function cmdHelp() {
     'Workspaces (one project = its own boards, schedule, scripts, notes; add --ws <id> to any command)', '  workspaces list', '  workspaces add "Title" [--apps social,scripts,writing] [--boards "A,B"] [--sample]   workspaces rename <id> "Title"   workspaces rm <id>', '',
     'Boards (data/<id>.json — every task command takes --board <id>; default: first board)', '  boards list', '  boards add "Title" [--from blank|sample|<id>]   boards rename <id> "Title"   boards rm <id> --force', '',
     'Tasks', '  list [board|all|todo|doing|done|later|bucket] [--proj X] [--tag Y]', '  show <task>                 full task (id or title fragment)',
-    '  add "Title" [--proj X] [--pri high] [--tags a,b] [--col later] [--desc "…"] [--steps "a|b"] [--at <when>] [--until HH:MM] [--due <date>] [--ext <calendar id>]', '  at <task> <when|clear> [--until HH:MM]   due <task> <date|clear>      when = 2026-10-15T14:00 · 2026-10-15 (all day) · tomorrow 14:00 · fri 10:00 · +3d 17:30; a meeting = --tags meeting', '  start|done|later|bucket|todo <task>', '  move <task> <column>        pri <task> <high|medium|low>', '  tag <task> +a -b            step <task> "text"   check|uncheck <task> <n>', '  note <task> ["text"]        edit <task> --title … --proj … --pri …', '  rm <task>', '',
+    '  add "Title" [--proj X] [--pri high] [--tags a,b] [--col later] [--desc "…"] [--steps "a|b"] [--at <when>] [--until HH:MM] [--due <date>] [--ext <tool>:<id>]', '  at <task> <when|clear> [--until HH:MM]   due <task> <date|clear>      when = 2026-10-15T14:00 · 2026-10-15 (all day) · tomorrow 14:00 · fri 10:00 · +3d 17:30; a meeting = --tags meeting', '  start|done|later|bucket|todo <task>', '  move <task> <column>        pri <task> <high|medium|low>', '  tag <task> +a -b            step <task> "text"   check|uncheck <task> <n>', '  note <task> ["text"]        edit <task> --title … --proj … --pri …', '  rm <task>', '',
     'With others (send tasks to another Solo Ops; nothing lands on your board until you accept it — relay: node relay.js)',
     '  id create @you [--relay url]   id | id publish [--listed --name "…" --bio "…"] | id card | id relays <urls>     your handle, registered on the OHAN box (' + BOX + ')',
     '  contacts add @handle | contacts add "<card>" | contacts list | contacts rm @h           the people you share with; by handle it is looked up on the box',
     '  tag <task> +@maya                tagging a contact on a task shares it with them (steps, dates, status; never notes); changes follow on their own',
     '  share list [--all]   share sync [--reoffer]   share revoke <id>   share with @h --tag x     the shares behind the tags; sync sends by hand',
     '  inbox [--all]   inbox accept <id|all> [--board id]   inbox skip <id|all>            what others sent you; accept = it lands on your board', '',
-    'Share', '  share today [--all]         today as a short card: Doing · Schedule · Next up (the page copies it as an image)', '  share [todo|board|all]      markdown checklist (paste anywhere)', '  import <list.md> [--col]    "- [ ] item" lines become tasks, indented lines become steps', '',
+    'Share', '  share today [--all]         today as a short card: Doing · Schedule · Next up (the page copies it as an image)', '  share [todo|board|all]      markdown checklist (paste anywhere)', '  import <list.md> [--col]    "- [ ] item" lines become tasks, indented lines become steps', '  import <items.json> [--dry-run]   what your agent brings in from Notion, Linear…: same ext = update, never a duplicate; one write per board', '  done ext:<tool>:<id>        any task command takes ext:<id> (the task an import made, on any board)', '',
     'Posts (data/social.json)', '  social list|next|week|show <post>', '  social add "Title" [--at 2026-10-20T09:00 | +3d 17:30] [--type launch] [--project X] [--copy "…"] [--prep "a|b"]', '  social posted|ready|draft <post> [--url …]   social move <post> <when>', '  social prep <post> "item"   social check <post> <n>   social copy <post> ["text"]   social rm <post>', '',
     'Inspiration (data/inspiration.json — links, ideas, images; tag with a workspace)', '  inspo list [--ws] [--tag x] [--status new|used|archived]   inspo show <item>', '  inspo add [--file <path>] "https://… or an idea #tag" [--ws <id>] [--tags a,b]   inspo tag <item> +a -b   inspo ws <item> <workspace>', '  inspo use <item> --as task|post|script|note [--ws] [--board]   inspo ai [--into tasks] (prompt to paste into an AI)   inspo archive|rm <item>', '',
-    'Prompts (built-ins in core/prompts.js, yours in data/prompts.json)', '  prompts builtin [--mode chat|files]   prompts show <title or /slug>   prompts export [--for claude|cursor|codex|chat] [--out dir]', '  prompts list|add "Title" --text "…"|--file p.md [--cat daily] [--desc "…"]|edit <p> …|rm <p>|restore', '',
+    'Prompts (built-ins in core/prompts.js, yours in data/prompts.json)', '  menu                       what you can ask your agent, by moment of the day (the same as /menu)', '  prompts builtin [--mode chat|files]   prompts show <title or /slug>   prompts export [--for claude|cursor|codex|chat] [--out dir]', '  prompts list|add "Title" --text "…"|--file p.md [--cat daily] [--desc "…"]|edit <p> …|rm <p>|restore', '',
     'Studio (data/scripts.json, data/writing.json)', '  scripts list|show <s>|add "Title" [--file x.md]|rm <s>', '  notes list|show <n>|add "Title" [--file x.md]|rm <n>', '',
     'Video (data/videos.json + data/videos/<id>/ — cut a take by its words; the footage stays where it is, needs ffmpeg)', '  video add "Title" --file ./take.mov [--script s3]   video list|show <v>|open <v> [--preview]|rm <v> [--files]   video source <v> <new path>',
     '  video transcribe <v> [--engine whisper|elevenlabs] [--lang en] [--from captions.srt] [--yes]   whisper = on this computer; elevenlabs = audio only leaves (needs video key set elevenlabs --stdin)',
@@ -1436,7 +1608,7 @@ function cmdHelp() {
     '  notes add --task t1   scripts add --task t1 [--draft n1]   social add --task t1   video add "Title" --file … --task t1   the piece is made for that task and the card shows it',
     '  add "Title" --tags video --script s1 | --draft n1 | --take v1 | --post p1   a task born with its piece; tags writing · script · video make a task a suggestion in that view', '',
     'Safety', '  backup setup [--name solo-ops-data] [--no-github]   first time: a PRIVATE GitHub repo via gh, or it tells you the two other ways', '  backup [--remote <private url>] [--to <folder>] [--status]   push data/ to its private repo and/or copy it to a syncing folder; refuses public repos', '  backup --daily [--hour 21] [--dry-run]   run it every evening (launchd / crontab / a schtasks line)', '  guard [--install] [--allow-data]   fail when staged files hold your content; --install = on every commit; --allow-data = your own PRIVATE fork only', '  doctor | health            check every data file, attachments and backup age', '',
-    'Setup', '  template [all|board|social|scripts|writing|settings] [--board id] [--force]', '  theme [show|list|set <palette>|mode <auto|light|dark>|font <inter|system|lato|editorial>]', '  config                     the settings in use (solo.config.js + your settings)', '  config set <setting> <value>  your values, kept in data/settings.json: owner "Mara" · name "Pocket Studio" · social.postTypes reel,carousel · boards.runway.title "…"', '  config add <list> a b      add to a list (config unset <setting> · config set --file x.json · config clear)', '  serve [--port 4321]        start the local server (pages write data/ directly)', '',
+    'Setup', '  template blank [--name "My project"]   empty files for this project (never overwrites); --name names it and its first board', '  template sample            a separate Sample project to look around (left out of "all projects")', '  template [all|board|social|scripts|writing|settings] [--board id] [--force]   sample content into this project (fills empty files)', '  theme [show|list|set <palette>|mode <auto|light|dark>|font <inter|system|lato|editorial>]', '  config                     the settings in use (solo.config.js + your settings)', '  config set <setting> <value>  your values, kept in data/settings.json: owner "Mara" · name "Pocket Studio" · social.postTypes reel,carousel · boards.runway.title "…"', '  config add <list> a b      add to a list (config unset <setting> · config set --file x.json · config clear)', '  serve [--port 4321]        start the local server (pages write data/ directly)', '',
     'Add --json to any command for machine-readable output. Ids: tasks t…, posts p…, scripts s…, notes n….',
     'Agents: add --as agent (and --note "why") so the change log attributes the edit to you.'], null);
 }
@@ -1768,9 +1940,12 @@ var commands = {
   share: cmdShare, import: cmdImport, link: cmdLink, connect: cmdLink, story: cmdStory,
   social: cmdSocial, post: cmdSocial, posts: cmdSocial,
   scripts: cmdScripts, script: cmdScripts, notes: cmdNotes, video: cmdVideo, videos: cmdVideo, take: cmdVideo, takes: cmdVideo,
-  inspo: cmdInspo, inspiration: cmdInspo, prompts: cmdPrompts, prompt: cmdPrompts, boards: cmdBoards, board: cmdBoards, activity: cmdActivity, log: cmdLog, history: cmdLog, revert: cmdRevert, undo: cmdRevert, workspaces: cmdWorkspaces, workspace: cmdWorkspaces, ws: cmdWorkspaces,
+  inspo: cmdInspo, inspiration: cmdInspo, prompts: cmdPrompts, prompt: cmdPrompts, menu: cmdMenu, boards: cmdBoards, board: cmdBoards, activity: cmdActivity, log: cmdLog, history: cmdLog, revert: cmdRevert, undo: cmdRevert, workspaces: cmdWorkspaces, workspace: cmdWorkspaces, ws: cmdWorkspaces,
   backup: cmdBackup, doctor: cmdDoctor, health: cmdDoctor, guard: cmdGuard, template: cmdTemplate, theme: cmdTheme, config: cmdConfig, serve: cmdServe
 };
+// `done ext:linear:<id>` (any task command): the board that holds that import, unless --board says otherwise
+(function () { if (flags.board || cmd === 'add' || cmd === 'import') return; var xa = pos.filter(function (p) { return /^ext:/i.test(String(p)); })[0]; if (!xa) return; var want = String(xa).slice(4).toLowerCase();
+  BOARDS.some(function (bm) { var bf = read(boardFile(bm.id)); if (bf && Array.isArray(bf.tasks) && bf.tasks.some(function (t) { return t.ext && String(t.ext).toLowerCase() === want; })) { BOARD_ID = bm.id; return true; } return false; }); })();
 var fn = commands[cmd];
 if (!fn) fail('Unknown command "' + cmd + '". Run: node solo.js help');
 var ret = fn();

@@ -148,10 +148,8 @@
         return;
       } catch (e) { /* fall through */ }
     }
-    fresh = true;
-    state = seed();
-    persist({ silent: true });
-    Store.markFresh(KEY);
+    fresh = true;   // a first open: blank, or the sample arc when core/templates.js says so (Store.firstOpen)
+    state = Store.firstOpen(KEY, [], seed);
   }
 
   function sorted() {
@@ -192,7 +190,8 @@
     ASSET_KINDS: ASSET_KINDS,
 
     init: load,
-    isFresh: function () { return fresh || Store.isFresh(KEY); },
+    isFresh: function () { return Store.isFresh(KEY); },   // the shared flag only: cleared by the first real write
+    isSample: function () { return Store.isSample(KEY); },
     getProjects: getProjects,
     find: find,
     getState: function () { return state; },

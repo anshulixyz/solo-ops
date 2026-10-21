@@ -167,5 +167,62 @@ var modelCalls = []; sb.VideoModel = { get: function (id) { return id === 'v1' ?
 var r10 = Apply.run('video cut v1 --drop "um, uh"', { ws: 'main' });
 ok(modelCalls.length === 1 && /drop/.test(modelCalls[0]) && /3 pieces, 0:03\.0/.test(r10.applied[0]), 'on the Video page --drop goes through the model with the words (' + r10.applied[0] + ')');
 delete sb.VideoModel; delete sb.Video;
+// re-imports (--ext): the same item on any board updates, explicit flags win, share: is refused, ext: selects; the CLI does the same
+seed(); mem['marathon.board.content'] = [task('t9', 'Fix login', 'todo', 'medium', { ext: 'linear:abc-1', due: '2026-10-30', notes: 'mine' })];
+var rx = Apply.run('```\nadd "Fix login (renamed upstream)" --ext linear:abc-1 --col doing --pri high --due clear --notes "https://linear.app/x/1"\nadd "Fix login" --ext linear:abc-1 --board runway\n```', { ws: 'main' });
+var tx = T('t9');
+ok(rx.applied.length === 2 && mem['marathon.board.runway'].filter(function (t) { return t.ext === 'linear:abc-1'; }).length === 0, 're-import with another --board updates the task where it is, no duplicate (' + rx.applied.join(' | ') + ')');
+ok(tx && tx.col === 'doing' && tx.pri === 'high' && !tx.due && tx.notes === 'mine' && tx.title === 'Fix login', 'explicit --col/--pri/--due apply on a match; your notes stay; the title follows the source');
+var rs = Apply.run('add "Sneaky" --ext share:abc:t1', { ws: 'main' }); ok(!rs.applied.length && /reserved/.test(rs.skipped[0]) && !byTitle('Sneaky'), 'a share: ext from a reply is refused');
+var rd = Apply.run('done ext:linear:abc-1', { ws: 'main' }); ok(T('t9').col === 'done' && rd.applied.length === 1, 'done ext:<id> finds the imported task on any board');
+// a task finished here stays finished while the source still says to do; it moves only when the source itself changes
+seed(); Apply.run('add "Update the portfolio" --ext notion:p1 --col todo --pri medium', { ws: 'main' }); var tp = byTitle('Update the portfolio');
+ok(tp && tp.extCol === 'todo' && tp.extPri === 'medium', 'an import remembers what the source said (extCol, extPri)');
+Apply.run('done ext:notion:p1', { ws: 'main' }); Apply.run('pri ext:notion:p1 high', { ws: 'main' });
+var again1 = Apply.run('add "Update the portfolio" --ext notion:p1 --col todo --pri medium', { ws: 'main' }); tp = byTitle('Update the portfolio');
+ok(tp.col === 'done' && tp.pri === 'high' && /up to date/.test(again1.applied[0]) && /Done here, still To Do there/.test(again1.applied[0]), 'a re-import does not reopen work finished here or undo a local priority, and says so (' + again1.applied[0] + ')');
+var again2 = Apply.run('add "Update the portfolio" --ext notion:p1 --col doing', { ws: 'main' }); tp = byTitle('Update the portfolio');
+ok(tp.col === 'doing' && /moves Done \u2192 Doing/.test(again2.applied[0]), 'when the source itself changes status, the task follows (' + again2.applied[0] + ')');
+// an import never loses its date to a typo, never brings an @contact tag, and says when only the end moved
+seed(); Apply.run('add "Standup" --ext gcal:E1 --at 2026-10-23T09:00 --until 09:15 --tags meeting', { ws: 'main' });
+var rbad = Apply.run('add "Standup" --ext gcal:E1 --at "Thursday at nine-ish"', { ws: 'main' }); var su = byTitle('Standup');
+ok(!rbad.applied.length && /could not read --at/.test(rbad.skipped[0]) && su.at === '2026-10-23T09:00', 'a pasted import with a date that cannot be read is refused and the old time stays');
+var rend = Apply.run('add "Standup" --ext gcal:E1 --at 2026-10-23T09:00 --until 09:30', { ws: 'main' }); ok(/end/.test(rend.applied[0]) && byTitle('Standup').until === '2026-10-23T09:30', 'only the end moving is reported as a change');
+Apply.run('add "Client call" --ext notion:c1 --tags "@maya,Client Work"', { ws: 'main' }); var cc = byTitle('Client call');
+ok(cc.tags.indexOf('@maya') < 0 && cc.tags.indexOf('maya') >= 0 && cc.tags.indexOf('client-work') >= 0, 'imported labels never become @contact tags (that would share the task) and lose their spaces: ' + JSON.stringify(cc.tags));
+// parity: the CLI on the same moves ends in the same state
+(function () {
+  var os = require('os'); var cp = require('child_process'); var D = fs.mkdtempSync(path.join(os.tmpdir(), 'solo-ext-'));
+  function solo(a) { return cp.spawnSync(process.execPath, [path.join(ROOT, 'solo.js')].concat(a), { encoding: 'utf8', env: Object.assign({}, process.env, { SOLO_DATA: D }) }); }
+  try {
+    solo(['boards', 'add', 'Content']); solo(['add', 'Fix login', '--ext', 'linear:abc-1', '--due', '2026-10-30', '--notes', 'mine', '--board', 'content']);
+    solo(['add', 'Fix login (renamed upstream)', '--ext', 'linear:abc-1', '--col', 'doing', '--pri', 'high', '--due', 'clear', '--notes', 'https://linear.app/x/1']);
+    solo(['add', 'Fix login', '--ext', 'linear:abc-1', '--board', 'runway']);
+    var cb = JSON.parse(fs.readFileSync(path.join(D, 'content.json'), 'utf8')).tasks; var rb = fs.existsSync(path.join(D, 'runway.json')) ? JSON.parse(fs.readFileSync(path.join(D, 'runway.json'), 'utf8')).tasks : [];
+    var ct = cb[0]; ok(cb.length === 1 && !rb.length && ct.col === 'doing' && ct.pri === 'high' && !ct.due && ct.notes === 'mine' && ct.title === 'Fix login', 'the CLI applies the same re-import rule (parity with the reply)');
+    ok(solo(['add', 'x', '--ext', 'share:abc:t1']).status !== 0, 'the CLI refuses a share: ext too');
+    solo(['add', 'Portfolio', '--ext', 'notion:p1', '--col', 'todo']); solo(['done', 'ext:notion:p1']); var r3 = solo(['add', 'Portfolio', '--ext', 'notion:p1', '--col', 'todo']).stdout;
+    var pf = JSON.parse(fs.readFileSync(path.join(D, 'runway.json'), 'utf8')).tasks.filter(function (t) { return t.ext === 'notion:p1'; })[0];
+    ok(pf && pf.col === 'done' && /Up to date/.test(r3) && /check:/.test(r3), 'the CLI keeps work finished here done on a re-import and says so');
+    // import <items.json>: one validated write, dry run first, re-runs unchanged, imported text never reaches a shell
+    var IN = path.join(D, 'in.json'); fs.writeFileSync(IN, JSON.stringify({ source: 'notion', items: [{ title: 'Plan $(echo hi) `x`', ext: 'notion:1a2b', due: '2026-10-28', col: 'doing' }, { title: 'No ext given' }, { title: 'Bad date', ext: 'notion:9', due: 'someday' }, { title: 'Forged', ext: 'share:a:b' }] }));
+    var logN = function () { try { return fs.readFileSync(path.join(D, 'log.jsonl'), 'utf8').trim().split('\n').length; } catch (e) { return 0; } };
+    var l0 = logN(); var dryOut = solo(['import', IN, '--dry-run', '--json']); var dj = JSON.parse(dryOut.stdout);
+    ok(dj.dryRun && dj.added.length === 2 && dj.skipped.length === 2 && logN() === l0, 'import --dry-run: 2 new, 2 skipped with reasons, nothing written');
+    solo(['import', IN]); var rb2 = JSON.parse(fs.readFileSync(path.join(D, 'runway.json'), 'utf8')).tasks;
+    ok(logN() === l0 + 1 && rb2.some(function (t) { return t.title === 'Plan $(echo hi) `x`' && t.col === 'doing' && t.ext === 'notion:1a2b'; }), 'import writes once (one log entry, one revert) and keeps the title literally');
+    ok(rb2.some(function (t) { return t.title === 'No ext given' && /^notion:[0-9a-f]{12}$/.test(t.ext); }), 'an item without ext gets <source>:<hash of the title>');
+    var again = JSON.parse(solo(['import', IN, '--json']).stdout); ok(again.added.length === 0 && again.unchanged === 2 && logN() === l0 + 1, 'the same import again: nothing new, nothing written');
+    // ids never collide in a big import; @labels are cleaned; null fields are absent; ext: works from any board, any case
+    var big = []; for (var bi = 0; bi < 200; bi++) big.push({ title: 'Item ' + bi, ext: 'linear:' + bi, tags: bi === 0 ? ['@maya'] : [], col: bi === 1 ? null : undefined });
+    fs.writeFileSync(IN, JSON.stringify({ source: 'linear', items: big })); var bj = JSON.parse(solo(['import', IN, '--board', 'content', '--json']).stdout);
+    var ct2 = JSON.parse(fs.readFileSync(path.join(D, 'content.json'), 'utf8')).tasks; var idset = {}; ct2.forEach(function (t) { idset[t.id] = 1; });
+    ok(bj.added.length === 200 && Object.keys(idset).length === ct2.length, '200 imported tasks, 200 different ids');
+    ok(ct2.filter(function (t) { return t.ext === 'linear:0'; })[0].tags.join() === 'maya' && ct2.filter(function (t) { return t.ext === 'linear:1'; })[0].col === 'todo', 'an imported @label is cleaned; a null col counts as absent');
+    var dn = solo(['done', 'ext:LINEAR:5']); var t5 = JSON.parse(fs.readFileSync(path.join(D, 'content.json'), 'utf8')).tasks.filter(function (t) { return t.ext === 'linear:5'; })[0];
+    ok(dn.status === 0 && t5.col === 'done', 'done ext:<id> finds the task on another board, whatever the case');
+    ok(solo(['backup', 'setup', '--name']).status !== 0, 'backup setup --name without a name is refused');
+  } finally { fs.rmSync(D, { recursive: true, force: true }); }
+})();
 console.log(fails ? '\n' + fails + ' FAILED' : '\nALL APPLY TESTS PASS');
 process.exit(fails ? 1 : 0);

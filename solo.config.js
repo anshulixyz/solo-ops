@@ -95,6 +95,12 @@
        otherwise captions ride along as a track and a .srt file. ---------- */
     video: { engine: '', ffmpeg: '', whisper: '', model: 'small.en', captions: { style: 'sentence', burn: false }, pause: 0.7, recordings: '', auto: '', autoMaxMin: 30 },   // pause: a silence longer than this (s) is shortened by "tidy up"; recordings: the folder new recordings are picked up from (default ~/Movies/Solo Ops takes); auto: '' | whisper | elevenlabs = get the words for every new take without asking (elevenlabs: the standing yes to spend); autoMaxMin: not above this length
 
+    /* ---- bring in: where your work lives today, for "Start my day" ----------
+       Your agent fills this when you run Bring in my work (/bring-in) and say yes:
+       node solo.js config set bringIn.sources "linear,notion:Roadmap"
+       (it lands in data/settings.json, never here). */
+    bringIn: { sources: [] },
+
     /* ---- activity --------------------------------------------------
        Every change (page or CLI) is logged per day in data/activity.json.
        Home shows a streak + heatmap and turns amber after this many idle

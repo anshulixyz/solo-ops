@@ -34,11 +34,36 @@ var fails = 0; function ok(cond, msg) { if (!cond) { fails++; console.error('✗
   ['standup', 'week'].forEach(function (sl) { var x = list.filter(function (y) { return y.slug === sl; })[0]; ok(x && /take is waiting/.test(x.p), mode + ': ' + sl + ' must mention a waiting take'); });
   // every video flag a prompt names exists in the CLI
   var soloSrc = fs.readFileSync(path.join(__dirname, '..', 'solo.js'), 'utf8'); ['--edl', '--drop', '--keep', '--preview', '--aspect', '--style', '--copy', '--at'].forEach(function (fl) { ok(soloSrc.indexOf("flags." + fl.slice(2)) >= 0 || soloSrc.indexOf(fl) >= 0, 'cmdVideo does not know ' + fl); });
+  // bringing work in: the import prompts carry the untrusted-content fence, the ext rule, a cap and a show-first step
+  ['bring-in', 'start-day'].forEach(function (sl) { var x = list.filter(function (y) { return y.slug === sl; })[0]; ok(!!x, mode + ': ' + sl + ' missing'); if (!x) return;
+    ok(x.p.indexOf(P.UNTRUSTED) >= 0, mode + ': ' + sl + ' must carry the untrusted-content fence');
+    ok(x.p.indexOf('--ext') >= 0, mode + ': ' + sl + ' must use --ext so re-runs update'); });
+  var bi = list.filter(function (y) { return y.slug === 'bring-in'; })[0];
+  if (bi) { ok(/At most 20|at most 20/.test(bi.p) && /yes/.test(bi.p), mode + ': bring-in caps new items and waits for a yes');
+    if (mode === 'files') ok(bi.p.indexOf('--dry-run') >= 0 && bi.p.indexOf('import data/imports/') >= 0 && bi.p.indexOf('--as agent') >= 0 && /never through a shell/.test(bi.p), 'files: bring-in writes one import file, dry-runs it, never passes imported text through a shell, logs as agent'); }
+  var sd = list.filter(function (y) { return y.slug === 'start-day'; })[0]; if (sd && mode === 'files') ok(/unattended/i.test(sd.p) && /at most 10 new/.test(sd.p), 'files: start-day says what an unattended run may do');
+  var wr = list.filter(function (y) { return y.slug === 'wrap'; })[0]; if (wr && mode === 'files') ok(/git -C/.test(wr.p) && /--ext log:/.test(wr.p) && /never paste diffs or secrets/.test(wr.p), 'files: wrap gathers from the conversation and git, logs finished work once');
+  // /setup: one round of three questions, blank start, work brought in, the backup with its name, the menu at the end
+  var su = list.filter(function (y) { return y.slug === 'setup'; })[0];
+  if (su) ok(/three together, in one message/.test(su.p) && su.p.indexOf('template blank') >= 0 && su.p.indexOf('/bring-in') >= 0 && su.p.indexOf('backup setup --name') >= 0 && su.p.indexOf('node solo.js menu') >= 0 && su.p.indexOf('guard --install') >= 0 && su.p.indexOf('solo.config.js is shipped code') >= 0, mode + ': /setup is one round, starts blank, brings work in, names the backup repo, ends with the menu');
+  var bs = list.filter(function (y) { return y.slug === 'backup-setup'; })[0]; if (bs && mode === 'files') ok(bs.p.indexOf('--name') >= 0 && /solo-ops-data unless I pick another/.test(bs.p), 'files: /backup-setup offers the repo name');
   // every page has at least two prompts on top
   ['home', 'board', 'social', 'scripts', 'writing', 'inspo', 'calendar'].forEach(function (pg) { var n = list.filter(function (x) { return x.pages.indexOf(pg) >= 0; }).length; ok(n >= 2, mode + ': page ' + pg + ' has only ' + n + ' prompts'); });
   // the titles the Guide's "next best moves" point at still exist
-  ['Plan a project from scratch', 'Daily standup', 'What should I do right now?', 'Clean up the board', 'Break this task into steps', 'Draft next week\'s posts', 'Brainstorm 10 post ideas', 'Assess new inspiration', 'Turn inspiration into work', 'Set up a private backup', 'Back up now'].forEach(function (t) { ok(titles[t], mode + ': moves target missing: ' + t); });
+  ['Bring in my work', 'Plan a project from scratch', 'Daily standup', 'What should I do right now?', 'Clean up the board', 'Break this task into steps', 'Draft next week\'s posts', 'Brainstorm 10 post ideas', 'Assess new inspiration', 'Turn inspiration into work', 'Set up a private backup', 'Back up now'].forEach(function (t) { ok(titles[t], mode + ': moves target missing: ' + t); });
 });
+
+// the menu: one list for `menu`, /menu, the Guide and AGENTS.md
+var built = P.build({ title: 'Solo Ops', id: 'main', mode: 'files' }); var bySlug = {}; built.forEach(function (x) { bySlug[x.slug] = x; });
+P.MENU.forEach(function (g) { g[2].forEach(function (sl) { ok(!!bySlug[sl], 'menu names /' + sl + ', which is not a prompt'); }); });
+Object.keys(P.FOR_PAGE).forEach(function (pg) { P.FOR_PAGE[pg].forEach(function (sl) { ok(!!bySlug[sl] && bySlug[sl].pages.indexOf(pg) >= 0, 'For this page on ' + pg + ' names /' + sl + ', which is not a prompt of that page'); }); });
+P.GET_STARTED.forEach(function (sl) { ok(!!bySlug[sl], 'GET_STARTED names /' + sl + ', which is not a prompt'); });
+ok(bySlug.menu && bySlug.menu.slash && bySlug.setup && bySlug.setup.slash && bySlug['setup-video'] && bySlug['setup-video'].slash, 'menu, setup and setup-video are exported as slash commands');
+var agents = fs.readFileSync(path.join(__dirname, '..', 'AGENTS.md'), 'utf8'); var am = agents.match(/<!-- menu:begin[^>]*-->\n```\n([\s\S]*?)\n```\n<!-- menu:end -->/);
+ok(am && am[1] === P.menuText({ title: 'Solo Ops', id: 'main', mode: 'files' }), 'AGENTS.md carries the menu as `prompts export` writes it (run: node solo.js prompts export)');
+// slash names Claude Code (or another tool) keeps for itself, or an installed skill uses, are never ours
+var RESERVED = ['hooks', 'init', 'review', 'doctor', 'config', 'memory', 'status', 'help', 'agents', 'model', 'schedule', 'loop', 'export', 'resume', 'context', 'clear', 'compact', 'cost', 'login', 'logout', 'mcp', 'permissions', 'vim', 'bug', 'add-dir', 'ide', 'upgrade', 'todos', 'rewind', 'usage', 'statusline', 'plugin', 'output-style', 'security-review', 'release-notes', 'terminal-setup', 'pr-comments', 'morning'];
+built.forEach(function (x) { ok(RESERVED.indexOf(x.slug) < 0, '/' + x.slug + ' collides with a built-in command or an installed skill'); });
 
 // the {{take}} token has a CLI reading, and the browser side knows it
 var T = P.cliTokens({ id: 'demo' }); ok(T.take && T.take.indexOf('video show') >= 0 && T.take.indexOf('$ARGUMENTS') >= 0, 'cliTokens.take must point at video show and take the argument');
@@ -47,6 +72,7 @@ Object.keys(T).forEach(function (k) { if (k === 'snapshot') return; ok(new RegEx
 
 // every verb the cheat sheet teaches is one core/apply.js accepts
 var sheet = P.cheatsheet();
+ok(sheet.indexOf('--ext') >= 0 && sheet.indexOf('done ext:') >= 0 && sheet.indexOf('--col') >= 0 && applySrc.indexOf("indexOf('ext:') === 0") >= 0, 'the cheat sheet teaches --ext, --col and done ext:, and apply.js reads the ext: selector');
 ['add', 'start', 'done', 'later', 'bucket', 'todo', 'move', 'pri', 'tag', 'step', 'check', 'note', 'at', 'due', 'social', 'scripts', 'notes', 'inspo'].forEach(function (v) {
   ok(sheet.indexOf(v) >= 0, 'cheat sheet does not mention ' + v);
   ok(new RegExp("'" + v + "'").test(applySrc) || new RegExp('\\|' + v + '[|)]').test(applySrc), 'apply.js does not know verb ' + v);

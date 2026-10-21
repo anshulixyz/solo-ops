@@ -12,7 +12,7 @@
     return { 'index.html': 'home', '': 'home', 'marathon-board.html': 'board', 'social-board.html': 'social', 'social-calendar.html': 'social', 'calendar.html': 'calendar', 'script-viewer.html': 'scripts', 'writing-viewer.html': 'writing', 'video.html': 'video', 'inspiration.html': 'inspo' }[h] || 'home';
   }
   function task(t, bTitle) {
-    return '[' + t.id + '] ' + t.title + (bTitle ? ' · board: ' + bTitle : '') + ' · ' + t.col + ' · ' + t.pri + (t.at ? ' · at ' + t.at.replace('T', ' ') + (t.until ? '–' + t.until.slice(11) : '') : '') + (t.due ? ' · due ' + t.due : '') + (t.tags.length ? ' · #' + t.tags.join(' #') : '') + ' · project: ' + t.proj +
+    return '[' + t.id + '] ' + t.title + (bTitle ? ' · board: ' + bTitle : '') + ' · ' + t.col + ' · ' + t.pri + (t.at ? ' · at ' + t.at.replace('T', ' ') + (t.until ? '–' + t.until.slice(11) : '') : '') + (t.due ? ' · due ' + t.due : '') + (t.tags.length ? ' · #' + t.tags.join(' #') : '') + ' · project: ' + t.proj + (t.ext && !/^share:/.test(t.ext) ? ' · ext ' + t.ext : '') +
       (t.desc ? '\n  ' + t.desc : '') + ((t.checklist || []).length ? '\n  steps: ' + t.checklist.map(function (c, i) { return (c.done ? '[x] ' : '[ ] ') + (i + 1) + '. ' + c.text; }).join(' · ') : '\n  (no steps yet)') + (t.notes ? '\n  notes: ' + t.notes.replace(/\n/g, ' / ') : '');
   }
   function post(p) {

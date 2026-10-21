@@ -39,6 +39,14 @@
     return out;
   }
 
+  // the separate Sample project (node solo.js template sample / Home → Look around a sample project): say so on every page, with the way back
+  function sampleBar(root, w, all) {
+    if (!w.sample) return '';
+    var mine = all.filter(function (x) { return !x.sample; })[0];
+    return '<div class="nav-sample"><b>Sample project.</b> Look around and change anything: it is separate, so none of it mixes into your own work.' +
+      (mine ? ' <a href="' + root + 'index.html?ws=' + encodeURIComponent(mine.id) + '">Back to ' + esc(mine.title) + '</a>' : '') +
+      ' · <a href="' + root + 'overview.html?ws=' + encodeURIComponent(w.id) + '" title="Its Overview has Remove">Remove it</a></div>';
+  }
   function render() {
     var slots = document.querySelectorAll('[data-nav]');
     for (var i = 0; i < slots.length; i++) {
@@ -54,7 +62,7 @@
       (global.InspoQuick ? '<button type="button" class="nav-item nav-inspo" title="Save to inspiration (⌘⇧I) — a link, an idea, an image" onclick="InspoQuick.open()">' + ICON.plus + '<span>Inspo</span></button>' : '') +
       (global.Guide ? '<button type="button" class="nav-item nav-guide" title="Guide: what this page does + prompts for your agent (?)" onclick="Guide.toggle()"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/></svg><span>Guide</span></button>' : '') +
       '<button type="button" class="nav-item nav-install" id="navInstall" style="display:none" title="Install Solo Ops as an app">' + ICON.install + '<span>Install</span></button>' +
-      '</div>';
+      '</div>' + sampleBar(root, w, all);
       bindInstall();
     }
   }

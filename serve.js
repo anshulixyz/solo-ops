@@ -244,6 +244,17 @@ function videoApi(req, res, url) {
       return json(res, 200, { name: name, found: hits });
     });
   }
+  if (url === '/api/setup') {   // Home's first-run card: start blank (empty files, optional project name) or add the separate Sample project. The CLI writes, so it is logged like the terminal
+    if (req.method !== 'POST') return json(res, 405, { error: 'method' });
+    return readBody(req, res, 4096, function (err, b) {
+      if (err) return json(res, 400, { error: err.message });
+      var argsS;
+      if (b.op === 'blank') { var nm = String(b.name || '').replace(/[\r\n]/g, ' ').trim().slice(0, 60); argsS = ['template', 'blank'].concat(nm ? ['--name=' + nm] : []); }
+      else if (b.op === 'sample') argsS = ['template', 'sample'];
+      else return json(res, 400, { error: 'unknown setup op' });
+      var rS = soloRun(argsS.concat(soloArgs('')), 20000); return json(res, rS.code === 0 ? 200 : 400, rS.out);
+    });
+  }
   if (url === '/api/story') {   // the views' Connect with a task… and the card's next step: the CLI does the write, so the log and the rules are the same as from the terminal
     if (req.method !== 'POST') return json(res, 405, { error: 'method' });
     return readBody(req, res, 4096, function (err, b) {
@@ -447,6 +458,7 @@ var server = http.createServer(function (req, res) {
   // video: the Studio page's buttons. ffmpeg work (transcribe, render) runs the CLI detached and the page polls;
   // exports stream with Range so <video> can seek. Every id is checked against videos.json before a path is built.
   if (url.indexOf('/api/video') === 0) return videoApi(req, res, url);
+  if (url === '/api/setup') return videoApi(req, res, url);   // first run: blank or the Sample project, through the CLI
   if (url === '/api/story') return videoApi(req, res, url);   // the story route lives with the video ones (same body reader, same CLI runner)
 
   var m = url.match(/^\/api\/data\/([^/]+)$/);

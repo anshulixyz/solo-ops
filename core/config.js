@@ -170,7 +170,7 @@
     var apps = merge({ social: true, scripts: true, writing: true, video: true }, w.apps || {});
     var boards = (Array.isArray(w.boards) ? w.boards : []).map(normBoard).filter(Boolean);
     if (w.boards === undefined && apps.boards !== false && !boards.length) boards = [normBoard({ id: 'runway', title: 'Launch Runway', sprintLabel: 'Sprint progress' })];
-    return { id: id, title: w.title || id, apps: { social: apps.social !== false, scripts: apps.scripts !== false, writing: apps.writing !== false, video: apps.video !== false }, boards: boards, createdAt: w.createdAt || 0 };
+    return { id: id, title: w.title || id, apps: { social: apps.social !== false, scripts: apps.scripts !== false, writing: apps.writing !== false, video: apps.video !== false }, boards: boards, createdAt: w.createdAt || 0, sample: w.sample === true };   // sample: the separate Sample project (template sample), left out of "all projects" views
   }
   function path(obj, p) { return String(p).split('.').reduce(function (o, k) { return o == null ? undefined : o[k]; }, obj); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }

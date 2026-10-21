@@ -541,8 +541,8 @@ function loadLibrary() {
   } catch {}
 
   if (!notes.length) {
-    fresh = true;
-    return normalizeLibrary(MARATHON_TEMPLATES.writing(new Date()));
+    fresh = true;   // a first open starts with no notes; Example (and the sample project) show the markup
+    return { activeId: '', notes: [] };
   }
 
   if (!activeId) activeId = notes[0].id;
@@ -557,9 +557,14 @@ function getActiveNote() {
 }
 
 function flushActiveNote() {
-  const note = getActiveNote();
+  let note = getActiveNote();
   const ta = $('#writingInput');
-  if (!note || !ta) return;
+  if (!ta) return;
+  if (!note) {   // typing with no note open starts one, so nothing typed is lost
+    if (!ta.value.trim()) return;
+    note = { id: newNoteId(), text: '', images: {}, createdAt: Date.now(), updatedAt: Date.now() };
+    library.notes.unshift(note); library.activeId = note.id;
+  }
   note.text = ta.value;
   note.updatedAt = Date.now();
 }
@@ -741,7 +746,7 @@ function onEdit() {
 /* ---- Sync + palette ---- */
 function registerSync() {
   Sync.register({
-    file: Config.file('writing'), key: LIBRARY_KEY, label: 'notes', isFresh: () => fresh || Store.isFresh(LIBRARY_KEY),
+    file: Config.file('writing'), key: LIBRARY_KEY, label: 'notes', isFresh: () => Store.isFresh(LIBRARY_KEY),   // the shared flag only: cleared by the first real write
     read: () => ({ activeId: library.activeId, notes: library.notes }),
     apply: (body) => {
       const incoming = normalizeLibrary(body);
@@ -782,15 +787,15 @@ function registerPalette() {
 function init() {
   Config.applyDOM();
   library = loadLibrary();
+  if (fresh) library = Store.firstOpen(LIBRARY_KEY, library, () => normalizeLibrary(MARATHON_TEMPLATES.writing(new Date())));   // blank, or the sample when core/templates.js says so
   const wanted = window.Story && Story.openParam ? Story.openParam() : '';   // ?open=<id>: a link from another page
   if (wanted && library.notes.some((n) => n.id === wanted)) library.activeId = wanted; else if (wanted) wantedOpen = wanted;   // not in the browser copy yet: after the first pull
-  persistLibrary({ silent: true });
-  if (fresh) Store.markFresh(LIBRARY_KEY);
+  if (fresh) Store.setJSON(LIBRARY_KEY, library, { silent: true }); else persistLibrary({ silent: true });   // a silent write keeps the first-open flag
   if (window.Story && Story.onWrite) Story.onWrite(() => refreshPreview());
 
   const ta = $('#writingInput');
   const active = getActiveNote();
-  ta.value = active?.text ?? EXAMPLE;
+  ta.value = active ? active.text : '';   // no note yet: the placeholder explains the markup; Example loads one
 
   pushHistory(ta.value);
   history.locking = false;
@@ -880,7 +885,7 @@ function init() {
   refresh({ skipFlush: true });
   registerSync();
   registerPalette();
-  if (fresh) showToast('Sample notes loaded — ⌘K for commands');
+
 }
 
 document.addEventListener('DOMContentLoaded', init);

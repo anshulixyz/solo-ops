@@ -40,9 +40,8 @@
   function load() {
     var raw = Store.getJSON(KEY, null);
     if (raw && Array.isArray(raw.items)) { state = raw.items.map(norm); return; }
-    fresh = true;
-    state = MARATHON_TEMPLATES.inspiration ? MARATHON_TEMPLATES.inspiration(new Date()).items.map(norm) : [];
-    persist({ silent: true }); Store.markFresh(KEY);
+    fresh = true;   // a first open: empty (the inbox shows only what the person saved), or the sample items when core/templates.js says so
+    state = Store.firstOpen(KEY, { items: [] }, function () { return { items: MARATHON_TEMPLATES.inspiration ? MARATHON_TEMPLATES.inspiration(new Date()).items.map(norm) : [] }; }).items;
   }
   function persist(opts) { Store.setJSON(KEY, { items: state }, opts); }
   function byId(id) { return state.filter(function (x) { return x.id === id; })[0] || null; }
@@ -129,7 +128,7 @@
   }
   global.InspoModel = {
     KEY: KEY, KINDS: KINDS, STATUSES: STATUSES,
-    init: load, isFresh: function () { return fresh || Store.isFresh(KEY); },
+    init: load, isFresh: function () { return Store.isFresh(KEY); }, isSample: function () { return Store.isSample(KEY); },
     getState: function () { return state; }, replaceAll: function (items, opts) { state = (items || []).map(norm); persist(opts); return state; },
     byId: byId, parseQuick: parseQuick, add: add, update: update, remove: remove, markUsed: markUsed, list: list, forAI: forAI, norm: norm,
     enrich: enrich, listNew: listNew, reviewedAt: reviewedAt, markReviewed: markReviewed, siteTag: siteTag, attachName: attachName,

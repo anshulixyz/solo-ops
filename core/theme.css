@@ -149,6 +149,9 @@ nav[data-nav] button.nav-item{background:transparent; cursor:pointer; font:inher
 nav[data-nav] .nav-inspo{border-color:var(--line); margin-left:6px; color:var(--accent);}
 nav[data-nav] .nav-inspo:hover{background:var(--accent-soft);}
 @media (max-width:700px){ nav[data-nav] .nav-item span{display:none;} nav[data-nav] .nav-item{padding:0 8px;} }
+nav[data-nav] .nav-sample{flex-basis:100%; font-size:12.5px; color:var(--muted); background:var(--accent-soft); border-radius:9px; padding:7px 12px;}
+nav[data-nav] .nav-sample b{color:var(--ink);}
+nav[data-nav] .nav-sample a{color:var(--accent-strong, var(--accent));}
 
 /* toast (shared) */
 .toast{position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(10px); background:var(--ink); color:var(--canvas); padding:9px 16px; border-radius:10px; font-size:13px; opacity:0; pointer-events:none; transition:.2s; z-index:9200; font-family:var(--body,'Inter',sans-serif); box-shadow:var(--shadow-lift);}
@@ -321,6 +324,16 @@ body.guide-open{overflow:hidden;}
 .guide-chips-l{font-family:var(--mono,monospace); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-right:3px;}
 .guide-chip{display:inline-flex; align-items:center; gap:4px; height:24px; padding:0 9px; border-radius:12px; border:1px dashed var(--line); background:transparent; color:var(--faint); font:inherit; font-size:11.5px; cursor:pointer; max-width:100%;}
 .guide-chip.on{border-style:solid; border-color:var(--accent); background:var(--accent-soft); background:color-mix(in srgb, var(--accent) 12%, transparent); color:var(--ink);}
+.guide-chip.more{border-style:solid; color:var(--muted);}
+.guide-start{margin:0 0 12px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:var(--panel);}
+.guide-start.flash{box-shadow:0 0 0 2px var(--accent);}
+.guide-start-h{font-family:var(--mono,monospace); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); margin:0 0 6px;}
+.guide-start-b{display:flex; align-items:center; gap:8px; width:100%; text-align:left; padding:7px 9px; margin:0 0 4px; border:1px solid var(--line); border-radius:9px; background:var(--panel-2); color:var(--ink); font:inherit; font-size:13px; cursor:pointer;}
+.guide-start-b:hover{border-color:var(--accent);}
+.guide-start-b b{font-weight:600; flex:1;}
+.guide-start-b code, .guide-prompt .gp-slash{font-family:var(--mono,monospace); font-size:11px; color:var(--accent-strong, var(--accent)); background:var(--accent-soft); border-radius:6px; padding:1px 6px;}
+.guide-prompt .gp-slash{margin-left:6px; font-size:10.5px;}
+.guide-start .guide-note{margin:6px 0 0;}
 .guide-chip .tick{color:var(--accent); font-weight:700;}
 .guide-chip:hover{border-color:var(--accent);}
 .guide-ask .gp-copy{margin:10px 0 8px;}

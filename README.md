@@ -60,7 +60,7 @@ Last activity 2 h ago · streak 6 days
 |---|---|
 | **Just you** | Open the pages. Boards, calendar, schedule, scripts, drafts, inbox. The Guide's **Quick** tab and the ▶ / ✓ on Home do the daily moves with no AI at all. |
 | **A chat** (ChatGPT, Claude.ai) | Open the Guide, type what you want in plain words — *"move this to done and write a script for it"* — and **Copy for your AI**. The copy carries the task, board or schedule you picked and the reply format. Paste the answer back; every change is previewed before it lands. |
-| **An agent that runs commands** (Claude Code, Cursor, Codex) | `/standup`, `/plan-project`, `/fill-calendar` and every other Guide prompt is a slash command; the agent runs `node solo.js` and the pages follow live. |
+| **An agent that runs commands** (Claude Code, Cursor, Codex) | `/menu` lists what you can ask by moment of the day; `/bring-in` brings your open work from Notion, Linear, Todoist or a list, `/start-day` and `/wrap` keep it current, and every other Guide prompt is a slash command too. The agent runs `node solo.js` and the pages follow live. |
 
 ## Why it exists
 
@@ -91,7 +91,7 @@ the managing. The longer story and what is coming next:
 | **Writing Viewer** | Drafts with `~~cuts~~`, `++adds++` and `[[notes for the AI]]`. Copy for AI, copy clean, change log view, images. |
 | **Video** | Cut your takes by their words. The footage stays where it is: add a recording by path, get its words with their times (on this computer with whisper.cpp, through ElevenLabs with only the audio leaving, or from an SRT you have), click a sentence to cut it, drop the fillers in one go, render a 720p preview and the full-quality final with captions, link it into a post. Every edge lands on a word, every cut is logged and revertable. See [Video](#video). |
 | **Inspiration** | An inbox for anything worth keeping. A **capture strip sits under the nav on every page**: type or paste anything and press Enter; drag a link, text or image from anywhere toward the page and drop it; paste with nothing focused. Images save the moment they arrive, details are optional. Every item gets basic information for free: a kind tag, the site as a tag for links, and (with the server running) the page's real title and description. Each save shows a toast with Undo. **Assess new inspiration** hands your agent only what you saved since last time. Tag with a workspace, then **Use as** task / post / script / draft, or **Brainstorm with AI** (copies the items plus instructions for your chat). |
-| **Guide** | The panel on the left edge of every page (`?`). **Quick**: daily moves with no AI. **Ask** starts with **Ask your AI**: say it in plain words, tick what goes along (this task, this board, my schedule, recent changes), **Copy for your AI**; the ritual prompts (standup, plan the week, cut scope, fill my calendar…) sit under it. **Reply**: paste the whole answer, preview every change, apply. **Settings**: runs commands or chat only, backup, export / import. Every prompt is also a slash command. |
+| **Guide** | The panel on the left edge of every page (`?`). It opens on **Ask**, which starts with **Start here** on an empty project (Bring in my work · Plan a project · Fill my calendar) and **Start with one** after that (the moment of the day: Start my day, What now, Wrap up), each with its `/command` when your agent runs commands; the same menu is `/menu` in your agent and *Ask: …* in ⌘K. **Quick**: daily moves with no AI. Then **Ask your AI**: say it in plain words, tick what goes along (this task, this board, my schedule, recent changes), **Copy for your AI**; the ritual prompts (standup, plan the week, cut scope, fill my calendar…) sit under it. **Reply**: paste the whole answer, preview every change, apply. **Settings**: runs commands or chat only, backup, export / import. Every prompt is also a slash command. |
 
 Every page has a **⌘K command palette** with the same verbs as the CLI, a
 **theme picker** (auto/light/dark × five palettes) and a **sync pill** that
@@ -101,12 +101,18 @@ tells you where your data is.
 
 **Handing it to your agent?** Clone, open the folder in Claude Code, Cursor
 or Codex, type `/setup` (or say "read AGENTS.md and set Solo Ops up for
-me"). It asks four questions (your name, what you are building, which
-parts, sample or empty) and does the rest, backup included.
+me"). It asks three questions in one go (you and your project, where your
+tasks live today, where the private backup goes), then does the rest: an
+empty project with your name on it, the page open, **your open work brought
+in from Notion, Linear, Todoist, Trello or a list**, the backup. Type `/menu`
+any time for everything you can ask.
 
-**Just open it.** Download or clone, double-click `index.html`. Everything
-works from `file://`. In Chrome/Edge, click **Link folder** once and the pages
-write `data/*.json` directly; elsewhere use **File → Save / Load**.
+**Just open it.** Download or clone, double-click `index.html`. It starts
+empty: Home offers **Bring in my work** (with your AI), **Add tasks**, or
+**Look around a sample project** (a separate project you can remove).
+Everything works from `file://`. In Chrome/Edge, click **Link folder** once
+and the pages write `data/*.json` directly; elsewhere use **File → Save /
+Load**.
 
 **As an app (recommended).**
 
@@ -144,6 +150,8 @@ node solo.js boards add "Business as usual" --from sample
 node solo.js workspaces add "Side project" --apps scripts,writing --sample
 node solo.js share todo                     # markdown checklist, paste anywhere (| pbcopy on a Mac, | clip on Windows)
 node solo.js import list.md                 # "- [ ] item" lines → tasks
+# node solo.js import <items.json> --dry-run   what your agent writes when it brings your work in (/bring-in); same ext = update
+node solo.js menu                           # what you can ask your agent, by moment of the day (= /menu)
 node solo.js log ; node solo.js revert <id>
 node solo.js help
 ```
@@ -338,18 +346,20 @@ colors, tags, post types, prep kinds, milestones and focus cards,
 idle-reminder hours, attachment size caps and the default theme. The Theme button offers light/dark, five palettes and
 four font presets (Inter, System as in Trello, Lato as in Slack, Editorial);
 `?theme=dark&palette=dusk&font=system` works on any page. Workspaces
-and boards can also be created from Home or the CLI; sample content ships in
-`data/` when you run `node solo.js template all` (every page also seeds it in
-the browser on first open). Nothing in `data/` is tracked by git: your
-content can never end up in a commit.
+and boards can also be created from Home or the CLI. A first open starts
+blank; the sample sprint is a separate **Sample project** (Home → *Look
+around a sample project*, or `node solo.js template sample`) that never mixes
+into your work and leaves the "all projects" views alone; remove it like any
+project. Nothing in `data/` is tracked by git: your content can never end up
+in a commit.
 
 ## How sync works
 
 The browser keeps a working copy in `localStorage`; `data/*.json` is the
 source of truth agents and the CLI see. Each file carries `updatedAt`; the
 newer side wins. Served and linked-folder modes write on every change and
-poll for outside edits every few seconds. On first contact sample data yields
-to the file, registries merge, and real content on both sides asks you — the
+poll for outside edits every few seconds. On first contact a blank first open
+(or untouched sample data) yields to the file, registries merge, and real content on both sides asks you — the
 losing side is downloaded as a backup either way. Details: `data/SCHEMA.md`,
 `core/sync.js`.
 
@@ -357,7 +367,7 @@ losing side is downloaded as a backup either way. Details: `data/SCHEMA.md`,
 
 ```
 index.html              Home (all projects)
-solo.config.js      your settings — plain JS, read by pages and CLI
+solo.config.js      the shipped defaults (your own values: data/settings.json via config set)
 solo.js             CLI (node, zero deps)   serve.js  local server + write API + change log
 manifest.json sw.js icons/   installable app shell
 core/                   store · config · theme · sync · activity · nav · palette · inspo-quick · templates · prompts (the Guide's built-ins, shared with the CLI)

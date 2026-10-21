@@ -100,6 +100,8 @@
       if (typeof t.until === 'string' && t.until) o.until = t.until;
       if (typeof t.due === 'string' && t.due) o.due = t.due;
       if (typeof t.ext === 'string' && t.ext) o.ext = t.ext;
+      if (typeof t.extCol === 'string' && t.extCol) o.extCol = t.extCol;   // what the source said last import (a re-run moves the task only when that changes)
+      if (typeof t.extPri === 'string' && t.extPri) o.extPri = t.extPri;
       ['noteId', 'scriptId', 'takeId', 'postId'].forEach(function (k) { if (typeof t[k] === 'string' && t[k]) o[k] = t[k]; });   // the pieces a task carries (a draft, a script, a take, a post; core/story.js)
       return o;
     });
@@ -122,11 +124,8 @@
         if (Array.isArray(d)) return normalize(d);
       } catch (e) { /* fall through to seed */ }
     }
-    fresh = true;
-    var s = normalize(seed());
-    Store.setJSON(KEY, s, { silent: true });
-    Store.markFresh(KEY);
-    return s;
+    fresh = true;   // a first open: blank, or the sample when core/templates.js says so (Store.firstOpen)
+    return normalize(Store.firstOpen(KEY, [], function () { return normalize(seed()); }));
   }
   function save(opts) { Store.setJSON(KEY, state, opts); }
   function byId(id) { return state.find(function (x) { return x.id === id; }); }
@@ -205,7 +204,8 @@
     BOARD: BOARD, board: function () { return Config.board(BOARD) || { id: BOARD, title: BOARD, milestones: [], focus: [], sprintLabel: 'Progress' }; },
     KEY: KEY, PROJ_KEY: PROJ_KEY, PRI_RANK: PRI_RANK, COLS: COLS, DEFAULT_PROJECTS: DEFAULT_PROJECTS, KNOWN_TAGS: KNOWN_TAGS,
     getProjects: getProjects, addProject: addProject, getCustomProjects: function () { return customProjects.slice(); }, setCustomProjects: setCustomProjects,
-    seed: seed, normalize: normalize, newId: newId, isFresh: function () { return fresh || Store.isFresh(KEY); },
+    seed: seed, normalize: normalize, newId: newId, isFresh: function () { return Store.isFresh(KEY); },   // the shared flag only: the first real write clears it (a module flag would stay true and let a file overwrite what was typed)
+    isSample: function () { return Store.isSample(KEY); },   // untouched sample tasks (Load sample board, an older first open), not merely empty
     getState: function () { return state; },
     save: save, find: find,
     add: add, del: del, update: update, setPri: setPri, move: move, moveTo: moveTo,

@@ -135,5 +135,8 @@
     ] };
   }
 
-  return { runway: runway, social: social, scripts: scripts, writing: writing, settings: settings, inspiration: inspiration, SCRIPT: SCRIPT, NOTE: NOTE };
+  // What a page shows the first time it finds no copy of its data: 'blank' (the default since 2026-10-21: your work, nothing else)
+  // or 'sample' (the sprint, the posting arc, the scripts and drafts to look around). Store.firstOpen reads it; every page follows.
+  var FIRST_OPEN = 'blank';
+  return { runway: runway, social: social, scripts: scripts, writing: writing, settings: settings, inspiration: inspiration, SCRIPT: SCRIPT, NOTE: NOTE, FIRST_OPEN: FIRST_OPEN };
 });

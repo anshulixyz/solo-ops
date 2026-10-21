@@ -31,7 +31,8 @@
     }
     return { pos: pos, flags: flags };
   }
-  function uid(p) { return p + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
+  function uid(p) { return p + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  function cleanTag(g) { return String(g || '').toLowerCase().trim().replace(/^@+/, '').replace(/\s+/g, '-'); }   // an imported label: never an @contact (that shares the task), never spaces
   function split(v) { return String(v || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean); }
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
   function localDT(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -57,6 +58,33 @@
   }
 
 
+  // --ext rules, the same as solo.js (extProblem, extMerge); core/test-apply.js runs both and compares
+  function extProblem(x) {
+    x = String(x); if (/^share:/i.test(x)) return '--ext share:… is reserved for tasks that arrived through a share';
+    if (/\s/.test(x) || x.length > 200) return '--ext takes one id without spaces, at most 200 characters';
+    return '';
+  }
+  var COL_NAME = { todo: 'To Do', doing: 'Doing', done: 'Done', later: 'Later', bucket: 'Bucket List' };
+  function extMerge(same, t, f, notes) {   // the same rule as solo.js: status and priority follow the source only when the source changed them
+    var ch = [];
+    if (same.title !== t.title) { same.title = t.title; ch.push('title'); }
+    if (f.at !== undefined) { if (t.at) { if (same.at !== t.at) ch.push('time'); else if ((same.until || '') !== (t.until || '')) ch.push('end'); same.at = t.at; if (t.until) same.until = t.until; else delete same.until; } else if (same.at) { delete same.at; delete same.until; ch.push('time removed'); } }
+    if (f.due !== undefined) { if (t.due) { if (same.due !== t.due) ch.push('due'); same.due = t.due; } else if (same.due) { delete same.due; ch.push('due removed'); } }
+    if (f.col !== undefined && COLS.indexOf(f.col) >= 0) {
+      var moved = same.extCol !== undefined ? same.extCol !== f.col : (same.col !== 'done' && same.col !== 'later');
+      if (moved && same.col !== f.col) { ch.push('moves ' + COL_NAME[same.col] + ' \u2192 ' + COL_NAME[f.col]); same.col = f.col; }
+      else if (same.col !== f.col && notes) notes.push(COL_NAME[same.col] + ' here, still ' + COL_NAME[f.col] + ' there: close it there, or move it here');
+      if (same.extCol !== f.col) { same.extCol = f.col; if (!ch.length) ch.push('source status noted'); }
+    }
+    if (f.pri !== undefined && ['high', 'medium', 'low'].indexOf(f.pri) >= 0) {
+      if ((same.extPri === undefined || same.extPri !== f.pri) && same.pri !== f.pri) { ch.push(same.pri + ' \u2192 ' + f.pri); same.pri = f.pri; }
+      if (same.extPri !== f.pri) same.extPri = f.pri;
+    }
+    if (t.desc && same.desc !== t.desc) { same.desc = t.desc; ch.push('description'); }
+    if (t.notes && !same.notes) { same.notes = t.notes; ch.push('notes'); }
+    t.tags.map(cleanTag).filter(Boolean).forEach(function (g) { if (same.tags.indexOf(g) < 0) { same.tags.push(g); ch.push('#' + g); } });
+    return ch;
+  }
   function ctx(wsId, dry) {
     var ws = wsId || Config.activeWs(); var boards = Config.boards(ws);
     var touched = {}; var mem = {};   // mem: dry-run overlay, so a preview sees its own earlier adds
@@ -71,6 +99,7 @@
     function findTask(q, flags) {
       q = String(q || '').trim().toLowerCase(); var hits = [];
       var ids = flags.board ? [pickBoard(flags)] : boards.map(function (b) { return b.id; });
+      if (q.indexOf('ext:') === 0) { var xq = q.slice(4); ids.forEach(function (bid) { if (!bid) return; loadBoard(bid).forEach(function (t) { if (t.ext && String(t.ext).toLowerCase() === xq) hits.push({ board: bid, t: t }); }); }); return hits.length ? hits[0] : null; }   // done ext:linear:<id>: the task an import made
       ids.forEach(function (bid) { if (!bid) return; loadBoard(bid).forEach(function (t) { if (t.id === q || t.title.toLowerCase().indexOf(q) >= 0) hits.push({ board: bid, t: t }); }); });
       var exact = hits.filter(function (h) { return h.t.id === q || h.t.title.toLowerCase() === q; });
       return exact.length === 1 ? exact[0] : hits.length === 1 ? hits[0] : (hits.length ? { ambiguous: hits.length } : null);
@@ -82,7 +111,8 @@
     function sched() { if (dry && mem.s) return mem.s; return Store.getJSON(Config.key('social', ws), []) || []; }
     function saveSched(p) { if (dry) { mem.s = p; return; } Store.setJSON(Config.key('social', ws), p); touched[Config.file('social', ws)] = 1; }
     function findPost(q) { q = String(q || '').trim().toLowerCase(); var hits = sched().filter(function (p) { return p.id === q || p.title.toLowerCase().indexOf(q) >= 0; }); return hits.length === 1 ? hits[0] : null; }
-    return { ws: ws, dry: !!dry, boards: boards, touched: touched, loadBoard: loadBoard, saveBoard: saveBoard, pickBoard: pickBoard, mutateTask: mutateTask, sched: sched, saveSched: saveSched, findPost: findPost };
+    function findExt(ext) { var hit = null; boards.forEach(function (b) { if (hit) return; var ts = loadBoard(b.id); var t = ts.filter(function (x) { return x.ext === ext; })[0]; if (t) hit = { board: b.id, tasks: ts, t: t }; }); return hit; }   // the same import on any board of the workspace
+    return { ws: ws, dry: !!dry, boards: boards, touched: touched, loadBoard: loadBoard, saveBoard: saveBoard, pickBoard: pickBoard, mutateTask: mutateTask, sched: sched, saveSched: saveSched, findPost: findPost, findExt: findExt };
   }
 
   // The ``` block that carries a script / note body after line k. The command
@@ -169,10 +199,13 @@
           var untilDropped = false;
           if (a.flags.at && global.When) { var pa = When.parse(a.flags.at); if (pa) { nt.at = pa.stamp; if (a.flags.until) { nt.until = When.until(nt.at, a.flags.until); if (!nt.until) untilDropped = true; } } }
           if (a.flags.due && global.When) { var pd = When.parse(a.flags.due); if (pd) nt.due = When.dayKey(pd.stamp); }
-          if (a.flags.ext) nt.ext = String(a.flags.ext);
-          var same = nt.ext ? tasks2.filter(function (x) { return x.ext === nt.ext; })[0] : null;
+          var badWhen = ['at', 'until', 'due'].filter(function (k) { var v = a.flags[k]; return v !== undefined && v !== true && String(v).toLowerCase() !== 'clear' && global.When && (k === 'until' ? (!nt.at || !When.until(nt.at, v)) : !When.parse(v)); })[0];
+          if (a.flags.ext && badWhen) { skipped.push('could not read --' + badWhen + ' "' + a.flags[badWhen] + '" (' + q + '): fix the date and paste the line again'); i++; continue; }   // an import never loses its date to a typo
+          if (a.flags.ext) nt.tags = nt.tags.map(cleanTag).filter(Boolean);
+          if (a.flags.ext) { var xp = extProblem(a.flags.ext); if (xp) { skipped.push(xp + ' (' + q + ')'); i++; continue; } nt.ext = String(a.flags.ext); if (COLS.indexOf(a.flags.col) >= 0) nt.extCol = a.flags.col; if (['high', 'medium', 'low'].indexOf(a.flags.pri) >= 0) nt.extPri = a.flags.pri; }
+          var hitX = nt.ext ? c.findExt(nt.ext) : null; var same = hitX ? hitX.t : null;
           [['draft', 'noteId', 'writing'], ['script', 'scriptId', 'script'], ['take', 'takeId', 'video'], ['post', 'postId', '']].forEach(function (r) { if (a.flags[r[0]] && typeof a.flags[r[0]] === 'string') { nt[r[1]] = String(a.flags[r[0]]); if (r[2] && nt.tags.indexOf(r[2]) < 0) nt.tags.push(r[2]); } });   // add … --draft n1 | --script s1 | --take v1 | --post p1: the task carries its piece and the tag (core/story.js)
-          if (same) { same.title = nt.title; if (nt.at) same.at = nt.at; if (nt.until) same.until = nt.until; if (nt.due) same.due = nt.due; nt.tags.forEach(function (g) { if (same.tags.indexOf(g) < 0) same.tags.push(g); }); c.saveBoard(bid2, tasks2); lastTask = { board: bid2, id: same.id }; applied.push('updated (same ext): ' + same.title); }
+          if (same) { var ntX = []; var chX = extMerge(same, nt, a.flags, ntX); if (chX.length) c.saveBoard(hitX.board, hitX.tasks); lastTask = { board: hitX.board, id: same.id }; applied.push((chX.length ? 'update: ' + same.title + ' · ' + chX.join(', ') : 'up to date: ' + same.title) + (ntX.length ? ' · ' + ntX.join('; ') : '')); }
           else { tasks2.unshift(nt); c.saveBoard(bid2, tasks2); lastTask = { board: bid2, id: nt.id }; applied.push('added task: ' + q + (nt.at ? ' · ' + nt.at.replace('T', ' ') : '') + (untilDropped ? ' (end time ignored: before the start)' : '')); }
         } else if (['done', 'start', 'later', 'bucket', 'todo'].indexOf(cmd) >= 0) {
           var col = { done: 'done', start: 'doing', later: 'later', bucket: 'bucket', todo: 'todo' }[cmd];

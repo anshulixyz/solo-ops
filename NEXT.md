@@ -13,7 +13,7 @@ in step with what you change, and run `node solo.js doctor` plus
 
 **Must, before the public launch**
 - ~~M8 · Calendar + dates~~ — shipped 2026-10-13 (see Done).
-- Backup repo name offered during setup (first item under Minor).
+- ~~Backup repo name offered during setup~~ — done 2026-10-21 in the onboarding pass (see Done).
 
 **Should, first week after**
 - ~~*Share today* as an image~~ and ~~Home as a dashboard~~ — shipped 2026-10-13 (see Done).
@@ -337,6 +337,7 @@ in the log, a "mine / theirs" filter on Home, conflict rule when both push
 (last writer wins per file + a note in the log), and M5.
 
 ### M4 · Pull from the apps the agent is connected to
+**Started 2026-10-21 (onboarding pass):** *Bring in my work* (`/bring-in`: Notion, Linear, Todoist, Asana, Trello, Jira, GitHub, Google Tasks, Reminders or a list, only the person's open work, one `import <file>.json`, re-runs update by `ext`), *Start my day* (`/start-day`: calendar + what changed in `bringIn.sources` + the day), *Wrap up the day* gathers from the conversation and `git log`. Still open below: mail and meeting notes as sources, the cross-project weekly prompt.
 Nothing to build in Solo Ops beyond prompts: "take my last 20 emails and
 make tasks", "put this week's calendar as posts". Add a *Bring in* category
 to the Guide with 4–5 such prompts, and document the pattern in AGENTS.md.
@@ -362,7 +363,53 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Minor / issues
 
-- **Guide next-best-move vs Home (seen 2026-10-20 on the sample project):** the Guide's NEXT card says "No posts scheduled. Keep the cadence going." while Home on the same page counts 5 posts this week (drafts and ready posts with a date). The move should count posts with a date in the window, or say "none ready" instead of "none scheduled". Two clocks on the Video page can also read as a bug to a careful eye: the strip's "0:48.5 of 0:52.0" (the cut's runtime) next to the player's "0:00.0 of 0:52.0" (the playhead); label the first "cut 0:48.5".
+- **From the onboarding reviews (2026-10-21), not done:**
+  (1) *Connect my other agents*: a paragraph for the global agent instructions
+  (`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`) so the agent you code with
+  elsewhere logs finished work with `node "<folder>/solo.js" … --as agent`
+  (an idempotent marked block, a backup of the file, a diff, a yes per file;
+  never project files of other repos). Waits for M9, which covers the same
+  need without touching global files. (2) CLI writes are read-modify-write
+  without a lock: a scheduled `/start-day`, an agent and `serve.js` writing
+  the same board can lose an update; write to a temp file and rename, and
+  re-check `updatedAt` before writing. (3) `prompts export --for codex` writes
+  to the global `~/.codex/prompts` with a relative `node solo.js` and plain
+  names, so `/now` runs in whatever folder Codex is in: use the absolute
+  folder and a `solo-` prefix. (4) Renaming the shipped board or the first
+  workspace does nothing: the entry in `solo.config.js` shadows the one in
+  `boards.json` / `workspaces.json` (`core/config.js boards()`, `workspaces()`;
+  solo.js `allBoards()`), while `boards rename runway` prints that it
+  overrides the title. `template blank --name` goes through `config set`
+  instead. (5) Neutral shipped defaults (no "Launch Runway" sprint framing in
+  `solo.config.js`, the sprint only in the Sample project) are the owner's
+  call: they change what an existing user without settings sees. (6) On
+  `file://` without a linked folder, work typed into a blank page is newer
+  than the files when the folder is linked later and overwrites them (as
+  before; the empty board now says the work is in this browser only;
+  what was typed is no longer thrown away when the folder is linked, see
+  Done). (7) The welcome card's *Name it* writes `data/settings.json` with
+  the server and keeps the name in this browser on `file://`; with only a
+  linked folder it is not offered (a pasted `config set name …` line does
+  it). (8) Removing the Sample project (`workspaces rm sample-project`) can
+  come back: `workspaces.json` merges by union, so an open page that knows
+  the project writes it back (true of any project; tombstones would fix
+  it). (9) From the UX review, small: Home says *workspaces* and *project*
+  for the same thing; Recent changes shows "you · workspaces.json /
+  boards.json" on a first open; the "Solo founder ops · local, file-based,
+  agent-native" line is jargon to a newcomer; *Share today* is the main
+  button on an empty day; the board's foot note says "Saved in this
+  browser" next to "Synced to data/"; the Guide handle covers the first
+  letter of "This week" at 800 px and the capture strip's bulb at 375 px,
+  where *Settings* is clipped and *Copy context* wraps; two *Preview
+  changes* buttons on Reply. (10) The launch kit (the owner has edits in
+  progress there, so not touched here): SHOTLIST rows 01 (the welcome card
+  needs a blank copy, not `template all`), 02 (the Guide opens on Ask), 06
+  (three questions, `template blank`, /bring-in, the menu), 07; `shoot.js`
+  FRESH copy and shot 02's `?guide=settings`; `conversations/terms.js` and
+  VIDEO-SCRIPT (four questions); reshoot 47-guide-ask and
+  19-guide-ask-your-ai (Start with one now sits above the ask box).
+
+- **Video, two clocks (seen 2026-10-20; the Guide half was fixed 2026-10-21: "No posts on the schedule" now shows only when this browser knows the schedule):** two clocks on the Video page can also read as a bug to a careful eye: the strip's "0:48.5 of 0:52.0" (the cut's runtime) next to the player's "0:00.0 of 0:52.0" (the playhead); label the first "cut 0:48.5".
 
 - **Video: after a decode error the black frame stays (2026-10-20):** the
   player's `error` listener sets `cannotPlay` and repaints the chrome, but
@@ -441,14 +488,6 @@ QR rendered without a dependency, capture strip and boards usable at
 
 - **Your settings, small leftovers (reviews 2026-10-15):** `core/theme-boot.js` reads only the shipped `theme`, so a `config set theme.palette dusk` default paints late (until the user picks a theme); `social/social-calendar.html` keeps a static title and ignores a `name` setting; `social/social-model.js` relabels a post whose type left the list as the third type instead of keeping it (so a shorter `social.postTypes` list rewrites old posts on their next edit); no way to set your name without the terminal or a pasted reply yet (click the Home heading to type it, writing the same setting, is the planned follow-up). `boards.<id>.<key>` copies the whole shipped board into your settings (so a later change to the shipped milestones no longer reaches that board): merge list entries by id at read time instead and store only the changed key. The Reply preview counts a `config set a 1 b 2` line as one change.
 
-- **Backup repo name is not offered.** `node solo.js backup setup` creates
-  `solo-ops-data` unless `--name <name>` is passed, but nothing asks. Offer
-  the name: the `/setup` and `/backup-setup` prompts should ask "private repo
-  name? (default solo-ops-data)" alongside GitHub-or-folder, the Guide's
-  Protect your work option 2 should show the `--name` flag with the copy
-  button, and `backup setup` itself should print the name it is about to
-  create and how to change it before creating.
-
 - **From the Home/Share reviews (2026-10-13), not done:** a week-ahead glance
   (Mon–Sun with dots for meetings and posts) on Home; keyboard shortcuts `n`
   new task, `/` focus the capture strip; a size toggle on the share card
@@ -491,6 +530,57 @@ QR rendered without a dependency, capture strip and boards usable at
   retake with `docs/screenshots` script when M2 lands.
 
 ## Done
+
+- 2026-10-21 · **Onboarding: blank works, your work comes in, one menu, a
+  faster setup** (planned, reviewed by three agents: the project's history,
+  product/UX, staff AI engineering; then built in four parts). *Blank:* a
+  first open starts empty on every page (`Store.seedBlank`, flag `blank`,
+  still "fresh" for sync so a file always wins; `Store.isSample` is what a
+  page calls the sample), so a first task never drags the 18 sample tasks
+  into `data/`; `template blank [--name]` writes empty files and names the
+  project through `config set`; the sample is a separate *Sample project*
+  (`template sample`, Home → Look around a sample project, `/api/setup`),
+  marked `sample: true`, left out of "all projects" views, with a banner on
+  every page; Home's welcome card (Bring in my work · Add tasks · the sample ·
+  Link folder) shows while nothing real exists; typing into an empty Script
+  or Writing Viewer now saves (it was lost); `doctor` says fresh install
+  until something real exists; `template` fills empty files.
+  *Bring in:* `--ext` matches across every board of the workspace, explicit
+  `--col` / `--pri` / `--due` apply on a match, `done ext:<id>`, `share:` ids
+  are refused from `add` and pasted replies, ext shows in snapshots and
+  lists; `import <items.json> [--dry-run]` is one validated write (one log
+  entry, no imported text through a shell); prompts *Bring in my work*
+  (`/bring-in`), *Start my day* (`/start-day`), *Wrap up the day* gathers
+  first; one untrusted-content rule in every import prompt and AGENTS.md;
+  `bringIn.sources` setting. *Menu:* `MENU` in core/prompts.js →
+  `node solo.js menu`, `/menu`, the AGENTS.md block (written by `prompts
+  export`), the Guide's Start here / Start with one and ⌘K *Ask: …*; the
+  Guide opens on Ask, guesses the AI from how the page runs, shows
+  `/commands` on cards, orders *For this page* by the page, trims the chips,
+  says the right thing to agent users (nothing to paste back); `/hooks` is
+  `/ten-hooks` (Claude Code keeps `/hooks`); setup prompts export by a
+  `slash` flag; the shared slash commands and the chat bootstrap always carry
+  the shipped names (a project name could land in committed files).
+  *Setup:* one round of three questions, blank start, the page opened, work
+  brought in, the backup with its repo name (also offered in `/backup-setup`,
+  the Guide and printed by `backup setup`), the menu last.
+  After the build, three more reviews (history, UX, engineering) and their
+  fixes: a re-import never reopens work finished here (status and priority
+  follow the source only when the source changed them: `extCol` / `extPri`),
+  what is typed on a blank page is never replaced by a file on Link folder
+  (the pages read the shared fresh flag only), `template blank` stamps its
+  files 1970 so a browser holding real work still wins, ids never collide
+  in a big import, imported labels never become @contact tags, a pasted
+  import with an unreadable date is refused, `ext:` works on any board and
+  any case, the Sample project stays out of Quick, Calendar *All* and
+  `doctor`, Start here copies on one click, the mode stays a guess until
+  picked, one switch for the first open (`FIRST_OPEN` in core/templates.js),
+  the menu fits 80 columns and the chat bootstrap carries it.
+  Tests: `core/test-blank.js` (the real store, sync and models against a fake
+  server: blank never writes, files win, the first change writes only itself,
+  older sample browsers and real conflicts behave as before; the CLI side),
+  test-apply (re-imports, parity with the CLI, import), test-prompts (menu,
+  reserved slash names, import prompts, setup).
 
 - 2026-10-20 · Video: with Bigger on, in a window around 900 px tall, the
   bottom of the player, its caption band and the round play button were cut

@@ -467,7 +467,7 @@
     if (global.Story && Story.clearQuery && fromGraph) Story.clearQuery(['id']);
     var note = document.getElementById('storeNote');
     if (note) {
-      note.textContent = (Store.ok ? (SocialModel.isFresh() ? 'This is the sample posting arc — edit it or add your own.' : 'Auto-saves to browser') : 'Storage limited — use Save file')
+      note.textContent = (Store.ok ? (SocialModel.isSample() ? 'This is the sample posting arc — edit it or add your own.' : 'Auto-saves to browser') : 'Storage limited — use Save file')
         + ' · ⌘K for commands · n adds a post · images stay in this browser (Save file bundles them)';
     }
   }

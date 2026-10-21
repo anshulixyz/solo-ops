@@ -51,6 +51,10 @@ vm.runInContext(fs.readFileSync(path.join(dir, 'social-model.js'), 'utf8'), ctx)
 var SocialModel = ctx.window.SocialModel;
 
 SocialModel.init();
+// a first open starts blank (the sample is its own project): empty, fresh for sync (a data file wins), not "the sample"
+if (SocialModel.getState().length !== 0) throw new Error('A first open should start empty, got ' + SocialModel.getState().length + ' posts');
+if (!SocialModel.isFresh() || SocialModel.isSample()) throw new Error('A blank first open is fresh for sync and not the sample');
+SocialModel.reset();   // Load template: the sample arc, on purpose
 var posts = SocialModel.getState();
 if (posts.length !== 5) throw new Error('Expected 5 template posts, got ' + posts.length);
 

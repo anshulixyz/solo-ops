@@ -55,11 +55,31 @@
   }
   function fmt(dt) { var d = new Date(dt); return isNaN(d) ? dt : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
   function fmtDay(dt) { var d = new Date(dt); return isNaN(d) ? dt : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }); }
+  // the open project still holds the sample sprint (an older first open, or Load sample board / template all): not merely empty
   function isSample() {
-    var first = Config.boards()[0]; if (!first) return false;
+    var first = Config.boards()[0]; if (!first || W.sample) return false;
+    if (Store.isSample && Store.isSample(Config.boardKey(first.id))) return true;
     var T = MARATHON_TEMPLATES.runway().tasks.map(function (t) { return t.id; }).join();
     var ids = (data.boards[first.id] || []).map(function (t) { return t.id; }).join();
-    return !data.boards[first.id] || ids === T;
+    return !!ids && ids === T;
+  }
+  // nothing real anywhere yet: no task, post, script, note or take in any of your projects (the Sample project does not count)
+  function hasContent(o) { return !!o && ((o.tasks || []).length || (o.posts || []).length || (o.scripts || []).length || (o.notes || []).length || (o.takes || []).length); }
+  function installEmpty() { return Config.workspaces().filter(function (w) { return !w.sample; }).every(function (w) { return !hasContent(wsStats[w.id]) && !hasContent(wsLocal(w)); }); }   // the browser copy counts too: a task just added may not be in the file yet
+  function renderFirstRun() {
+    var wl = $('welcome'); var fr = $('firstRun'); var shot = /[?&]shot=/.test(location.search);
+    var empty = !W.sample && installEmpty() && !shot;
+    if (wl) {
+      wl.style.display = empty ? '' : 'none';
+      var m = Sync.getMode(); var nr = $('wlNameRow'); if (nr) nr.style.display = (m === 'server' || m === 'manual') && W.id === PRIMARY_ID && !String(Config.get('owner') || '').trim() && Config.get('name') === 'Solo Ops' ? '' : 'none';
+      var lk = $('wlLink'); if (lk) lk.style.display = (Sync.fsSupported && m === 'manual') ? '' : 'none';
+      var wh = $('wlWhere'); if (wh) wh.innerHTML = m === 'server' ? 'Saved to <code>data/</code> in your Solo Ops folder while <code>node serve.js</code> runs, so your AI sees every change.' : m === 'folder' ? 'Saved to the linked Solo Ops folder, so your AI sees every change.' : 'Right now this lives in this browser only. Link the folder (Chrome, Edge) or run <code>node serve.js</code> in the Solo Ops folder so your files and your AI see it.';
+    }
+    if (fr) {
+      var dismissed = shot; try { dismissed = dismissed || !!localStorage.getItem('marathon.hub.sampleOk'); } catch (e) {}
+      fr.style.display = (!empty && isSample() && !dismissed) ? '' : 'none';
+      var lb = $('linkBtn'); if (lb) lb.style.display = (Sync.fsSupported && Sync.getMode() === 'manual') ? '' : 'none';
+    }
   }
   // "1 take without words yet" · "2 takes waiting to be cut" · "1 cut waiting to be rendered": the step the most recent waiting take is at
   function takeWaiting(takes) {
@@ -86,7 +106,7 @@
   window.setHomeScope = function (id) { try { localStorage.setItem(SCOPE_KEY, id); } catch (e) {} render(); loadProjects(); };
   function scopeChips() {
     if (!many()) return ''; var s = scope();
-    return '<div class="scope" role="tablist" aria-label="Which projects Home shows"><span class="scope-l">Show</span>' + [{ id: 'all', title: 'All' }].concat(Config.workspaces()).map(function (w) { return '<button type="button" class="' + (w.id === s ? 'on' : '') + '" onclick="setHomeScope(\'' + esc(w.id) + '\')" title="' + (w.id === 'all' ? 'Every project together' : 'Only ' + esc(w.title)) + '">' + esc(w.title) + '</button>'; }).join('') + '</div>';
+    return '<div class="scope" role="tablist" aria-label="Which projects Home shows"><span class="scope-l">Show</span>' + [{ id: 'all', title: 'All' }].concat(Config.workspaces().filter(function (w) { return !w.sample || w.id === W.id; })).map(function (w) { return '<button type="button" class="' + (w.id === s ? 'on' : '') + '" onclick="setHomeScope(\'' + esc(w.id) + '\')" title="' + (w.id === 'all' ? 'Every project together' : 'Only ' + esc(w.title)) + '">' + esc(w.title) + '</button>'; }).join('') + '</div>';
   }
   function boardLink(t) { return 'runway/marathon-board.html?ws=' + encodeURIComponent(t._ws) + '&board=' + encodeURIComponent(t._board) + (t.id ? '&id=' + encodeURIComponent(t.id) : ''); }
   function toast(msg) { var t = $('toast'); if (!t) return; t.textContent = msg; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(function () { t.classList.remove('show'); }, 2200); }
@@ -157,6 +177,7 @@
   function gather() {
     var tasks = [], posts = [];
     Config.workspaces().forEach(function (w) {
+      if (w.sample && w.id !== W.id) return;   // the Sample project never mixes into your day
       var o = wsStats[w.id] || wsLocal(w);
       Config.boards(w.id).forEach(function (b) {
         var bt = (wsStats[w.id] ? null : Store.getJSON(Config.boardKey(b.id, w.id), null)) || [];
@@ -202,7 +223,7 @@
       (next ? '<div class="next"><b>' + esc(Wn.range(next.at, next.until)) + '</b><a href="' + boardLink(next) + '">' + esc(next.title) + '</a>' + (current ? '' : '<span class="in">' + esc(inWords(next.at)) + '</span>') + (many() ? '<span class="in">' + esc(wsTitleOf(next._ws)) + '</span>' : '') + '</div>'
         : '<div class="quiet">' + (todayItems.length ? 'Nothing more with a time today.' : 'No meetings or timed tasks today.') + ' <a href="calendar/calendar.html' + q() + '">Calendar →</a></div>') +
       '<div class="k">Doing</div>' + (doing.length ? '<ul>' + doing.map(function (t) { return '<li>' + (many() ? '<span class="pj">' + esc(wsTitleOf(t._ws)) + '</span>' : '') + '<a href="' + boardLink(t) + '">' + esc(t.title) + '</a></li>'; }).join('') + '</ul>'
-        : '<div class="quiet">Nothing started. ' + (open.length ? 'Pick one on the <a href="runway/marathon-board.html' + q() + '">board</a> or ask <a href="#" onclick="Guide.openPrompt(\'now\');return false;">What should I do right now?</a>' : 'Add the first task on the right.') + '</div>') + '</div>';
+        : '<div class="quiet">Nothing started. ' + (open.length ? 'Pick one on the <a href="runway/marathon-board.html' + q() + '">board</a> or ask <a href="#" onclick="Guide.openPrompt(\'now\');return false;">What should I do right now?</a>' : 'Add the first task with the quick add.') + '</div>') + '</div>';
     el.innerHTML = left + mid;   // the buttons and the quick add form are static markup beside this, so a re-render never eats what is being typed
     var cl = $('calLink'); if (cl) cl.href = 'calendar/calendar.html' + q();
     var hint = $('qaHint'); if (hint) hint.innerHTML = 'Lands in To Do of ' + esc(W.title) + (many() ? ' (the open project)' : '') + ' · a date at the end becomes its time · <kbd>⌘K</kbd> jumps anywhere';
@@ -269,10 +290,10 @@
 
   /* ---- project cards (Home) ---- */
   function renderProjects() {
-    renderToday(); renderWeek();
+    renderToday(); renderWeek(); renderFirstRun();
     var el = $('projects'); if (!el) return;
     var all = Config.workspaces(); var tot = { tasks: 0, doing: 0, posts: 0, scripts: 0, notes: 0 };
-    all.forEach(function (w) { var o = wsStats[w.id] || wsLocal(w); var c = counts(o.tasks); tot.tasks += c.board; tot.doing += c.doing; tot.posts += (o.posts || []).filter(function (p) { return p.status !== 'posted'; }).length; tot.scripts += (o.scripts || []).length; tot.notes += (o.notes || []).length; });
+    all.filter(function (w) { return !w.sample || w.id === W.id; }).forEach(function (w) { var o = wsStats[w.id] || wsLocal(w); var c = counts(o.tasks); tot.tasks += c.board; tot.doing += c.doing; tot.posts += (o.posts || []).filter(function (p) { return p.status !== 'posted'; }).length; tot.scripts += (o.scripts || []).length; tot.notes += (o.notes || []).length; });
     var sum = $('projectsSum'); if (sum) sum.textContent = all.length + ' project' + (all.length === 1 ? '' : 's') + ' · ' + tot.doing + ' doing · ' + tot.posts + ' posts queued · ' + tot.scripts + ' scripts · ' + tot.notes + ' notes';
     var la = Activity.summary().lastByApp || {}; var Wn = window.When; var now = new Date(); var tkey = Wn ? Wn.localD(now) : ''; var wkKey = Wn ? Wn.localD(new Date(now.getTime() + 7 * 86400000)) : '';
     el.innerHTML = all.map(function (w) {
@@ -296,7 +317,7 @@
       var tw = takeWaiting(o.takes); if (w.apps.video && tw) chips.push('<span>' + esc(tw) + '</span>');
       return '<a class="hub-card ws' + (w.id === W.id ? ' on' : '') + '" href="overview.html?ws=' + encodeURIComponent(w.id) + '" title="Open this project: its boards, schedule, scripts and notes">' +
         (stamps[0] ? '<span class="last">' + esc(Activity.ago(stamps[0])) + '</span>' : '') +
-        '<h2>' + esc(w.title) + (w.id === W.id ? '<span class="open-tag">OPEN</span>' : '') + '</h2>' + line +
+        '<h2>' + esc(w.title) + (w.sample ? '<span class="sample-tag">SAMPLE</span>' : '') + (w.id === W.id ? '<span class="open-tag">OPEN</span>' : '') + '</h2>' + line +
         (nb ? '<div class="wsbar"><div class="bar"><div class="bar-fill" style="width:' + c.pct + '%"></div></div><b>' + c.pct + '%</b></div>' : '') +
         '<div class="chips">' + chips.join('') + '</div></a>';
     }).join('') + '<a class="hub-card new" href="#" onclick="toggleWsPanel(\'new\');return false;">+ New project</a>';
@@ -377,11 +398,7 @@
     boards.forEach(function (b) { (data.boards[b.id] || []).forEach(function (t) { allTasks.push(Object.assign({ _board: boards.length > 1 ? b.id : '' }, t)); }); });
     renderActivity(allTasks);
     renderOverview();
-    var fr = $('firstRun'); if (fr) {
-      var dismissed = /[?&]shot=/.test(location.search); try { dismissed = dismissed || !!localStorage.getItem('marathon.hub.sampleOk'); } catch (e) {}
-      fr.style.display = (isSample() && !dismissed) ? '' : 'none';
-      var lb = $('linkBtn'); if (lb) lb.style.display = (Sync.fsSupported && Sync.getMode() === 'manual') ? '' : 'none';
-    }
+    renderFirstRun();
     var nt = $('wsSecTitle'); if (nt) nt.textContent = W.title;
     var ht = $('homeTitle'); if (ht) { var owner = String(Config.get('owner') || '').trim(); ht.textContent = owner ? owner + (/s$/i.test(owner) ? '’' : '’s') + ' workspaces' : 'Your workspaces'; }
     var hs = $('homeSub'); if (hs) hs.textContent = many() ? scopeTitle() : W.title;
@@ -461,6 +478,7 @@
     if (W.apps.social) { Store.setJSON(KEYS.social, []); Sync.touch(Config.file('social')); }
     if (W.apps.scripts) { Store.setJSON(KEYS.scripts, { activeId: '', scripts: [] }); Sync.touch(Config.file('scripts')); }
     if (W.apps.writing) { Store.setJSON(KEYS.writing, { activeId: '', notes: [] }); Sync.touch(Config.file('writing')); }
+    if (InspoModel.isSample && InspoModel.isSample()) { InspoModel.replaceAll([]); Sync.touch('inspiration.json'); }   // the sample inbox items go too; anything you saved stays
     firstRunDone();
     // open the first app of this project so its page writes the blank file
     var first = Config.boards()[0];
@@ -468,6 +486,44 @@
       : (W.apps.social ? 'social/social-board.html' : W.apps.scripts ? 'studio/script-viewer.html' : 'studio/writing-viewer.html') + '?ws=' + encodeURIComponent(W.id);
   };
   window.keepSample = firstRunDone;
+
+  /* ---- the welcome card (an empty install): bring in · add tasks · a separate sample project ---- */
+  function setupApi(body) {
+    return fetch('/api/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error((j && j.error) || 'failed'); return j; }); });
+  }
+  window.welcomeBringIn = function (btn) { Guide.copyPrompt('bring-in').then(function (ok) { if (ok) toast(Guide.mode() === 'files' || (!Guide.mode() && Sync.getMode() === 'server') ? 'Copied. Paste it into your agent, or just type /bring-in there.' : 'Copied. Paste it into ChatGPT or Claude, then bring the answer back in Guide \u2192 Reply.'); }); Guide.openPrompt('bring-in'); };
+  window.welcomeAdd = function () {
+    var ta = $('wlAdd'); var text = ta ? ta.value.trim() : ''; if (!text) { if (ta) ta.focus(); return; }
+    var made = window.Quick ? Quick.addLines(text, { ws: W.id }) : []; if (!made.length) { toast('No board in this project yet.'); return; }
+    ta.value = ''; toast('Added ' + made.length + ' task' + (made.length === 1 ? '' : 's') + ' to ' + made[0].boardTitle + '. The board has them.');
+    wsStats = {}; loadLocal(); render(); loadProjects(); setTimeout(function () { wsStats = {}; loadLocal(); render(); loadProjects(); }, 1500);   // again once the file has them (the write follows within a second)
+  };
+  window.welcomeName = function () {
+    var inp = $('wlName'); var name = inp ? inp.value.replace(/[\r\n]/g, ' ').trim().slice(0, 60) : ''; if (!name) { if (inp) inp.focus(); return false; }
+    if (Sync.getMode() === 'server') { setupApi({ op: 'blank', name: name }).then(function () { toast('Named "' + name + '". Pages follow in a moment.'); }).catch(function (e) { toast('Could not name it: ' + e.message); }); return false; }
+    // no server: the same settings, kept in this browser (Config.override checks them the way `config set` does); the page reloads with them
+    try { var b0 = Config.boards(PRIMARY_ID)[0]; var shipped = window.MARATHON_CONFIG || {}; var o = (Store.getJSON(Config.OVR_KEY, null)) || {};
+      [['name', name]].concat(b0 ? [['boards.' + b0.id + '.title', name], ['boards.' + b0.id + '.sprintLabel', 'Progress'], ['boards.' + b0.id + '.milestones', '[]'], ['boards.' + b0.id + '.focus', '[]']] : []).forEach(function (st) { o = Config.override(shipped, o, 'set', st[0], st[1], {}).config; });
+      if (inp) inp.blur(); toast('Named "' + name + '" in this browser.'); setTimeout(function () { Config.setOverrides(o); }, 600);
+    } catch (e) { toast('Could not name it: ' + e.message); }
+    return false;
+  };
+  window.welcomeSample = function () {
+    var go = function () { Config.setActiveWs('sample-project'); location.href = 'index.html?ws=sample-project'; };
+    if (Sync.getMode() === 'server') {   // the CLI writes it as files, so your agent and every browser see the same Sample project
+      setupApi({ op: 'sample' }).then(function () { return Sync.pullAll(false); }).then(go).catch(function (e) { toast('Could not add the sample project: ' + e.message); });
+      return;
+    }
+    // no server: the sample lives in this browser (the files follow when the folder is linked and you change something)
+    var sb = (Config.boards(PRIMARY_ID)[0]) || { id: 'runway', title: 'Launch Runway' };
+    var shipped = (window.MARATHON_CONFIG && MARATHON_CONFIG.boards && MARATHON_CONFIG.boards[0]) || sb;
+    var w = Config.workspace('sample-project') || Config.addWorkspace({ id: 'sample-project', title: 'Sample project', apps: { social: true, scripts: true, writing: true, video: true }, boards: [{ id: 'runway', title: shipped.title || 'Launch Runway', sprintLabel: shipped.sprintLabel || 'Sprint progress', milestones: shipped.milestones || [], focus: shipped.focus || [] }], sample: true });
+    if (!w) { toast('Could not add the sample project.'); return; }
+    var bk = Config.boardKey('runway', w.id); if (Store.get(bk) == null) { Store.setJSON(bk, MARATHON_TEMPLATES.runway().tasks, { silent: true }); Store.markFresh(bk); }
+    ['social', 'scripts', 'writing'].forEach(function (app) { var k = Config.key(app, w.id); if (Store.get(k) == null) seedApp(app, k, true); });
+    go();
+  };
 
   Config.applyDOM();
   Palette.init({ root: './' });

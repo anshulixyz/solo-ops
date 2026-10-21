@@ -459,14 +459,19 @@ function loadLibrary() {
     const id = newId();
     return { activeId: id, scripts: [{ id, title: titleOf(legacy), text: legacy, createdAt: Date.now(), updatedAt: Date.now() }] };
   }
-  fresh = true;
-  return normalizeLib(MARATHON_TEMPLATES.scripts(new Date()));
+  fresh = true;   // a first open starts with an empty library; Example (and the sample project) show what a script looks like
+  return { activeId: '', scripts: [] };
 }
 function persistLibrary(opts) { Store.setJSON(KEY, library, opts); }
 function getActive() { return library.scripts.find((s) => s.id === library.activeId); }
 function flushActive() {
-  const s = getActive(); const ta = $('#scriptInput');
-  if (!s || !ta) return false;
+  let s = getActive(); const ta = $('#scriptInput');
+  if (!ta) return false;
+  if (!s) {   // typing into an empty library starts a script, so nothing typed is lost
+    if (!ta.value.trim()) return false;
+    const id = newId(); s = { id, title: '', text: '', createdAt: Date.now(), updatedAt: Date.now() };
+    library.scripts.unshift(s); library.activeId = id;
+  }
   if (s.text === ta.value) return false;
   s.text = ta.value; s.title = titleOf(ta.value); s.updatedAt = Date.now();
   return true;
@@ -584,7 +589,7 @@ function flash(msg) {
 /* ---- Sync + palette ---- */
 function registerSync() {
   Sync.register({
-    file: Config.file('scripts'), key: KEY, label: 'scripts', isFresh: () => fresh || Store.isFresh(KEY),
+    file: Config.file('scripts'), key: KEY, label: 'scripts', isFresh: () => Store.isFresh(KEY),   // the shared flag only: cleared by the first real write
     read: () => ({ activeId: library.activeId, scripts: library.scripts }),
     apply: (body) => {
       const incoming = normalizeLib(body);
@@ -624,10 +629,10 @@ function registerPalette() {
 function init() {
   Config.applyDOM();
   library = loadLibrary();
+  if (fresh) library = Store.firstOpen(KEY, library, () => normalizeLib(MARATHON_TEMPLATES.scripts(new Date())));   // blank, or the sample when core/templates.js says so
   const wanted = window.Story && Story.openParam ? Story.openParam() : '';   // ?open=<id>: a link from another page
   if (wanted && library.scripts.some((s) => s.id === wanted)) library.activeId = wanted; else if (wanted) wantedOpen = wanted;   // not in the browser copy yet: after the first pull
-  persistLibrary({ silent: true });
-  if (fresh) Store.markFresh(KEY);
+  if (fresh) Store.setJSON(KEY, library, { silent: true }); else persistLibrary({ silent: true });   // a silent write keeps the first-open flag
   if (window.Story && Story.onWrite) Story.onWrite(() => updatePreview({ skipSave: true }));
 
   const input = $('#scriptInput');
@@ -676,7 +681,7 @@ function init() {
 
   registerSync();
   registerPalette();
-  if (fresh) flash('Sample scripts loaded — ⌘K for commands');
+
 }
 
 function debounce(fn, ms) {

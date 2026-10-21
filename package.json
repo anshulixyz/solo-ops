@@ -7,7 +7,7 @@
   "bin": { "solo": "./solo.js" },
   "scripts": {
     "start": "node serve.js",
-    "test": "node social/test-social-save.js && node core/test-prompts.js && node core/test-apply.js && node core/test-when.js && node core/test-video.js && node core/test-video-page.js && node core/test-story.js && for f in core/*.js runway/*.js social/*.js studio/*.js inspo/*.js calendar/*.js *.js; do node --check \"$f\" || exit 1; done && echo ok"
+    "test": "node social/test-social-save.js && node core/test-prompts.js && node core/test-apply.js && node core/test-when.js && node core/test-video.js && node core/test-video-page.js && node core/test-story.js && node core/test-blank.js && node core/test-config.js && for f in core/*.js runway/*.js social/*.js studio/*.js inspo/*.js calendar/*.js *.js; do node --check \"$f\" || exit 1; done && echo ok"
   },
   "engines": { "node": ">=18" },
   "keywords": ["kanban", "solo-founder", "indie-hacker", "local-first", "pwa", "ai-agent", "claude", "chatgpt", "content-calendar", "teleprompter"]

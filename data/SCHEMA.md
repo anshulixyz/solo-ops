@@ -34,6 +34,32 @@ workspace prefixes its id: `side-project-social.json`,
 ```
 
 Workspaces listed in `solo.config.js` are implicit. Merged on sync.
+`"sample": true` marks the separate Sample project (`node solo.js template sample`, or Home →
+Look around a sample project): its boards, schedule, scripts and drafts hold the sample sprint,
+and "all projects" views (Home's Today and This week, `calendar --all`, `share today --all`)
+leave it out. Remove it like any project (`workspaces rm sample-project`).
+
+A first open starts blank: a page that finds no copy of its data in the browser starts empty
+(flagged fresh, so any file in `data/` still wins) instead of seeding the sample.
+`node solo.js template blank` writes those empty files on purpose, never over an existing one.
+
+## imports/*.json — what an agent brings in from another tool
+
+Written by the agent with its file tool (never through a shell), read by
+`node solo.js import <file> [--dry-run]`. One write per board file, logged.
+
+```json
+{ "source": "linear",                         // the tool; an item without ext gets <source>:<hash of its title>
+  "items": [{ "title": "Fix the login bug",
+              "ext": "linear:9f1c…",          // the tool's own id: the same ext updates the task (any board of the workspace)
+              "col": "doing", "pri": "high",  // optional; a re-run moves the task only when the source changed them (extCol / extPri)
+              "due": "2026-10-28", "at": "", "until": "",
+              "notes": "https://linear.app/…", "tags": ["coding"], "steps": ["a", "b"], "board": "runway" }] }
+```
+
+Labels lose a leading `@` (an @-tag would share the task with a contact) and
+their spaces. Nothing is ever deleted by an import. The sources "Start my
+day" looks at live in `settings.json` → `config.bringIn.sources`.
 
 ## `<board>.json` — one board's tasks
 
@@ -59,7 +85,8 @@ Board ids are slugs: lowercase, digits and dashes; `social`, `scripts`,
     "at": "2026-10-15T14:00",                // optional: when (local, no zone); "2026-10-15" alone = all day
     "until": "2026-10-15T14:30",             // optional end, full stamp; meetings have one
     "due": "2026-10-20",                     // optional deadline (date)
-    "ext": "gcal:abc123",                   // optional id from a connected calendar; `add --ext` updates instead of duplicating
+    "ext": "gcal:abc123",                   // optional: where an imported item came from (gcal:<event>, notion:<page>, linear:<issue>, github:<owner>/<repo>#<n>…); the same ext on any board of the workspace is the same item, so `add --ext` / `import items.json` update it instead of duplicating; `share:` is reserved for shares
+    "extCol": "todo", "extPri": "high",    // optional, set by imports: the status and priority the source had last time; a re-run moves the task only when the source changed them, so work you finished here stays finished
     "noteId": "", "scriptId": "", "takeId": "", "postId": ""   // optional: the pieces this task carries (core/story.js); set by `link`, `--task` on the adds, `add --draft|--script|--take|--post`
   }]
 }

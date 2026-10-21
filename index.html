@@ -61,9 +61,21 @@
 
   <div class="notice" id="wsUnknown" style="display:none">The link named a project this browser does not know, so the open project is shown instead. <a href="index.html">Home</a></div>
 
+  <div class="first-run welcome" id="welcome" style="display:none">
+    <h2>Put your real work in.</h2>
+    <p>Your project is empty. Everything you add stays in plain files on this computer, and your AI can work on it with you.</p>
+    <form class="wl-name" id="wlNameRow" style="display:none" onsubmit="return welcomeName()"><input id="wlName" placeholder="What are you working on? Pocket Studio, my clients, the thesis…" autocomplete="off" maxlength="60"><button class="btn small" type="submit">Name it</button></form>
+    <div class="wl-ways">
+      <div class="wl-way"><b>Bring in my work</b><span>Your AI copies your open tasks from Notion, Linear, Todoist, Trello, GitHub or a pasted list. Re-runs update, never duplicate.</span><button class="btn primary small" type="button" onclick="welcomeBringIn(this)">Bring in my work</button></div>
+      <div class="wl-way"><b>Add tasks</b><span>One per line. A date at the end gives it a time: “Call Sam tomorrow 14:00”.</span><textarea id="wlAdd" rows="3" placeholder="Send the invoice to Acme&#10;Draft the launch post fri 10:00&#10;Call Sam tomorrow 14:00"></textarea><button class="btn small" type="button" onclick="welcomeAdd()">Add tasks</button></div>
+    </div>
+    <div class="row fine"><a href="#" onclick="welcomeSample();return false;">Look around a sample project →</a><span>a separate project you can remove; nothing mixes into yours</span><button class="guide-link" id="wlLink" style="display:none" onclick="Sync.linkFolder()" title="Save straight to the data/ folder without a server (Chrome / Edge)">Link the Solo Ops folder</button></div>
+    <p class="fine" id="wlWhere"></p>
+  </div>
+
   <div class="first-run" id="firstRun" style="display:none">
-    <h2>First time here?</h2>
-    <p>Everything is sample content right now. Keep it to explore, or start clean. Your data lives in <code>data/*.json</code> and in this browser — nothing leaves your machine.</p>
+    <h2>This is the sample content.</h2>
+    <p>Keep it to explore, or start clean. Your data lives in <code>data/*.json</code> and in this browser — nothing leaves your machine.</p>
     <div class="row">
       <button class="btn primary" onclick="keepSample()">Keep the sample content</button>
       <button class="btn" onclick="startBlank()">Start blank</button>

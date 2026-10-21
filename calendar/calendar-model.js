@@ -18,7 +18,7 @@
     return { view: v.view === 'month' ? 'month' : 'agenda', all: !!v.all, off: v.off || {}, state: ['done', 'all'].indexOf(v.state) >= 0 ? v.state : 'open' };
   }
   function setUi(patch) { Store.setJSON(UI_KEY, Object.assign(ui(), patch), { silent: true }); }
-  function wsList() { return ui().all ? Config.workspaces() : [Config.ws()]; }
+  function wsList() { var open = Config.activeWs(); return ui().all ? Config.workspaces().filter(function (w) { return !w.sample || w.id === open; }) : [Config.ws()]; }   // "all projects" leaves the Sample project out unless it is the open one
   function boardTasks(b, w) { var v = Store.getJSON(Config.boardKey(b.id, w.id), null); if (Array.isArray(v)) return v; var f = Config.boardFile(b.id, w.id); return (peeked[f] && peeked[f].tasks) || []; }
   function wsPosts(w) { var v = Store.getJSON(Config.key('social', w.id), null); if (Array.isArray(v)) return v; var f = Config.file('social', w.id); return (peeked[f] && peeked[f].posts) || []; }
 

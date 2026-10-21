@@ -10,10 +10,10 @@
 (function (global) {
   'use strict';
   var PRI = { high: 0, medium: 1, low: 2 };
-  function uid() { return 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
-  function rows() {
+  function uid() { return 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  function rows() {   // every project's tasks; the Sample project only while it is the open one
     var out = [];
-    Config.workspaces().forEach(function (w) { Config.boards(w.id).forEach(function (b) { var key = Config.boardKey(b.id, w.id); (Store.getJSON(key, []) || []).forEach(function (t) { out.push({ ws: w.id, wsTitle: w.title, board: b.id, boardTitle: b.title, key: key, file: Config.boardFile(b.id, w.id), task: t }); }); }); });
+    var open = Config.activeWs(); Config.workspaces().filter(function (w) { return !w.sample || w.id === open; }).forEach(function (w) { Config.boards(w.id).forEach(function (b) { var key = Config.boardKey(b.id, w.id); (Store.getJSON(key, []) || []).forEach(function (t) { out.push({ ws: w.id, wsTitle: w.title, board: b.id, boardTitle: b.title, key: key, file: Config.boardFile(b.id, w.id), task: t }); }); }); });
     return out;
   }
   function top(n) {
