@@ -226,6 +226,12 @@ function keepsScript(s) { return s && s.files && s.files['1'] === 'data/attachme
   ok(p.notes.indexOf('writing.json: linked the originals of image 5 in "Launch day — notes ’✓", image 6 in "Launch day — notes ’✓"') >= 0, 'writing 12 · one change-log line names both, the title intact');
   p.run("document.querySelector('#writingInput').value += 'Typed after.\\n'; refresh();"); await wait(700);
   ok(/Typed after/.test(noteOf(p, 'n7').text), 'writing 12 · the next edit still saves');
+  p.W.Sync.note('writing.json', 'x'.repeat(119) + '😀 and more');   // the 120-character cut lands inside the emoji
+  p.run("document.querySelector('#writingInput').value += 'After a long note.\\n'; refresh();"); await wait(700);
+  p.W.Sync.note('writing.json', 'linked the original of image 1 in "Cut ' + '\uD83D' + '"');   // a title cut short elsewhere left half an emoji
+  p.run("document.querySelector('#writingInput').value += 'After a broken one.\\n'; refresh();"); await wait(700);
+  ok(/After a long note/.test(noteOf(p, 'n7').text) && /After a broken one/.test(noteOf(p, 'n7').text), 'writing 12 · a note cut inside an emoji, or holding half of one, does not stop the save');
+  ok(p.notes.indexOf('writing.json: ' + 'x'.repeat(119) + '😀') >= 0 && p.notes.indexOf('writing.json: linked the original of image 1 in "Cut "') >= 0, 'writing 12 · the note is cut by characters, and a half emoji is dropped');
 
   /* ================= Scripts ================= */
   var SKEY;

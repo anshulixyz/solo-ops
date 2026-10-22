@@ -627,8 +627,10 @@ QR rendered without a dependency, capture strip and boards usable at
   page):* the change-log label travels in a request header, which takes
   Latin-1 only, so a task, post, idea or draft title with —, ’ or an emoji
   made the save fail, and every later save of that file in the same visit,
-  while the pill still said synced. `core/sync.js` now sends it encoded and
-  `serve.js` decodes it. `core/test-studio-keep.js` covers each case (with a
+  while the pill still said synced. `core/sync.js` now sends it encoded (cut
+  by characters, a half emoji dropped) and `serve.js` decodes it (a
+  `node serve.js` started before the update logs notes percent-encoded until
+  it is restarted). `core/test-studio-keep.js` covers each case (with a
   fetch that refuses non-Latin-1 headers as Chrome does, and the real
   `serve.js`); each check fails without its fix. In a real browser on fresh
   installs: server back with Home opened first, and server back while typing

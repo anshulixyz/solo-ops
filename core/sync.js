@@ -104,9 +104,14 @@
     });
   }
   // The change note goes percent-encoded: a header takes Latin-1 only, so a title with — or an emoji made fetch throw
-  // and every later save of that file failed (serve.js decodes it).
+  // and every later save of that file failed (serve.js decodes it). Cut by characters; a half emoji (a title cut
+  // short elsewhere) would make the encoding throw instead, so it is dropped.
+  function headerNote(text) {
+    var s = Array.from(String(text || '')).slice(0, 120).join('');
+    try { return encodeURIComponent(s); } catch (e) { return encodeURIComponent(s.replace(/[\uD800-\uDFFF]/g, '')); }
+  }
   function serverWrite(file, obj) {
-    return fetch('/api/data/' + file, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Marathon-Source': lastSource[file] === 'reply' ? 'reply' : 'ui', 'X-Marathon-Note': encodeURIComponent((lastNote[file] || '').slice(0, 120)) }, body: JSON.stringify(obj, null, 2) })
+    return fetch('/api/data/' + file, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Marathon-Source': lastSource[file] === 'reply' ? 'reply' : 'ui', 'X-Marathon-Note': headerNote(lastNote[file]) }, body: JSON.stringify(obj, null, 2) })
       .then(function (r) { if (!r.ok) throw new Error('write failed'); });
   }
   function staticRead(file) {
