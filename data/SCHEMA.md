@@ -224,13 +224,16 @@ state: unlogged, not backed up. `data/secrets.json`
 ```json
 {
   "activeId": "n1",
-  "notes": [{ "id": "n1", "text": "# Title\n\n~~cut~~ ++add++ [[note for AI]]", "images": {}, "createdAt": 0, "updatedAt": 0 }]
+  "notes": [{ "id": "n1", "text": "# Title\n\n~~cut~~ ++add++ [[note for AI]]", "images": {}, "files": { "1": "data/attachments/note-n1-1.png" }, "createdAt": 0, "updatedAt": 0 }]
 }
 ```
 
 Track-changes markup: `~~removed~~`, `++added++`, `[[instruction for the AI]]`.
 `images` maps `"1"` → data URL for `[Image uploaded 1]` references; agents can
-leave it empty.
+leave it empty. `files` maps the same `"1"` → the original under
+`data/attachments/note-<id>-<n>.<ext>`; it may be absent (the image was added
+without the server or a linked folder). The Writing and Script pages keep any
+field they do not know.
 
 ## inspiration.json — the inbox (global, items tagged with a workspace)
 

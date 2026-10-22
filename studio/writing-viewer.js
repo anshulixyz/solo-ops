@@ -1,5 +1,5 @@
 /* Writing Viewer — markdown + track changes + undo + word count + notes library.
-   Storage: `marathon.writing` → { activeId, notes:[{id,text,images,createdAt,updatedAt}] }
+   Storage: `marathon.writing` → { activeId, notes:[{id,text,images,files,createdAt,updatedAt}] }
    Mirrors to data/writing.json via core/sync.js. Theme lives in core/theme.js. */
 
 const STORAGE_KEY = 'marathon.writingViewer';          // legacy single draft (migrate only)
@@ -387,7 +387,7 @@ function insertImage() {
       const finish = () => {
         if (!window.Attach) return;
         Attach.thumb(original).then((t) => { if (t && t !== original) { note.images[String(n)] = t; try { persistLibrary(); } catch {} } return Attach.put(`note-${note.id}-${n}.${Attach.ext(original, file.name)}`, original); })
-          .then((r) => { if (r && r.file) { note.files = note.files || {}; note.files[String(n)] = r.file; try { persistLibrary(); } catch {} } });
+          .then((r) => { if (r && r.file) { if (!note.files || typeof note.files !== 'object') note.files = {}; note.files[String(n)] = r.file; try { persistLibrary(); } catch {} } });
       };
       finish();
       insertAtCursor(`\n[Image uploaded ${n}]\n`);
@@ -495,7 +495,8 @@ function persistLibrary(opts) {
 }
 
 function normalizeLibrary(data) {
-  const notes = (data && Array.isArray(data.notes) ? data.notes : []).map((n) => ({
+  const notes = (data && Array.isArray(data.notes) ? data.notes : []).filter((n) => n && typeof n === 'object' && !Array.isArray(n)).map((n) => ({
+    ...n,   // what this page does not own rides along: files (the originals in data/attachments/), anything the CLI or an agent adds
     id: n.id || newNoteId(), text: n.text || '', images: n.images || {},
     createdAt: n.createdAt || Date.now(), updatedAt: n.updatedAt || Date.now(),
   }));
@@ -649,13 +650,15 @@ function duplicateActiveNote() {
   const src = getActiveNote();
   if (!src) return;
   const id = newNoteId();
-  library.notes.unshift({
+  const copy = {
     id,
     text: src.text,
     images: { ...(src.images || {}) },
     createdAt: Date.now(),
     updatedAt: Date.now(),
-  });
+  };
+  if (src.files && typeof src.files === 'object') copy.files = { ...src.files };   // the same originals on disk: the copy's [Image uploaded n] still finds them
+  library.notes.unshift(copy);
   library.activeId = id;
   const ta = $('#writingInput');
   ta.value = src.text;

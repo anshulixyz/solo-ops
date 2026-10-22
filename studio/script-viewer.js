@@ -442,7 +442,8 @@ function titleOf(text) {
   return line ? line.slice(0, 56) : 'Untitled script';
 }
 function normalizeLib(data) {
-  const scripts = (data && Array.isArray(data.scripts) ? data.scripts : []).map((s) => ({
+  const scripts = (data && Array.isArray(data.scripts) ? data.scripts : []).filter((s) => s && typeof s === 'object' && !Array.isArray(s)).map((s) => ({
+    ...s,   // what this page does not own rides along: anything the CLI or an agent adds
     id: s.id || newId(), title: s.title || titleOf(s.text || ''), text: s.text || '',
     noteId: s.noteId || '',   // the draft it came from (one story; core/story.js)
     createdAt: s.createdAt || Date.now(), updatedAt: s.updatedAt || Date.now(),

@@ -363,6 +363,20 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Minor / issues
 
+- **From the files fix (2026-10-21), not done:** (1) Drafts that lost
+  `files` before the fix do not get it back: the originals are still in
+  `data/attachments/` and `doctor` now lists them as not safe to delete, but
+  the draft does not point at them. A relink (`doctor --fix`, or the server
+  on start) would restore it. `doctor` keeps every original of a draft that
+  is still here, even an image since taken out of its text; the relink can
+  tell the two apart. (2) `notes show` prints `[Image uploaded n]`
+  without the path; give it an `image files:` line like the Guide's snapshot.
+  (3) The toast after adding an image says "attach this file in chat" even
+  when the server saved the original. (4) While an image uploads, a file
+  pull or a pasted reply can replace the drafts; the new `files` entry then
+  lands on the old copy and the next write leaves it out. (5) `notes list`
+  and `find` prefer a `title` field on a draft over its heading. Nothing
+  writes one, but a hand-added one would stay out of date: use the heading.
 - **From the Guide audit (2026-10-21), not done:** (1) *Next* has no overdue
   move: Move what's overdue is first on the Calendar's list whether or not
   anything is overdue, and Home does not mention overdue work. (2) An edited
@@ -372,12 +386,8 @@ QR rendered without a dependency, capture strip and boards usable at
   the pages that show the story (Drafts, Scripts, Video, Schedule) and
   `config set` only with the server or a linked folder; elsewhere they are
   skipped with the reason (run them in a terminal). (4) `npm run test:guide` needs Chrome on the
-  machine and is skipped (exit 0) without it. (5) Found, older: the Writing
-  page drops a draft's `files` (its attachment links, `data/attachments/
-  note-<id>-<n>.<ext>`) when it loads, because `normalizeLibrary`
-  (`studio/writing-viewer.js`) keeps only id, text, images and the dates; the
-  next write leaves them out of `writing.json`. Keep `files` there (and in the
-  Sync apply) and add a test. (6) ⌘K's *Ask: …* entries register once per
+  machine and is skipped (exit 0) without it. (5) Done 2026-10-21: the
+  Writing page keeps a draft's `files` (see Done). (6) ⌘K's *Ask: …* entries register once per
   page, so a prompt hidden in the Guide stays in ⌘K until a reload. (7) Hide /
   show have no times (unlike `reset`): with two copies (file:// and the
   server, or two browsers) a later hide can be undone by an older `shown`.
@@ -572,6 +582,23 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Done
 
+- 2026-10-21 · *hash after the commit* · **An image added to a draft stays findable by your
+  agent** (was (5) on the Guide audit list). The Writing page dropped a
+  draft's `files` (the originals under `data/attachments/note-<id>-<n>.<ext>`)
+  every time it loaded drafts (start, a file pull, `refreshNotes`), and the
+  next save left them out of `writing.json`, so the agent saw only "has
+  images in the app". `normalizeLibrary` (`studio/writing-viewer.js`) now
+  keeps every field the page does not own and fills only its own defaults;
+  entries that are not drafts are skipped. `normalizeLib`
+  (`studio/script-viewer.js`) does the same (nothing is lost there today).
+  *Duplicate note* carries `files` too. `doctor` no longer calls the
+  original of a draft that lost its link "safe to delete" (it says "not safe
+  to delete: the draft is still here"). New `core/test-studio-keep.js` (in
+  `npm test`) runs both pages' real scripts against a fake `node serve.js`
+  (start, pull, a pasted reply, Duplicate, then the next write) plus
+  `doctor`; it fails on the old code. `files` is in `data/SCHEMA.md`.
+  Reviewed by two agents (technical, usability); their other findings are
+  under Minor, "From the files fix".
 - 2026-10-21 · `d9cd818` · **Sharing off main, launch kit out of the repo.**
   The two-person sharing commands that `a041d5d` ("keep the executable bit")
   carried into main by mistake are reverted (they could not run: `core/net.js`
