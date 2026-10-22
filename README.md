@@ -1,386 +1,442 @@
-<p align="center"><img src="icons/icon.svg" width="72" alt="Solo Ops"></p>
+<div align="center">
 
-<h1 align="center">Solo Ops</h1>
-<p align="center"><b>Your tasks, meetings, posts and drafts in one folder on your own computer, managed for you by the AI you already use.</b><br>
-Boards · calendar · posting schedule · video scripts · drafts · inspiration inbox — local, installable, works with any AI.</p>
+<img src="docs/assets/hero.png" alt="Your work moved to agents. Your to-do list didn't. Claude, ChatGPT, Codex and a local model, all working in one folder: ~/solo-ops." width="860">
 
----
+# Solo Ops
 
-**Every tool lets you give a task to an AI. None of them lets the AI manage
-your tasks.** Managing still means a project tool, ten plugins and
-connectors, and typing every task in by hand after the AI did the work.
+**One folder for your work. Every AI agent can run it.**
 
-Solo Ops flips it. You decide who does what: you, an agent, a human, a mix.
-Your AI does the managing: it plans the project, adds the tasks, moves the
-cards, fills the calendar, writes the standup. You work inside the AI you
-already use (ChatGPT, Claude, Claude Code, Cursor) and never type a task
-twice. Everything stays local: one folder on your computer, plain files,
-no account. Solo Ops never calls an AI for you.
+Your tasks, calendar, writing and videos in one folder on your laptop. Your
+AI agents keep it up to date as they work: Claude Code, Cursor, Codex, or a
+model on your own computer; ChatGPT and Claude.ai join in through copy and
+paste. Free, open source, no account. Set up in one conversation.
 
-<p align="center"><img src="docs/screenshots/home.png" width="900" alt="Home: your workspaces, today across every project, Share today and a quick Add"></p>
+[![License: MIT](https://img.shields.io/badge/License-MIT-black.svg)](LICENSE)
+![Node](https://img.shields.io/badge/node-%E2%89%A518-black)
+![Dependencies](https://img.shields.io/badge/dependencies-zero-2F6B4F)
+![Local-first](https://img.shields.io/badge/data-your%20own%20folder-2F6B4F)
+![Agents](https://img.shields.io/badge/works%20with-Claude%20Code%20%C2%B7%20Cursor%20%C2%B7%20Codex%20%C2%B7%20ChatGPT-555)
 
-<table><tr>
-<td><img src="docs/screenshots/guide.png" alt="The Guide: Ask your AI in plain words, with the context attached"></td>
-<td><img src="docs/screenshots/board.png" alt="Board: To Do / Doing / Done, steps, priority, tags, due dates"></td>
-</tr><tr>
-<td><img src="docs/screenshots/calendar.png" alt="Calendar: meetings, timed tasks, deadlines and posts"></td>
-<td><img src="docs/screenshots/share.png" alt="Share today: one card of the day, any project or all"></td>
-</tr><tr>
-<td><img src="docs/screenshots/social.png" alt="Social schedule"></td>
-<td><img src="docs/screenshots/scripts.png" alt="Script viewer"></td>
-</tr><tr>
-<td><img src="docs/screenshots/video.png" alt="Video: cut a recording by its transcript. Select words, press Delete, play it back with the cuts skipped."></td>
-<td><img src="docs/screenshots/inspiration.png" alt="Inspiration inbox: the capture strip on every page, tags, Use as task / post / script"></td>
-</tr></table>
+[Website](https://anshulixyz.github.io/solo-ops/) ·
+[The story](#your-work-moved-to-agents-your-lists-didnt) ·
+[What's inside](#whats-inside) ·
+[Get started](#get-started-in-one-conversation) ·
+[AGENTS.md](AGENTS.md) ·
+[What's coming](#what-is-coming) ·
+[Contributing](CONTRIBUTING.md)
 
+<img src="docs/assets/demo.gif" alt="One week in Solo Ops: setup in one conversation, a board from one sentence, a standup, the calendar filled, replies from mail, a script and a post, and the change log" width="860">
+
+<sub>One week of Mara's one-person studio in a minute: on Monday her folder is empty, by Friday her agents have filled and kept it current.</sub>
+
+</div>
+
+> [!IMPORTANT]
+> **Two promises.**
+> 1. **Your work stays yours.** It lives in `data/` on your computer as plain files. It never enters this code repository (a guard refuses the commit), and the backup goes to a *private* repo or a folder you choose. Solo Ops has no AI inside and never calls one on its own.
+> 2. **Nothing silent, nothing final.** Every change, yours or an agent's, is logged with who, when and what was there before. Undo any of it with one command, or from Home while the app runs.
+
+<details>
+<summary><b>Table of contents</b></summary>
+
+- [Your work moved to agents. Your lists didn't.](#your-work-moved-to-agents-your-lists-didnt)
+- [Get started in one conversation](#get-started-in-one-conversation)
+- [What you can ask it](#what-you-can-ask-it) · [your own workflows](#your-own-workflows)
+- [What's inside](#whats-inside)
+- [Works with your agent, any agent](#works-with-your-agent-any-agent)
+- [It shapes itself to you](#it-shapes-itself-to-you)
+- [The structure is the product](#the-structure-is-the-product)
+- [Keeping it safe](#keeping-it-safe)
+- [The bigger idea](#the-bigger-idea)
+- [What is coming](#what-is-coming)
+- [Reference: video, the task card, the terminal, settings, sync](#reference)
+- [Repo layout and development](#repo-layout-and-development)
+
+</details>
+
+## Your work moved to agents. Your lists didn't.
+
+<img src="docs/assets/story.png" alt="Before: you managed work on screens. Now: your work moved to agents. The gap: your lists didn't move with you, so you type it back in, by hand, in five places." width="860">
+
+Your work lived on the internet, so you managed it on your laptop and your
+phone. Then your work moved to agents: you plan with Claude, write with
+ChatGPT, keep the private things on a model on your laptop, often all in the
+same day. **Your lists did not move with you.** So after the agent does the
+work, you type it back in. By hand, in five places.
+
+<img src="docs/assets/notebook.png" alt="It's the notebook again: whatever you wrote in a notebook you typed into the laptop; whatever your agent does, you type into your apps." width="860">
+
+So the question was simple: **why can't all your agents work in the same
+folder, and keep your work up to date for you?**
+
+<img src="docs/assets/how-it-works.png" alt="The answer: scaffolding. Claude Code, Cursor, Codex, Claude.ai, ChatGPT and a local model read the same contract and write the same files in ~/solo-ops: data/, AGENTS.md, solo.js and a change log. Pages are optional, for the moments you want to look." width="860">
+
+The new interface is the agent. What it needs is not more software but
+**scaffolding**: a structure in its own language. Where your work lives,
+what shape it has, what changed and who changed it, how to undo it. Solo
+Ops is that structure, as one folder on your computer. Whatever you do with
+your agents, or outside them, all of them can track it and manage it for you.
+
+**You decide who does what: you, an agent, or a mix. Your agents do the
+managing.**
+
+## Get started in one conversation
+
+```bash
+git clone https://github.com/anshulixyz/solo-ops && cd solo-ops
 ```
-$ node solo.js week
-# Next 7 days · Oct 10 → Oct 17
-Last activity 2 h ago · streak 6 days
-**Launch:** 4/11 done (36%)   **Business as usual:** 2/5 done
-## Doing (2)
-- [t3] Record a 60-second demo · content · high · 1/4 steps
-…
-```
-…and the board in your browser updates by itself.
 
-## Who it is for
+Open the folder in Claude Code, Cursor or Codex and type **`/setup`** (or
+say "read AGENTS.md and set Solo Ops up for me"). It asks three questions in
+one message: you and your project, where your tasks live today, where the
+private backup goes. Then it does the rest: an empty project with your name
+on it, the page open, **your open work brought in** from Notion, Linear,
+Todoist, Trello or a list, and the backup. `/menu` any time for everything
+you can ask.
 
-- **The solo founder** ships a product, answers support, chases invoices and
-  has a life. One board holds all four; the agent that writes the code also
-  drafts the replies and keeps the board honest.
-- **The creator** has a pipeline of videos and letters, sponsors to close, an
-  editor to pay. Scripts, a posting arc and the week's deadlines in one place.
-- **The freelancer** keeps clients, money and errands on the same board,
-  because that is what a week is.
+Needs Node 18 or newer. Nothing else to install, no npm packages.
 
-## Three ways in
-
-| | |
-|---|---|
-| **Just you** | Open the pages. Boards, calendar, schedule, scripts, drafts, inbox. The Guide's **Quick** tab and the ▶ / ✓ on Home do the daily moves with no AI at all. |
-| **A chat** (ChatGPT, Claude.ai) | Open the Guide, type what you want in plain words — *"move this to done and write a script for it"* — and **Copy for your AI**. The copy carries the task, board or schedule you picked and the reply format. Paste the answer back; every change is previewed before it lands. |
-| **An agent that runs commands** (Claude Code, Cursor, Codex) | `/menu` lists what you can ask by moment of the day; `/bring-in` brings your open work from Notion, Linear, Todoist or a list, `/start-day` and `/wrap` keep it current, and every other Guide prompt is a slash command too. The agent runs `node solo.js` and the pages follow live. |
-
-## Why it exists
-
-It started as one person's problem: a creator, a developer and a founder at
-once, needing one more SaaS every month, none of which let the AI in. Plain
-files on your own computer are enough, and the AI you already pay for can do
-the managing. The longer story and what is coming next:
-[`about.html`](about.html) (also linked from Home and the Guide).
-
-## Why it is different
-
-| | Solo Ops |
-|---|---|
-| **Where your data lives** | `data/*.json` in a folder you own. No account, no server, no sync service. |
-| **How your AI uses it** | It reads the same files. A coding agent gets `AGENTS.md`; a chat gets the context and the reply format inside every prompt. Every agent change is logged and revertable. Solo Ops never calls a model itself. |
-| **How you use it without clicking** | `node solo.js today / week / add / done / social next / inspo add …` |
-| **How many projects** | As many **projects** as you like (a workspace in the files and CLI), each with its own boards, schedule, scripts and notes — and a Home that shows all of them at once, or one at a time. |
-
-## The apps
-
-| | What it does |
-|---|---|
-| **Home** | *Your name's workspaces* (`node solo.js config set owner "Mara"`; `/setup` asks for it). A Today strip: the meeting in progress or the next one, what is in Doing, overdue and this-week counts, **Show** chips that filter the page to all projects or one, a quick add that understands "Call Sam tomorrow 14:00", **Share today** as an image or text for any project or all, Plan today with your agent. One card per project that opens its Overview (boards, apps, rename / remove). **Tasks in play** for the week with ▶ Start and ✓ Done on every row, whichever project it belongs to; calendar today and tomorrow; posts for the week; the inspiration inbox; recent changes in plain words with *Restore a file* underneath; the activity streak folded away. |
-| **Boards** | Kanban: To Do / Doing / Done, a Later parking lot, a Bucket List for ideas. Checklists, priority, project chips, tags, notes, drag & drop. One file per board; create boards blank, from the sample sprint, or as a copy. |
-| **Calendar** | Everything with a date in one place: tasks with a time or a deadline, **meetings** (a task with a time and the tag `meeting`), and posts, across every board, with *all projects* a click away. Agenda (today onward, overdue first) and Month. Filter by board, meetings, posts; tick to finish; click to open the item where it lives; + on any day. Your agent fills it: Guide → **Bring in** → *Fill my calendar* reads the calendar your Claude or ChatGPT is connected to and adds the week's meetings (re-runs update, never duplicate). `node solo.js calendar` prints the same agenda; `add --at tomorrow 14:00 --until 14:30 --tags meeting` adds one. No calendar OAuth inside Solo Ops: the agent is the integration. |
-| **Social Schedule** | A posting arc: date, copy, type, prep checklist, images, video status; mark posted and log engagement. Calendar with a 52-week streak heatmap. |
-| **Script Viewer** | Reels/shorts scripts: hook, numbered beats, inserts, prep. Reader view, 9:16 preview, teleprompter. A library of scripts. |
-| **Writing Viewer** | Drafts with `~~cuts~~`, `++adds++` and `[[notes for the AI]]`. Copy for AI, copy clean, change log view, images. |
-| **Video** | Cut your takes by their words. The footage stays where it is: add a recording by path, get its words with their times (on this computer with whisper.cpp, through ElevenLabs with only the audio leaving, or from an SRT you have), click a sentence to cut it, drop the fillers in one go, render a 720p preview and the full-quality final with captions, link it into a post. Every edge lands on a word, every cut is logged and revertable. See [Video](#video). |
-| **Inspiration** | An inbox for anything worth keeping. A **capture strip sits under the nav on every page**: type or paste anything and press Enter; drag a link, text or image from anywhere toward the page and drop it; paste with nothing focused. Images save the moment they arrive, details are optional. Every item gets basic information for free: a kind tag, the site as a tag for links, and (with the server running) the page's real title and description. Each save shows a toast with Undo. **Assess new inspiration** hands your agent only what you saved since last time. Tag with a workspace, then **Use as** task / post / script / draft, or **Brainstorm with AI** (copies the items plus instructions for your chat). |
-| **Guide** | The panel on the left edge of every page (`?`). It opens on **Ask**, which starts with **Start here** on an empty project (Bring in my work · Plan a project · Fill my calendar) and **Start with one** after that (the moment of the day: Start my day, What now, Wrap up), each with its `/command` when your agent runs commands; the same menu is `/menu` in your agent and *Ask: …* in ⌘K. **Quick**: daily moves with no AI. Then **Ask your AI**: say it in plain words, tick what goes along (this task, this board, my schedule, recent changes), **Copy for your AI**; the ritual prompts (standup, plan the week, cut scope, fill my calendar…) sit under it. **Reply**: paste the whole answer, preview every change, apply. **Settings**: runs commands or chat only, backup, export / import. Every prompt is also a slash command. How it all works: [docs/guide.md](docs/guide.md); every prompt per page: [docs/guide-prompts.md](docs/guide-prompts.md). |
-
-Every page has a **⌘K command palette** with the same verbs as the CLI, a
-**theme picker** (auto/light/dark × five palettes) and a **sync pill** that
-tells you where your data is.
-
-## Install
-
-**Handing it to your agent?** Clone, open the folder in Claude Code, Cursor
-or Codex, type `/setup` (or say "read AGENTS.md and set Solo Ops up for
-me"). It asks three questions in one go (you and your project, where your
-tasks live today, where the private backup goes), then does the rest: an
-empty project with your name on it, the page open, **your open work brought
-in from Notion, Linear, Todoist, Trello or a list**, the backup. Type `/menu`
-any time for everything you can ask.
+<details>
+<summary><b>No agent in a terminal? Two other ways in</b></summary>
 
 **Just open it.** Download or clone, double-click `index.html`. It starts
 empty: Home offers **Bring in my work** (with your AI), **Add tasks**, or
 **Look around a sample project** (a separate project you can remove).
-Everything works from `file://`. In Chrome/Edge, click **Link folder** once
-and the pages write `data/*.json` directly; elsewhere use **File → Save /
-Load**.
+Everything works from `file://`. In Chrome or Edge, click **Link folder**
+once and the pages write `data/*.json` directly; elsewhere use **File → Save
+/ Load**.
 
-**As an app (recommended).**
+**As an app (recommended).** `node serve.js`, open http://localhost:4321 and
+click **Install** in the nav. Chrome and Edge put it in your Applications
+folder with its own window and Dock icon; Safari 17+ uses File → Add to
+Dock. The server always serves the latest files; a service worker keeps a
+copy only as the offline fallback, and `data/*.json` is never cached.
 
-```bash
-git clone https://github.com/anshulixyz/solo-ops && cd solo-ops
-node serve.js          # http://localhost:4321
-```
+</details>
 
-Open it, click **Install** in the nav. Chrome and Edge put it in your
-Applications folder (under "Chrome Apps" on macOS) and it opens in its own
-window with a Dock icon; Safari 17+ uses File → Add to Dock. Zero
-dependencies; Node (18 or newer) is only for the server and the CLI.
+## What you can ask it
 
-**Always fresh, works offline.** Code and pages are fetched network-first, so
-a running server always serves the latest files; the service worker keeps a
-copy only as the offline fallback. `data/*.json` and the API are never
-cached. `serve.js` stamps the worker with a hash of every file's modification
-time, so each code change is a new version: open pages get a small
-"New version ready — Reload" toast, and nothing reloads under you.
+Say it in plain words, or type the command. Who does each task is your call;
+the managing around it is the agent's job.
 
-## The terminal
+| You say | Command |
+|---|---|
+| "Make me boards from what I have been working on." | `/plan-project` |
+| "Bring in my tasks from Notion, Linear or Todoist." Re-runs update, never duplicate. | `/bring-in` |
+| "Put this week's meetings on my calendar." Through the calendar your agent already reads. | `/fill-calendar` |
+| "What should I work on right now?" | `/now` · `/start-day` |
+| "Take my daily status." | `/standup` · `/wrap` |
+| "Turn this conversation into tasks." | `/capture` |
+| "Write a script from this idea, then cut my take." | `/script` · `/cut-take` |
+| "Draft next week's posts." | `/draft-posts` |
+| "Plan the week." / "Review my week." | `/plan-week` · `/week` |
+
+There are 39 in all, grouped by moment of the day: `node solo.js menu`, or
+the Guide (`?` on the left edge of every page). Every Guide prompt is also a
+slash command; the catalogue is [docs/guide-prompts.md](docs/guide-prompts.md).
+
+### Your own workflows
+
+If your agent is connected to Gmail, your calendar, Notion, Linear or other
+apps, you can make your own workflows: describe one once in plain words and
+your agent fills a board in Solo Ops every time you ask, or every morning.
+
+> "Every morning, read my inbox. Every email I need to reply to becomes a
+> task on the **Replies** board, due tomorrow. Skip newsletters."
+
+The same works for this week's meetings (`/fill-calendar`), work assigned to
+you in other tools (`/bring-in`) and the action items after a call
+(`/capture`). There is no mail or calendar code inside Solo Ops and no login
+to give it: the connector lives in your agent, and Solo Ops gives it a place
+to put the result, a log of every change and an undo. Run a workflow with
+`/start-day`, or ask your agent to schedule it.
+
+## What's inside
+
+For anyone who keeps a to-do list. Built first for solo builders and
+founders: one person who is the maker, the marketer and the manager at once.
+
+| Part | What it does |
+|---|---|
+| **Boards** | Kanban style: To do, Doing, Done, Later, Ideas. As many boards as you want, one per project or area of life. Tasks carry steps, priority, tags, a time and a deadline. |
+| **Calendar** | Your to-dos with a time, your deadlines, your meetings, your posts. Work and personal in one view: the school form due Friday sits next to the launch. |
+| **Writing** | Drafts and notes, with marks your agent understands: `~~cut this~~`, `++add this++`, `[[a note to the agent]]`. |
+| **Scripts** | Short video scripts (hook, numbered beats, inserts, prep) and a built-in teleprompter to read them from. |
+| **Video** | Edit a take by its transcript: delete the words, the video follows. The footage never moves and never uploads. |
+| **Social** | A posting schedule: copy, prep, posted, stats, and a streak. |
+| **Inspiration** | An inbox for links, ideas and images you want to keep, with a capture strip on every page. |
+| **Home** | Today across every project: the next meeting, what is in Doing, overdue and this week, a quick add that understands "Call Sam tomorrow 14:00", Share today as an image. |
+| **The Guide** | The panel beside every page: what to ask, copy for your AI, paste the reply back, backup and settings. |
+
+<p align="center"><img src="docs/screenshots/home.png" width="860" alt="Home: your workspaces, today across every project, Share today and a quick Add"></p>
+
+<table><tr>
+<td><img src="docs/screenshots/board.png" alt="Board: To Do / Doing / Done, steps, priority, tags, due dates"></td>
+<td><img src="docs/screenshots/calendar.png" alt="Calendar: meetings, timed tasks, deadlines and posts"></td>
+</tr><tr>
+<td><img src="docs/screenshots/scripts.png" alt="Script viewer with the teleprompter"></td>
+<td><img src="docs/screenshots/video.png" alt="Video: cut a recording by its transcript. Select words, press Delete, play it back with the cuts skipped."></td>
+</tr><tr>
+<td><img src="docs/screenshots/social.png" alt="Social schedule"></td>
+<td><img src="docs/screenshots/inspiration.png" alt="Inspiration inbox: the capture strip on every page, tags, Use as task / post / script"></td>
+</tr><tr>
+<td><img src="docs/screenshots/guide.png" alt="The Guide: Ask your AI in plain words, with the context attached"></td>
+<td><img src="docs/screenshots/share.png" alt="Share today: one card of the day, any project or all"></td>
+</tr></table>
+
+Every page has a **⌘K command palette** with the same verbs as the CLI, a
+**theme picker** (auto, light, dark, five palettes, four fonts) and a **sync
+pill** that tells you where your data is.
+
+## Works with your agent, any agent
+
+| | How it works |
+|---|---|
+| **An agent in the folder**<br><sub>Claude Code · Cursor · Codex</sub> | It reads `AGENTS.md` (and `CLAUDE.md`), the contract: where the files are, their shape, the commands, what not to touch. Every Guide prompt is a slash command (`.claude/commands`, `.cursor/commands`; `node solo.js prompts export --for codex` writes them to `~/.codex/prompts`). The agent runs `node solo.js` and the pages follow live. |
+| **A chat**<br><sub>Claude.ai · ChatGPT</sub> | Open the Guide, say what you want, **Copy for your AI**. The copy carries the task, board or schedule you picked and the reply format, so a fresh chat needs no setup. Paste the whole answer into **Reply**: every change is previewed and applied only when you say so. |
+| **Just you** | Open the pages. The Guide's **Quick** tab and ▶ Start / ✓ Done on Home do the daily moves with no AI at all. |
+
+A model on your own laptop works too, when it runs through an agent that can
+open the folder and run commands. Your tasks in Notion, Linear, Todoist,
+Trello or GitHub, and the meetings on your calendar, come in through the
+connectors your agent already has: **the agent is the integration**, so
+there is no OAuth inside Solo Ops.
+
+## It shapes itself to you
+
+Everyone manages work differently. A Notion person, a Trello person, a notes
+person, a calendar person. Solo Ops asks and sets itself up that way: only
+the parts you use are on (`config set apps.social false`), boards named the
+way you think, your own prompts next to the built-in ones (they land in
+`.claude/commands/mine/`, never in the repo). Your agent reads the contract
+in the folder, learns your pattern and keeps to it. Your other work can come
+in too, so it is one space from day one.
+
+## The structure is the product
+
+Your agent can already do all of these things. Doing them with agents takes
+a lot of structure, and that structure is what software subscriptions charge
+for, even the ones that call themselves agent-first. Solo Ops gives you the
+structure without the burden.
+
+| What running work with agents takes | Rented | **Solo Ops** |
+|---|---|---|
+| Where your work lives | Their server, behind a login | **A folder on your computer** (`data/*.json`) |
+| The shape of it | Their database, their export | **Plain JSON and one schema file** ([data/SCHEMA.md](data/SCHEMA.md)) |
+| How an agent gets in | An API key, scopes, a connector per app | **It opens the folder and reads [AGENTS.md](AGENTS.md)** |
+| What changed, and who | Their activity feed | **Every change logged** with who and when (`node solo.js log`) |
+| Undo | Whatever their undo covers | **Any change**: `node solo.js revert <id>`, or Home while the app runs |
+| Backup | Their export button | **Your own private repo** or a syncing folder, daily |
+| The price | A seat, a month | **Free, MIT** |
+
+## Keeping it safe
+
+- **Every write is logged** with its previous content; `node solo.js revert
+  <id>` undoes it (or Home → Recent changes, while `node serve.js` runs). Agents sign as `agent` with a
+  note saying why. Replies pasted into the Guide never delete anything.
+- **Your content never enters this repo.** This folder is the Solo Ops code,
+  and the code is public, including any copy of it. `data/` is git-ignored
+  except the schema, and `node solo.js guard` (a pre-commit hook after
+  `guard --install`) refuses any commit that stages tasks, posts, exports,
+  attachments or personal prompts. If you keep a *private* fork and want
+  one repo for both, `guard --allow-data` checks the remote is private and
+  then steps aside.
+- **Backup is part of setup.** `node solo.js backup setup` creates a
+  **private** GitHub repo (`solo-ops-data`) and pushes `data/` there, or
+  `backup --to "<a folder that syncs>"` for iCloud Drive or Dropbox.
+  `backup --daily` schedules it. Public repositories are refused. Until it
+  is done the Guide shows a reminder on every tab.
+- **`node solo.js doctor`** validates every data file, finds missing or
+  unused attachments, and warns when the last backup is older than a week.
+- **Exports stay with your data** in `data/exports/`, including the safety
+  copy taken before any destructive action.
+
+## The bigger idea
+
+**Software lived on servers because building it was hard.** So we rented
+it: someone else's server, someone else's database, a login, a seat, a
+monthly price.
+
+Agents flipped both sides. Building and keeping small software became easy.
+And software on servers became hard for agents to use: logins, dashboards,
+rate limits, an API for every vendor, your own data behind someone else's
+screen. The operator of software changed, from a person at a screen to an
+agent working for a person. Solo Ops is built for the new operator, and
+simplifies to what agents can do today:
+
+| Instead of | Solo Ops |
+|---|---|
+| A hosted database | **The database is a folder**: plain JSON you own |
+| A REST API per vendor | **The API is a command**: `node solo.js add · done · move` validates every change |
+| An integration marketplace | **The integration is a text file**: `AGENTS.md`, read by any agent |
+| An audit log on the top plan | **Trust is a log**: who, when, what, undo |
+| The app is the product | **The pages are optional**: for the moments a person wants to look |
+
+Sharing between people is coming next, built the same way: nothing reaches
+you without your yes.
+
+## What is coming
+
+**Today Solo Ops is for heavy AI users**: people who work with agents every
+day and are fine running a simple command, or letting their agent run it.
+If this project takes off, the plan is to make this scaffolding easy for
+anyone who keeps a to-do list. Designed, not shipped; the working list is
+[NEXT.md](NEXT.md).
+
+- **WhatsApp and Telegram.** Add a task, tick one off or ask what's next
+  from the chat you already have open; send a link and it lands in your
+  inbox.
+- **Send tasks to others.** Hand a task to a teammate, an editor or a
+  cofounder; their agent puts it on their board, the way they keep it.
+  Status and ticked steps come back the same way.
+- **Receive tasks through your agent.** Requests from other people arrive
+  at your agent, and nothing lands on your board without your yes. Nobody
+  types a status update.
+- **On your phone.** The pages installed as an app on your phone (a PWA),
+  served from your laptop over your own wifi. No cloud in between.
+- **From any app, no pasting.** A local MCP server, so Claude Desktop,
+  ChatGPT or Cursor read and update the folder directly.
+- **Easy for everyone.** A setup with no commands, for people who don't use
+  a terminal. The structure stays the same: your files, any agent, every
+  change undoable.
+
+## Reference
+
+<details>
+<summary><b>Video: cut a take by its words</b></summary>
+
+The promise: **the footage never moves, only its words do.** Solo Ops cuts
+the file on your disk, at its quality, by its transcript.
+
+1. **Record, or add a take.** Save a recording into the recordings folder
+   (`node solo.js video recordings` prints it) and it shows up on the Video
+   page while the server runs. Or drop it on the page, or paste its path.
+   Nothing is copied. `/setup-video` has your agent install ffmpeg, the
+   words engine, the folder and the recorder in one conversation.
+2. **Get the words.** Three ways, you pick, never a paid one on its own: on
+   this computer (whisper.cpp, free, nothing leaves the machine),
+   ElevenLabs (only the audio is sent, the price is shown first, the key
+   stays in `data/secrets.json`), or a transcript you already have (SRT,
+   VTT, JSON).
+3. **Cut.** The transcript is the editor: select words and press Delete;
+   select a struck word to put it back. **Remove fillers and pauses** in
+   one click, **Keep only this** to trim, C to fix a misheard word (the
+   audio does not change). Or *Cut it with my AI*: your agent proposes the
+   cut in plain words and waits for your yes.
+4. **Render.** A 720p preview first, the full-quality final after you
+   watched it. Captions ride along as a track and a `.srt`. Renders are
+   numbered, never overwritten.
+5. **Post.** *Make the post* puts a draft on the schedule with the final
+   linked, never copied.
+
+Needs ffmpeg (`brew install ffmpeg`, `winget install Gyan.FFmpeg`) and, for
+the buttons, `node serve.js`. Renders live in `data/videos/<take>/` and never
+enter the backup; the words and the `.srt` do.
+
+</details>
+
+<details>
+<summary><b>A task carries its pieces</b></summary>
+
+The board card is the one unit. Tag a task `writing`, `script` or `video`
+and it carries four pills, **Draft · Script · Take · Post**, plus one button
+for the next step (*Write the draft*, *Start the script*, *Add the take*,
+*Make the post*). The piece is made for that task and attached to it;
+**attach** takes one that already exists. In the Writing, Script and Video
+views the open item shows **Task: …** or **Connect with a task…**. Agents do
+the same with `node solo.js link <task> <piece>`, `story <task>` and
+`--task` on the add commands.
+
+</details>
+
+<details>
+<summary><b>The terminal</b></summary>
 
 ```bash
 node solo.js today                          # in play now + idle reminder
 node solo.js week --days 14                 # a longer window; --ws <id> picks a project
 node solo.js add "Write the launch post" --proj launch --pri high --tags content --steps "Outline|Draft"
+node solo.js add "Call with Sam" --at tomorrow 14:00 --until 14:30 --tags meeting
 node solo.js start "Write the launch post" ; done t5 ; move t11 later ; check t5 2
+node solo.js calendar --days 14             # the agenda
 node solo.js social add "Launch day" --at +3d 9:00 --type launch ; social next ; social posted p4 --url …
 node solo.js scripts add "Teaser" --file teaser.md ; notes list
-node solo.js video add "Take 3" --file ~/Movies/take-3.mov --script <script> ; video transcribe <take> ; video cut <take> --tidy ; video word <take> "on shoe lee" "Anshuli" ; video render <take> --preview
-node solo.js link <task> <script> ; story <task> ; scripts add --task <task>   # a task carries its pieces; the card and the views show the same
-node solo.js inspo add "https://… worth stealing #launch"
-node solo.js inspo use "worth stealing" --as task
-node solo.js boards add "Business as usual" --from sample
-node solo.js workspaces add "Side project" --apps scripts,writing --sample
-node solo.js share todo                     # markdown checklist, paste anywhere (| pbcopy on a Mac, | clip on Windows)
+node solo.js video add "Take 3" --file ~/Movies/take-3.mov ; video transcribe <take> ; video cut <take> --tidy ; video render <take> --preview
+node solo.js link <task> <script> ; story <task>
+node solo.js inspo add "https://… worth stealing #launch" ; inspo use "worth stealing" --as task
 node solo.js import list.md                 # "- [ ] item" lines → tasks
-# node solo.js import <items.json> --dry-run   what your agent writes when it brings your work in (/bring-in); same ext = update
-node solo.js menu                           # what you can ask your agent, by moment of the day (= /menu)
+node solo.js share today                    # today as a short card
+node solo.js menu                           # what you can ask your agent (= /menu)
 node solo.js log ; node solo.js revert <id>
 node solo.js help
 ```
 
-`--json` on anything for machine output. `--ws <id>` and `--board <id>` scope
-any command.
+`--json` on anything for machine output. `--ws <id>` and `--board <id>`
+scope any command.
 
-## Video
+</details>
 
-The promise: **the footage never moves, only its words do.** Descript makes
-you upload a take and cuts a lowered-quality proxy; Solo Ops cuts the file
-on your disk, at its quality, by its transcript.
+<details>
+<summary><b>Make it yours</b></summary>
 
-1. **Record, or add a take.** Record with any app (Recordly, QuickTime, your
-   phone) and save the file into the recordings folder (`~/Movies/Solo Ops
-   takes`; `node solo.js video recordings` prints it): it shows up on the
-   Video page by itself while the server runs. Or drop the recording on the
-   page (it finds it in Movies, Desktop, Downloads or Documents) or paste
-   its path. Nothing is copied. Tick *Get the words this way for every new
-   take* once and new takes get their words by themselves. Terminal:
-   `node solo.js video add "Title" --file ./take.mov`. *Set up video on this computer* in the Guide
-   (`/setup-video`) has your agent install ffmpeg, the words engine, the
-   folder and the recorder in one conversation.
-2. **Get the words.** Three ways, you pick, never a paid one on its own:
-   on this computer (whisper.cpp, free, nothing leaves the machine), ElevenLabs
-   (the audio is sent, the video stays, the price is shown first; the key is
-   pasted once into a field on the page and stays in `data/secrets.json`),
-   or a transcript you already have (SRT, VTT, JSON).
-3. **Cut.** The transcript is the editor and the player follows it: click a
-   word, press Space, and the take plays from there with your cuts skipped; select words
-   (or a sentence) and press Delete, or Cut; select a crossed-out word to
-   put it back. **Remove fillers and pauses** takes um, uh, you know and
-   every pause longer than 0.7 s (`video.pause`) in one click, or *Review
-   first* to untick single ones and see what was said twice; Undo and Redo
-   are there. **Keep only this** (K) is the trim: select the part you want
-   and everything before and after goes. The player shows the captions as
-   the final will carry them (a Captions box, Bigger); there is no bar to
-   drag: you trim by selecting words, and the grey pause chips count as
-   words. A misheard word is
-   fixed by selecting it and pressing C (the
-   audio does not change). Every edge lands on a word, padded; pauses are
-   measured on the audio, not guessed from the words. Or *Cut it with my
-   AI*: your agent reads the words, proposes the cut in plain words, waits
-   for your yes, and the cut lands on the page. iPhone footage the browser
-   cannot play gets a 720p copy for the player with one click.
-4. **Render.** A 720p preview first; the final at full quality after you
-   watched it. Captions ride along as a track and a `.srt`. One render at a
-   time; renders are numbered, never overwritten.
-5. **Post.** *Make the post* puts a draft on the schedule with the final
-   linked, never copied; *Post this video* in the Guide writes the copy.
+`solo.config.js` is part of the app, identical for everyone, so your own
+settings (your name, project, board titles, post types) live next to your
+tasks in `data/settings.json`:
 
-Needs ffmpeg (`brew install ffmpeg` on a Mac, `winget install Gyan.FFmpeg` on
-Windows) and, for the buttons, `node serve.js`. Without the server the page
-still cuts (clicking saves the cut) and shows the terminal line for the rest.
-Renders live in `data/videos/<take>/` and never enter the backup; the words
-and the `.srt` do.
+```bash
+node solo.js config set owner "Mara" name "Pocket Studio"
+node solo.js config add social.postTypes reel carousel
+node solo.js config set boards.runway.title "Launch runway"
+node solo.js config                          # what is in use
+```
 
-## A task carries its pieces
+Any key of `solo.config.js` works. The Theme button offers light and dark,
+five palettes and four font presets; `?theme=dark&palette=dusk&font=system`
+works on any page. A first open starts blank; the sample sprint is a
+separate **Sample project** (`node solo.js template sample`) that never
+mixes into your work.
 
-The board card is the one unit. Tag a task `writing`, `script` or `video`
-and it carries its pieces: four pills, **Draft · Script · Take · Post**,
-filled when the piece exists and each a link, plus one button for the next
-step, **Start the script**, **Add the take**, **Make the post** (a writing
-task starts with **Write the draft**). The piece is made for that task and
-attached to it; nothing is connected by hand. **attach**, next to notes,
-takes something that already exists. The task moves across the columns as
-it always has.
+</details>
 
-In the Writing, Script and Video views the open item shows **Task: …** with
-its pills, or **Connect with a task…** (pick a task, or make a new one from
-the item). Tasks tagged for a view show at the top of its list as
-suggestions, with the same verbs. Your agent does the same with
-`node solo.js link <task> <piece>`, `story <task>` and `--task` on the add
-commands, and sees the task in the Guide's `{{this}}`. Nothing new to back
-up: the task keeps the ids.
-
-## Your AI runs it
-
-- **Claude Code / Cursor / Codex / any coding agent:** open the folder. `AGENTS.md`
-  (and `CLAUDE.md`) is the contract: files, schema, CLI, conventions, read
-  automatically. Type `/standup`, `/now`, `/week`, `/stuck`, `/cut-scope`,
-  `/ship-post`… — every Guide prompt is a slash command (`.claude/commands`,
-  `.cursor/commands`; `node solo.js prompts export --for codex` writes them to
-  `~/.codex/prompts`, where Codex looks).
-  Or just ask: "what should I do this week?", "turn my inspiration into
-  tasks", "draft the three posts for launch week". An agent that was *not*
-  opened in the folder gets Guide → Settings → *Set up this folder*.
-- **Claude.ai / ChatGPT (no file access, no terminal):** open the Guide,
-  pick **Chat only**, type what you want in the **Ask your AI** box or click
-  a prompt. The copy carries the context you picked and the reply format, so
-  a fresh chat needs no setup. When it answers, paste the whole answer into
-  **Reply**: the changes are picked out, previewed, and applied only when you
-  say so. Optional: *New chat? Paste this first, once* (also
-  `prompts/agent-bootstrap.md`) into a ChatGPT or Claude Project.
-- **Every agent change is logged** with `source: agent` and a note. Home →
-  Recent changes shows it; one click reverts it. `node solo.js log` from
-  the terminal.
-- **Scheduled nudges:** `node solo.js today` in cron, a Claude scheduled
-  task or a Shortcut. It prints the idle reminder too.
-- **Planned:** an MCP server so Claude Desktop, ChatGPT, Cursor or a phone
-  client use the folder without pasting; Telegram and WhatsApp for `/add`,
-  `/done`, `/next` and links from your phone. See *What is coming*.
-
-## Keeping it safe
-
-- **Every write is logged** with its previous content (a file's first write
-  has none); `node solo.js revert <id>` or Home → Recent changes undoes it. Replies pasted into the Guide never
-  delete anything (`rm` is ignored).
-- **Your content never enters this repo.** `data/` is git-ignored except the
-  schema, and `node solo.js guard` (installed as a pre-commit hook by
-  `guard --install`) refuses any commit that stages tasks, posts, exports,
-  attachments or personal prompts. The rule binds every agent working in the
-  folder (`AGENTS.md`, *Privacy boundary*); the place for your content is a
-  private repo via `backup`.
-- **Exports stay with your data.** Export everything, a board as JSON or
-  Markdown, the social bundle, and the safety copy taken before *Load
-  template* or *Clear* are written to `data/exports/` when `node serve.js`
-  runs or the folder is linked (so `backup` carries them too). Without
-  either, the browser downloads them as before.
-- **Backup is part of setup.** `node solo.js backup setup` gives your data a
-  private home: with the GitHub CLI logged in it creates a **private** repo
-  `solo-ops-data` and pushes `data/` there; otherwise it tells you the two
-  other ways (a private repo you create and pass with `--remote`, or
-  `backup --to "<a folder that syncs>"` for iCloud Drive / Dropbox, no git).
-  `backup --daily` schedules it. It **refuses public repositories**. Until
-  it is done the Guide shows *Save your data somewhere private* on every
-  tab; Guide → Settings → *Protect your work* has the three ways and a copy
-  button for each.
-- **Why your data is not in this repo.** This folder is the Solo Ops code,
-  and the code is public, including any fork of it. Your tasks, posts and
-  drafts are yours, so they stay out of it on purpose. If you keep a
-  *private* fork and want one repo for both, `node solo.js guard
-  --allow-data` checks the remote is private and then steps aside.
-- **`node solo.js doctor`** validates every data file (JSON, `updatedAt`,
-  ids, columns), finds attachments that are referenced but missing or on
-  disk but unused, flags originals that only exist in a browser, and warns
-  when the last backup is older than a week.
-- **Attachments:** an image you drop keeps a small thumbnail inside the item;
-  the original is written to `data/attachments/` when the server runs or
-  the folder is linked, and waits in the browser (IndexedDB, not the 5 MB
-  localStorage) until then. Other files are copied up to
-  `attachments.copyMaxMB` (25 by default); bigger ones are saved by name and
-  size and you paste a path or a `file://` link instead. From the terminal:
-  `node solo.js inspo add --file ./deck.pdf`.
-
-## What is coming
-
-Designed, not shipped, in roughly this order. The working list, with the
-known issues, is [`NEXT.md`](NEXT.md); the story is in [`about.html`](about.html).
-
-The direction is one idea: Solo Ops should be reachable from wherever you
-and your agents already are, and take in whatever you already write things
-down in. Nothing below adds a service in the middle.
-
-- **An MCP server: use it anywhere, with any agent.** One local process that
-  speaks the Model Context Protocol, so Claude Desktop, ChatGPT, Cursor or a
-  phone app read and write the same files with the CLI's verbs. The Guide's
-  prompts become tools the agent calls without you pasting anything.
-- **Your notes on the Mac and on Windows flow in.** A read-only watcher for
-  Apple Notes and Reminders, Sticky Notes and Notepad, and any Markdown
-  folder (Obsidian, iA Writer): new lines become inbox items or tasks with a
-  link back. Nothing is moved.
-- **Pull from the apps you already use, through your AI.** The calendar works
-  this way today. Next: mail, docs and meeting notes, analytics. The connector
-  lives in your Claude or ChatGPT; every pull is a logged, revertable change.
-- **Collaboration with no API in the middle:** an editor or cofounder points
-  their own agent at the same private data repo, and the agents hand work
-  back and forth through the files.
-- **Telegram and WhatsApp** for `/add`, `/done`, `/next` and links from your phone.
-- **Phone install, still local:** the pages served from your laptop on your
-  own wifi, a QR code on Home, installed as an app.
-- **Briefing packs and undo everywhere:** `node solo.js brief --for editor`,
-  and ⌘Z in the browser for every change, yours or the agent's.
-- **Home, a layout pass:** one header row, projects as rows, a project picker
-  on the quick add. The small things are under *Minor* in `NEXT.md`.
-
-## Make it yours
-
-`solo.config.js` is part of the app itself, identical for everyone who
-downloads Solo Ops, so do not put your name in it. Your own settings (your
-name, the project name, board titles, your post types) live next to your
-tasks in `data/settings.json`. Set them with
-`node solo.js config set owner "Mara" name "Pocket Studio"`, add to a list
-with `node solo.js config add social.postTypes reel carousel`, or ask your
-agent (`/setup` does it; a pasted reply can carry `config set` lines too).
-Any key of `solo.config.js` works, one board at a time as
-`boards.runway.title "Launch runway"`; `node solo.js config` shows what is
-in use. Git never sees that file, and if you change `solo.config.js` by
-mistake the guard stops the commit. The file itself holds the defaults:
-workspaces (or just the apps and boards of the default one), projects with
-colors, tags, post types, prep kinds, milestones and focus cards,
-idle-reminder hours, attachment size caps and the default theme. The Theme button offers light/dark, five palettes and
-four font presets (Inter, System as in Trello, Lato as in Slack, Editorial);
-`?theme=dark&palette=dusk&font=system` works on any page. Workspaces
-and boards can also be created from Home or the CLI. A first open starts
-blank; the sample sprint is a separate **Sample project** (Home → *Look
-around a sample project*, or `node solo.js template sample`) that never mixes
-into your work and leaves the "all projects" views alone; remove it like any
-project. Nothing in `data/` is tracked by git: your content can never end up
-in a commit.
-
-## How sync works
+<details>
+<summary><b>How sync works</b></summary>
 
 The browser keeps a working copy in `localStorage`; `data/*.json` is the
 source of truth agents and the CLI see. Each file carries `updatedAt`; the
 newer side wins. Served and linked-folder modes write on every change and
-poll for outside edits every few seconds. On first contact a blank first open
-(or untouched sample data) yields to the file, registries merge, and real content on both sides asks you — the
-losing side is downloaded as a backup either way. Details: `data/SCHEMA.md`,
-`core/sync.js`.
+poll for outside edits every few seconds. On first contact a blank first
+open yields to the file, registries merge, and real content on both sides
+asks you; the losing side is downloaded as a backup either way. Details:
+[data/SCHEMA.md](data/SCHEMA.md), `core/sync.js`.
 
-## Layout
+</details>
+
+## Repo layout and development
 
 ```
-index.html              Home (all projects)
-solo.config.js      the shipped defaults (your own values: data/settings.json via config set)
-solo.js             CLI (node, zero deps)   serve.js  local server + write API + change log
-manifest.json sw.js icons/   installable app shell
-core/                   store · config · theme · sync · activity · nav · palette · inspo-quick · templates · prompts (the Guide's built-ins, shared with the CLI)
-data/                   per workspace: <board>.json, social, scripts, writing · plus inspiration, boards, workspaces, activity, settings, log.jsonl
-runway/ social/ studio/ inspo/ calendar/   the apps (classic scripts, file:// safe)
-prompts/ docs/ .claude/skills/   agent bootstrap, Telegram design, Claude Code skill
-.claude/commands/ .cursor/commands/   the Guide prompts as slash commands (generated: node solo.js prompts export)
+index.html            Home (all projects)        about.html  the longer story
+solo.config.js        the shipped defaults (yours: data/settings.json via config set)
+solo.js               CLI (node, zero deps)      serve.js    local server + write API + change log
+AGENTS.md             the contract every agent reads (CLAUDE.md points to it)
+core/                 store · config · theme · sync · activity · palette · templates · prompts
+runway/ calendar/ social/ studio/ inspo/   the apps (classic scripts, file:// safe)
+data/                 your content, git-ignored except SCHEMA.md
+.claude/commands/ .cursor/commands/        the Guide prompts as slash commands (generated)
+docs/                 guide.md, guide-prompts.md, the website (index.html), images
 ```
 
-Keep apps `file://`-compatible: classic `<script src>`, no modules, no `fetch`
-of local files. Sanity: `for f in core/*.js runway/*.js social/*.js studio/*.js inspo/*.js *.js; do node --check "$f"; done`
-and `node social/test-social-save.js`, `node core/test-prompts.js` and `node core/test-apply.js`
-(every verb a pasted reply can carry, against an in-memory store).
+Static HTML, CSS and classic `<script src>`: no build step, no npm
+dependencies, no ES modules, openable from `file://`. `npm test` runs the
+syntax check of every script and the test suites. Start with
+[NEXT.md](NEXT.md); [AGENTS.md](AGENTS.md) is also the contributor guide,
+and [CONTRIBUTING.md](CONTRIBUTING.md) has the rest.
 
-MIT licensed. Contributions welcome — the agent contract in `AGENTS.md` is
-also the contributor guide.
+---
+
+<div align="center">
+
+**One folder. Every agent.** You decide who does what. Your agents do the managing.
+
+MIT License · [LICENSE](LICENSE) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
+
+</div>

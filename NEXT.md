@@ -17,7 +17,7 @@ in step with what you change, and run `node solo.js doctor` plus
 
 **Should, first week after**
 - ~~*Share today* as an image~~ and ~~Home as a dashboard~~ — shipped 2026-10-13 (see Done).
-- **Last before launch:** README pass — copy for the new Home, Share today and the mono default, fresh screenshots (`docs/screenshots`).
+- ~~**Last before launch:** README pass~~ — done 2026-10-22 with the one-page website (see Done).
 
 **After launch (moved out of release 1 on 2026-10-13)**
 - M1 undo / redo in the browser. Trimmed first version agreed: a ring of the
@@ -621,6 +621,16 @@ QR rendered without a dependency, capture strip and boards usable at
   retake with `docs/screenshots` script when M2 lands.
 
 ## Done
+
+- 2026-10-22 · **README rewritten and a one-page website (`docs/index.html`,
+  GitHub Pages from `/docs`)** from `docs/launch/SOLO-OPS-STORY.md`: the story
+  (before, now, the gap, the notebook, scaffolding), what's inside, what to
+  ask, your own workflows, what's coming (today for heavy AI users, next for
+  everyone), FAQ. A 5 MB demo GIF cut from the week film (the "Four
+  questions" beat removed) and four story images rendered from the site
+  (`?shot=<section>`). Reviewed by a technical and a usability reviewer;
+  their fixes are in. `docs/.nojekyll`; `docs/screenshots/launch` symlink now
+  in `.gitignore`.
 
 - 2026-10-22 · `8e5c2f4` · `137e22e` · `8f8558f` · **An image added while the server was off, or just as
   your agent changed the drafts, stays findable by your agent; a title with
