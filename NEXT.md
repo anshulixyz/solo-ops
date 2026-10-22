@@ -372,11 +372,23 @@ QR rendered without a dependency, capture strip and boards usable at
   tell the two apart. (2) `notes show` prints `[Image uploaded n]`
   without the path; give it an `image files:` line like the Guide's snapshot.
   (3) The toast after adding an image says "attach this file in chat" even
-  when the server saved the original. (4) While an image uploads, a file
-  pull or a pasted reply can replace the drafts; the new `files` entry then
-  lands on the old copy and the next write leaves it out. (5) `notes list`
+  when the server saved the original. (4) Done 2026-10-22 (see Done: an
+  image added while the server was off … stays findable). (5) `notes list`
   and `find` prefer a `title` field on a draft over its heading. Nothing
   writes one, but a hand-added one would stay out of date: use the heading.
+  (6) Duplicate, then delete the source draft while its original still waits
+  in the browser: the copy shows the image but never gets the link, and once
+  the original reaches the disk `doctor` calls it "safe to delete". Also, a
+  copy made in the milliseconds while the source's thumbnail is being made
+  holds the full image, no longer matches, and stays unlinked. (7)
+  Attachment names carry no workspace: the sample's `n1`/`n2` exist in every
+  workspace made with the sample, so their originals can overwrite each
+  other on disk, and a waiting one can be linked into the other workspace's
+  draft. Related: the browser keeps originals after they reach the disk and
+  the relink ignores the extension, so if a draft's `images` is emptied and
+  numbering restarts, an old original could be linked to a new image. (8)
+  *Export everything* carries the links but not the originals; after an
+  import on another computer `doctor` lists them as missing.
 - **From the Guide audit (2026-10-21), not done:** (1) *Next* has no overdue
   move: Move what's overdue is first on the Calendar's list whether or not
   anything is overdue, and Home does not mention overdue work. (2) An edited
@@ -582,6 +594,27 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Done
 
+- 2026-10-22 · *hash after the commit* · **An image added while the server was off, or while
+  your agent edited the drafts, stays findable by your agent** (checked for
+  other users on a fresh install; was (4) on the files-fix list). Two more
+  paths left a draft's image unlinked. A file pull or a pasted reply that
+  landed while an image uploaded sent the link to the replaced copy;
+  `insertImage` now links the draft as the page holds it when the upload
+  ends. An image added while the server was down or the folder not linked
+  keeps its original in the browser, which is written to `data/attachments/`
+  once a connection appears, by whichever page is open, and nothing linked
+  it. Now `core/attach.js` also writes it after the next save that gets
+  through (no reload needed) and remembers which originals reached the disk
+  (`Attach.saved`). The Writing page links them as they arrive, when it
+  opens (only once the file is in, never on the older browser copy), on
+  Reload from files or a linked folder, and when you come back to the tab;
+  a copy Duplicate made meanwhile gets the same link. Each link is its own
+  line in the change log. `core/test-studio-keep.js` covers each case, and
+  each check fails without its fix. In a real browser on a fresh install: an
+  image with the server on, the server stopped, a second image, the server
+  back, Home opened first, then the Writing page: both linked, `doctor`
+  clean. Reviewed by two agents (technical, usability); the rest is under
+  Minor, "From the files fix" (6) to (8).
 - 2026-10-21 · `73eddd9` · **An image added to a draft stays findable by your
   agent** (was (5) on the Guide audit list). The Writing page dropped a
   draft's `files` (the originals under `data/attachments/note-<id>-<n>.<ext>`)

@@ -369,6 +369,33 @@ function nextImageNum(note) {
   return nums.length ? Math.max(...nums) + 1 : 1;
 }
 
+// An image's original reaches data/attachments/ after the draft has changed: when its upload finishes, or (no server,
+// no linked folder) when core/attach.js writes it from this browser once a connection appears, often on another page.
+// Link it to the draft as the page holds it now: a file pull or a pasted reply may have replaced the drafts meanwhile.
+let pulledOnce = false;   // links found on their own wait for the file: one made on an older browser copy would be written over a newer file
+const safeName = (s) => (window.Attach && Attach.safe ? Attach.safe(String(s)) : String(s));   // attachment names are made this way
+function linkOriginal(name, rel) {
+  const m = /^note-(.+)-(\d+)\.[^.]+$/.exec(safeName(name || ''));
+  const src = m && rel ? library.notes.find((x) => safeName(x.id) === m[1]) : null;
+  const img = src && (src.images || {})[m[2]];
+  if (!img) return 0;   // not a draft's image, or one this draft does not have
+  let linked = 0;
+  library.notes.forEach((x) => {   // the draft, and a copy Duplicate made while the original was still waiting (the same image)
+    if ((x.images || {})[m[2]] !== img || (x.files && typeof x.files === 'object' && x.files[m[2]])) return;   // an existing link stays
+    if (!x.files || typeof x.files !== 'object') x.files = {};
+    x.files[m[2]] = rel; linked++;
+  });
+  if (linked && window.Sync && Sync.note) Sync.note(Config.file('writing'), `linked the original of image ${m[2]} in "${noteTitle(src.text || '')}"`);   // its own line in the change log
+  return linked;
+}
+function linkSavedOriginals() {
+  if (!pulledOnce || !window.Attach || !Attach.saved) return;
+  const want = {};   // note-<id>-<n>. for each image without a link: only those are looked up
+  library.notes.forEach((x) => Object.keys(x.images || {}).forEach((k) => { if (!(x.files && typeof x.files === 'object' && x.files[k])) want[safeName(`note-${x.id}-${k}`) + '.'] = 1; }));
+  if (!Object.keys(want).length) return;
+  Attach.saved((name) => want[name.slice(0, name.lastIndexOf('.') + 1)]).then((list) => { if (list.filter((x) => linkOriginal(x.name, x.file)).length) persistLibrary(); });
+}
+
 function insertImage() {
   const input = document.createElement('input');
   input.type = 'file';
@@ -384,10 +411,15 @@ function insertImage() {
       const n = nextImageNum(note);
       const original = reader.result;
       note.images[String(n)] = original;
+      const id = note.id;
       const finish = () => {
         if (!window.Attach) return;
-        Attach.thumb(original).then((t) => { if (t && t !== original) { note.images[String(n)] = t; try { persistLibrary(); } catch {} } return Attach.put(`note-${note.id}-${n}.${Attach.ext(original, file.name)}`, original); })
-          .then((r) => { if (r && r.file) { if (!note.files || typeof note.files !== 'object') note.files = {}; note.files[String(n)] = r.file; try { persistLibrary(); } catch {} } });
+        const name = `note-${id}-${n}.${Attach.ext(original, file.name)}`;
+        Attach.thumb(original).then((t) => {
+          const now = library.notes.find((x) => x.id === id);   // the draft as it is now, not the one the upload started from
+          if (t && t !== original && now && now.images && now.images[String(n)] === original) { now.images[String(n)] = t; try { persistLibrary(); } catch {} }
+          return Attach.put(name, original);
+        }).then((r) => { if (r && r.file && linkOriginal(name, r.file)) { try { persistLibrary(); } catch {} } });
       };
       finish();
       insertAtCursor(`\n[Image uploaded ${n}]\n`);
@@ -897,6 +929,9 @@ function init() {
   refresh({ skipFlush: true });
   registerSync();
   registerPalette();
+  if (window.Attach && Attach.onFlushed) Attach.onFlushed((name, rel) => { if (pulledOnce && linkOriginal(name, rel)) persistLibrary(); });   // before the first pull: the look-up after it finds it (flush marks it first)
+  if (window.Sync && Sync.on) Sync.on((evt) => { if (evt === 'pulled' || evt === 'linked') { pulledOnce = true; linkSavedOriginals(); } });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') linkSavedOriginals(); });   // another tab may have written an original meanwhile
 
 }
 

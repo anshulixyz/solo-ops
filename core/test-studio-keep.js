@@ -6,6 +6,12 @@
      2. a newer file comes in (the Sync apply)
      3. a pasted reply lands (window.refreshNotes / window.refreshScripts, called by the Guide after Apply)
      4. Duplicate note: the copy points at the same originals
+   An image's link must also reach the file when the drafts change under it:
+     5. a file pull lands while the image uploads
+     6. without the server the original waits in the browser; when it reaches data/attachments/ the draft links it
+     7. the same when it reached the disk while another page was open (core/attach.js remembers it; tested at the end)
+     8. ... but never before the first pull: a link made on an older browser copy would be written over a newer file
+     9. a copy Duplicate made while the original was waiting is linked with it
    and `node solo.js doctor` never calls the original of a draft that lost its link "safe to delete".
    Each page's real scripts (read from its HTML) run in a vm with a small DOM shim and a fake `node serve.js` whose
    data/ folder lives in memory; "the next write" is the PUT the page sends after an edit.
@@ -34,10 +40,10 @@ function page(rel, disk, opts) {
   var html = fs.readFileSync(path.join(ROOT, rel), 'utf8');
   var srcs = (html.match(/<script src="[^"]+"/g) || []).map(function (s) { return path.normalize(path.join(path.dirname(rel), s.slice(13, -1))); });
   var ls = {}; Object.keys(opts.local || {}).forEach(function (k) { ls[k] = opts.local[k]; });
-  var puts = []; var els = {};
+  var puts = []; var notes = []; var els = {}; var created = [];
   function res(status, body) { return Promise.resolve({ status: status, ok: status >= 200 && status < 300, json: function () { return Promise.resolve(body); } }); }
   var doc = el('document'); doc.readyState = 'loading'; doc.visibilityState = 'visible'; doc.body = el('body'); doc.head = el('head'); doc.documentElement = el('html');
-  doc.createElement = el; doc.getElementById = function (id) { return doc.querySelector('#' + id); };
+  doc.createElement = function (t) { var e = el(t); created.push(e); return e; }; doc.getElementById = function (id) { return doc.querySelector('#' + id); };
   doc.querySelector = function (s) { return els[s] || (els[s] = el('div')); };   // the same element each time, so a test can type into it
   var ready = [];
   doc.addEventListener = function (ev, fn) { if (ev === 'DOMContentLoaded') ready.push(fn); };
@@ -49,19 +55,40 @@ function page(rel, disk, opts) {
     document: doc, confirm: function () { return true; }, alert: function () {}, prompt: function () {}, matchMedia: function () { return { matches: false, addEventListener: function () {} }; },
     requestAnimationFrame: function (f) { return setTimeout(f, 0); }, cancelAnimationFrame: clearTimeout, getComputedStyle: function () { return {}; },
     Palette: { init: function () {}, register: function () {} },
+    FileReader: function () { var r = this; r.readAsDataURL = function () { setTimeout(function () { r.result = 'data:image/png;base64,T1JJRw=='; r.onload(); }, 0); }; },
     fetch: function (url, o) {
       if (url === '/api/ping') return res(200, { marathon: true });
       var m = String(url).match(/^\/api\/data\/([^?]+)/);
-      if (m && (!o || !o.method || o.method === 'GET')) { var nm = decodeURIComponent(m[1]); return disk[nm] ? res(200, copy(disk[nm])) : res(404, null); }
-      if (m && o.method === 'PUT') { var nm2 = decodeURIComponent(m[1]); puts.push(nm2); disk[nm2] = JSON.parse(o.body); return res(200, { ok: true }); }
+      if (m && (!o || !o.method || o.method === 'GET')) { var nm = decodeURIComponent(m[1]); var got = disk[nm] ? res(200, copy(disk[nm])) : res(404, null); return opts.slowGet && opts.slowGet[nm] ? new Promise(function (r) { setTimeout(function () { r(got); }, opts.slowGet[nm]); }) : got; }   // opts.slowGet: { file: ms }
+      if (m && o.method === 'PUT') { var nm2 = decodeURIComponent(m[1]); puts.push(nm2); notes.push(nm2 + ': ' + ((o.headers || {})['X-Marathon-Note'] || '')); disk[nm2] = JSON.parse(o.body); return res(200, { ok: true }); }
       return res(404, null);
     } };
-  ctx.window = ctx; ctx.global = ctx; ctx.self = ctx;
+  ctx.window = ctx; ctx.global = ctx; ctx.self = ctx; if (opts.attach) ctx.Attach = opts.attach;   // core/attach.js itself needs a real browser; tested on its own below
   vm.createContext(ctx);
   srcs.forEach(function (f) { if (!SKIP.test(f)) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f }); });
   doc.readyState = 'complete'; ready.forEach(function (fn) { fn(); });   // the page's own init(), as the browser would run it
-  return { W: ctx, ls: ls, puts: puts, disk: disk, run: function (code) { return vm.runInContext(code, ctx); } };
+  return { W: ctx, ls: ls, puts: puts, notes: notes, disk: disk, created: created, run: function (code) { return vm.runInContext(code, ctx); } };
 }
+// Attach as the Writing page uses it, with the upload held until the test lets it finish.
+function fakeAttach(where) {
+  var A = { where: where, puts: [], flushed: [], savedList: [],
+    thumb: function (d) { return Promise.resolve(d); }, ext: function () { return 'png'; },
+    put: function (name) { return new Promise(function (res) { A.puts.push({ name: name, done: function () { res(A.where === 'disk' ? { file: 'data/attachments/' + name, where: 'disk' } : { file: '', where: 'browser' }); } }); }); },
+    onFlushed: function (fn) { A.flushed.push(fn); },
+    saved: function (match) { A.asked = (A.asked || 0) + 1; return Promise.resolve(A.savedList.filter(function (x) { return typeof match === 'function' ? match(x.name) : x.name.indexOf(match) === 0; })); } };
+  return A;
+}
+function dropImage(p) { p.run('insertImage()'); var input = p.created.filter(function (e) { return e.type === 'file'; }).pop(); input.files = [{ name: 'shot.png', type: 'image/png' }]; input.onchange(); }   // the Image button, a file picked
+// IndexedDB as core/attach.js uses it (open, one store, put / get / getAllKeys, oncomplete after the requests).
+function fakeIDB() {
+  var data = {}; var later = setImmediate;
+  function req(fn) { var r = {}; later(function () { r.result = fn(); if (r.onsuccess) r.onsuccess(); }); return r; }
+  var db = { createObjectStore: function () {}, transaction: function () {
+    var tx = {}; var st = { put: function (v, k) { data[k] = copy(v); }, get: function (k) { return req(function () { return data[k] ? copy(data[k]) : undefined; }); }, getAllKeys: function () { return req(function () { return Object.keys(data); }); } };
+    tx.objectStore = function () { return st; }; later(function () { later(function () { if (tx.oncomplete) tx.oncomplete(); }); }); return tx; } };
+  return { open: function () { var r = {}; later(function () { r.result = db; if (r.onupgradeneeded) r.onupgradeneeded(); if (r.onsuccess) r.onsuccess(); }); return r; } };
+}
+function noteOf(p, id) { return p.disk['writing.json'].notes.filter(function (n) { return n.id === id; })[0]; }
 function stamp(body, ago) { return Object.assign({ version: 1, updatedAt: new Date(Date.now() - (ago || 60000)).toISOString() }, body); }
 
 var FILES = { 1: 'data/attachments/note-n7-1.png', 2: 'data/attachments/note-n7-2.jpg' };
@@ -111,6 +138,59 @@ function keepsScript(s) { return s && s.files && s.files['1'] === 'data/attachme
   ok(dup.id !== 'n7' && JSON.stringify(dup.files) === JSON.stringify(FILES) && dup.files !== p.run('library').notes.filter(function (n) { return n.id === 'n7'; })[0].files, 'writing 4 · Duplicate note copies the files map (its own copy of it) and writes it');
   ok(!('from' in dup), 'writing 4 · and nothing else the page does not own');
 
+  // 5 · an image upload that a file pull overtakes: the link lands on the drafts as they are now, not on the replaced copy
+  var A5 = fakeAttach('disk');
+  p = page('studio/writing-viewer.html', { 'writing.json': stamp({ activeId: 'n7', notes: [draft('n7'), { id: 'n8', text: '# Other' }] }) }, { attach: A5 }); await wait(120);
+  dropImage(p); await wait(50);
+  ok(A5.puts.length === 1 && A5.puts[0].name === 'note-n7-3.png', 'writing 5 · the Image button starts the upload of note-n7-3.png');
+  await wait(1200);   // the page saves the draft with [Image uploaded 3] while the upload runs
+  var newer = copy(p.disk['writing.json']); newer.notes.filter(function (n) { return n.id === 'n8'; })[0].text = '# Other, edited by an agent'; newer.updatedAt = new Date(Date.now() + 1000).toISOString(); p.disk['writing.json'] = newer;
+  await p.W.Sync.pullAll(true); await wait(50);
+  ok(p.run('library').notes.filter(function (n) { return n.id === 'n8'; })[0].text === '# Other, edited by an agent', 'writing 5 · a newer file comes in mid-upload and replaces the drafts');
+  A5.puts[0].done(); await wait(700);
+  var n5 = noteOf(p, 'n7');
+  ok(n5.files['3'] === 'data/attachments/note-n7-3.png' && n5.files['1'] === FILES[1] && /\[Image uploaded 3\]/.test(n5.text), 'writing 5 · the finished upload\'s link still reaches writing.json, and the older links stay');
+
+  // 6 · the image is added without the server: the original waits in this browser; once it reaches data/attachments/ the draft links it
+  A5.where = 'browser'; dropImage(p); await wait(50); A5.puts[1].done(); await wait(1200);
+  var n6 = noteOf(p, 'n7');
+  ok(n6.images['4'] && !n6.files['4'], 'writing 6 · without the server the image is in the draft but has no link yet');
+  A5.flushed.forEach(function (fn) { fn('inspo-i1.png', 'data/attachments/inspo-i1.png'); fn('note-zz-1.png', 'data/attachments/note-zz-1.png'); fn('note-n7-4.png', 'data/attachments/note-n7-4.png'); });
+  await wait(700);
+  ok(noteOf(p, 'n7').files['4'] === 'data/attachments/note-n7-4.png', 'writing 6 · when the original is written to data/attachments/ while the page is open, the draft links it');
+  ok(p.disk['writing.json'].notes.length === 2 && !noteOf(p, 'zz'), 'writing 6 · an original of another kind, or of a draft that is not here, changes nothing');
+
+  // 7 · it reached the disk while another page was open (every page writes waiting originals): linked when the Writing page opens
+  var A7 = fakeAttach('disk'); var d7 = draft('n7'); d7.images['5'] = 'data:image/png;base64,CCCC'; d7.text += '[Image uploaded 5]\n';
+  A7.savedList = [{ name: 'note-n7-5.png', file: 'data/attachments/note-n7-5.png' }, { name: 'note-n7-1.webp', file: 'data/attachments/note-n7-1.webp' }, { name: 'note-n7-9.png', file: 'data/attachments/note-n7-9.png' }, { name: 'note-zz-1.png', file: 'data/attachments/note-zz-1.png' }];
+  p = page('studio/writing-viewer.html', { 'writing.json': stamp({ activeId: 'n7', notes: [d7] }) }, { attach: A7 }); await wait(1000);
+  var n7b = noteOf(p, 'n7');
+  ok(n7b && n7b.files['5'] === 'data/attachments/note-n7-5.png', 'writing 7 · an original written while another page was open is linked when the Writing page opens');
+  ok(n7b.files['1'] === FILES[1] && !n7b.files['9'] && p.disk['writing.json'].notes.length === 1, 'writing 7 · an existing link is never replaced, and an image the draft does not have is not linked');
+  ok(p.notes.some(function (x) { return x === 'writing.json: linked the original of image 5 in "Launch notes"'; }), 'writing 7 · the write says what it did in the change log');
+
+  // 8 · the original is announced before the first pull finishes (a slow read): the link waits for the file, so the newer file is never written over
+  var A8 = fakeAttach('disk'); var old8 = draft('n7', { text: '# Launch notes\n\nOld text in this browser\n[Image uploaded 5]\n' }); old8.images['5'] = 'data:image/png;base64,CCCC';
+  var new8 = copy(old8); new8.text = '# Launch notes\n\nRewritten by an agent\n[Image uploaded 5]\n';
+  A8.savedList = [{ name: 'note-n7-5.png', file: 'data/attachments/note-n7-5.png' }];
+  var local8 = {}; local8[WKEY] = JSON.stringify({ activeId: 'n7', notes: [old8] }); local8['marathon.sync.meta'] = JSON.stringify({ 'writing.json': { updatedAt: new Date(Date.now() - 7200000).toISOString() } });
+  p = page('studio/writing-viewer.html', { 'writing.json': stamp({ activeId: 'n7', notes: [new8] }) }, { attach: A8, local: local8, slowGet: { 'writing.json': 600 } });
+  A8.flushed.forEach(function (fn) { fn('note-n7-5.png', 'data/attachments/note-n7-5.png'); });   // the page's own 3-second flush, landing first
+  await wait(1600);
+  var n8 = noteOf(p, 'n7');
+  ok(/Rewritten by an agent/.test(n8.text) && /Rewritten by an agent/.test(p.run('library').notes[0].text), 'writing 8 · an original announced before the first pull does not put the older browser copy over the newer file');
+  ok(n8.files['5'] === 'data/attachments/note-n7-5.png', 'writing 8 · it is linked right after the file is in');
+
+  // 9 · Duplicate while the original still waits in the browser: the copy shows the same image and gets the same link
+  var A9 = fakeAttach('browser');
+  p = page('studio/writing-viewer.html', { 'writing.json': stamp({ activeId: 'n7', notes: [draft('n7')] }) }, { attach: A9 }); await wait(120);
+  dropImage(p); await wait(50); A9.puts[0].done(); await wait(100);
+  p.run('duplicateActiveNote()'); await wait(1200);
+  var copy9 = p.disk['writing.json'].notes.filter(function (n) { return n.id !== 'n7'; })[0];
+  ok(copy9 && copy9.images['3'] && !copy9.files['3'], 'writing 9 · a copy made while image 3 waits in the browser has the image, no link yet');
+  A9.flushed.forEach(function (fn) { fn('note-n7-3.png', 'data/attachments/note-n7-3.png'); }); await wait(700);
+  ok(noteOf(p, 'n7').files['3'] === 'data/attachments/note-n7-3.png' && noteOf(p, copy9.id).files['3'] === 'data/attachments/note-n7-3.png', 'writing 9 · when the original reaches the disk, the draft and its copy are both linked');
+
   /* ================= Scripts ================= */
   var SKEY;
   // 1 · browser copy → loadLibrary → write
@@ -152,6 +232,23 @@ function keepsScript(s) { return s && s.files && s.files['1'] === 'data/attachme
   var safe = (doc.match(/nothing references \(safe to delete\): ([^\n]*)/) || [])[1] || '';
   ok(nid && safe.indexOf('note-' + nid + '-1.png') < 0 && /not safe to delete/.test(doc) && doc.indexOf('note-' + nid + '-1.png') > 0, 'doctor · the original of a draft that lost its link is listed as not safe to delete');
   ok(safe.indexOf('note-gone-1.png') >= 0, 'doctor · an image whose draft is gone is still safe to delete');
+
+  /* ================= core/attach.js ================= */
+  // the other half of 6 and 7: an original that waited in the browser is written once a connection appears, announced, and remembered
+  var onDisk = false, written = [], heard = [], syncOn = [];
+  var actx = { console: console, setTimeout: function (f) { setImmediate(f); return 0; }, Promise: Promise, indexedDB: fakeIDB(),   // timers run at once: the 3-second and 500 ms flushes
+    Sync: { on: function (fn) { syncOn.push(fn); }, attachmentsAvailable: function () { return onDisk; }, saveAttachment: function (name) { written.push(name); return Promise.resolve('data/attachments/' + name); } } };
+  actx.window = actx; vm.createContext(actx); vm.runInContext(fs.readFileSync(path.join(ROOT, 'core/attach.js'), 'utf8'), actx, { filename: 'core/attach.js' });
+  var At = actx.Attach; At.onFlushed(function (n, r) { heard.push(n + ' → ' + r); });
+  var r1 = await At.put('note-n7-6.png', 'data:image/png;base64,AAAA');
+  ok(r1.where === 'browser' && !r1.file && (await At.saved('note-')).length === 0, 'attach · without a connection the original waits in this browser, not yet listed as saved');
+  onDisk = true; syncOn.forEach(function (fn) { fn('wrote', { file: 'writing.json' }); }); await wait(50);   // the server is back: the tab's next write gets through
+  ok(written[0] === 'note-n7-6.png' && heard[0] === 'note-n7-6.png → data/attachments/note-n7-6.png', 'attach · the next write that gets through writes it to data/attachments/ and announces it (no reload needed)');
+  var sv = await At.saved('note-');
+  ok(sv.length === 1 && sv[0].name === 'note-n7-6.png' && sv[0].file === 'data/attachments/note-n7-6.png', 'attach · saved() lists it for a page that opens later');
+  ok((await At.saved(function (k) { return k.indexOf('note-n7-6.') === 0; })).length === 1 && (await At.saved(function (k) { return k.indexOf('note-n7-7.') === 0; })).length === 0, 'attach · saved() takes the name test the Writing page passes');
+  syncOn.forEach(function (fn) { fn('wrote', { file: 'writing.json' }); }); await wait(50);
+  ok((await At.saved('inspo-')).length === 0 && (await At.flush()) === 0 && written.length === 1, 'attach · saved() keeps to the prefix asked for; later writes and flushes write nothing again');
 
   console.log('\n' + passed + ' passed');
   process.exit(0);
