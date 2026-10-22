@@ -233,9 +233,10 @@ Track-changes markup: `~~removed~~`, `++added++`, `[[instruction for the AI]]`.
 leave it empty. `files` maps the same `"1"` → the original under
 `data/attachments/note-<id>-<n>.<ext>`. It is absent while the original waits
 in the browser it was added in (no server, no linked folder). The next time
-that browser has the Writing page open with `node serve.js` running (or the
+that browser, at the same address (a `file://` page or another port keeps its
+own copy), has the Writing page open with `node serve.js` running (or the
 folder linked), the original is written and the link added. Ask the user to
-do that. The Writing and Script pages keep any
+do that; `node solo.js doctor` names such images. The Writing and Script pages keep any
 field they do not know.
 
 ## inspiration.json — the inbox (global, items tagged with a workspace)

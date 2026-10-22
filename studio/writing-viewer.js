@@ -373,6 +373,7 @@ function nextImageNum(note) {
 // no linked folder) when core/attach.js writes it from this browser once a connection appears, often on another page.
 // Link it to the draft as the page holds it now: a file pull or a pasted reply may have replaced the drafts meanwhile.
 let pulledOnce = false;   // links found on their own wait for the file: one made on an older browser copy would be written over a newer file
+let fileErrors = 0, fileErrorsAtPull = 0;   // a pull that hit an error on this page's file left the copy here as old as it was
 const safeName = (s) => (window.Attach && Attach.safe ? Attach.safe(String(s)) : String(s));   // attachment names are made this way
 function linkOriginal(name, rel) {
   const m = /^note-(.+)-(\d+)\.[^.]+$/.exec(safeName(name || ''));
@@ -385,15 +386,28 @@ function linkOriginal(name, rel) {
     if (!x.files || typeof x.files !== 'object') x.files = {};
     x.files[m[2]] = rel; linked++;
   });
-  if (linked && window.Sync && Sync.note) Sync.note(Config.file('writing'), `linked the original of image ${m[2]} in "${noteTitle(src.text || '')}"`);   // its own line in the change log
-  return linked;
+  return linked ? `image ${m[2]} in "${noteTitle(src.text || '')}"` : '';   // for the change log
 }
 function linkSavedOriginals() {
   if (!pulledOnce || !window.Attach || !Attach.saved) return;
   const want = {};   // note-<id>-<n>. for each image without a link: only those are looked up
   library.notes.forEach((x) => Object.keys(x.images || {}).forEach((k) => { if (!(x.files && typeof x.files === 'object' && x.files[k])) want[safeName(`note-${x.id}-${k}`) + '.'] = 1; }));
   if (!Object.keys(want).length) return;
-  Attach.saved((name) => want[name.slice(0, name.lastIndexOf('.') + 1)]).then((list) => { if (list.filter((x) => linkOriginal(x.name, x.file)).length) persistLibrary(); });
+  Attach.saved((name) => want[name.slice(0, name.lastIndexOf('.') + 1)]).then((list) => {
+    const done = list.map((x) => linkOriginal(x.name, x.file)).filter(Boolean);
+    if (!done.length) return;
+    if (window.Sync && Sync.note) Sync.note(Config.file('writing'), `linked the original${done.length > 1 ? 's' : ''} of ${done.join(', ')}`);   // one line for the save that carries them
+    persistLibrary();
+  });
+}
+let freshTimer;
+function pullThenLink() {   // polls pause while the tab is hidden, so the copy here can be older than the file: pull first, then link
+  clearTimeout(freshTimer);
+  freshTimer = setTimeout(() => {
+    if (!pulledOnce || !window.Sync || !Sync.pullAll || !(Sync.attachmentsAvailable && Sync.attachmentsAvailable())) return;
+    const before = fileErrors;
+    Sync.pullAll(false).then(() => { if (fileErrors === before) linkSavedOriginals(); });
+  }, 300);
 }
 
 function insertImage() {
@@ -419,7 +433,7 @@ function insertImage() {
           const now = library.notes.find((x) => x.id === id);   // the draft as it is now, not the one the upload started from
           if (t && t !== original && now && now.images && now.images[String(n)] === original) { now.images[String(n)] = t; try { persistLibrary(); } catch {} }
           return Attach.put(name, original);
-        }).then((r) => { if (r && r.file && linkOriginal(name, r.file)) { try { persistLibrary(); } catch {} } });
+        }).then((r) => { if (r && r.file && linkOriginal(name, r.file)) { try { persistLibrary(); } catch {} } });   // part of the user's own edit: no log line of its own
       };
       finish();
       insertAtCursor(`\n[Image uploaded ${n}]\n`);
@@ -929,9 +943,12 @@ function init() {
   refresh({ skipFlush: true });
   registerSync();
   registerPalette();
-  if (window.Attach && Attach.onFlushed) Attach.onFlushed((name, rel) => { if (pulledOnce && linkOriginal(name, rel)) persistLibrary(); });   // before the first pull: the look-up after it finds it (flush marks it first)
-  if (window.Sync && Sync.on) Sync.on((evt) => { if (evt === 'pulled' || evt === 'linked') { pulledOnce = true; linkSavedOriginals(); } });
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') linkSavedOriginals(); });   // another tab may have written an original meanwhile
+  if (window.Attach && Attach.onFlushed) Attach.onFlushed(pullThenLink);   // an original reached the disk (flush marks it before it says so, so the look-up finds it)
+  if (window.Sync && Sync.on) Sync.on((evt, d) => {
+    if (evt === 'error' && d && d.file === Config.file('writing')) fileErrors++;
+    if (evt === 'pulled' || evt === 'linked') { const clean = fileErrors === fileErrorsAtPull; fileErrorsAtPull = fileErrors; if (clean) { pulledOnce = true; linkSavedOriginals(); } }
+  });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pullThenLink(); });   // another tab may have written an original meanwhile
 
 }
 

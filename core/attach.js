@@ -71,7 +71,7 @@
     if (flushing || !global.Sync || !Sync.attachmentsAvailable || !Sync.attachmentsAvailable()) return Promise.resolve(0);
     flushing = true; waiting = false; var n = 0;
     return idbKeys().then(function (keys) {
-      return keys.reduce(function (p, k) { return p.then(function () { return idbGet(k).then(function (r) { if (!r || !r.pending) return; return Sync.saveAttachment(k, r.data).then(function (rel) { if (rel) { n++; return idbMark(k).then(function () { emit(k, rel); }); } waiting = true; }); }); }); }, Promise.resolve());
+      return keys.reduce(function (p, k) { return p.then(function () { return idbGet(k).then(function (r) { if (!r || !r.pending || !/^data:[^;]+;base64,/.test(r.data || '')) return; return Sync.saveAttachment(k, r.data).then(function (rel) { if (rel) { n++; return idbMark(k).then(function () { emit(k, rel); }); } waiting = true; }); }); }); }, Promise.resolve());
     }).then(function () { flushing = false; return n; }).catch(function () { flushing = false; return n; });
   }
   // originals that waited in this browser and have since been written to data/attachments/ (flush marked them), so a

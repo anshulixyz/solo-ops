@@ -1400,7 +1400,7 @@ function cmdGuard() {
 }
 
 function cmdDoctor() {
-  var issues = [], notes = [], files = []; var refs = {}; var browserOnly = 0; var drafts = {};
+  var issues = [], notes = [], files = []; var refs = {}; var browserOnly = 0; var drafts = {}; var draftImgs = [];
   try { files = fs.readdirSync(DATA).filter(function (f) { return /\.json$/.test(f) && !/\.backup-/.test(f); }); } catch (e) { fail('No data/ folder yet. Run: node solo.js template all'); }
   var shapes = { social: 'posts', scripts: 'scripts', writing: 'notes', inspiration: 'items', boards: 'boards', workspaces: 'workspaces', activity: 'days', settings: 'theme', prompts: null, backup: null, identity: null, contacts: null, shares: 'shares', inbox: 'items', videos: 'videos', secrets: null, recordings: 'recordings' };
   files.forEach(function (f) {
@@ -1417,7 +1417,7 @@ function cmdDoctor() {
       var arr = obj[arrKey]; if (!Array.isArray(arr)) { issues.push(f + ': expected an array "' + arrKey + '"'); return; }
       var seen = {}; arr.forEach(function (x, i) { if (!x || typeof x !== 'object') { issues.push(f + ': ' + arrKey + '[' + i + '] is not an object'); return; } if (x.id == null) issues.push(f + ': ' + arrKey + '[' + i + '] has no id'); else if (seen[x.id]) issues.push(f + ': duplicate id ' + x.id); seen[x.id] = 1;
         ['file', 'files', 'assets'].forEach(function (k) { var v = x[k]; if (!v) return; (typeof v === 'string' ? [v] : Array.isArray(v) ? v.map(function (a) { return a && a.file; }) : Object.keys(v).map(function (q) { return v[q]; })).forEach(function (r) { if (typeof r === 'string' && /^data\/attachments\//.test(r)) refs[r.replace(/^data\/attachments\//, '')] = f; }); });
-        if (kind === 'writing' && x.id != null) drafts[x.id] = 1;   // its note-<id>-<n> originals stay in use even when the draft lost its files link
+        if (kind === 'writing' && x.id != null) { drafts[x.id] = 1; Object.keys(x.images || {}).forEach(function (k) { if (!(x.files && typeof x.files === 'object' && x.files[k])) draftImgs.push({ id: x.id, n: k, f: f }); }); }   // its note-<id>-<n> originals stay in use even without a files link
         if (x.stored === 'browser') browserOnly++; });
       if (arrKey === 'tasks') { var cols = ['todo', 'doing', 'done', 'later', 'bucket']; arr.forEach(function (t) { if (cols.indexOf(t.col) < 0) issues.push(f + ': task ' + t.id + ' has unknown column "' + t.col + '"'); }); }
       notes.push(f + ': ' + arr.length + ' ' + arrKey + ' · ' + Math.round(txt.length / 1024) + ' KB' + (txt.length > 2 * 1024 * 1024 ? '  ⚠ over 2 MB: change-log snapshots are skipped for this file' : ''));
@@ -1429,7 +1429,9 @@ function cmdDoctor() {
   var unlinked = onDisk.filter(function (f) { var m = f.match(/^note-(.+)-\d+\.[^.]+$/); return !refs[f] && m && drafts[m[1]]; });
   var orphans = onDisk.filter(function (f) { return !refs[f] && unlinked.indexOf(f) < 0; }); var missing = Object.keys(refs).filter(function (f) { return onDisk.indexOf(f) < 0; });
   if (missing.length) issues.push('attachments: ' + missing.length + ' referenced file(s) missing from data/attachments/: ' + missing.slice(0, 5).join(', ') + (missing.length > 5 ? '…' : ''));
-  if (unlinked.length) notes.push('attachments: ' + unlinked.length + ' image(s) of a draft that lost its link to them (not safe to delete: the draft is still here): ' + unlinked.slice(0, 5).join(', ') + (unlinked.length > 5 ? '…' : ''));
+  if (unlinked.length) notes.push('attachments: ' + unlinked.length + ' image(s) not linked to their draft yet (not safe to delete: the Writing page links them when it is next open with node serve.js running): ' + unlinked.slice(0, 5).join(', ') + (unlinked.length > 5 ? '…' : ''));
+  var inBrowser = draftImgs.filter(function (d) { var pre = 'note-' + String(d.id).replace(/[^A-Za-z0-9._-]/g, '-') + '-' + d.n + '.'; return !onDisk.some(function (f) { return f.indexOf(pre) === 0; }); });
+  if (inBrowser.length) notes.push('attachments: ' + inBrowser.length + ' draft image(s) have their original only in a browser, so an agent cannot open them yet (open the Writing page there with node serve.js running): ' + inBrowser.slice(0, 5).map(function (d) { return d.f + ' [' + d.id + '] image ' + d.n; }).join(', ') + (inBrowser.length > 5 ? '…' : ''));
   if (orphans.length) notes.push('attachments: ' + orphans.length + ' file(s) nothing references (safe to delete): ' + orphans.slice(0, 5).join(', ') + (orphans.length > 5 ? '…' : ''));
   if (browserOnly) issues.push(browserOnly + ' attachment original(s) exist only in a browser (stored: browser). Open the app with node serve.js running so they are written to data/attachments/.');
   var total = 0; onDisk.forEach(function (f) { try { total += fs.statSync(path.join(adir, f)).size; } catch (e) { /* skip */ } }); if (onDisk.length) notes.push('attachments: ' + onDisk.length + ' file(s), ' + (total / 1048576).toFixed(1) + ' MB on disk');

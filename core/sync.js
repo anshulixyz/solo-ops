@@ -103,8 +103,10 @@
       return r.json();
     });
   }
+  // The change note goes percent-encoded: a header takes Latin-1 only, so a title with — or an emoji made fetch throw
+  // and every later save of that file failed (serve.js decodes it).
   function serverWrite(file, obj) {
-    return fetch('/api/data/' + file, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Marathon-Source': lastSource[file] === 'reply' ? 'reply' : 'ui', 'X-Marathon-Note': (lastNote[file] || '').slice(0, 120) }, body: JSON.stringify(obj, null, 2) })
+    return fetch('/api/data/' + file, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Marathon-Source': lastSource[file] === 'reply' ? 'reply' : 'ui', 'X-Marathon-Note': encodeURIComponent((lastNote[file] || '').slice(0, 120)) }, body: JSON.stringify(obj, null, 2) })
       .then(function (r) { if (!r.ok) throw new Error('write failed'); });
   }
   function staticRead(file) {
