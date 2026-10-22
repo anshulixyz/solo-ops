@@ -600,7 +600,7 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Done
 
-- 2026-10-22 · `(hash after the commit)` · **A capture reaches the file from
+- 2026-10-22 · `9b61e9b` · **A capture reaches the file from
   every page, and a leftover sample inbox never lands in a blank project**
   (the two data bugs from the 2026-10-22 product review; the rest of it is
   under *Minor / issues*). (1) A link typed into the capture strip on a page
