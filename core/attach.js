@@ -9,7 +9,7 @@
    • any other file up to `attachments.copyMaxMB` (solo.config.js) is copied
      the same way; above that nothing is copied — the item keeps the name and
      size and the user pastes a path or link instead ("local redirection")
-   Exposes Attach.{thumb, put, get, url, flush, tooBig, fmtSize, ext}.
+   Exposes Attach.{thumb, put, get, url, flush, saved, onFlushed, tooBig, fmtSize, ext}.
    Needs Store, Config, Sync (optional).
    ========================================================================= */
 (function (global) {
@@ -54,7 +54,7 @@
     var p = onDisk ? Sync.saveAttachment(name, dataUrl) : Promise.resolve('');
     return p.then(function (rel) {
       if (rel) return { file: rel, where: 'disk' };
-      return idbPut(name, dataUrl).then(function () { return { file: '', where: 'browser' }; }).catch(function () { return { file: '', where: '' }; });
+      return idbPut(name, dataUrl).then(function () { waiting = true; return { file: '', where: 'browser' }; }).catch(function () { return { file: '', where: '' }; });
     });
   }
   function get(name) {
@@ -66,17 +66,30 @@
   function url(name) { if (!global.Sync || Sync.getMode() !== 'server') return ''; return '/api/attach/' + safe(name); }
   // originals that only exist in this browser are written to disk once a connection appears
   var flushing = false;
+  var waiting = false, retried = 0;   // an original went to this browser during this visit (the server was down): a write that gets through retries, at most once a minute
   function flush() {
     if (flushing || !global.Sync || !Sync.attachmentsAvailable || !Sync.attachmentsAvailable()) return Promise.resolve(0);
-    flushing = true; var n = 0;
+    flushing = true; waiting = false; var n = 0;
     return idbKeys().then(function (keys) {
-      return keys.reduce(function (p, k) { return p.then(function () { return idbGet(k).then(function (r) { if (!r || !r.pending) return; return Sync.saveAttachment(k, r.data).then(function (rel) { if (rel) { n++; return idbMark(k).then(function () { emit(k, rel); }); } }); }); }); }, Promise.resolve());
+      return keys.reduce(function (p, k) { return p.then(function () { return idbGet(k).then(function (r) { if (!r || !r.pending || !/^data:[^;]+;base64,/.test(r.data || '')) return; return Sync.saveAttachment(k, r.data).then(function (rel) { if (rel) { n++; return idbMark(k).then(function () { emit(k, rel); }); } waiting = true; }); }); }); }, Promise.resolve());
     }).then(function () { flushing = false; return n; }).catch(function () { flushing = false; return n; });
+  }
+  // originals that waited in this browser and have since been written to data/attachments/ (flush marked them), so a
+  // page that opens later can link them to their item: the flush runs on whichever page is open. `match`: a name prefix
+  // or a function of the name; only matching entries are read.
+  function saved(match) {
+    var ok = typeof match === 'function' ? match : function (k) { return String(k).indexOf(match || '') === 0; };
+    return idbKeys().then(function (keys) {
+      return keys.filter(function (k) { return ok(String(k)); }).reduce(function (p, k) { return p.then(function (out) { return idbGet(k).then(function (r) { if (r && !r.pending) out.push({ name: k, file: 'data/attachments/' + k }); return out; }); }); }, Promise.resolve([]));
+    });
   }
   var listeners = [];
   function emit(name, rel) { listeners.forEach(function (fn) { try { fn(name, rel); } catch (e) { /* ignore */ } }); }
-  if (global.Sync && Sync.on) Sync.on(function (evt) { if (evt === 'linked' || evt === 'pulled' || evt === 'ready') setTimeout(flush, 500); });
+  if (global.Sync && Sync.on) Sync.on(function (evt) {
+    if (evt === 'linked' || evt === 'pulled' || evt === 'ready') setTimeout(flush, 500);
+    else if (evt === 'wrote' && waiting && Date.now() - retried > 60000) { retried = Date.now(); setTimeout(flush, 500); }   // after a put fell back: the server is back (an original that never saves retries once a minute, not on every edit)
+  });
   setTimeout(flush, 3000);
 
-  global.Attach = { cfg: cfg, thumb: thumb, put: put, get: get, url: url, flush: flush, tooBig: tooBig, fmtSize: fmtSize, ext: ext, safe: safe, onFlushed: function (fn) { listeners.push(fn); } };
+  global.Attach = { cfg: cfg, thumb: thumb, put: put, get: get, url: url, flush: flush, saved: saved, tooBig: tooBig, fmtSize: fmtSize, ext: ext, safe: safe, onFlushed: function (fn) { listeners.push(fn); } };
 })(window);

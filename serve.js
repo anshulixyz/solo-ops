@@ -49,6 +49,8 @@ function sameButStamp(a, b) {   // true when two bodies differ only by updatedAt
 var LOG_MAX = 400, SNAP_MAX = 2 * 1024 * 1024;
 // Append one change record (with the previous content as a snapshot) so any
 // write — page, CLI or agent — can be reverted. Same format as solo.js.
+// The page sends the change note percent-encoded (a header carries Latin-1 only); an older page sends it as is.
+function headerNote(h) { h = String(h || ''); try { return decodeURIComponent(h); } catch (e) { return h; } }
 function logChange(file, prevText, source, note) {
   var rec = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ts: new Date().toISOString(), file: file, source: source || 'ui', note: note || '',
     prev: prevText && prevText.length <= SNAP_MAX ? prevText : null, prevBytes: prevText ? prevText.length : 0 };
@@ -479,7 +481,7 @@ var server = http.createServer(function (req, res) {
         try { JSON.parse(body); } catch (e) { return json(res, 400, { error: 'invalid json' }); }
         fs.mkdir(DATA, { recursive: true }, function () {
           var prev = ''; try { prev = fs.readFileSync(file, 'utf8'); } catch (e) { /* new file */ }
-          if (prev !== body && !/^(activity|log)\.json$/.test(m[1]) && !sameButStamp(prev, body)) logChange(m[1], prev, req.headers['x-marathon-source'] === 'reply' ? 'reply' : 'ui', req.headers['x-marathon-note'] || '');
+          if (prev !== body && !/^(activity|log)\.json$/.test(m[1]) && !sameButStamp(prev, body)) logChange(m[1], prev, req.headers['x-marathon-source'] === 'reply' ? 'reply' : 'ui', headerNote(req.headers['x-marathon-note']));
           fs.writeFile(file, body.replace(/\n?$/, '\n'), 'utf8', function (err) {
             if (err) return json(res, 500, { error: err.code });
             json(res, 200, { ok: true });

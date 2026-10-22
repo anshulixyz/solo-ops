@@ -51,7 +51,8 @@ function browser(disk, opts) {
       if (url === '/api/ping') return res(200, { marathon: true });
       var m = String(url).match(/^\/api\/data\/([^?]+)/);
       if (m && (!o || !o.method || o.method === 'GET')) return disk[m[1]] ? res(200, copy(disk[m[1]])) : res(404, null);
-      if (m && o.method === 'PUT') { puts.push({ file: m[1], source: o.headers['X-Marathon-Source'], note: o.headers['X-Marathon-Note'], body: JSON.parse(o.body) }); disk[m[1]] = JSON.parse(o.body); return res(200, { ok: true }); }
+      // the note header is decoded the way serve.js does: the page sends it percent-encoded
+      if (m && o.method === 'PUT') { puts.push({ file: m[1], source: o.headers['X-Marathon-Source'], note: (function (h) { h = String(h || ''); try { return decodeURIComponent(h); } catch (e) { return h; } })(o.headers['X-Marathon-Note']), body: JSON.parse(o.body) }); disk[m[1]] = JSON.parse(o.body); return res(200, { ok: true }); }
       return res(404, null);
     }
   };

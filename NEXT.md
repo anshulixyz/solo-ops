@@ -390,11 +390,33 @@ QR rendered without a dependency, capture strip and boards usable at
   tell the two apart. (2) `notes show` prints `[Image uploaded n]`
   without the path; give it an `image files:` line like the Guide's snapshot.
   (3) The toast after adding an image says "attach this file in chat" even
-  when the server saved the original. (4) While an image uploads, a file
-  pull or a pasted reply can replace the drafts; the new `files` entry then
-  lands on the old copy and the next write leaves it out. (5) `notes list`
+  when the server saved the original. (4) Done 2026-10-22 (see Done: an
+  image added while the server was off … stays findable). (5) `notes list`
   and `find` prefer a `title` field on a draft over its heading. Nothing
   writes one, but a hand-added one would stay out of date: use the heading.
+  (6) Duplicate, then delete the source draft while its original still waits
+  in the browser: the copy shows the image but never gets the link, and once
+  the original reaches the disk `doctor` calls it "safe to delete". Also, a
+  copy made in the milliseconds while the source's thumbnail is being made
+  holds the full image, no longer matches, and stays unlinked. (7)
+  Attachment names carry no workspace: the sample's `n1`/`n2` exist in every
+  workspace made with the sample, so their originals can overwrite each
+  other on disk, and a waiting one can be linked into the other workspace's
+  draft. Related: the browser keeps originals after they reach the disk and
+  the relink ignores the extension, so if a draft's `images` is emptied and
+  numbering restarts, an old original could be linked to a new image. (8)
+  *Export everything* carries the links but not the originals; after an
+  import on another computer `doctor` lists them as missing. (9) A page
+  opened while the server was off (the installed app from its cache) stays
+  read-only after the server returns: nothing reaches `data/`, no original
+  and no link, until a reload, and nothing says so. Read-only mode should
+  check again and switch. (10) A Writing window left visible beside Home
+  links an original Home wrote only when it is focused again, reopened or
+  reloaded from files; a link made just before a tab closes is saved on the
+  next open without its log line; reverting a link line is redone the next
+  time the page links. Also: Attach reads every stored original in full on
+  each flush and opens a connection per read (keep a small list of pending
+  names instead).
 - **From the Guide audit (2026-10-21), not done:** (1) *Next* has no overdue
   move: Move what's overdue is first on the Calendar's list whether or not
   anything is overdue, and Home does not mention overdue work. (2) An edited
@@ -600,6 +622,39 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Done
 
+- 2026-10-22 · `8e5c2f4` · `137e22e` · `8f8558f` · **An image added while the server was off, or just as
+  your agent changed the drafts, stays findable by your agent; a title with
+  — or an emoji no longer stops saves** (checked for other users on a fresh
+  install; was (4) on the files-fix list). Two more paths left a draft's
+  image unlinked. A file pull or a pasted reply that landed while an image
+  uploaded sent the link to the replaced copy; `insertImage` now links the
+  draft as the page holds it when the upload ends. An image added while the
+  server was down or the folder not linked keeps its original in the
+  browser, which is written to `data/attachments/` once a connection
+  appears, by whichever page is open, and nothing linked it. Now
+  `core/attach.js` remembers which originals reached the disk
+  (`Attach.saved`) and, in a tab opened while the server ran, writes them
+  after the next save that gets through (no reload; retried at most once a
+  minute). The Writing page links them when it opens, on Reload from files
+  or a linked folder, when an original is written, and when you come back
+  to the tab, always after reading the file first, never on an older
+  browser copy or after a failed read; a copy Duplicate made meanwhile gets
+  the same link. The save that carries links says so in one change-log line.
+  `doctor` says "not linked yet" instead of "lost", and names draft images
+  whose original is still only in a browser. *Fixed on the way (older, every
+  page):* the change-log label travels in a request header, which takes
+  Latin-1 only, so a task, post, idea or draft title with —, ’ or an emoji
+  made the save fail, and every later save of that file in the same visit,
+  while the pill still said synced. `core/sync.js` now sends it encoded (cut
+  by characters, a half emoji dropped) and `serve.js` decodes it (a
+  `node serve.js` started before the update logs notes percent-encoded until
+  it is restarted). `core/test-studio-keep.js` covers each case (with a
+  fetch that refuses non-Latin-1 headers as Chrome does, and the real
+  `serve.js`); each check fails without its fix. In a real browser on fresh
+  installs: server back with Home opened first, and server back while typing
+  in the same tab: both originals written and linked, `doctor` clean.
+  Reviewed by two pairs of agents (technical, usability); the rest is under
+  Minor, "From the files fix" (6) to (10).
 - 2026-10-22 · `9b61e9b` · **A capture reaches the file from
   every page, and a leftover sample inbox never lands in a blank project**
   (the two data bugs from the 2026-10-22 product review; the rest of it is
