@@ -582,7 +582,7 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Done
 
-- 2026-10-21 · *hash after the commit* · **An image added to a draft stays findable by your
+- 2026-10-21 · `73eddd9` · **An image added to a draft stays findable by your
   agent** (was (5) on the Guide audit list). The Writing page dropped a
   draft's `files` (the originals under `data/attachments/note-<id>-<n>.<ext>`)
   every time it loaded drafts (start, a file pull, `refreshNotes`), and the
