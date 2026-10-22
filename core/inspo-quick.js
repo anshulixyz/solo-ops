@@ -16,6 +16,13 @@
 
   function mount() {
     var slot = document.querySelector('[data-nav]'); if (!slot || bar) return;
+    // The strip saves on every page, so every page syncs data/inspiration.json. A page with an inbox view of its own (Home,
+    // Inspiration) registers the file itself and that registration counts; on any other page this fallback is what pulls
+    // the file in, writes a capture out and logs it ("saved: …"), the same way as there. Without it a capture made on
+    // the board stayed in this browser: the file and the browser carried the same stamp, so neither side ever wrote.
+    if (global.Sync && Sync.register) Sync.register({ fallback: true, file: 'inspiration.json', key: InspoModel.KEY, label: 'inspiration', app: 'inspiration', isFresh: function () { return InspoModel.isFresh(); },
+      read: function () { return { items: model().getState() }; },
+      apply: function (body) { if (Array.isArray(body.items)) model().replaceAll(body.items, { silent: true }); } });
     bar = document.createElement('div'); bar.className = 'capture';
     var wss = Config.workspaces(); var cur = Config.activeWs();
     bar.innerHTML = '<div class="capture-row">' +
@@ -55,7 +62,7 @@
   function add(item) {
     item.ws = item.ws === undefined ? wsSel.value : item.ws; item.source = 'ui';
     var it = model().add(item); lastId = it.id;
-    if (global.Sync) Sync.note('inspiration.json', 'captured: ' + (it.title || it.url || it.kind));
+    if (global.Sync) Sync.note('inspiration.json', 'saved: ' + (it.title || it.url || it.kind));
     toast('Saved to Inspiration' + (it.ws ? ' · ' + wsTitle(it.ws) : '') + ((it.kind === 'image' || it.kind === 'file') && !(global.Sync && Sync.attachmentsAvailable()) ? ' · original kept in this browser until the folder is connected' : ''), true);
     return it;
   }
@@ -105,7 +112,7 @@
   function toast(msg, undo) {
     if (!toastEl) { toastEl = document.createElement('div'); toastEl.className = 'capture-toast'; document.body.appendChild(toastEl); }
     toastEl.innerHTML = '<span>' + esc(msg) + '</span>' + (undo ? '<button type="button">Undo</button>' : '') + '<a href="' + (document.querySelector('[data-nav]').getAttribute('data-root') || './') + 'inspo/inspiration.html?ws=' + encodeURIComponent(Config.activeWs()) + '">Open</a>';
-    var b = toastEl.querySelector('button'); if (b) b.onclick = function () { if (lastId) { model().remove(lastId); lastId = null; } toast('Removed.'); };
+    var b = toastEl.querySelector('button'); if (b) b.onclick = function () { if (lastId) { var gone = model().byId(lastId); model().remove(lastId); if (global.Sync && gone) Sync.note('inspiration.json', 'undo save: ' + (gone.title || gone.url || gone.kind)); lastId = null; } toast('Removed.'); };
     toastEl.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(function () { toastEl.classList.remove('show'); }, undo ? 5000 : 1800);
   }
   global.InspoQuick = { open: function () { if (!bar) mount(); ta.focus(); window.scrollTo({ top: 0, behavior: 'smooth' }); }, close: function () { if (ta) ta.blur(); }, mount: mount };

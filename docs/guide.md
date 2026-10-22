@@ -140,8 +140,8 @@ Home → Recent changes and `revert` can tell it apart.
 rule from the task-card work, enforced in `core/sync.js`), so a line is applied
 by a page that saves its file: tasks on Home, the Calendar or the board the
 task is on; posts on the Schedule, the Posting streak or the Calendar; scripts
-on the Script Viewer; drafts on the Writing Viewer; inspiration on Home or the
-Inspiration page; takes on the Video page. Without files on disk (the pages
+on the Script Viewer; drafts on the Writing Viewer; inspiration on every page
+(the capture strip syncs `inspiration.json` wherever it is); takes on the Video page. Without files on disk (the pages
 opened as files, no folder linked) every page applies everything, since the
 browser copy is the only one. With `node serve.js` or a linked folder, a line
 another page saves is shown with what it will do there and *saved on … ·
@@ -150,7 +150,7 @@ file, or never reach it. After you apply what this page saves, **Continue on
 …** opens the next page with only those lines, previewed, and says where they
 came from; you press Apply there, and any page still to go gets its own
 Continue button there. Tasks that come with posts go to the Calendar (it saves
-both) in one hop; inspiration goes to Home; scripts, drafts and takes to their
+both) in one hop; inspiration is saved on the page you are on; scripts, drafts and takes go to their
 page. `inspo use` needs two files: the page that saves inspiration marks the
 item used with the new piece's id reserved, and the piece continues to its page
 as data (`inspo make <kind> --id … --data …`, the item's text encoded, so a
@@ -158,7 +158,7 @@ fence or a command inside it is never read as a line); applying the same
 hand-off twice says *already made*. Lines handed to a page
 wait for that page only, for 30 minutes and in the same project. Overview and
 About save nothing: their Reply tab and copy message say to bring the answer to
-the Calendar (tasks and posts) or Home (inspiration). On the Board page an `add` without `--board` lands on the board that is
+the Calendar (tasks and posts); Overview and About save inspiration lines themselves, nothing else. On the Board page an `add` without `--board` lands on the board that is
 open.
 
 It accepts the verbs of the reply format (in

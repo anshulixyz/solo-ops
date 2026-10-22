@@ -363,6 +363,24 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Minor / issues
 
+- **From the product review (2026-10-22), not done** (a blank install in the
+  served mode; the two data bugs it found are in Done): (a) A re-import with
+  `--col` / `--pri` demotes a task the person moved to Doing or high back to
+  the source's state; the bring-in prompt should send `col` and `pri` only
+  when the source changed them, as the unattended start-day rule already
+  says. (b) A blank project still ships the project chips general / launch /
+  content, and every task gets "general". (c) The Video page offers
+  ElevenLabs first and the local engine second. (d) Reply preview lines say
+  "added task" before Apply. (e) *Second opinion* shows under *For this page*
+  on an empty project. (f) Social labels are hard-wired to X (Tweet text,
+  Drag to X, the Announce → Recap arc) with no setting for them. (g) A first
+  open's Recent changes shows raw file names (workspaces.json, boards.json)
+  and six CLI blank-start rows. (h) From the technical review of the fix:
+  the inbox now syncs on every page, so a CLI `inspo add` in the 3 s
+  between the last poll and a capture on the same page is overwritten by
+  the page's wholesale write (the window every synced file has; the agent is
+  likelier to write the inbox while the person is on the board).
+  `spec.reconcile` (the takes' merge-before-write) is the hook if it bites.
 - **From the files fix (2026-10-21), not done:** (1) Drafts that lost
   `files` before the fix do not get it back: the originals are still in
   `data/attachments/` and `doctor` now lists them as not safe to delete, but
@@ -582,6 +600,39 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Done
 
+- 2026-10-22 · `(hash after the commit)` · **A capture reaches the file from
+  every page, and a leftover sample inbox never lands in a blank project**
+  (the two data bugs from the 2026-10-22 product review; the rest of it is
+  under *Minor / issues*). (1) A link typed into the capture strip on a page
+  without an inbox view (the board, the viewers, Video, the Schedule, the
+  Calendar) was saved to the browser only: Home and the Inspiration page
+  showed it, `inspo list` said 0, and with the file and the browser carrying
+  the same stamp nothing ever wrote it. The strip (`core/inspo-quick.js`)
+  now registers `inspiration.json` with Sync as a fallback on every page;
+  Sync keeps one registration per file, the page's own where it has one
+  (Home, Inspiration). A capture anywhere is written like one made there,
+  logged `ui` · "saved: …" ("link details: …", "undo save: …"),
+  `revert` undoes it; the Guide's Reply applies `inspo` lines on every page
+  for the same reason. (2) The three shipped sample items left in a browser
+  (an older first open, "Look around") were written into the empty
+  `inspiration.json` of a blank install, because `template blank` stamps
+  empty files 1970 so real browser work wins, and the sample stopped
+  counting as the sample after its first link-details write.
+  `InspoModel.isFresh` / `isSample` now also hold when the inbox is exactly
+  the shipped items (`core/templates.js`; id, title, text, tags, status,
+  project): the file wins whatever the stamps say and nothing is written
+  into an empty folder; one changed tag makes the inbox the person's again.
+  Also: a first contact with a file that differs (the person chose the file
+  at the question, or the two copies already matched) is one row on Home's
+  Recent changes, "FILE · Loaded from file 3 tasks · 1 from this browser
+  not in the file (backup saved)", instead of a "deleted task" row per
+  item attributed to the agent (`core/recent.js`, `core/sync.js`); a later
+  change on the file side is still the agent's, and the sample yielding
+  stays silent as before. New `core/test-capture.js` (in `npm test`): the
+  strip on the board page, one registration on Home in either order, Undo,
+  the sample vs a 1970 file and vs no file, the first-contact row. Verified
+  in the browser on a blank served install before and after. Reviewed by
+  two agents (technical, usability).
 - 2026-10-21 · `73eddd9` · **An image added to a draft stays findable by your
   agent** (was (5) on the Guide audit list). The Writing page dropped a
   draft's `files` (the originals under `data/attachments/note-<id>-<n>.<ext>`)

@@ -95,6 +95,7 @@ a.hub-card:hover{border-color:var(--accent); box-shadow:var(--shadow-lift);}
 .log-list li:first-child{border-top:0;}
 .log-list .src{font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; padding:2px 6px; border-radius:6px; background:var(--panel-2); color:var(--muted); border:1px solid var(--line); min-width:44px; text-align:center; flex:none;}
 .log-list .src.agent{color:var(--accent); border-color:var(--accent);}
+.log-list .src.file{border-style:dashed;}   /* a file replaced the browser copy on first contact: neither you nor the agent */
 .log-list .what{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .log-list .what i{font-style:normal; font-weight:600;}
 .log-list .what small{color:var(--faint); font-family:var(--mono); font-size:10px;}

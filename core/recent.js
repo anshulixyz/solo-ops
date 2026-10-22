@@ -22,6 +22,7 @@
     if (kind === 'script') return (val.scripts || []); if (kind === 'note') return (val.notes || []); if (kind === 'inspo') return (val.items || []); if (kind === 'take') return (val.videos || []);
     return [];
   }
+  function plural(kind, n) { var w = kind === 'inspo' ? 'inspiration item' : kind; return n === 1 ? w : w + 's'; }
   function title(kind, x) { if (kind === 'note') { var m = (x.text || '').match(/^#\s+(.+)/m); return m ? m[1].slice(0, 60) : (x.text || '').split('\n')[0].slice(0, 60) || 'untitled'; } return x.title || x.url || 'untitled'; }
   function sig(kind, x) {   // what counts as "changed"
     if (kind === 'task') return [x.col, x.pri, (x.tags || []).join(','), (x.checklist || []).map(function (c) { return (c.done ? '1' : '0') + c.text; }).join('|'), x.notes, x.desc, x.title, x.at || '', x.until || '', x.due || ''].join('\u0001');
@@ -52,6 +53,12 @@
     var A = items(kind, beforeVal), B = items(kind, afterVal); var am = {}, bm = {};
     A.forEach(function (x) { am[x.id] = x; }); B.forEach(function (x) { bm[x.id] = x; });
     var ws = key.match(/^marathon\.board\.([^.]+)\.([^.]+)$/) ? key.split('.')[2] : (key.match(/^marathon\.([^.]+)\.(social|scripts|writing|videos)$/) ? key.split('.')[1] : Config.PRIMARY);
+    if (source === 'file') {   // the first contact with the file (core/sync.js): the file replaces the browser copy. One row says so; nobody deleted or added anything
+      var gone = A.filter(function (a) { return !bm[a.id]; }).length;
+      var same = !gone && A.length === B.length && B.every(function (b) { return am[b.id] && sig(kind, am[b.id]) === sig(kind, b); });
+      if (!same) push({ kind: kind, key: key, ws: ws, what: 'loaded from file: ' + (B.length ? B.length + ' ' + plural(kind, B.length) : kind === 'task' ? 'an empty board' : 'an empty list') + (gone ? ' · ' + gone + ' from this browser not in the file (backup saved)' : ''), source: 'file' });
+      return;
+    }
     B.forEach(function (b) { var a = am[b.id]; if (!a) push({ kind: kind, id: b.id, key: key, ws: ws, what: (kind === 'task' ? 'added task: ' : kind === 'post' ? 'scheduled post: ' : kind === 'script' ? 'new script: ' : kind === 'note' ? 'new note: ' : kind === 'take' ? 'new take: ' : 'saved inspiration: ') + title(kind, b), source: source }); else if (sig(kind, a) !== sig(kind, b)) push({ kind: kind, id: b.id, key: key, ws: ws, what: describe(kind, a, b), source: source }); });
     A.forEach(function (a) { if (!bm[a.id]) push({ kind: kind, id: a.id, key: key, ws: ws, what: 'deleted ' + kind + ': ' + title(kind, a), source: source, gone: true }); });
   }
@@ -69,6 +76,7 @@
     beforeApply: function (keys) { keys.forEach(function (k) { prev[k] = Store.get(k); }); },
     afterApply: function (keys, source) { keys.forEach(function (k) { var kind = kindOf(k); if (!kind) return; var b = null, a = null; try { b = prev[k] != null ? JSON.parse(prev[k]) : null; a = JSON.parse(Store.get(k)); } catch (e) {} if (b !== null) diff(k, b, a, source || 'agent or CLI'); prev[k] = Store.get(k); }); },
     current: function (ev) {   // full current state of the item, as text
+      if (!ev.id) return '';   // a "loaded from file" row is about the whole list, not one item
       var kind = ev.kind; var val = Store.getJSON(ev.key, null); var x = items(kind, val).filter(function (i) { return i.id === ev.id; })[0];
       if (!x) return ev.gone ? '(deleted)' : '(no longer present)';
       if (kind === 'task') return '[' + x.id + '] ' + x.title + ' · ' + x.col + ' · ' + x.pri + (x.tags.length ? ' · #' + x.tags.join(' #') : '') + (x.desc ? '\n      ' + x.desc : '') + ((x.checklist || []).length ? '\n      steps: ' + x.checklist.map(function (c) { return (c.done ? '[x] ' : '[ ] ') + c.text; }).join(' · ') : '') + (x.notes ? '\n      notes: ' + x.notes.replace(/\n/g, ' / ').slice(0, 300) : '');
@@ -86,7 +94,7 @@
       var seen = {};
       r.forEach(function (ev, i) {
         L.push((i + 1) + '. ' + Activity.ago(ev.ts) + ' · ' + (ev.source || 'you') + (ev.ws && ev.ws !== w.id ? ' · ' + ev.ws : '') + ' — ' + ev.what);
-        var k = ev.kind + ':' + ev.id; if (!seen[k]) { seen[k] = 1; L.push('   now: ' + global.Recent.current(ev)); }
+        var k = ev.kind + ':' + ev.id; if (ev.id && !seen[k]) { seen[k] = 1; L.push('   now: ' + global.Recent.current(ev)); }
         L.push('');
       });
       L.push('Use this to discuss what I did, catch mistakes, and suggest the next step. Keep it short.');

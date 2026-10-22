@@ -48,8 +48,15 @@
   /* ---- registration + local change tracking ---------------------------- */
   var ready = false;   // true once mode detection finished
   function register(spec) {
+    // spec.fallback: a piece every page carries (the capture strip) syncs its file on pages that have no view of their own
+    // for it. The page's own registration counts, whether it comes before or after, so a file is never registered twice.
+    // Every page that has one registers before Sync is ready (Home at load, the Inspiration page on DOMContentLoaded); one that
+    // registered after ready would run its first pull next to the fallback's and could ask the first-contact question twice.
+    if (spec.fallback && specFor(spec.file)) return specFor(spec.file);
+    if (!spec.fallback) for (var i = specs.length - 1; i >= 0; i--) if (specs[i].fallback && specs[i].file === spec.file) specs.splice(i, 1);
     specs.push(spec);
     if (ready && mode !== 'manual') pullOne(spec, true);
+    return spec;
   }
   function stripStamp(obj) {
     var o = {}; Object.keys(obj || {}).forEach(function (k) { if (k !== 'updatedAt' && k !== 'version') o[k] = obj[k]; }); return JSON.stringify(o);
@@ -76,7 +83,9 @@
     Object.keys(b).forEach(function (k) { out[k] = b[k]; });
     return out;
   }
-  function applyBody(spec, parsed) {
+  // how: 'first' = the first contact between this browser and the file (no stamp yet): what differs is a load, recorded as
+  // "loaded from file", not as edits by an agent. Any later apply is a change someone made on the file side.
+  function applyBody(spec, parsed, how) {
     applying = true;
     var keys = spec.keys || [spec.key];
     var wasFresh = !spec.freshApplied && (!!(spec.isFresh && spec.isFresh()) || keys.some(function (k) { return Store.isFresh(k); }));   // sample data giving way to the file is not a change anyone made; only once per page, so later agent/CLI edits are logged
@@ -85,7 +94,7 @@
       setMeta(spec.file, parsed.updatedAt || now());
       spec.apply(parsed);
       if (wasFresh) { spec.freshApplied = true; keys.forEach(function (k) { if (Store.clearFresh) Store.clearFresh(k); }); }
-      if (global.Recent) { if (wasFresh) Recent.beforeApply(keys); else Recent.afterApply(keys, 'agent or CLI'); }
+      if (global.Recent) { if (wasFresh) Recent.beforeApply(keys); else Recent.afterApply(keys, how === 'first' ? 'file' : 'agent or CLI'); }
       emit('applied', { file: spec.file, label: spec.label });
     } finally { applying = false; }
   }
@@ -223,7 +232,7 @@
     return readFile(spec.file).then(function (parsed) {
       var local = localStamp(spec.file);
       var hasFile = !!(parsed && parsed.updatedAt);
-      if (spec.readOnly && hasFile) { applyBody(spec, parsed); lastSeen[spec.file + ':stamp'] = parsed.updatedAt; setMeta(spec.file, parsed.updatedAt); return; }
+      if (spec.readOnly && hasFile) { applyBody(spec, parsed, local ? undefined : 'first'); lastSeen[spec.file + ':stamp'] = parsed.updatedAt; setMeta(spec.file, parsed.updatedAt); return; }
       if (!hasFile) {
         // untouched sample data stays in the browser: the first file is written when the user changes something (or runs `template all`)
         var sample = (spec.isFresh && spec.isFresh()) || (spec.keys || [spec.key]).some(function (k) { return Store.isFresh(k); });
@@ -233,11 +242,11 @@
       if (!local) {
         var same = stripStamp(parsed) === stripStamp(body(spec));
         var fresh = (spec.isFresh && spec.isFresh()) || (spec.keys || [spec.key]).some(function (k) { return Store.isFresh(k); });
-        if (same || spec.merge || fresh) { applyBody(spec, parsed); lastSeen[spec.file + ':stamp'] = parsed.updatedAt; return; }
+        if (same || spec.merge || fresh) { applyBody(spec, parsed, 'first'); lastSeen[spec.file + ':stamp'] = parsed.updatedAt; return; }
         // Real content on both sides and no way to tell which is newer: ask,
         // and download whichever side loses so nothing is unrecoverable.
         var useFile = confirm('data/' + spec.file + ' differs from the copy in this browser.\n\nOK = load the file (the browser copy is saved as a backup' + (writable ? ' in data/exports/' : '') + ')\nCancel = keep the browser copy' + (writable ? ' and overwrite the file (the file is saved as a backup in data/exports/)' : ''));
-        if (useFile) { download(spec.file, true); applyBody(spec, parsed); lastSeen[spec.file + ':stamp'] = parsed.updatedAt; return; }
+        if (useFile) { download(spec.file, true); applyBody(spec, parsed, 'first'); lastSeen[spec.file + ':stamp'] = parsed.updatedAt; return; }
         if (writable) { downloadRaw(spec.file.replace(/\.json$/, '') + '.file-backup-' + now().slice(0, 16).replace(/[:T]/g, '-') + '.json', parsed); }
         setMeta(spec.file, now());
         if (writable) return writeOne(spec);
@@ -426,7 +435,8 @@
     // link metadata via the server (title, description); null elsewhere
     meta: function (url) { if (mode !== 'server') return Promise.resolve(null); return fetch('/api/meta?url=' + encodeURIComponent(url), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (j && j.redirect && !j.title) return fetch('/api/meta?url=' + encodeURIComponent(j.redirect)).then(function (r2) { return r2.ok ? r2.json() : null; }); return j; }).catch(function () { return null; }); },
     // describe the latest local change so the log can show "done: Write the README"
-    note: function (file, text, source) { lastNote[file] = text || ''; lastSource[file] = source === 'reply' ? 'reply' : 'ui'; },
+    // soft: keep a note already waiting for the same write (the capture's "saved: …" over the link details that follow it)
+    note: function (file, text, source, soft) { if (soft && lastNote[file]) return; lastNote[file] = text || ''; lastSource[file] = source === 'reply' ? 'reply' : 'ui'; },
     // change log (server mode only in the browser; the CLI covers every mode)
     log: function (n) { if (mode !== 'server') return Promise.resolve(null); return fetch('/api/log?n=' + (n || 20), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); },
     revert: function (id) { if (mode !== 'server') return Promise.resolve(false); return fetch('/api/revert/' + id, { method: 'POST' }).then(function (r) { return r.ok; }).then(function (ok) { if (ok) return pullAll(false).then(function () { return true; }); return false; }); },

@@ -37,13 +37,25 @@
       usedAs: Array.isArray(x.usedAs) ? x.usedAs : [], createdAt: x.createdAt || Date.now(), updatedAt: x.updatedAt || Date.now()
     };
   }
+  var loaded = false;
   function load() {
+    loaded = true;
     var raw = Store.getJSON(KEY, null);
     if (raw && Array.isArray(raw.items)) { state = raw.items.map(norm); return; }
     fresh = true;   // a first open: empty (the inbox shows only what the person saved), or the sample items when core/templates.js says so
     state = Store.firstOpen(KEY, { items: [] }, function () { return { items: MARATHON_TEMPLATES.inspiration ? MARATHON_TEMPLATES.inspiration(new Date()).items.map(norm) : [] }; }).items;
   }
   function persist(opts) { Store.setJSON(KEY, { items: state }, opts); }
+  // The shipped sample items (core/templates.js), untouched, and nothing else: not this person's inbox. The inbox is one
+  // list for every project and every data folder this browser opens, so a leftover sample must yield to a data file like
+  // the sample board does (even an empty one from `template blank`) and never be written into an empty file.
+  function sampleContent() {
+    if (!loaded) load();
+    var T = global.MARATHON_TEMPLATES; if (!state.length || !T || !T.inspiration) return false;
+    function sig(x) { return [x.id, x.kind, x.title, x.url, x.text, (x.tags || []).join(','), x.status, x.ws].join('\u0001'); }
+    var shipped = {}; var items = T.inspiration(new Date()).items.map(norm); items.forEach(function (x) { shipped[sig(x)] = 1; });
+    return state.length === items.length && state.every(function (x) { return !!shipped[sig(x)]; });   // exactly the sample: one item removed is a change of the person's, and a file must not bring it back
+  }
   function byId(id) { return state.filter(function (x) { return x.id === id; })[0] || null; }
   // "https://… some words #tag" → link; otherwise a note. Title = first line.
   function parseQuick(text, extra) {
@@ -73,6 +85,7 @@
         if (m.title && titleWasDomain) cur.title = m.title.slice(0, 120);
         cur.meta = { title: m.title || '', description: m.description || '', image: m.image || '', site: m.site || '' };
         if (!cur.text && m.description) cur.text = m.description;
+        if (global.Sync && Sync.note) Sync.note('inspiration.json', 'link details: ' + (cur.title || cur.url), null, true);   // soft: the capture's own note stays when both land in one write
         cur.updatedAt = Date.now(); persist();
       });
     }
@@ -133,7 +146,7 @@
   }
   global.InspoModel = {
     KEY: KEY, KINDS: KINDS, STATUSES: STATUSES,
-    init: load, isFresh: function () { return Store.isFresh(KEY); }, isSample: function () { return Store.isSample(KEY); },
+    init: load, isFresh: function () { return Store.isFresh(KEY) || sampleContent(); }, isSample: function () { return Store.isSample(KEY) || sampleContent(); },
     getState: function () { return state; }, replaceAll: function (items, opts) { state = (items || []).map(norm); persist(opts); return state; },
     byId: byId, parseQuick: parseQuick, add: add, update: update, remove: remove, markUsed: markUsed, list: list, forAI: forAI, norm: norm,
     enrich: enrich, listNew: listNew, reviewedAt: reviewedAt, markReviewed: markReviewed, siteTag: siteTag, attachName: attachName,

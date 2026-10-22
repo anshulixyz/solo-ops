@@ -419,8 +419,8 @@ expects back ONE code block of `node solo.js …` lines (`add`, `done`,
 a ``` block, `scripts set <id>` / `notes set <id>` + a ``` block with the new
 text, `inspo add|tag|use`). The user pastes it into the Guide's Reply on any
 page: lines that page saves apply there, and *Continue on …* carries the rest
-to the page that saves them (tasks and posts: the Calendar; inspiration: Home;
-scripts and drafts: their viewers). They see a preview of every line (with the reason for any it skips: an unknown id, a
+to the page that saves them (tasks and posts: the Calendar; scripts and
+drafts: their viewers; inspiration is saved on every page). They see a preview of every line (with the reason for any it skips: an unknown id, a
 date it cannot read, a command only a terminal can run) and applies it; each
 change is logged as source `reply` and `revert` undoes it. Keep titles short,
 no ids for new items, never `rm` (it is ignored). A plain `- [ ] task`

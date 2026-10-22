@@ -24,7 +24,7 @@
   var C = {
     recent: { label: 'Recent changes', hint: 'last 10 changes, with each item\'s current state', get: function () { return global.Recent ? Recent.text(10) : ''; } },
     last_task: { label: 'Last task I touched', hint: 'the full card', get: function () {
-      var evs = global.Recent ? Recent.load().slice().reverse().filter(function (e) { return e.kind === 'task' && !e.gone; }) : [];
+      var evs = global.Recent ? Recent.load().slice().reverse().filter(function (e) { return e.kind === 'task' && e.id && !e.gone; }) : [];   // e.id: a "loaded from file" row is about the whole list
       for (var i = 0; i < evs.length; i++) { var hit = allTasks().filter(function (x) { return x.t.id === evs[i].id; })[0]; if (hit) return '# Last task I touched (' + Activity.ago(evs[i].ts) + ': ' + evs[i].what + ')\n' + task(hit.t, hit.b.title); }
       var doing = allTasks().filter(function (x) { return x.t.col === 'doing'; })[0]; return doing ? '# Task in progress\n' + task(doing.t, doing.b.title) : '(no task touched yet)';
     } },
@@ -33,7 +33,7 @@
       if (pg === 'scripts' && typeof library !== 'undefined' && library.scripts) { var s = library.scripts.filter(function (x) { return x.id === library.activeId; })[0]; return s ? '# Script [' + s.id + ']: ' + s.title + storyTok('script', s.id) + '\n\n' + s.text : '(no script open)'; }
       if (pg === 'writing' && typeof library !== 'undefined' && library.notes) { var n = library.notes.filter(function (x) { return x.id === library.activeId; })[0]; return n ? '# Draft [' + n.id + ']: ' + (((n.text || '').match(/^#\s+(.+)/m) || [])[1] || 'untitled') + ' (markup: ~~cut~~ ++add++ [[note for you]])' + storyTok('note', n.id) + '\n\n' + n.text + (Object.keys(n.files || {}).length ? '\n\nimage files: ' + Object.keys(n.files).map(function (k) { return n.files[k]; }).join(', ') : '') : '(no note open)'; }
       if (pg === 'social') { var ti = document.querySelector('.detail-title'); var posts = Store.getJSON(Config.key('social', w.id), []) || []; var p = ti ? posts.filter(function (x) { return x.title === ti.value; })[0] : null; return p ? '# Post' + storyTok('post', p.id) + '\n' + post(p) : '(no post selected)'; }
-      if (pg === 'board') { var evs = global.Recent ? Recent.load().slice().reverse().filter(function (e) { return e.kind === 'task' && global.Model && e.key === Model.KEY; }) : []; var t = evs.length ? Model.getState().filter(function (x) { return x.id === evs[0].id; })[0] : null; if (!t) t = Model.getState().filter(function (x) { return x.col === 'doing'; })[0]; return t ? '# Task\n' + task(t, Model.board().title) : C.board.get(); }
+      if (pg === 'board') { var evs = global.Recent ? Recent.load().slice().reverse().filter(function (e) { return e.kind === 'task' && e.id && global.Model && e.key === Model.KEY; }) : []; var t = evs.length ? Model.getState().filter(function (x) { return x.id === evs[0].id; })[0] : null; if (!t) t = Model.getState().filter(function (x) { return x.col === 'doing'; })[0]; return t ? '# Task\n' + task(t, Model.board().title) : C.board.get(); }
       if (pg === 'inspo') return C.inspiration.get();
       if (pg === 'streak') return C.posts.get();   // the streak page: the posts of the coming days
       if (pg === 'video') return C.take.get();

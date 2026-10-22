@@ -377,7 +377,7 @@
     var card = $('logCard'); if (!card) return; var hint = $('logHint');
     var events = window.Recent ? Recent.load().slice().reverse().slice(0, 8) : [];
     if (scope() !== 'all') events = events.filter(function (ev) { return !ev.ws || ev.ws === scope(); });
-    var rows = events.map(function (ev) { return '<li><span class="src ' + (ev.source === 'you' ? 'ui' : 'agent') + '">' + (ev.source === 'you' ? 'you' : 'agent') + '</span><span class="what">' + human(ev.what) + ' <small>' + (many() && ev.ws ? esc(wsTitleOf(ev.ws)) + ' · ' : '') + esc(Activity.ago(ev.ts)) + '</small></span></li>'; });
+    var rows = events.map(function (ev) { var who = ev.source === 'you' ? 'you' : ev.source === 'file' ? 'file' : 'agent'; return '<li><span class="src ' + (who === 'you' ? 'ui' : who) + '">' + who + '</span><span class="what">' + human(ev.what) + ' <small>' + (many() && ev.ws ? esc(wsTitleOf(ev.ws)) + ' · ' : '') + esc(Activity.ago(ev.ts)) + '</small></span></li>'; });
     Sync.log(14).then(function (recs) {
       var server = recs ? recs.filter(function (r) { return !HIDDEN_FILES.test(r.file); }) : null;
       if (!rows.length && scope() === 'all' && server && server.length) rows = server.slice(0, 8).map(function (r) { return '<li><span class="src ' + esc(r.source) + '">' + esc(r.source === 'ui' ? 'you' : r.source) + '</span><span class="what">' + esc(r.note || r.file) + ' <small>' + esc(Activity.ago(r.ts)) + '</small></span></li>'; });

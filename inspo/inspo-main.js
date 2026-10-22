@@ -68,7 +68,7 @@
     if (!text && !pendingImage) return;
     var item = InspoModel.parseQuick(text, { ws: ws, source: 'ui' });
     if (pendingImage) { item.kind = 'image'; item.image = pendingImage; if (!item.title) item.title = 'Image'; pendingImage = ''; document.getElementById('quickThumb').style.display = 'none'; }
-    InspoModel.add(item); Sync.note('inspiration.json', 'added: ' + (item.title || item.url)); ta.value = ''; render(); flash('Saved.');
+    InspoModel.add(item); Sync.note('inspiration.json', 'saved: ' + (item.title || item.url)); ta.value = ''; render(); flash('Saved.');
   };
   var pendingImage = '';
   function readImage(file) { var r = new FileReader(); r.onload = function () { pendingImage = r.result; var t = document.getElementById('quickThumb'); t.src = pendingImage; t.style.display = ''; }; r.readAsDataURL(file); }
