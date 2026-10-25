@@ -626,7 +626,7 @@ QR rendered without a dependency, capture strip and boards usable at
 
 ## Done
 
-- 2026-10-25 · **Hide and show boards** (the owner's ask: only the boards
+- 2026-10-25 · `46a248c` · **Hide and show boards** (the owner's ask: only the boards
   she works on in sight). `data/boards.json` → `hidden ["<ws>/<id>"]`, so a
   board from `solo.config.js` or `workspaces.json` hides as well as one made
   later. *Hide* / *Show* beside Rename on the board page, a note on a hidden
