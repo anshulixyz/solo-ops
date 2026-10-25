@@ -23,6 +23,9 @@ a.hub-card:hover{border-color:var(--accent); box-shadow:var(--shadow-lift);}
 .hub-card .last{position:absolute; top:14px; right:16px; font-family:var(--mono); font-size:10px; color:var(--faint); letter-spacing:.04em;}
 .hub-card.new{border-style:dashed; display:flex; align-items:center; justify-content:center; min-height:120px; color:var(--muted); font-size:13.5px; cursor:pointer;}
 .hub-card.new:hover{color:var(--accent); border-color:var(--accent);}
+.hub-card.hidden-boards{border-style:dashed; box-shadow:none;}
+.hub-card.hidden-boards .hb-row{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:8px; font-size:13.5px;}
+.hub-card.hidden-boards .hb-row a{color:var(--ink); text-decoration:none;} .hub-card.hidden-boards .hb-row a:hover{color:var(--accent);}
 /* project cards */
 .hub-card.ws{cursor:pointer;}
 .hub-card.ws:hover{border-color:var(--accent); box-shadow:var(--shadow-lift);}

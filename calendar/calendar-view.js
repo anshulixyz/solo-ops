@@ -23,6 +23,7 @@
       '<button class="theme-btn" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme"><svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M22 12h-2.5M4.5 12H2"/></svg></button></div></div>' +
       '<div class="cal-filters">' +
       srcs.map(function (s) { return '<button type="button" class="chip kind-' + esc(s.kind) + (u.off[s.id] ? ' off' : ' on') + '" onclick="calToggleSrc(\'' + esc(s.id) + '\')" title="Show or hide ' + esc(s.label) + '"><i></i>' + esc(s.label) + '</button>'; }).join('') +
+      (function () { var h = Config.hiddenBoards(Config.ws().id); return h.length ? '<a class="cal-hidden" href="../overview.html?ws=' + encodeURIComponent(Config.ws().id) + '" title="' + esc(h.map(function (b) { return b.title; }).join(', ')) + ': off the Calendar until you show ' + (h.length === 1 ? 'it' : 'them') + ' again">' + h.length + ' board' + (h.length === 1 ? '' : 's') + ' hidden · See it</a>' : ''; })() +
       '<span class="cal-sep"></span>' +
       '<select class="cal-state" onchange="calSetState(this.value)" title="Open, done or everything"><option value="open"' + (u.state === 'open' ? ' selected' : '') + '>Open</option><option value="done"' + (u.state === 'done' ? ' selected' : '') + '>Done</option><option value="all"' + (u.state === 'all' ? ' selected' : '') + '>All</option></select>' +
       (many ? '<label class="cal-all"><input type="checkbox" onchange="calToggleAll(this.checked)"' + (u.all ? ' checked' : '') + '> All projects</label>' : '') +
@@ -31,7 +32,7 @@
       '</div><div id="calAdd"></div>';
   }
   function addFormHTML(day) {
-    var w = Config.ws(); var boards = Config.boards(w.id);
+    var w = Config.ws(); var boards = Config.shownBoards(w.id);
     return '<form class="cal-add panel" onsubmit="return calAddSubmit(this)">' +
       '<input name="title" placeholder="What? e.g. Call with Priya" required autocomplete="off">' +
       '<span class="dp-row grow"><input name="when" data-pick="datetime" placeholder="When? tomorrow 14:00 · fri 10:00" value="' + esc(day ? day + ' 10:00' : '') + '" required autocomplete="off"></span>' +

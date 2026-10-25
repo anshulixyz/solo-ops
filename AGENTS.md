@@ -162,8 +162,9 @@ remote keeps the block.
    what you did (`node solo.js log`):
    ```bash
    node solo.js workspaces               # which projects exist; add --ws <id> to any command (default: first)
-   node solo.js week --json              # read the whole picture (every board of the workspace)
-   node solo.js boards                   # which boards exist; add --board <id> to any task command
+   node solo.js week --json              # read the whole picture (every board the user has not hidden)
+   node solo.js boards                   # which boards exist (and which are hidden); add --board <id> to any task command
+   node solo.js boards hide <id> ; boards show <id>   # off Home, the Calendar, the board list, today and week; its tasks stay; only when the user asks
    node solo.js add "Title" --proj launch --pri high --tags content --steps "a|b" [--board <id>]
    node solo.js add "Call with X" --at tomorrow 14:00 --until 14:30 --tags meeting [--ext gcal:<id>]   # a meeting is a task with a time; --ext makes re-imports update, not duplicate
    node solo.js at <task> <when|clear> ; due <task> <date|clear> ; calendar [--days 14] [--all]   # when = 2026-10-15T14:00 · 2026-10-15 · tomorrow 14:00 · fri 10:00 · +3d 17:30
@@ -216,7 +217,10 @@ remote keeps the block.
 - Workspaces are projects; the first one in config owns the short file names.
   Ask which workspace when the user has more than one and it is not obvious.
 - Boards are instances: the same columns, different files. Default = first
-  board in config. Never move tasks between boards by editing ids; add + rm.
+  board in config that is not hidden. Never move tasks between boards by editing ids; add + rm.
+  A **hidden** board (`boards hide`, `hidden` in `data/boards.json`) is the
+  user saying "not now": leave it out of plans and reviews, reach it only by
+  `--board` when they name it, and never show or hide one unasked.
 - `doing` means in progress now; keep it short. `later` is parked, `bucket` is
   ideas. Priority is `high | medium | low`. Tags are lowercase free text.
 - **Dates.** A task may carry `at` (a time, local, `YYYY-MM-DDTHH:MM`, or a

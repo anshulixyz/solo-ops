@@ -26,7 +26,8 @@
     var here = location.pathname.replace(/.*\//, '');
     var cur = new URLSearchParams(location.search);
     var out = [{ id: 'home', icon: 'home', label: 'Home', href: root + 'index.html' + q, on: here === 'index.html' || here === '' }];
-    Config.boards(w.id).forEach(function (b) {
+    var openB = here === 'marathon-board.html' ? (global.Model ? Model.BOARD : cur.get('board')) : null;
+    Config.boards(w.id).filter(function (b) { return !Config.isHidden(b.id, w.id) || b.id === openB; }).forEach(function (b) {   // a hidden board shows only while it is open
       out.push({ id: 'board:' + b.id, icon: 'board', label: b.title, href: root + 'runway/marathon-board.html' + q + '&board=' + encodeURIComponent(b.id),
         on: here === 'marathon-board.html' && (global.Model ? Model.BOARD === b.id : cur.get('board') === b.id) });
     });

@@ -25,7 +25,7 @@
   // filter chips: one per board shown, plus Meetings and Posts
   function sources() {
     var out = []; var many = ui().all && Config.workspaces().length > 1;
-    wsList().forEach(function (w) { Config.boards(w.id).forEach(function (b) { out.push({ id: 'board:' + w.id + ':' + b.id, label: b.title + (many ? ' · ' + w.title : ''), kind: 'board' }); }); });
+    wsList().forEach(function (w) { Config.shownBoards(w.id).forEach(function (b) { out.push({ id: 'board:' + w.id + ':' + b.id, label: b.title + (many ? ' · ' + w.title : ''), kind: 'board' }); }); });
     out.push({ id: 'meetings', label: 'Meetings', kind: 'meetings' });
     if (wsList().some(function (w) { return w.apps.social; })) out.push({ id: 'posts', label: 'Posts', kind: 'posts' });
     return out;
@@ -33,7 +33,7 @@
   function items(unfiltered) {
     var u = ui(); var now = new Date(); var out = [];
     wsList().forEach(function (w) {
-      Config.boards(w.id).forEach(function (b) {
+      Config.shownBoards(w.id).forEach(function (b) {
         boardTasks(b, w).forEach(function (t) {
           if (!t.at && !t.due) return; var meeting = (t.tags || []).indexOf('meeting') >= 0;
           out.push({ kind: 'task', meeting: meeting, id: t.id, title: t.title, at: t.at || '', until: t.until || '', due: t.due || '', col: t.col, pri: t.pri, tags: t.tags || [], proj: t.proj, ws: w.id, wsTitle: w.title, board: b.id, boardTitle: b.title, key: Config.boardKey(b.id, w.id), file: Config.boardFile(b.id, w.id), src: meeting ? 'meetings' : 'board:' + w.id + ':' + b.id, open: t.col !== 'done', ext: t.ext || '' });
@@ -73,7 +73,7 @@
   }
   // + on a day: a task (or meeting) on the workspace's first board, or a post
   function addTask(o) {
-    var w = Config.ws(); var boards = Config.boards(w.id); var b = boards.filter(function (x) { return x.id === o.board; })[0] || boards[0]; if (!b) return null;
+    var w = Config.ws(); var all = Config.boards(w.id); var b = all.filter(function (x) { return x.id === o.board; })[0] || Config.shownBoards(w.id)[0] || all[0]; if (!b) return null;
     var key = Config.boardKey(b.id, w.id); var list = Store.getJSON(key, []) || [];
     var t = { id: 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), title: o.title, desc: '', proj: Config.projectNames()[0], col: 'todo', pri: 'medium', tags: o.meeting ? ['meeting'] : [], notes: '', collapsed: true, checklist: [] };
     if (o.at) t.at = o.at; if (o.until) t.until = o.until; if (o.due) t.due = o.due;

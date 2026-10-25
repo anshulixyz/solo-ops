@@ -152,9 +152,14 @@ function allBoards() {
   return out;
 }
 var BOARDS = allBoards();
+// hidden boards (data/boards.json → hidden ["<ws>/<id>"]): out of today / week / calendar / share and the default; --board still reaches them
+function hiddenKeys() { var r = read('boards'); return r && Array.isArray(r.hidden) ? r.hidden : []; }
+function isHiddenB(id, wsId) { return hiddenKeys().indexOf((wsId || WS_ID) + '/' + id) >= 0; }
+var SHOWN = BOARDS.filter(function (b) { return !isHiddenB(b.id); });
+function hiddenNote() { var h = BOARDS.filter(function (b) { return isHiddenB(b.id); }); return h.length && !flags.board ? '_Hidden: ' + h.map(function (b) { return b.title; }).join(', ') + ' · bring back: node solo.js boards show ' + h.map(function (b) { return b.id; }).join(' ') + (WS_ID === PRIMARY ? '' : ' --ws ' + WS_ID) + '_' : ''; }
 var BOARD_ID = (function () {
   var want = flags.board ? slug(flags.board) : null;
-  if (!want) return BOARDS[0] ? BOARDS[0].id : 'runway';
+  if (!want) return SHOWN[0] ? SHOWN[0].id : BOARDS[0] ? BOARDS[0].id : 'runway';
   var hit = BOARDS.filter(function (b) { return b.id === want || b.title.toLowerCase().indexOf(String(flags.board).toLowerCase()) >= 0; });
   if (hit.length !== 1) fail('Unknown board "' + flags.board + '". Boards: ' + BOARDS.map(function (b) { return b.id + ' (' + b.title + ')'; }).join(', '));
   return hit[0].id;
@@ -268,15 +273,15 @@ function whenCmd(kind) {
 }
 function realWorkspaces() { return WORKSPACES.filter(function (w) { return !w.sample; }); }   // "all projects" never mixes the sample project in
 // every dated item of a workspace (tasks with at/due on any of its boards + posts), for today / week / calendar
-function boardsOf(wsId) {
+function boardsOf(wsId, every) {   // every: hidden boards too
   var w = WORKSPACES.filter(function (x) { return x.id === wsId; })[0]; if (!w) return []; var seen = {}, outB = []; var rt = read('boards');
   w.boards.concat((rt && Array.isArray(rt.boards) ? rt.boards : []).filter(function (b) { return (b.ws || PRIMARY) === wsId; })).map(normBoard).filter(Boolean).forEach(function (b) { if (!seen[b.id]) { seen[b.id] = 1; outB.push(b); } });
-  return outB;
+  return every ? outB : outB.filter(function (b) { return !isHiddenB(b.id, wsId) || (flags.board && wsId === WS_ID && b.id === BOARD_ID); });   // the dated views skip hidden boards, except one named by --board
 }
 function datedItems(all) {
   var items = []; var now = new Date();
   (all ? realWorkspaces() : [WS]).forEach(function (w) {
-    var wb = boardsOf(w.id); if (!wb.length) wb = [{ id: 'runway', title: 'Launch Runway' }];   // a workspace with no boards still has the default file (same fallback as BOARD_ID)
+    var wb = boardsOf(w.id, true).length ? boardsOf(w.id) : [{ id: 'runway', title: 'Launch Runway' }];   // a workspace with no boards still has the default file (same fallback as BOARD_ID)
     wb.forEach(function (bm) { var bf = read(prefix(w.id) + bm.id); ((bf && bf.tasks) || []).forEach(function (t) { if (t.at || t.due) items.push({ kind: 'task', id: t.id, title: t.title, at: t.at || '', until: t.until || '', due: t.due || '', col: t.col, pri: t.pri, tags: t.tags || [], meeting: (t.tags || []).indexOf('meeting') >= 0, board: bm.id, boardTitle: bm.title, ws: w.id, ext: t.ext || '' }); }); });
     if (w.apps.social !== false) { var sfile = read(prefix(w.id) + 'social'); ((sfile && sfile.posts) || []).forEach(function (p) { if (p.datetime) items.push({ kind: 'post', id: p.id, title: p.title, at: p.datetime.slice(0, 16), until: '', due: '', status: p.status, ws: w.id, board: '' }); }); }
   });
@@ -441,8 +446,9 @@ function cmdEdit() {
 
 /* ---- overviews ----------------------------------------------------------- */
 // tasks from every board (or just --board), each tagged with its board id when >1
+function anyTask() { return BOARDS.some(function (b) { return board(b.id).tasks.length; }); }   // the "nothing here yet" nudge looks at hidden boards too
 function allTasks() {
-  var ids = flags.board ? [BOARD_ID] : BOARDS.map(function (b) { return b.id; });
+  var ids = flags.board ? [BOARD_ID] : SHOWN.map(function (b) { return b.id; });
   var out = [];
   ids.forEach(function (id) { board(id).tasks.forEach(function (t) { out.push(ids.length > 1 ? Object.assign({ _board: id }, t) : t); }); });
   return out;
@@ -455,8 +461,8 @@ function cmdToday() {
   var high = tasks.filter(function (t) { return t.col === 'todo' && t.pri === 'high'; }).sort(byPri);
   var posts = s.posts.filter(function (p) { return p.status !== 'posted'; }).sort(function (a, c) { return a.datetime.localeCompare(c.datetime); });
   var due = posts.filter(function (p) { return new Date(p.datetime) <= end; });
-  var md = ['# Today · ' + now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }), '', activityLine(), ''];
-  if (!tasks.length && !s.posts.length) md.push(EMPTY_NUDGE, '');
+  var md = ['# Today · ' + now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }), '', activityLine(), ''].concat(hiddenNote() ? [hiddenNote(), ''] : []);
+  if (!tasks.length && !anyTask() && !s.posts.length) md.push(EMPTY_NUDGE, '');
   var sched = When ? scheduleToday(datedItems(false)) : [];
   if (sched.length || tasks.some(function (t) { return t.at || t.due; })) md.push('## Schedule (' + sched.length + ')', sched.length ? sched.map(function (i) { return itemLine(i, BOARDS.length > 1); }).join('\n') : '_nothing dated today_', '');
   if (appOn('boards')) {
@@ -477,14 +483,14 @@ function cmdWeek() {
   var posts = s.posts.filter(function (p) { return p.status !== 'posted' && new Date(p.datetime) <= end; }).sort(function (a, c) { return a.datetime.localeCompare(c.datetime); });
   var overdue = posts.filter(function (p) { return new Date(p.datetime) < now; });
   var prepOpen = posts.reduce(function (acc, p) { return acc + (p.prep || []).filter(function (x) { return !x.done; }).length; }, 0);
-  var md = ['# Next ' + days + ' days · ' + now.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' → ' + end.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }), '', activityLine(), ''];
-  if (!tasks.length && !s.posts.length && !sc.scripts.length && !n.notes.length) md.push(EMPTY_NUDGE, '');
+  var md = ['# Next ' + days + ' days · ' + now.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' → ' + end.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }), '', activityLine(), ''].concat(hiddenNote() ? [hiddenNote(), ''] : []);
+  if (!tasks.length && !anyTask() && !s.posts.length && !sc.scripts.length && !n.notes.length) md.push(EMPTY_NUDGE, '');
   if (appOn('boards')) {
-    var boardsLine = (flags.board ? [boardMeta()] : BOARDS).map(function (bm) {
+    var boardsLine = (flags.board ? [boardMeta()] : SHOWN).map(function (bm) {
       var bt = board(bm.id).tasks; var dn = bt.filter(function (t) { return t.col === 'done'; }).length; var tot = bt.filter(function (t) { return ['todo', 'doing', 'done'].indexOf(t.col) >= 0; }).length;
       return '**' + bm.title + ':** ' + dn + '/' + tot + ' done (' + (tot ? Math.round(dn / tot * 100) : 0) + '%)' + (bt.some(function (t) { return t.col === 'later'; }) ? ' · ' + bt.filter(function (t) { return t.col === 'later'; }).length + ' in Later' : '');
     });
-    md.push(boardsLine.join('  \n'), '');
+    if (boardsLine.length) md.push(boardsLine.join('  \n'), '');
     md.push('## Doing (' + doing.length + ')', doing.length ? doing.map(taskLine).join('\n') : '_nothing in progress_', '');
     md.push('## To Do by priority (' + todo.length + ')', todo.length ? todo.map(taskLine).join('\n') : '_empty_', '');
   }
@@ -498,7 +504,7 @@ function cmdWeek() {
     md.push('');
   }
   var vn2 = videoNudge(); if (vn2) md.push('## Video', vn2, '');
-  out(md, { byDay: dayGroups, overdueDated: wkOverdue, window: { from: now.toISOString(), days: days }, activity: activitySummary(), boards: BOARDS.map(function (b) { return b.id; }), doing: doing, todo: todo, done: done.length, posts: posts, overdue: overdue, prepOpen: prepOpen, scripts: sc.scripts.length, notes: n.notes.length, videos: videos().videos.length, videoNudge: videoNudge() });
+  out(md, { byDay: dayGroups, overdueDated: wkOverdue, window: { from: now.toISOString(), days: days }, activity: activitySummary(), boards: (flags.board ? [boardMeta()] : SHOWN).map(function (b) { return b.id; }), doing: doing, todo: todo, done: done.length, posts: posts, overdue: overdue, prepOpen: prepOpen, scripts: sc.scripts.length, notes: n.notes.length, videos: videos().videos.length, videoNudge: videoNudge() });
 }
 function latestOf(arr) { return arr.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); })[0]; }
 
@@ -509,7 +515,7 @@ function cmdShare() {
   if (which === 'today') {   // the card's text version: Doing · Schedule · Next up, titles only
     if (!SC) fail('core/share-card.js missing');
     var all = flags.all === true; var tasks = [];
-    (all ? realWorkspaces() : [WS]).forEach(function (w) { var wb = boardsOf(w.id); if (!wb.length) wb = [{ id: 'runway' }]; wb.forEach(function (bm) { var bf = read(prefix(w.id) + bm.id); ((bf && bf.tasks) || []).forEach(function (t) { tasks.push(t); }); }); });
+    (all ? realWorkspaces() : [WS]).forEach(function (w) { var wb = boardsOf(w.id, true).length ? boardsOf(w.id) : [{ id: 'runway' }]; wb.forEach(function (bm) { var bf = read(prefix(w.id) + bm.id); ((bf && bf.tasks) || []).forEach(function (t) { tasks.push(t); }); }); });
     var m = SC.model({ now: new Date(), scope: all ? 'All projects' : WS.title, tasks: tasks, streak: activitySummary().streak });
     return out(SC.markdown(m), m);
   }
@@ -1026,7 +1032,7 @@ function cmdInspo() {
 }
 
 /* ---- prompts: built-ins in core/prompts.js, yours in data/prompts.json ------- */
-function promptOpts(mode) { return { title: WS.title, id: WS_ID, board: BOARDS[0] ? BOARDS[0].id : 'runway', mode: mode === 'chat' ? 'chat' : 'files', folder: ROOT }; }
+function promptOpts(mode) { return { title: WS.title, id: WS_ID, board: (SHOWN[0] || BOARDS[0] || { id: 'runway' }).id, mode: mode === 'chat' ? 'chat' : 'files', folder: ROOT }; }
 // the shared slash commands are committed with the code: they carry the shipped names, never your project's name (that stays in mine/)
 function sharedPromptOpts() { var sw = Array.isArray(SHIPPED.workspaces) && SHIPPED.workspaces[0]; var sb = Array.isArray(SHIPPED.boards) && SHIPPED.boards[0];
   return { title: (sw && sw.title) || SHIPPED.name || 'Solo Ops', id: (sw && slug(sw.id || sw.title)) || 'main', board: (sb && slug(sb.id || sb.title)) || 'runway', mode: 'files', folder: '' }; }
@@ -1121,8 +1127,24 @@ function cmdBoards() {
   var rt = read('boards') || { boards: [] }; rt.boards = Array.isArray(rt.boards) ? rt.boards : [];
   if (sub === 'list') return out(['## Boards (' + BOARDS.length + ')'].concat(BOARDS.map(function (b) {
     var bt = board(b.id).tasks; var dn = bt.filter(function (t) { return t.col === 'done'; }).length; var tot = bt.filter(function (t) { return ['todo', 'doing', 'done'].indexOf(t.col) >= 0; }).length;
-    return '- [' + b.id + '] ' + b.title + ' · ' + dn + '/' + tot + ' done · ' + bt.length + ' tasks' + (b.id === BOARD_ID ? ' (default)' : '') + (fs.existsSync(fileOf(prefix() + b.id)) ? '' : ' · no data file yet');
-  })), BOARDS);
+    return '- [' + b.id + '] ' + b.title + ' · ' + dn + '/' + tot + ' done · ' + bt.length + ' tasks' + (b.id === BOARD_ID ? ' (default)' : '') + (isHiddenB(b.id) ? ' · hidden' : '') + (fs.existsSync(fileOf(prefix() + b.id)) ? '' : ' · no data file yet');
+  })), BOARDS.map(function (b) { return Object.assign({ hidden: isHiddenB(b.id) }, b); }));
+  if (sub === 'hide' || sub === 'show') {   // out of sight, not out of the data: the file, its sync and --board stay
+    var whole = pos.join(' ').trim(); var wants = !whole ? [] : BOARDS.filter(function (b) { return b.title.toLowerCase() === whole.toLowerCase(); }).length ? [whole] : pos.length > 1 ? pos : [whole];
+    if (!wants.length) fail('Usage: boards ' + sub + ' <id or title> [<id> …]');   // an unquoted title ("Site and writing") stays one board
+    var ids = wants.map(function (q) {   // an id, or a unique part of a title ("Site and writing")
+      var hit = BOARDS.filter(function (b) { return b.id === slug(q); }); if (!hit.length) hit = BOARDS.filter(function (b) { return b.title.toLowerCase().indexOf(String(q).toLowerCase()) >= 0; });
+      if (hit.length !== 1) fail((hit.length ? 'Several boards match "' : 'No board "') + q + '" in ' + WS_ID + '. Boards: ' + BOARDS.map(function (b) { return b.id + ' (' + b.title + ')'; }).join(', '));
+      return hit[0].id;
+    });
+    var want = sub === 'hide'; var change = ids.filter(function (x) { return isHiddenB(x) !== want; });
+    if (!change.length) return out('Already ' + (want ? 'hidden' : 'shown') + ': ' + ids.join(', ') + '. Nothing changed.', { ws: WS_ID, ids: [], hidden: want });
+    var h = (Array.isArray(rt.hidden) ? rt.hidden : []).filter(function (k) { return !change.some(function (x) { return k === WS_ID + '/' + x; }); });
+    if (want) change.forEach(function (x) { h.push(WS_ID + '/' + x); });
+    if (h.length) rt.hidden = h; else delete rt.hidden;
+    write('boards', rt);
+    return out('✓ ' + (want ? 'Hidden' : 'Shown') + ': ' + change.join(', ') + (want ? '  (off Home, the Calendar, the board list, today and week. Its tasks stay. Undo: node solo.js boards show ' + change.join(' ') + (WS_ID === PRIMARY ? '' : ' --ws ' + WS_ID) + ')' : ''), { ws: WS_ID, ids: change, hidden: want });
+  }
   if (sub === 'add') {
     var title = pos.join(' ').trim() || flags.title; if (!title) fail('Usage: boards add "Title" [--from blank|sample|<board id>]');
     var id = slug(title); if (!id || RESERVED.indexOf(id) >= 0) fail('Pick a different name.');
@@ -1146,11 +1168,13 @@ function cmdBoards() {
     var rid = slug(pos.shift()); if (!rid) fail('Usage: boards rm <id>');
     if (BOARDS.length < 2) fail('Keep at least one board.');
     if (!flags.force) fail('This deletes data/' + rid + '.json. Re-run with --force.');
-    rt.boards = rt.boards.filter(function (b) { return !(slug(b.id || b.title) === rid && (b.ws || PRIMARY) === WS_ID); }); write('boards', rt);
+    rt.boards = rt.boards.filter(function (b) { return !(slug(b.id || b.title) === rid && (b.ws || PRIMARY) === WS_ID); });
+    if (Array.isArray(rt.hidden) && !WS.boards.some(function (b) { return slug(b.id || b.title) === rid; })) { rt.hidden = rt.hidden.filter(function (k) { return k !== WS_ID + '/' + rid; }); if (!rt.hidden.length) delete rt.hidden; }   // a board from the config outlives this: it stays hidden
+    write('boards', rt);
     try { fs.unlinkSync(fileOf(prefix() + rid)); } catch (e) { /* none */ }
     return out('✓ Board [' + rid + '] removed' + (cfg.boards && cfg.boards.some(function (b) { return slug(b.id || b.title) === rid; }) ? ' (it is still listed in solo.config.js — remove it there too)' : ''), { id: rid });
   }
-  fail('Unknown boards command "' + sub + '". Try: list, add, rename, rm');
+  fail('Unknown boards command "' + sub + '". Try: list, add, rename, hide, show, rm');
 }
 function cmdWorkspaces() {
   var sub = (pos.shift() || 'list').toLowerCase(); var rt = read('workspaces') || { workspaces: [] }; rt.workspaces = Array.isArray(rt.workspaces) ? rt.workspaces : [];
@@ -1605,7 +1629,7 @@ function cmdHelp() {
     'Overviews', '  today                      what is in play now + idle reminder + today\'s schedule', '  calendar [--days 14] [--all]   agenda: overdue, then every dated task, meeting and post by day (--all = every project)',
     '  log [--n 30]               recent changes by page / cli / agent, with ids', '  revert <id>                restore a file to how it was before that change', '  week [--days 7]            tasks by priority + posts + studio for the window', '  review                     same as week', '  activity                   streak + last 14 days', '',
     'Workspaces (one project = its own boards, schedule, scripts, notes; add --ws <id> to any command)', '  workspaces list', '  workspaces add "Title" [--apps social,scripts,writing] [--boards "A,B"] [--sample]   workspaces rename <id> "Title"   workspaces rm <id>', '',
-    'Boards (data/<id>.json — every task command takes --board <id>; default: first board)', '  boards list', '  boards add "Title" [--from blank|sample|<id>]   boards rename <id> "Title"   boards rm <id> --force', '',
+    'Boards (data/<id>.json — every task command takes --board <id>; default: first board)', '  boards list', '  boards add "Title" [--from blank|sample|<id>]   boards rename <id> "Title"   boards rm <id> --force', '  boards hide <id or title> …   boards show <id> …   off Home, the Calendar, the board list, today and week; its tasks stay', '',
     'Tasks', '  list [board|all|todo|doing|done|later|bucket] [--proj X] [--tag Y]', '  show <task>                 full task (id or title fragment)',
     '  add "Title" [--proj X] [--pri high] [--tags a,b] [--col later] [--desc "…"] [--steps "a|b"] [--at <when>] [--until HH:MM] [--due <date>] [--ext <tool>:<id>]', '  at <task> <when|clear> [--until HH:MM]   due <task> <date|clear>      when = 2026-10-15T14:00 · 2026-10-15 (all day) · tomorrow 14:00 · fri 10:00 · +3d 17:30; a meeting = --tags meeting', '  start|done|later|bucket|todo <task>', '  move <task> <column>        pri <task> <high|medium|low>', '  tag <task> +a -b            step <task> "text"   check|uncheck <task> <n>', '  note <task> ["text"]        edit <task> --title … --proj … --pri …', '  rm <task>', '',
     'Share', '  share today [--all]         today as a short card: Doing · Schedule · Next up (the page copies it as an image)', '  share [todo|board|all]      markdown checklist (paste anywhere)', '  import <list.md> [--col]    "- [ ] item" lines become tasks, indented lines become steps', '  import <items.json> [--dry-run]   what your agent brings in from Notion, Linear…: same ext = update, never a duplicate; one write per board', '  done ext:<tool>:<id>        any task command takes ext:<id> (the task an import made, on any board)', '',

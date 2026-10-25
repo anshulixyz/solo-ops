@@ -19,13 +19,13 @@
   function post(p) {
     return '[' + p.id + '] ' + p.title + ' · ' + p.datetime.replace('T', ' ') + ' · ' + p.postType + ' · ' + p.format + ' · ' + p.status + (p.copy ? '\n  copy: ' + p.copy : '\n  (no copy yet)') + ((p.prep || []).length ? '\n  prep: ' + p.prep.map(function (c) { return (c.done ? '[x] ' : '[ ] ') + c.text; }).join(' · ') : '') + ((p.links || []).length ? '\n  links: ' + p.links.map(function (l) { return l.url; }).join(' ') : '') + ((p.assets || []).length ? '\n  images: ' + p.assets.map(function (a) { return a.file || a.name + ' (in the app)'; }).join(', ') : '') + (p.notes ? '\n  notes: ' + p.notes : '');
   }
-  function allTasks() { var w = ws(); var out = []; Config.boards(w.id).forEach(function (b) { (Store.getJSON(Config.boardKey(b.id, w.id), []) || []).forEach(function (t) { out.push({ t: t, b: b }); }); }); return out; }
+  function allTasks(every) { var w = ws(); var out = []; (every ? Config.boards(w.id) : Config.boardsInView(w.id)).forEach(function (b) { (Store.getJSON(Config.boardKey(b.id, w.id), []) || []).forEach(function (t) { out.push({ t: t, b: b }); }); }); return out; }
 
   var C = {
     recent: { label: 'Recent changes', hint: 'last 10 changes, with each item\'s current state', get: function () { return global.Recent ? Recent.text(10) : ''; } },
     last_task: { label: 'Last task I touched', hint: 'the full card', get: function () {
       var evs = global.Recent ? Recent.load().slice().reverse().filter(function (e) { return e.kind === 'task' && e.id && !e.gone; }) : [];   // e.id: a "loaded from file" row is about the whole list
-      for (var i = 0; i < evs.length; i++) { var hit = allTasks().filter(function (x) { return x.t.id === evs[i].id; })[0]; if (hit) return '# Last task I touched (' + Activity.ago(evs[i].ts) + ': ' + evs[i].what + ')\n' + task(hit.t, hit.b.title); }
+      for (var i = 0; i < evs.length; i++) { var hit = allTasks(true).filter(function (x) { return x.t.id === evs[i].id; })[0]; if (hit) return '# Last task I touched (' + Activity.ago(evs[i].ts) + ': ' + evs[i].what + ')\n' + task(hit.t, hit.b.title); }
       var doing = allTasks().filter(function (x) { return x.t.col === 'doing'; })[0]; return doing ? '# Task in progress\n' + task(doing.t, doing.b.title) : '(no task touched yet)';
     } },
     this: { label: 'This item', hint: 'what is open on this page', get: function () {

@@ -18,7 +18,7 @@
   // into this browser yet: the id is enough to pick the Store key and file,
   // and the title fills in once boards.json arrives.
   var wanted = Config.slug(new URLSearchParams(location.search).get('board') || '');
-  var firstBoard = Config.boards()[0];
+  var firstBoard = Config.shownBoards()[0] || Config.boards()[0];   // a hidden board opens only by name
   // a workspace without boards still gets a provisional "board" so the page
   // can offer "+ Board" instead of crashing
   var BOARD = (wanted && Config.RESERVED.indexOf(wanted) < 0) ? wanted : (firstBoard ? firstBoard.id : 'board');

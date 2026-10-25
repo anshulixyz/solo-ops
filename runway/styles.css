@@ -55,6 +55,8 @@ h1 .dot{color:var(--accent);}
 .board-switch{height:32px; border:1px solid var(--line); border-radius:9px; background:var(--panel); color:var(--ink); font:inherit; font-size:13px; padding:0 8px;}
 .btn.small{padding:5px 10px; font-size:12px;}
 .board-panel{margin:-6px 0 14px;}
+.hidden-note{margin:-6px 0 14px; padding:8px 12px; border:1px dashed var(--line); border-radius:9px; font-size:13px; color:var(--muted);}
+.hidden-note .linkbtn{background:none; border:0; padding:0; font:inherit; color:var(--accent); text-decoration:underline; cursor:pointer;}
 .home-link svg,.btn svg.ico{width:14px; height:14px; margin-right:5px; vertical-align:-2px;}
 
 /* runway signature */

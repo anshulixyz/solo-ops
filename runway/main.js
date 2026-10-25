@@ -368,9 +368,13 @@
   /* ---- boards: switcher + create / rename / delete ------------------- */
   function renderBoards() {
     var sel = document.getElementById('boardSwitch'); if (!sel) return;
-    var all = Config.boards();
-    sel.innerHTML = all.map(function (b) { return '<option value="' + escAttr(b.id) + '"' + (b.id === Model.BOARD ? ' selected' : '') + '>' + escAttr(b.title) + '</option>'; }).join('');
+    var all = Config.boards(); var shown = Config.shownBoards(); var hidden = Config.hiddenBoards();
+    function opt(b) { return '<option value="' + escAttr(b.id) + '"' + (b.id === Model.BOARD ? ' selected' : '') + '>' + escAttr(b.title) + '</option>'; }
+    sel.innerHTML = shown.map(opt).join('') + (hidden.length ? '<optgroup label="Hidden">' + hidden.map(opt).join('') + '</optgroup>' : '');
     sel.style.display = all.length > 1 ? '' : 'none';
+    var off = Config.isHidden(Model.BOARD);
+    var hb = document.getElementById('hideBoardBtn'); if (hb) { hb.textContent = off ? 'Show board' : 'Hide'; hb.title = off ? 'Put this board back on Home, the Calendar and the board list' : 'Take this board off Home, the Calendar and the board list. Its tasks stay.'; }
+    var hn = document.getElementById('hiddenNote'); if (hn) hn.style.display = off ? '' : 'none';
     var del = document.getElementById('deleteBoardBtn'); if (del) del.style.display = all.length > 1 ? '' : 'none';
     var from = document.getElementById('newBoardFrom');
     if (from) from.innerHTML = '<option value="blank">Blank</option><option value="sample">Sample sprint</option>' +
@@ -396,6 +400,11 @@
     Store.setJSON(Config.boardKey(b.id), Model.normalize(tasks));
     switchBoard(b.id);
   };
+  global.toggleHideBoard = function () {
+    var on = !Config.isHidden(Model.BOARD); Config.setHidden(Model.BOARD, on);
+    renderBoards(); if (global.Nav) Nav.render();
+    flash(on ? 'Hidden. Off Home, the Calendar and the board list. Its tasks stay. Bring it back with Show board, or from Hidden in the board switcher.' : 'Shown again.');
+  };
   global.renameBoard = function () {
     var cur = Model.board(); var title = prompt('Rename this board', cur.title);
     if (!title || !title.trim()) return;
@@ -408,7 +417,7 @@
     downloadBoard();
     Config.removeBoard(Model.BOARD);
     Store.setJSON(Model.KEY, []);
-    var next = Config.boards()[0];
+    var next = Config.shownBoards()[0] || Config.boards()[0];
     if (next) switchBoard(next.id); else location.href = '../index.html?ws=' + encodeURIComponent(Config.activeWs());
   };
 

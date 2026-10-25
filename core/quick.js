@@ -13,7 +13,7 @@
   function uid() { return 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
   function rows() {   // every project's tasks; the Sample project only while it is the open one
     var out = [];
-    var open = Config.activeWs(); Config.workspaces().filter(function (w) { return !w.sample || w.id === open; }).forEach(function (w) { Config.boards(w.id).forEach(function (b) { var key = Config.boardKey(b.id, w.id); (Store.getJSON(key, []) || []).forEach(function (t) { out.push({ ws: w.id, wsTitle: w.title, board: b.id, boardTitle: b.title, key: key, file: Config.boardFile(b.id, w.id), task: t }); }); }); });
+    var open = Config.activeWs(); Config.workspaces().filter(function (w) { return !w.sample || w.id === open; }).forEach(function (w) { Config.shownBoards(w.id).forEach(function (b) { var key = Config.boardKey(b.id, w.id); (Store.getJSON(key, []) || []).forEach(function (t) { out.push({ ws: w.id, wsTitle: w.title, board: b.id, boardTitle: b.title, key: key, file: Config.boardFile(b.id, w.id), task: t }); }); }); });
     return out;
   }
   function top(n) {
@@ -66,7 +66,7 @@
   }
   // lines → tasks in one board of the open workspace (default: its first board)
   function addLines(text, opts) {
-    opts = opts || {}; var w = (opts.ws && Config.workspace(opts.ws)) || Config.ws(); var boards = Config.boards(w.id); var b = boards.filter(function (x) { return x.id === opts.board; })[0] || boards[0]; if (!b) return [];
+    opts = opts || {}; var w = (opts.ws && Config.workspace(opts.ws)) || Config.ws(); var all = Config.boards(w.id); var b = all.filter(function (x) { return x.id === opts.board; })[0] || Config.shownBoards(w.id)[0] || all[0]; if (!b) return [];   // a named board, even a hidden one; else the first one shown
     var key = Config.boardKey(b.id, w.id); var file = Config.boardFile(b.id, w.id); var list = Store.getJSON(key, []) || []; var made = [];
     var projects = (Config.get('projects') || []).map(function (p) { return typeof p === 'string' ? p : p.name; });
     String(text || '').split('\n').forEach(function (line) {

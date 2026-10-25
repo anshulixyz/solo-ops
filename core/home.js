@@ -31,7 +31,7 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function q(ws) { return '?ws=' + encodeURIComponent(ws || W.id); }
   function loadLocal() {
-    Config.boards().forEach(function (b) { data.boards[b.id] = Store.getJSON(Config.boardKey(b.id), null); });
+    Config.shownBoards().forEach(function (b) { data.boards[b.id] = Store.getJSON(Config.boardKey(b.id), null); });
     data.posts = Store.getJSON(KEYS.social, null);
     var s = Store.getJSON(KEYS.scripts, null); data.scripts = s && s.scripts ? s.scripts : null;
     var w = Store.getJSON(KEYS.writing, null); data.notes = w && w.notes ? w.notes : null;
@@ -40,7 +40,7 @@
   function loadFiles() {
     var m = Sync.getMode();
     if (m !== 'server' && m !== 'folder' && m !== 'static') return Promise.resolve(false);
-    var boards = Config.boards();
+    var boards = Config.shownBoards();
     return Promise.all(boards.map(function (b) { return Sync.peek(Config.boardFile(b.id)); }).concat([Config.file('social'), Config.file('scripts'), Config.file('writing'), 'activity.json', Config.file('videos')].map(Sync.peek))).then(function (r) {
       boards.forEach(function (b, i) { if (r[i] && r[i].tasks) data.boards[b.id] = r[i].tasks; });
       var o = boards.length;
@@ -57,7 +57,7 @@
   function fmtDay(dt) { var d = new Date(dt); return isNaN(d) ? dt : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }); }
   // the open project still holds the sample sprint (an older first open, or Load sample board / template all): not merely empty
   function isSample() {
-    var first = Config.boards()[0]; if (!first || W.sample) return false;
+    var first = Config.shownBoards()[0]; if (!first || W.sample) return false;   // only shown boards are loaded here
     if (Store.isSample && Store.isSample(Config.boardKey(first.id))) return true;
     var T = MARATHON_TEMPLATES.runway().tasks.map(function (t) { return t.id; }).join();
     var ids = (data.boards[first.id] || []).map(function (t) { return t.id; }).join();
@@ -65,7 +65,7 @@
   }
   // nothing real anywhere yet: no task, post, script, note or take in any of your projects (the Sample project does not count)
   function hasContent(o) { return !!o && ((o.tasks || []).length || (o.posts || []).length || (o.scripts || []).length || (o.notes || []).length || (o.takes || []).length); }
-  function installEmpty() { return Config.workspaces().filter(function (w) { return !w.sample; }).every(function (w) { return !hasContent(wsStats[w.id]) && !hasContent(wsLocal(w)); }); }   // the browser copy counts too: a task just added may not be in the file yet
+  function installEmpty() { return Config.workspaces().filter(function (w) { return !w.sample; }).every(function (w) { return !Config.hiddenBoards(w.id).length && !hasContent(wsStats[w.id]) && !hasContent(wsLocal(w)); }); }   // someone who hid a board is not new here   // the browser copy counts too: a task just added may not be in the file yet
   function renderFirstRun() {
     var wl = $('welcome'); var fr = $('firstRun'); var shot = /[?&]shot=/.test(location.search);
     var empty = !W.sample && installEmpty() && !shot;
@@ -145,7 +145,7 @@
   var wsStats = {};
   function wsLocal(w) {
     var o = { tasks: [], tasksByBoard: {}, posts: null, scripts: null, notes: null, takes: null };
-    Config.boards(w.id).forEach(function (b) { var bt = Store.getJSON(Config.boardKey(b.id, w.id), null) || []; o.tasksByBoard[b.id] = bt; bt.forEach(function (t) { o.tasks.push(t); }); });
+    Config.shownBoards(w.id).forEach(function (b) { var bt = Store.getJSON(Config.boardKey(b.id, w.id), null) || []; o.tasksByBoard[b.id] = bt; bt.forEach(function (t) { o.tasks.push(t); }); });
     if (w.apps.social) o.posts = Store.getJSON(Config.key('social', w.id), null);
     if (w.apps.scripts) { var sc = Store.getJSON(Config.key('scripts', w.id), null); o.scripts = sc && sc.scripts ? sc.scripts : null; }
     if (w.apps.writing) { var wr = Store.getJSON(Config.key('writing', w.id), null); o.notes = wr && wr.notes ? wr.notes : null; }
@@ -155,7 +155,7 @@
   function wsFiles(w) {
     var m = Sync.getMode(); var o = wsLocal(w);
     if (m !== 'server' && m !== 'folder' && m !== 'static') return Promise.resolve(o);
-    var boards = Config.boards(w.id);
+    var boards = Config.shownBoards(w.id);
     var reads = boards.map(function (b) { return Sync.peek(Config.boardFile(b.id, w.id)); })
       .concat([w.apps.social ? Sync.peek(Config.file('social', w.id)) : null, w.apps.scripts ? Sync.peek(Config.file('scripts', w.id)) : null, w.apps.writing ? Sync.peek(Config.file('writing', w.id)) : null, w.apps.video ? Sync.peek(Config.file('videos', w.id)) : null]);
     return Promise.all(reads).then(function (r) {
@@ -179,7 +179,7 @@
     Config.workspaces().forEach(function (w) {
       if (w.sample && w.id !== W.id) return;   // the Sample project never mixes into your day
       var o = wsStats[w.id] || wsLocal(w);
-      Config.boards(w.id).forEach(function (b) {
+      Config.shownBoards(w.id).forEach(function (b) {
         var bt = (wsStats[w.id] ? null : Store.getJSON(Config.boardKey(b.id, w.id), null)) || [];
         (o.tasksByBoard && o.tasksByBoard[b.id] ? o.tasksByBoard[b.id] : bt).forEach(function (t) { tasks.push(Object.assign({ _ws: w.id, _board: b.id }, t)); });
       });
@@ -297,7 +297,7 @@
     var sum = $('projectsSum'); if (sum) sum.textContent = all.length + ' project' + (all.length === 1 ? '' : 's') + ' · ' + tot.doing + ' doing · ' + tot.posts + ' posts queued · ' + tot.scripts + ' scripts · ' + tot.notes + ' notes';
     var la = Activity.summary().lastByApp || {}; var Wn = window.When; var now = new Date(); var tkey = Wn ? Wn.localD(now) : ''; var wkKey = Wn ? Wn.localD(new Date(now.getTime() + 7 * 86400000)) : '';
     el.innerHTML = all.map(function (w) {
-      var o = wsStats[w.id] || wsLocal(w); var c = counts(o.tasks); var nb = Config.boards(w.id).length;
+      var o = wsStats[w.id] || wsLocal(w); var c = counts(o.tasks); var nb = Config.shownBoards(w.id).length; var nh = Config.hiddenBoards(w.id).length;
       var posts = o.posts || []; var postsWeek = posts.filter(function (p) { return p.status !== 'posted' && p.datetime && p.datetime.slice(0, 10) >= tkey && p.datetime.slice(0, 10) <= wkKey; }).length;
       var open = o.tasks.filter(function (t) { return t.col !== 'done'; });
       var overdue = Wn ? open.filter(function (t) { return (t.at || t.due) && Wn.state(t, now) === 'overdue'; }).length : 0;
@@ -305,11 +305,12 @@
       var doing = open.filter(function (t) { return t.col === 'doing'; }).sort(byPri)[0];
       var nowStamp = Wn ? Wn.localDT(now) : ''; var dated = Wn ? open.filter(function (t) { return t.at && (t.until || t.at) > nowStamp; }).sort(function (a, b) { return a.at.localeCompare(b.at); })[0] : null;
       var top = open.filter(function (t) { return t.col === 'todo'; }).sort(byPri)[0];
-      var line = doing ? '<div class="now"><b>Doing</b>' + esc(doing.title) + '</div>' : dated ? '<div class="now"><b>Next</b>' + esc(Wn.label ? Wn.label(dated.at) : dated.at) + ' · ' + esc(dated.title) + '</div>' : top ? '<div class="now"><b>Next</b>' + esc(top.title) + '</div>' : '<div class="now quiet">' + (nb ? 'Nothing started yet' : 'No board in this project') + '</div>';
-      var stamps = Config.boards(w.id).map(function (b) { return la[b.id]; }).concat([la.schedule, la.scripts, la.notes]).filter(Boolean).sort().reverse();
+      var line = doing ? '<div class="now"><b>Doing</b>' + esc(doing.title) + '</div>' : dated ? '<div class="now"><b>Next</b>' + esc(Wn.label ? Wn.label(dated.at) : dated.at) + ' · ' + esc(dated.title) + '</div>' : top ? '<div class="now"><b>Next</b>' + esc(top.title) + '</div>' : '<div class="now quiet">' + (nb ? 'Nothing started yet' : nh ? 'All boards hidden' : 'No board in this project') + '</div>';
+      var stamps = Config.shownBoards(w.id).map(function (b) { return la[b.id]; }).concat([la.schedule, la.scripts, la.notes]).filter(Boolean).sort().reverse();
       var chips = [];
       if (nb) chips.push('<span>' + c.todo + ' to do · ' + c.doing + ' doing</span>');
       if (overdue) chips.push('<span class="warn">' + overdue + ' overdue</span>');
+      if (nh) chips.push('<span title="Open the project to show it again">' + nh + ' board' + (nh === 1 ? '' : 's') + ' hidden</span>');
       if (meetings) chips.push('<span>' + meetings + ' meeting' + (meetings === 1 ? '' : 's') + ' this week</span>');
       if (w.apps.social) chips.push('<span>' + postsWeek + ' post' + (postsWeek === 1 ? '' : 's') + ' this week</span>');
       if (w.apps.scripts && (o.scripts || []).length) chips.push('<span>' + o.scripts.length + ' script' + (o.scripts.length === 1 ? '' : 's') + '</span>');
@@ -326,7 +327,7 @@
   /* ---- Overview page: one project's boards and apps ---- */
   function renderOverview() {
     var bl = $('boards'); if (!bl) return;
-    var boards = Config.boards(); var la = Activity.summary().lastByApp || {};
+    var boards = Config.shownBoards(); var hidden = Config.hiddenBoards(); var la = Activity.summary().lastByApp || {};
     bl.innerHTML = boards.map(function (b) {
       var c = counts(data.boards[b.id]); var lb = la[b.id];
       return '<a class="hub-card" href="runway/marathon-board.html' + q() + '&board=' + encodeURIComponent(b.id) + '">' + (lb ? '<span class="last">' + esc(Activity.ago(lb)) + '</span>' : '') +
@@ -334,8 +335,10 @@
         '<div class="bar"><div class="bar-fill" style="width:' + c.pct + '%"></div></div>' +
         '<div class="stat"><span><b>' + c.doing + '</b> doing</span><span><b>' + c.todo + '</b> to do</span><span><b>' + c.done + '</b> done</span>' + (c.later ? '<span><b>' + c.later + '</b> later</span>' : '') + (c.bucket ? '<span><b>' + c.bucket + '</b> ideas</span>' : '') + '</div>' +
         '<div class="folder">data/' + esc(Config.boardFile(b.id)) + '</div></a>';
-    }).join('') + '<a class="hub-card new" href="runway/marathon-board.html' + q() + '#new">+ New board — blank, sample, or a copy</a>';
-    var bh = $('boardsHead'); if (bh) bh.style.display = boards.length ? '' : 'none'; bl.style.display = boards.length ? '' : 'none';
+    }).join('') + '<a class="hub-card new" href="runway/marathon-board.html' + q() + '#new">+ New board — blank, sample, or a copy</a>' +
+      (hidden.length ? '<div class="hub-card hidden-boards"><h2>Hidden (' + hidden.length + ')</h2><div class="sub">Off Home, the Calendar and the board list. Their tasks stay.</div>' +
+        hidden.map(function (b) { return '<div class="hb-row"><a href="runway/marathon-board.html' + q() + '&board=' + encodeURIComponent(b.id) + '">' + esc(b.title) + '</a><button class="btn ghost small" onclick="showBoard(\'' + esc(b.id) + '\')">Show</button></div>'; }).join('') + '</div>' : '');
+    var bh = $('boardsHead'); if (bh) bh.style.display = boards.length || hidden.length ? '' : 'none'; bl.style.display = boards.length || hidden.length ? '' : 'none';
     var nbl = $('newBoardLink'); if (nbl) nbl.href = 'runway/marathon-board.html' + q() + '#new';
     var posts = data.posts || [], scripts = data.scripts || [], notes = data.notes || [];
     var unposted = posts.filter(function (p) { return p.status !== 'posted'; }).sort(function (a, b) { return a.datetime.localeCompare(b.datetime); });
@@ -352,7 +355,7 @@
     $('cards').innerHTML = cards.join('');
     $('appsHead').style.display = cards.length ? '' : 'none';
     var c = counts([].concat.apply([], boards.map(function (b) { return data.boards[b.id] || []; })));
-    var sum = $('ovSum'); if (sum) sum.textContent = (boards.length ? boards.length + ' board' + (boards.length === 1 ? '' : 's') + ' · ' + c.doing + ' doing · ' + c.todo + ' to do · ' + c.done + ' done' : 'No boards') + (W.apps.social ? ' · ' + unposted.length + ' posts queued' : '') + (W.apps.scripts ? ' · ' + scripts.length + ' scripts' : '') + (W.apps.writing ? ' · ' + notes.length + ' notes' : '');
+    var sum = $('ovSum'); if (sum) sum.textContent = (boards.length ? boards.length + ' board' + (boards.length === 1 ? '' : 's') + (hidden.length ? ' (' + hidden.length + ' hidden)' : '') + ' · ' + c.doing + ' doing · ' + c.todo + ' to do · ' + c.done + ' done' : hidden.length ? 'All boards hidden' : 'No boards') + (W.apps.social ? ' · ' + unposted.length + ' posts queued' : '') + (W.apps.scripts ? ' · ' + scripts.length + ' scripts' : '') + (W.apps.writing ? ' · ' + notes.length + ' notes' : '');
     var del = $('wsDeleteBtn'); if (del) del.style.display = Config.workspaces().length > 1 ? '' : 'none';
   }
   function card(href, icon, title, sub, stat, folder, last) {
@@ -394,7 +397,7 @@
   };
 
   function render() {
-    var boards = Config.boards(); var allTasks = [];
+    var boards = Config.shownBoards(); var allTasks = [];
     boards.forEach(function (b) { (data.boards[b.id] || []).forEach(function (t) { allTasks.push(Object.assign({ _board: boards.length > 1 ? b.id : '' }, t)); }); });
     renderActivity(allTasks);
     renderOverview();
@@ -412,6 +415,7 @@
 
   /* ---- project (workspace) create / edit / rename / remove ---- */
   var wsMode = 'new';
+  window.showBoard = function (id) { Config.setHidden(id, false); location.reload(); };   // reload: the board's tasks were never loaded while it was hidden
   window.toggleWsPanel = function (mode) {
     var p = $('wsPanel'); if (!p) { location.href = 'index.html' + q() + (mode === 'edit' ? '#edit-ws' : '#new-ws'); return; }
     var opening = !p.classList.contains('open') || (mode || 'new') !== wsMode;

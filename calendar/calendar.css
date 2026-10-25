@@ -1,5 +1,6 @@
 /* calendar/calendar.css — agenda + month chips. Month grid base classes come from social/social-calendar.css. */
 .cal-filters{display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin:-4px 0 14px;}
+.cal-filters .cal-hidden{font-size:12px; color:var(--muted); text-decoration:none; border-bottom:1px dashed var(--line);} .cal-filters .cal-hidden:hover{color:var(--accent);}
 .cal-filters .chip{display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 10px; border-radius:999px; border:1px solid var(--line); background:var(--panel); color:var(--ink); font:inherit; font-size:12px; cursor:pointer; transition:.15s;}
 .cal-filters .chip i{width:8px; height:8px; border-radius:50%; background:var(--slate); flex:none;}
 .cal-filters .chip.kind-meetings i{background:var(--accent);}

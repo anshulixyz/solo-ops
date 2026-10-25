@@ -492,6 +492,10 @@ QR rendered without a dependency, capture strip and boards usable at
   VIDEO-SCRIPT (four questions); reshoot 47-guide-ask and
   19-guide-ask-your-ai (Start with one now sits above the ask box).
 
+- **Board page scrolls sideways at 375px (seen 2026-10-25, usability review):**
+  the page is 713px wide on a phone; the Board / Later / Bucket tabs and the
+  filter chips row do not wrap. Older than the hide/show change.
+
 - **Video, two clocks (seen 2026-10-20; the Guide half was fixed 2026-10-21: "No posts on the schedule" now shows only when this browser knows the schedule):** two clocks on the Video page can also read as a bug to a careful eye: the strip's "0:48.5 of 0:52.0" (the cut's runtime) next to the player's "0:00.0 of 0:52.0" (the playhead); label the first "cut 0:48.5".
 
 - **Video: after a decode error the black frame stays (2026-10-20):** the
@@ -621,6 +625,23 @@ QR rendered without a dependency, capture strip and boards usable at
   retake with `docs/screenshots` script when M2 lands.
 
 ## Done
+
+- 2026-10-25 · **Hide and show boards** (the owner's ask: only the boards
+  she works on in sight). `data/boards.json` → `hidden ["<ws>/<id>"]`, so a
+  board from `solo.config.js` or `workspaces.json` hides as well as one made
+  later. *Hide* / *Show* beside Rename on the board page, a note on a hidden
+  board with *Show it*, a *Hidden* group in the board menu, a *Hidden (n)*
+  card with *Show* on the project page; `node solo.js boards hide|show <id>`,
+  and `boards` marks them. Hidden = out of the nav (unless it is the open
+  board), Home, Overview's cards, the Calendar, quick add, inspiration
+  targets, the Guide's snapshot (which names it), `today`, `week`,
+  `calendar`, `share today` and the default board; never out of the data:
+  every board still syncs, `--board` and task ids still reach it. The file's
+  list wins when the file wins (not merged), so a Show sticks.
+  `core/test-hidden.js` (CLI + pages). *Next, from the same ask:* an **AI
+  brief** board type per project (what the AI is updating, what is pending,
+  what it knows, in plain words, with its own column names) once the owner's
+  own boards read right.
 
 - 2026-10-22 · **README rewritten and a one-page website (`docs/index.html`,
   GitHub Pages from `/docs`)** from `docs/launch/SOLO-OPS-STORY.md`: the story

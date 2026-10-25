@@ -26,7 +26,7 @@
   // Share today: this project's tasks from the browser copy (every board here is registered, so it is current)
   global.calShare = function () {
     if (!global.ShareCard) return; var w = Config.ws(); var tasks = [];
-    Config.boards(w.id).forEach(function (b) { (Store.getJSON(Config.boardKey(b.id, w.id), []) || []).forEach(function (t) { tasks.push(t); }); });
+    Config.shownBoards(w.id).forEach(function (b) { (Store.getJSON(Config.boardKey(b.id, w.id), []) || []).forEach(function (t) { tasks.push(t); }); });
     ShareCard.open({ scopes: [{ id: w.id, title: w.title }], streak: global.Activity ? Activity.summary().streak : 0, data: function () { return { scope: w.title, tasks: tasks }; }, onPlan: function () { if (global.Guide && Guide.openPrompt) Guide.openPrompt('plan-today'); } });
   };
   global.calAddClose = function () { state.addDay = undefined; render(); };

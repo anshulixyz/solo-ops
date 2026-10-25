@@ -53,7 +53,8 @@
   /* ---- snapshot of the open workspace (chat mode pastes this) ---------- */
   function snapshot() {
     var w = Config.ws(); var L = ['WORKSPACE: ' + w.title + ' (' + w.id + ')']; var posts = [];
-    Config.boards(w.id).forEach(function (b) {
+    var hid = Config.hiddenBoards(w.id).filter(function (b) { return !global.Model || b.id !== Model.BOARD; }); if (hid.length) L.push('HIDDEN BOARDS (left out here; the person hid them): ' + hid.map(function (b) { return '"' + b.title + '" (--board ' + b.id + ')'; }).join(', '));
+    Config.boardsInView(w.id).forEach(function (b) {
       var tasks = Store.getJSON(Config.boardKey(b.id, w.id), []) || [];
       L.push('', 'BOARD "' + b.title + '" (--board ' + b.id + ')');
       ['doing', 'todo', 'later', 'bucket', 'done'].forEach(function (col) {
@@ -86,7 +87,7 @@
     if (srvFolder !== null || !global.Sync || Sync.getMode() !== 'server') return Promise.resolve(false);
     return fetch('/api/ping', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { srvFolder = (j && j.folder) || ''; return !!srvFolder; }).catch(function () { srvFolder = ''; return false; });
   }
-  function opts() { var w = Config.ws(); var boards = Config.boards(w.id); return { title: w.title, id: w.id, board: boards[0] ? boards[0].id : 'runway', mode: effMode() === 'files' ? 'files' : 'chat', folder: folder() }; }
+  function opts() { var w = Config.ws(); var fb = Config.firstBoard(w.id); return { title: w.title, id: w.id, board: fb ? fb.id : 'runway', mode: effMode() === 'files' ? 'files' : 'chat', folder: folder() }; }
   function prompts() {
     var P = global.MARATHON_PROMPTS; var o = opts(); var files = o.mode === 'files';
     var list = P ? P.build(o) : []; var head = P ? P.head(o) : ''; if (!P) return list;
@@ -260,7 +261,7 @@
       '<span class="qk-main"><b>' + esc(t.title) + '</b><span>' + esc(x.wsTitle) + (Config.boards(x.ws).length > 1 ? ' · ' + esc(x.boardTitle) : '') + (t.col === 'doing' ? ' · doing' : '') + '</span></span>' + priBadge(t.pri) + '</li>';
   }
   function quickSection() {
-    var w = Config.ws(); var boards = Config.boards(w.id); var top = global.Quick ? Quick.top(10) : []; var pg = page();
+    var w = Config.ws(); var boards = Config.boardsInView(w.id); var top = global.Quick ? Quick.top(10) : []; var pg = page();
     return (quickNote && Date.now() < quickNote.until ? '<div class="qk-note show">' + esc(quickNote.msg) + '</div>' : '') +
       '<h4>' + I.play + ' What are you doing?</h4>' +
       '<div class="qk-box"><input type="text" class="qk-now" placeholder="Type it, any project — “recording stack”, “pricing page”…" autocomplete="off"><div class="qk-matches"></div></div>' +
@@ -472,7 +473,7 @@
   function moves(all) {
     var w = Config.ws(); var out = []; var m = mode();
     var tasks = []; var anyFresh = false;
-    Config.boards(w.id).forEach(function (b) { var k = Config.boardKey(b.id, w.id); if (Store.isSample ? Store.isSample(k) : Store.isFresh(k)) anyFresh = true; (Store.getJSON(k, []) || []).forEach(function (t) { tasks.push(t); }); });
+    Config.boardsInView(w.id).forEach(function (b) { var k = Config.boardKey(b.id, w.id); if (Store.isSample ? Store.isSample(k) : Store.isFresh(k)) anyFresh = true; (Store.getJSON(k, []) || []).forEach(function (t) { tasks.push(t); }); });
     var doing = tasks.filter(function (t) { return t.col === 'doing'; }); var todo = tasks.filter(function (t) { return t.col === 'todo'; });
     var noSteps = tasks.filter(function (t) { return (t.col === 'doing' || (t.col === 'todo' && t.pri === 'high')) && !(t.checklist || []).length; });
     var posts = w.apps.social ? (Store.getJSON(Config.key('social', w.id), []) || []) : [];

@@ -14,7 +14,7 @@
 
   function targetsFor(ws) {
     var out = []; var w = Config.workspace(ws) || Config.ws();
-    Config.boards(w.id).forEach(function (b) { out.push({ v: 'task:' + w.id + ':' + b.id, label: 'Task → ' + b.title }); });
+    Config.shownBoards(w.id).forEach(function (b) { out.push({ v: 'task:' + w.id + ':' + b.id, label: 'Task → ' + b.title }); });
     if (w.apps.social) out.push({ v: 'post:' + w.id, label: 'Post → ' + Config.get('social.title') });
     if (w.apps.scripts) out.push({ v: 'script:' + w.id, label: 'Script' });
     if (w.apps.writing) out.push({ v: 'note:' + w.id, label: 'Draft / note' });

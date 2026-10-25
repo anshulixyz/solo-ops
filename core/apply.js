@@ -159,7 +159,7 @@
     function pickBoard(flags) {   // --board, else the board open on this page, else the first
       var want = flags.board ? Config.slug(flags.board) : null;
       var open = global.Model && Model.BOARD ? boards.filter(function (x) { return x.id === Model.BOARD; })[0] : null;
-      var b = want ? boards.filter(function (x) { return x.id === want || x.title.toLowerCase().indexOf(String(flags.board).toLowerCase()) >= 0; })[0] : (open || boards[0]);
+      var b = want ? boards.filter(function (x) { return x.id === want || x.title.toLowerCase().indexOf(String(flags.board).toLowerCase()) >= 0; })[0] : (open || (Config.firstBoard ? Config.firstBoard(ws) : boards[0]));
       return b ? b.id : null;
     }
     function findTask(q, flags) {

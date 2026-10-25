@@ -103,12 +103,22 @@ convention). Only `todo/doing/done` count toward sprint progress.
 ## boards.json — boards created at runtime
 
 ```json
-{ "boards": [{ "id": "business-as-usual", "ws": "main", "title": "Business as usual", "sprintLabel": "Progress", "milestones": [], "focus": [], "createdAt": 0 }] }
+{ "boards": [{ "id": "business-as-usual", "ws": "main", "title": "Business as usual", "sprintLabel": "Progress", "milestones": [], "focus": [], "createdAt": 0 }],
+  "hidden": ["main/business-as-usual"] }   // optional: "<workspace>/<board id>" of every hidden board, config boards included
 ```
 
 Boards listed in `solo.config.js` are implicit and need no entry here. A
 runtime entry with the same id overrides the config title. Merged, never
 replaced, on sync.
+
+`hidden` (`boards hide|show <id>`, *Hide* / *Show* on the board page, *Show*
+under Hidden on the project page): a hidden board is out of sight, never out
+of the data. It leaves the board menu, the nav, Home, Overview's cards, the
+Calendar, quick add, the Guide's snapshot (which names it instead), `today`,
+`week`, `calendar`, `share today` and the default board; its file, its sync,
+`--board <id>` and task ids still reach it. Absent = nothing hidden. Unlike
+`boards`, the list is not merged: the newer side's list wins, so a Show
+anywhere sticks.
 
 ## activity.json — daily activity (written automatically)
 

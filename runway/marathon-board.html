@@ -31,9 +31,11 @@
         <select id="boardSwitch" class="board-switch" onchange="switchBoard(this.value)" title="Switch board" style="display:none"></select>
         <button class="btn ghost small" onclick="toggleBoardPanel()" title="Create another board">+ Board</button>
         <button class="btn ghost small" onclick="renameBoard()" title="Rename this board">Rename</button>
+        <button class="btn ghost small" id="hideBoardBtn" onclick="toggleHideBoard()">Hide</button>
         <button class="btn ghost small" id="deleteBoardBtn" onclick="deleteBoard()" title="Delete this board" style="display:none">Delete</button>
       </div>
     </div>
+    <div class="hidden-note" id="hiddenNote" style="display:none"><b>Hidden:</b> this board is off Home, the Calendar and the board list until you show it again. Its tasks are all here. <button class="linkbtn" onclick="toggleHideBoard()">Show board</button></div>
     <div class="addpanel board-panel" id="boardPanel">
       <div class="addrow">
         <div class="field grow"><label>New board</label><input id="newBoardTitle" placeholder="Business as usual, Q4 launch, Side project…" onkeydown="if(event.key==='Enter')createBoard()"></div>

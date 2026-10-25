@@ -227,6 +227,23 @@
     return (d && Array.isArray(d.boards) ? d.boards : []).filter(function (b) { return (b.ws || PRIMARY) === wsId; }).map(normBoard).filter(Boolean);
   }
   function allRuntimeBoards() { var d = global.Store ? Store.getJSON(BOARDS_KEY, null) : null; return d && Array.isArray(d.boards) ? d.boards : []; }
+  // hidden boards: data/boards.json → hidden ["<ws>/<board id>"]. Out of sight (board menu, nav, Home, Calendar, quick add),
+  // never out of sync: every board still registers its file, and a task id on a hidden board still resolves.
+  function hiddenList() { var d = global.Store ? Store.getJSON(BOARDS_KEY, null) : null; return d && Array.isArray(d.hidden) ? d.hidden.filter(function (s) { return typeof s === 'string'; }) : []; }
+  function saveRegistry(list, hidden, opts) { var o = { boards: list }; if (hidden.length) o.hidden = hidden; Store.setJSON(BOARDS_KEY, o, opts); }
+  function isHidden(id, wsId) { return hiddenList().indexOf((wsId || activeWs()) + '/' + id) >= 0; }
+  function shownBoards(wsId) { wsId = wsId || activeWs(); return boards(wsId).filter(function (b) { return !isHidden(b.id, wsId); }); }
+  function hiddenBoards(wsId) { wsId = wsId || activeWs(); return boards(wsId).filter(function (b) { return isHidden(b.id, wsId); }); }
+  function firstBoard(wsId) { return shownBoards(wsId)[0] || boards(wsId)[0] || null; }   // the default target: never a hidden board while another is shown
+  function boardsInView(wsId) {   // the shown boards, plus a hidden one while it is open on the board page
+    wsId = wsId || activeWs(); var open = global.Model && Model.BOARD && wsId === activeWs() ? Model.BOARD : null;
+    return boards(wsId).filter(function (b) { return !isHidden(b.id, wsId) || b.id === open; });
+  }
+  function setHidden(id, on, wsId) {
+    wsId = wsId || activeWs(); var k = wsId + '/' + id; var h = hiddenList().filter(function (x) { return x !== k; });
+    if (on) h.push(k);
+    saveRegistry(allRuntimeBoards(), h);
+  }
   function boards(wsId) {
     wsId = wsId || activeWs();
     var w = workspace(wsId); var seen = {}, out = [];
@@ -240,7 +257,7 @@
     if (board(nb.id, wsId)) return board(nb.id, wsId);
     nb.createdAt = Date.now(); nb.ws = wsId;
     var cur = allRuntimeBoards(); cur.push(nb);
-    Store.setJSON(BOARDS_KEY, { boards: cur });
+    saveRegistry(cur, hiddenList());
     return nb;
   }
   function updateBoard(id, patch, wsId) {
@@ -248,12 +265,14 @@
     var cur = allRuntimeBoards(); var found = false;
     cur = cur.map(function (b) { if (slug(b.id || b.title) === id && (b.ws || PRIMARY) === wsId) { found = true; return Object.assign(normBoard(Object.assign({}, b, patch, { id: id })), { ws: wsId }); } return b; });
     if (!found) { var cb = board(id, wsId); if (!cb) return null; cur.push(Object.assign(normBoard(Object.assign({}, cb, patch, { id: id })), { ws: wsId })); }
-    Store.setJSON(BOARDS_KEY, { boards: cur });
+    saveRegistry(cur, hiddenList());
     return board(id, wsId);
   }
   function removeBoard(id, wsId) {
     wsId = wsId || activeWs();
-    Store.setJSON(BOARDS_KEY, { boards: allRuntimeBoards().filter(function (b) { return !(slug(b.id || b.title) === id && (b.ws || PRIMARY) === wsId); }) });
+    var rest = allRuntimeBoards().filter(function (b) { return !(slug(b.id || b.title) === id && (b.ws || PRIMARY) === wsId); });
+    var stays = (workspace(wsId) || { boards: [] }).boards.some(function (b) { return b.id === id; });   // a board from solo.config.js / workspaces.json outlives its runtime entry: keep it hidden
+    saveRegistry(rest, stays ? hiddenList() : hiddenList().filter(function (x) { return x !== wsId + '/' + id; }));
   }
 
   // mirror runtime-created boards to data/boards.json once Sync exists
@@ -265,7 +284,7 @@
     Sync.on(function (ev) { if (ev !== 'pulled' || healed || !Sync.peek) return; healed = true; Sync.peek('settings.json').then(function (f) { if (f && typeof f === 'object' && f.updatedAt) global.Config.setOverrides(f.config); }); });
     Sync.register({
       file: 'boards.json', key: BOARDS_KEY, label: 'boards', activity: false, merge: true,
-      read: function () { return { boards: allRuntimeBoards() }; },
+      read: function () { var h = hiddenList(); return h.length ? { boards: allRuntimeBoards(), hidden: h } : { boards: allRuntimeBoards() }; },
       apply: function (body) {
         if (!Array.isArray(body.boards)) return;
         var seen = {}, out = [];
@@ -273,7 +292,7 @@
           var nb = normBoard(b); if (!nb) return; var k = (b.ws || PRIMARY) + '/' + nb.id;
           if (!seen[k]) { seen[k] = 1; out.push(Object.assign(nb, { ws: b.ws || PRIMARY })); }
         });
-        Store.setJSON(BOARDS_KEY, { boards: out }, { silent: true });
+        saveRegistry(out, Array.isArray(body.hidden) ? body.hidden.filter(function (s) { return typeof s === 'string'; }) : [], { silent: true });   // the file is applied only when it wins, so its hidden list (none = none) is the truth
       }
     });
     Sync.register({
@@ -326,6 +345,7 @@
     tagHue: function (tag) { var h = cfg.board.tagHues || {}; return h.hasOwnProperty(tag) ? h[tag] : hashHue(tag); },
     hashHue: hashHue,
     boards: boards, board: board, addBoard: addBoard, updateBoard: updateBoard, removeBoard: removeBoard,
+    shownBoards: shownBoards, hiddenBoards: hiddenBoards, isHidden: isHidden, setHidden: setHidden, firstBoard: firstBoard, boardsInView: boardsInView,
     boardFile: boardFile, boardKey: boardKey,
     // Fill [data-cfg="a.b"] text, [data-cfg-title] document title, ticks, focus
     // cards; hide [data-app="x"] when app x is off. `scope` (optional object)
